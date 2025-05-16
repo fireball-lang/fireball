@@ -2,4 +2,7 @@
 func main() {
 	var foo = /* hi */ 159;
 	println("Number: " + foo);
+
+	foo = (++foo);
+	var bar = false;
 }

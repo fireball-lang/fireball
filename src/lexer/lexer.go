@@ -48,10 +48,20 @@ func (l *Lexer) Next() Token {
 	case '!':
 		return l.tokenCond('=', Bang, BangEqual)
 
-	case '&':
-		return l.tokenCond('&', Ampersand, AmpersandAmpersand)
 	case '|':
+		if l.peek() == '=' {
+			l.advance()
+			return l.token(PipeEqual)
+		}
 		return l.tokenCond('|', Pipe, PipePipe)
+	case '^':
+		return l.tokenCond('=', Xor, XorEqual)
+	case '&':
+		if l.peek() == '=' {
+			l.advance()
+			return l.token(AmpersandEqual)
+		}
+		return l.tokenCond('&', Ampersand, AmpersandAmpersand)
 
 	case '<':
 		return l.tokenCond('<', Less, LessEqual)
@@ -59,9 +69,17 @@ func (l *Lexer) Next() Token {
 		return l.tokenCond('>', Greater, GreaterEqual)
 
 	case '+':
-		return l.tokenCond('=', Plus, PlusEqual)
+		if l.peek() == '=' {
+			l.advance()
+			return l.token(PlusEqual)
+		}
+		return l.tokenCond('+', Plus, PlusPlus)
 	case '-':
-		return l.tokenCond('=', Minus, MinusEqual)
+		if l.peek() == '=' {
+			l.advance()
+			return l.token(MinusEqual)
+		}
+		return l.tokenCond('-', Minus, MinusMinus)
 	case '*':
 		return l.tokenCond('=', Star, StarEqual)
 	case '/':
@@ -85,6 +103,8 @@ func (l *Lexer) Next() Token {
 	case '.':
 		return l.token(Dot)
 	case ',':
+		return l.token(Comma)
+	case ':':
 		return l.token(Colon)
 	case ';':
 		return l.token(Semicolon)
@@ -136,6 +156,7 @@ func (l *Lexer) string() Token {
 
 func (l *Lexer) tokenCond(next rune, false, true TokenKind) Token {
 	if l.peek() == next {
+		l.advance()
 		return l.token(true)
 	}
 

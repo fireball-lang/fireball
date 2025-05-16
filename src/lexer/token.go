@@ -13,6 +13,20 @@ func (p Pos) String() string {
 	return fmt.Sprintf("%d:%d", p.Line, p.Column)
 }
 
+func Min(p1, p2 Pos) Pos {
+	return Pos{
+		Line:   min(p1.Line, p2.Line),
+		Column: min(p1.Column, p2.Column),
+	}
+}
+
+func Max(p1, p2 Pos) Pos {
+	return Pos{
+		Line:   max(p1.Line, p2.Line),
+		Column: max(p1.Column, p2.Column),
+	}
+}
+
 type Range struct {
 	Start Pos
 	End   Pos

@@ -1,21 +1,30 @@
 package main
 
 import (
-	"fireball/lexer"
+	"fireball/cst"
 	"fmt"
 	"os"
 )
 
 func main() {
 	b, _ := os.ReadFile("example/test.fb")
-	l := lexer.NewLexer(string(b))
+	node, diagnostics := cst.Parse(string(b))
 
-	for {
-		t := l.Next()
-		fmt.Println(t)
+	for _, diagnostic := range diagnostics {
+		fmt.Println(diagnostic)
+	}
 
-		if t.Kind == lexer.Eof {
-			break
-		}
+	printNode(&node, 0)
+}
+
+func printNode(node *cst.Node, indent int) {
+	for i := 0; i < indent; i++ {
+		fmt.Print("  ")
+	}
+
+	fmt.Println(node)
+
+	for i := range node.Children {
+		printNode(&node.Children[i], indent+1)
 	}
 }

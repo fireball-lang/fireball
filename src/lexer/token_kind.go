@@ -14,10 +14,14 @@ const (
 	Bang
 	BangEqual
 
-	Ampersand
-	AmpersandAmpersand
 	Pipe
+	PipeEqual
 	PipePipe
+	Xor
+	XorEqual
+	Ampersand
+	AmpersandEqual
+	AmpersandAmpersand
 
 	Less
 	LessEqual
@@ -26,8 +30,10 @@ const (
 
 	Plus
 	PlusEqual
+	PlusPlus
 	Minus
 	MinusEqual
+	MinusMinus
 	Star
 	StarEqual
 	Slash
@@ -43,6 +49,7 @@ const (
 	RightBracket
 
 	Dot
+	Comma
 	Colon
 	Semicolon
 
@@ -70,14 +77,22 @@ func (t TokenKind) String() string {
 	case BangEqual:
 		return "BangEqual"
 
-	case Ampersand:
-		return "Ampersand"
-	case AmpersandAmpersand:
-		return "AmpersandAmpersand"
 	case Pipe:
 		return "Pipe"
+	case PipeEqual:
+		return "PipeEqual"
 	case PipePipe:
 		return "PipePipe"
+	case Xor:
+		return "Xor"
+	case XorEqual:
+		return "XorEqual"
+	case Ampersand:
+		return "Ampersand"
+	case AmpersandEqual:
+		return "AmpersandEqual"
+	case AmpersandAmpersand:
+		return "AmpersandAmpersand"
 
 	case Less:
 		return "Less"
@@ -92,10 +107,14 @@ func (t TokenKind) String() string {
 		return "Plus"
 	case PlusEqual:
 		return "PlusEqual"
+	case PlusPlus:
+		return "PlusPlus"
 	case Minus:
 		return "Minus"
 	case MinusEqual:
 		return "MinusEqual"
+	case MinusMinus:
+		return "MinusMinus"
 	case Star:
 		return "Star"
 	case StarEqual:
@@ -124,6 +143,8 @@ func (t TokenKind) String() string {
 
 	case Dot:
 		return "Dot"
+	case Comma:
+		return "Comma"
 	case Colon:
 		return "Colon"
 	case Semicolon:
