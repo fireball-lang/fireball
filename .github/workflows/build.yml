@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -22,12 +22,12 @@ jobs:
           go build -o ../fireball ./cmd
 
       - name: Cache fireball
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         with:
           path: fireball
           key: ${{ runner.os }}-${{ hashFiles('fireball') }}
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v3.1.2
+        uses: actions/upload-artifact@v4
         with:
           path: fireball
