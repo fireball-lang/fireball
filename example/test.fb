@@ -1,5 +1,5 @@
 // Main function
 func main() {
-    var foo = /* hi */ 159;
-    println("Number: " + foo);
+	var foo = /* hi */ 159;
+	println("Number: " + foo);
 }
