@@ -1,0 +1,5 @@
+// Main function
+func main() {
+    var foo = /* hi */ 159;
+    println("Number: " + foo);
+}
