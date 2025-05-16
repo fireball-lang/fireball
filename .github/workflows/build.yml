@@ -14,10 +14,12 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: "1.21"
+          go-version: "1.24"
 
       - name: Build
-        run: go build -o fireball ./cmd
+        run: |
+          cd src
+          go build -o ../fireball ./cmd
 
       - name: Cache fireball
         uses: actions/cache/save@v3
@@ -25,54 +27,7 @@ jobs:
           path: fireball
           key: ${{ runner.os }}-${{ hashFiles('fireball') }}
 
-      - name: Set up Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18.x
-          cache: "npm"
-          cache-dependency-path: "vscode/package-lock.json"
-
-      - name: Install VSCE
-        run: npm install -g @vscode/vsce
-
-      - name: Package VS Code extension
-        run: |
-          cd vscode
-          npm install
-          vsce package
-
       - name: Upload build artifact
         uses: actions/upload-artifact@v3.1.2
         with:
-          path: |
-            fireball
-            vscode/*.vsix
-
-  test:
-    runs-on: ubuntu-latest
-    needs: "build"
-    if: false
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
-
-      - name: Get fireball from cache
-        uses: actions/cache/restore@v3
-        with:
           path: fireball
-          key: ${{ runner.os }}-${{ hashFiles('fireball') }}
-
-      - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@v1
-        with:
-          version: "17.0.2"
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install build-essential libc6-dev
-
-      - name: Run tests
-        run: |
-          cd tests
-          ../fireball test

@@ -1,9 +1,0 @@
-namespace Tests.Other;
-
-struct Foo {}
-
-#[Test("typeof")]
-func _typeof() bool {
-    var a = 5;
-    return typeof(a) == typeof(i32);
-}

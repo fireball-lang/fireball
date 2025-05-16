@@ -1,8 +1,5 @@
 .vscode
 .idea
 
-example/build
-tests/build
-
 /fireball
 /fireball.exe

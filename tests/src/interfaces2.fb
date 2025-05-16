@@ -1,7 +1,0 @@
-namespace Tests.Interfaces;
-
-#[Test]
-func multipleFilesSimple() bool {
-    var f = Foo {};
-    return check(&f, 5);
-}

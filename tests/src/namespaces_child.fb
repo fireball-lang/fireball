@@ -1,3 +1,0 @@
-namespace Tests.Namespaces.Child;
-
-struct Foo {}
