@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fireball/ast"
 	"fireball/cst"
 	"fmt"
 	"os"
@@ -14,7 +15,13 @@ func main() {
 		fmt.Println(diagnostic)
 	}
 
+	fmt.Println()
 	printNode(&node, 0)
+
+	file := ast.Convert(&node)
+
+	fmt.Println()
+	ast.Print(file)
 }
 
 func printNode(node *cst.Node, indent int) {

@@ -28,6 +28,18 @@ const (
 	Binary
 )
 
+func (n NodeKind) IsType() bool {
+	return n == DeclType
+}
+
+func (n NodeKind) IsDecl() bool {
+	return n == Func
+}
+
+func (n NodeKind) IsExpr() bool {
+	return n >= Block && n <= Binary
+}
+
 func (n NodeKind) String() string {
 	switch n {
 	case Leaf:

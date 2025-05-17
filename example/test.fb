@@ -5,4 +5,8 @@ func main() {
 
 	foo = (++foo);
 	var bar = false;
+
+	for (var i = 0; i < 5; i++) {
+		println(i);
+	}
 }

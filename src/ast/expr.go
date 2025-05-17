@@ -1,0 +1,344 @@
+package ast
+
+import (
+	"fireball/lexer"
+	"iter"
+)
+
+type Expr interface {
+	Node
+
+	Result() *ExprResult
+
+	Visit(visitor ExprVisitor)
+}
+
+type ExprVisitor interface {
+	VisitBlock(b *Block)
+	VisitVar(v *Var)
+	VisitIf(i *If)
+	VisitWhile(w *While)
+
+	VisitLiteral(l *Literal)
+	VisitParen(p *Paren)
+	VisitIdentifier(i *Identifier)
+	VisitCall(c *Call)
+	VisitIndex(i *Index)
+	VisitMember(m *Member)
+	VisitUnary(u *Unary)
+	VisitBinary(b *Binary)
+}
+
+// baseExpr
+
+type baseExpr struct {
+	baseRangeNode
+
+	result ExprResult
+}
+
+func (b *baseExpr) Result() *ExprResult {
+	return &b.result
+}
+
+// Block
+
+type Block struct {
+	baseExpr
+
+	Exprs []Expr
+}
+
+func (b *Block) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, expr := range b.Exprs {
+			if !yield(expr) {
+				return
+			}
+		}
+	}
+}
+
+func (b *Block) Visit(visitor ExprVisitor) {
+	visitor.VisitBlock(b)
+}
+
+// Var
+
+type Var struct {
+	baseExpr
+
+	Name  *Leaf
+	Type  Type
+	Value Expr
+}
+
+func (v *Var) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if v.Name != nil && !yield(v.Name) {
+			return
+		}
+		if IsValid(v.Type) && !yield(v.Type) {
+			return
+		}
+		if IsValid(v.Value) && !yield(v.Value) {
+			return
+		}
+	}
+}
+
+func (v *Var) Visit(visitor ExprVisitor) {
+	visitor.VisitVar(v)
+}
+
+// If
+
+type If struct {
+	baseExpr
+
+	Condition Expr
+	Then      Expr
+	Else      Expr
+}
+
+func (i *If) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(i.Condition) && !yield(i.Condition) {
+			return
+		}
+		if IsValid(i.Then) && !yield(i.Then) {
+			return
+		}
+		if IsValid(i.Else) && !yield(i.Else) {
+			return
+		}
+	}
+}
+
+func (i *If) Visit(visitor ExprVisitor) {
+	visitor.VisitIf(i)
+}
+
+// While
+
+type While struct {
+	baseExpr
+
+	Condition Expr
+	Body      Expr
+}
+
+func (w *While) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(w.Condition) && !yield(w.Condition) {
+			return
+		}
+		if IsValid(w.Body) && !yield(w.Body) {
+			return
+		}
+	}
+}
+
+func (w *While) Visit(visitor ExprVisitor) {
+	visitor.VisitWhile(w)
+}
+
+// Literal
+
+type Literal struct {
+	baseNode
+
+	Value  *Leaf
+	result ExprResult
+}
+
+func (l *Literal) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(l.Value) && !yield(l.Value) {
+			return
+		}
+	}
+}
+
+func (l *Literal) Range() lexer.Range {
+	return l.Value.Range()
+}
+
+func (l *Literal) Result() *ExprResult {
+	return &l.result
+}
+
+func (l *Literal) Visit(visitor ExprVisitor) {
+	visitor.VisitLiteral(l)
+}
+
+// Paren
+
+type Paren struct {
+	baseExpr
+
+	Expr Expr
+}
+
+func (p *Paren) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(p.Expr) && !yield(p.Expr) {
+			return
+		}
+	}
+}
+
+func (p *Paren) Visit(visitor ExprVisitor) {
+	visitor.VisitParen(p)
+}
+
+// Identifier
+
+type Identifier struct {
+	baseNode
+
+	Name   *Leaf
+	result ExprResult
+}
+
+func (i *Identifier) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if i.Name != nil && !yield(i.Name) {
+			return
+		}
+	}
+}
+
+func (i *Identifier) Range() lexer.Range {
+	return i.Name.Range()
+}
+
+func (i *Identifier) Result() *ExprResult {
+	return &i.result
+}
+
+func (i *Identifier) Visit(visitor ExprVisitor) {
+	visitor.VisitIdentifier(i)
+}
+
+// Call
+
+type Call struct {
+	baseExpr
+
+	Callee Expr
+	Args   []Expr
+}
+
+func (c *Call) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(c.Callee) && !yield(c.Callee) {
+			return
+		}
+
+		for _, arg := range c.Args {
+			if !yield(arg) {
+				return
+			}
+		}
+	}
+}
+
+func (c *Call) Visit(visitor ExprVisitor) {
+	visitor.VisitCall(c)
+}
+
+// Index
+
+type Index struct {
+	baseExpr
+
+	Value Expr
+	Index Expr
+}
+
+func (i *Index) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(i.Value) && !yield(i.Value) {
+			return
+		}
+		if IsValid(i.Index) && !yield(i.Index) {
+			return
+		}
+	}
+}
+
+func (i *Index) Visit(visitor ExprVisitor) {
+	visitor.VisitIndex(i)
+}
+
+// Member
+
+type Member struct {
+	baseExpr
+
+	Value Expr
+	Name  *Leaf
+}
+
+func (m *Member) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(m.Value) && !yield(m.Value) {
+			return
+		}
+		if m.Name != nil && !yield(m.Name) {
+			return
+		}
+	}
+}
+
+func (m *Member) Visit(visitor ExprVisitor) {
+	visitor.VisitMember(m)
+}
+
+// Unary
+
+type Unary struct {
+	baseExpr
+
+	Expr    Expr
+	Op      lexer.TokenKind
+	Postfix bool
+}
+
+func (u *Unary) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(u.Expr) && !yield(u.Expr) {
+			return
+		}
+	}
+}
+
+func (u *Unary) Visit(visitor ExprVisitor) {
+	visitor.VisitUnary(u)
+}
+
+// Binary
+
+type Binary struct {
+	baseExpr
+
+	Left  Expr
+	Op    lexer.TokenKind
+	Right Expr
+}
+
+func (b *Binary) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(b.Left) && !yield(b.Left) {
+			return
+		}
+		if IsValid(b.Right) && !yield(b.Right) {
+			return
+		}
+	}
+}
+
+func (b *Binary) Visit(visitor ExprVisitor) {
+	visitor.VisitBinary(b)
+}
