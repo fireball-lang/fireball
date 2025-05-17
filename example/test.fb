@@ -1,3 +1,8 @@
+struct Foo {
+	first  i32;
+	second bool;
+}
+
 // Main function
 func main() {
 	var foo = /* hi */ 159;
@@ -5,6 +10,8 @@ func main() {
 
 	foo = (++foo);
 	var bar = false;
+
+	var a: *u8 = "a";
 
 	for (var i = 0; i < 5; i++) {
 		println(i);

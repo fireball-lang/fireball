@@ -13,7 +13,63 @@ type Decl interface {
 }
 
 type DeclVisitor interface {
+	VisitStruct(f *Struct)
 	VisitFunc(f *Func)
+}
+
+// Struct
+
+type Struct struct {
+	baseRangeNode
+
+	NameN  *Leaf
+	Fields []*Field
+}
+
+func (s *Struct) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if s.NameN != nil && !yield(s.NameN) {
+			return
+		}
+
+		for _, field := range s.Fields {
+			if !yield(field) {
+				return
+			}
+		}
+	}
+}
+
+func (s *Struct) Name() string {
+	if s.NameN != nil {
+		return s.NameN.Token.Text
+	}
+
+	return ""
+}
+
+func (s *Struct) Visit(visitor DeclVisitor) {
+	visitor.VisitStruct(s)
+}
+
+// Field
+
+type Field struct {
+	baseRangeNode
+
+	Name *Leaf
+	Type Type
+}
+
+func (f *Field) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if f.Name != nil && !yield(f.Name) {
+			return
+		}
+		if IsValid(f.Type) && !yield(f.Type) {
+			return
+		}
+	}
 }
 
 // Func
@@ -74,7 +130,7 @@ func (p *Param) Children() iter.Seq[Node] {
 		if p.Name != nil && !yield(p.Name) {
 			return
 		}
-		if IsValid(p.Type) && !yield(p.Name) {
+		if IsValid(p.Type) && !yield(p.Type) {
 			return
 		}
 	}

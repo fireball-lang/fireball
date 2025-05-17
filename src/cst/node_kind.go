@@ -8,7 +8,10 @@ const (
 	File
 
 	DeclType
+	PointerType
 
+	Struct
+	Field
 	Func
 	Param
 
@@ -29,11 +32,11 @@ const (
 )
 
 func (n NodeKind) IsType() bool {
-	return n == DeclType
+	return n >= DeclType && n <= PointerType
 }
 
 func (n NodeKind) IsDecl() bool {
-	return n == Func
+	return n == Struct || n == Func
 }
 
 func (n NodeKind) IsExpr() bool {
@@ -50,7 +53,13 @@ func (n NodeKind) String() string {
 
 	case DeclType:
 		return "DeclType"
+	case PointerType:
+		return "PointerType"
 
+	case Struct:
+		return "Struct"
+	case Field:
+		return "Field"
 	case Func:
 		return "Func"
 	case Param:

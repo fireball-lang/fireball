@@ -42,6 +42,23 @@ func (p *printer) visit(node Node) {
 
 // Decls
 
+func (p *printer) VisitStruct(s *Struct) {
+	fmt.Printf("Struct '%s'\n", s.Name())
+
+	for _, field := range s.Fields {
+		for i := 0; i < p.indent+1; i++ {
+			fmt.Print("  ")
+		}
+
+		name := ""
+		if field.Name != nil {
+			name = field.Name.Token.Text
+		}
+
+		fmt.Printf("Field '%s'\n", name)
+	}
+}
+
 func (p *printer) VisitFunc(f *Func) {
 	fmt.Printf("Func '%s'\n", f.Name())
 }

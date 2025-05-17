@@ -44,17 +44,10 @@ func (p *parser) file() Node {
 			break
 		}
 
-		if p.current.Text == "func" {
-			child, err := p.funcNode()
-			node.Children = append(node.Children, child)
+		invalidKeyword := false
+		child, err := p.declNode(&invalidKeyword)
 
-			if err {
-				p.advance()
-				lastErr = true
-			} else {
-				lastErr = false
-			}
-		} else {
+		if invalidKeyword {
 			if !lastErr {
 				p.error("Invalid '" + p.current.Text + "'")
 			} else {
@@ -62,6 +55,15 @@ func (p *parser) file() Node {
 			}
 
 			lastErr = true
+		} else {
+			node.append(child)
+
+			if err {
+				p.advance()
+				lastErr = true
+			} else {
+				lastErr = false
+			}
 		}
 	}
 

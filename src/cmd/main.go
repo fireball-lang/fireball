@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fireball/analyzer"
 	"fireball/ast"
 	"fireball/cst"
 	"fmt"
@@ -11,17 +12,20 @@ func main() {
 	b, _ := os.ReadFile("example/test.fb")
 	node, diagnostics := cst.Parse(string(b))
 
-	for _, diagnostic := range diagnostics {
-		fmt.Println(diagnostic)
-	}
-
-	fmt.Println()
 	printNode(&node, 0)
 
 	file := ast.Convert(&node)
 
 	fmt.Println()
 	ast.Print(file)
+
+	scope := analyzer.NewSimpleScope(analyzer.CollectTypeDecls(file))
+	diagnostics = append(diagnostics, analyzer.Analyze(file, scope)...)
+
+	fmt.Println()
+	for _, diagnostic := range diagnostics {
+		fmt.Println(diagnostic)
+	}
 }
 
 func printNode(node *cst.Node, indent int) {
