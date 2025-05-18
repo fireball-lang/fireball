@@ -31,6 +31,18 @@ const (
 	F64
 )
 
+func (p PrimitiveKind) IsInteger() bool {
+	return p >= U8 && p <= I64
+}
+
+func (p PrimitiveKind) IsFloating() bool {
+	return p >= F32 && p <= F64
+}
+
+func (p PrimitiveKind) IsNumeric() bool {
+	return p >= U8 && p <= F64
+}
+
 func (p PrimitiveKind) String() string {
 	switch p {
 	case Void:
@@ -103,6 +115,7 @@ type DeclType struct {
 	baseNode
 
 	Name *Leaf
+	Decl Decl
 }
 
 func (d *DeclType) Children() iter.Seq[Node] {

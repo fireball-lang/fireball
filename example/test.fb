@@ -5,8 +5,7 @@ struct Foo {
 
 // Main function
 func main() {
-	var foo = /* hi */ 159;
-	println("Number: " + foo);
+	var foo = /* hi */ 158 + 1;
 
 	foo = (++foo);
 	var bar = false;
@@ -16,4 +15,7 @@ func main() {
 	for (var i = 0; i < 5; i++) {
 		println(i);
 	}
+
+	var idk: Foo;
+	idk.first = 5;
 }

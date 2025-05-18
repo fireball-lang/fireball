@@ -91,6 +91,18 @@ func (v *Var) Visit(visitor ExprVisitor) {
 	visitor.VisitVar(v)
 }
 
+func (v *Var) ActualType() Type {
+	if IsValid(v.Type) {
+		return v.Type
+	}
+
+	if IsValid(v.Value) && v.Value.Result().Kind != Invalid {
+		return v.Value.Result().Type
+	}
+
+	return nil
+}
+
 // If
 
 type If struct {
