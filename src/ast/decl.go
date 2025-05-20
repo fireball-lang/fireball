@@ -89,6 +89,7 @@ type Func struct {
 
 	NameN   *Leaf
 	Params  []*Param
+	varArgs bool
 	Body    *Block
 	Returns Type
 }
@@ -124,6 +125,36 @@ func (f *Func) Name() string {
 
 func (f *Func) Visit(visitor DeclVisitor) {
 	visitor.VisitFunc(f)
+}
+
+func (f *Func) Equals(other Type) bool {
+	return funcTypeEquals(f, other)
+}
+
+func (f *Func) String() string {
+	return funcTypeString(f)
+}
+
+func (f *Func) ParamTypes() iter.Seq[Type] {
+	return func(yield func(Type) bool) {
+		for _, param := range f.Params {
+			if IsValid(param.Type) && !yield(param.Type) {
+				return
+			}
+		}
+	}
+}
+
+func (f *Func) VarArgs() bool {
+	return f.varArgs
+}
+
+func (f *Func) ReturnType() Type {
+	if IsValid(f.Returns) {
+		return f.Returns
+	}
+
+	return VoidType
 }
 
 // Param

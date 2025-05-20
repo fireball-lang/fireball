@@ -19,3 +19,5 @@ func main() {
 	var idk: Foo;
 	idk.first = 5;
 }
+
+func println(v i32) {}

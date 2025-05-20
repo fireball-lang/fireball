@@ -65,6 +65,8 @@ func convertFunc(node *cst.Node) *Func {
 		case cst.Leaf:
 			if child.Token.Kind == lexer.Identifier {
 				f.NameN = convertLeaf(child)
+			} else if child.Token.Kind == lexer.DotDotDot {
+				f.varArgs = true
 			}
 		case cst.Param:
 			f.Params = append(f.Params, convertParam(child))

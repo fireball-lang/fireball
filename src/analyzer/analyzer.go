@@ -152,19 +152,58 @@ func (a *analyzer) VisitParen(p *ast.Paren) {
 }
 
 func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
-	type_ := a.variables.find(i.Name.Token.Text)
+	name := i.Name.Token.Text
+	type_ := a.variables.find(name)
 
 	if !ast.IsValid(type_) {
-		a.error(i.Name, "Symbol with the name '"+i.Name.Token.Text+"' doesn't exist.")
-		i.Result().SetInvalid()
-		return
+		file := ast.Root(i)
+
+		for _, decl := range file.Decls {
+			if f, ok := decl.(*ast.Func); ok && f.Name() == name {
+				type_ = f
+				break
+			}
+		}
 	}
 
-	i.Result().Set(ast.Address, type_)
+	if !ast.IsValid(type_) {
+		a.error(i.Name, "Symbol with the name '"+name+"' doesn't exist.")
+		i.Result().SetInvalid()
+	} else {
+		i.Result().Set(ast.Address, type_)
+	}
 }
 
 func (a *analyzer) VisitCall(c *ast.Call) {
 	a.acceptChildren(c)
+
+	if !ast.IsValid(c.Callee) || c.Callee.Result().Kind == ast.Invalid {
+		return
+	}
+
+	f, ok := c.Callee.Result().Type.(ast.FuncType)
+	if !ok {
+		a.error(c.Callee, "Only function types can be called, not '"+c.Callee.Result().Type.String()+"'.")
+		c.Result().SetInvalid()
+		return
+	}
+
+	c.Result().Set(ast.Value, f.ReturnType())
+
+	i := 0
+	for expected := range f.ParamTypes() {
+		if i >= len(c.Args) {
+			a.error(c, "Not enough arguments.")
+			return
+		}
+
+		a.checkType(c.Args[i], expected)
+		i++
+	}
+
+	if i < len(c.Args) && !f.VarArgs() {
+		a.error(c, "Too many arguments.")
+	}
 }
 
 func (a *analyzer) VisitIndex(i *ast.Index) {

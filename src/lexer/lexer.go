@@ -101,6 +101,13 @@ func (l *Lexer) Next() Token {
 		return l.token(RightBracket)
 
 	case '.':
+		if l.peekN(0) == '.' && l.peekN(1) == '.' {
+			l.advance()
+			l.advance()
+
+			return l.token(DotDotDot)
+		}
+
 		return l.token(Dot)
 	case ',':
 		return l.token(Comma)

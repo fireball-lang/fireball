@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fireball/cst"
+	"fireball/lexer"
 )
 
 func convertType(node *cst.Node) Type {
@@ -10,6 +11,8 @@ func convertType(node *cst.Node) Type {
 		return convertDeclType(node)
 	case cst.PointerType:
 		return convertPointerType(node)
+	case cst.FuncType:
+		return convertFuncType(node)
 
 	default:
 		panic("ast.convertType() - Invalid node kind")
@@ -58,6 +61,33 @@ func convertPointerType(node *cst.Node) Type {
 	}
 
 	return p
+}
+
+func convertFuncType(node *cst.Node) Type {
+	f := &SimpleFuncType{}
+	f.range_ = node.Range
+
+	var lastType Type
+
+	for i := range node.Children {
+		child := &node.Children[i]
+
+		if child.Kind.IsType() {
+			if IsValid(lastType) {
+				f.params = append(f.params, lastType)
+			}
+
+			lastType = convertType(child)
+		} else if child.Kind == cst.Leaf && child.Token.Kind == lexer.DotDotDot {
+			f.varArgs = true
+		}
+	}
+
+	if IsValid(lastType) {
+		f.returns = lastType
+	}
+
+	return f
 }
 
 func getPrimitiveKind(text string) (PrimitiveKind, bool) {

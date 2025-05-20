@@ -49,6 +49,7 @@ const (
 	RightBracket
 
 	Dot
+	DotDotDot
 	Comma
 	Colon
 	Semicolon
@@ -143,6 +144,8 @@ func (t TokenKind) String() string {
 
 	case Dot:
 		return "Dot"
+	case DotDotDot:
+		return "DotDotDot"
 	case Comma:
 		return "Comma"
 	case Colon:

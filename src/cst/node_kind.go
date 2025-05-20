@@ -9,6 +9,7 @@ const (
 
 	DeclType
 	PointerType
+	FuncType
 
 	Struct
 	Field
@@ -32,7 +33,7 @@ const (
 )
 
 func (n NodeKind) IsType() bool {
-	return n >= DeclType && n <= PointerType
+	return n >= DeclType && n <= FuncType
 }
 
 func (n NodeKind) IsDecl() bool {
@@ -55,6 +56,8 @@ func (n NodeKind) String() string {
 		return "DeclType"
 	case PointerType:
 		return "PointerType"
+	case FuncType:
+		return "FuncType"
 
 	case Struct:
 		return "Struct"

@@ -3,6 +3,8 @@ package ast
 import (
 	"fireball/lexer"
 	"iter"
+	"slices"
+	"strings"
 )
 
 type Type interface {
@@ -168,4 +170,129 @@ func (p *PointerType) Equals(other Type) bool {
 
 func (p *PointerType) String() string {
 	return "*" + p.Pointee.String()
+}
+
+// FuncType
+
+type FuncType interface {
+	Type
+
+	ParamTypes() iter.Seq[Type]
+	VarArgs() bool
+
+	ReturnType() Type
+}
+
+type SimpleFuncType struct {
+	baseRangeNode
+
+	params  []Type
+	varArgs bool
+	returns Type
+}
+
+func (s *SimpleFuncType) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, param := range s.params {
+			if !yield(param) {
+				return
+			}
+		}
+
+		if IsValid(s.returns) && !yield(s.returns) {
+			return
+		}
+	}
+}
+
+func (s *SimpleFuncType) Equals(other Type) bool {
+	return funcTypeEquals(s, other)
+}
+
+func (s *SimpleFuncType) String() string {
+	return funcTypeString(s)
+}
+
+func (s *SimpleFuncType) ParamTypes() iter.Seq[Type] {
+	return slices.Values(s.params)
+}
+
+func (s *SimpleFuncType) VarArgs() bool {
+	return s.varArgs
+}
+
+func (s *SimpleFuncType) ReturnType() Type {
+	if IsValid(s.returns) {
+		return s.returns
+	}
+
+	return VoidType
+}
+
+func funcTypeEquals(f FuncType, other Type) bool {
+	if other, ok := other.(FuncType); ok {
+		aNext, aStop := iter.Pull(f.ParamTypes())
+		bNext, bStop := iter.Pull(other.ParamTypes())
+
+		defer aStop()
+		defer bStop()
+
+		for {
+			aType, aValid := aNext()
+			bType, bValid := bNext()
+
+			if !aValid && !bValid {
+				break
+			}
+
+			if !aValid || !bValid {
+				return false
+			}
+
+			if !aType.Equals(bType) {
+				return false
+			}
+		}
+
+		if !f.ReturnType().Equals(other.ReturnType()) {
+			return false
+		}
+
+		return f.VarArgs() == other.VarArgs()
+	}
+
+	return false
+}
+
+func funcTypeString(f FuncType) string {
+	var sb strings.Builder
+
+	sb.WriteString("fn (")
+	i := 0
+
+	for param := range f.ParamTypes() {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+
+		sb.WriteString(param.String())
+		i++
+	}
+
+	if f.VarArgs() {
+		if i > 0 {
+			sb.WriteString(", ...")
+		} else {
+			sb.WriteString("...")
+		}
+	}
+
+	sb.WriteRune(')')
+
+	if IsValid(f.ReturnType()) {
+		sb.WriteRune(' ')
+		sb.WriteString(f.ReturnType().String())
+	}
+
+	return sb.String()
 }

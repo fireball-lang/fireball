@@ -87,9 +87,9 @@ func (p *parser) funcNode() (Node, bool) {
 	// Params
 	hasParams := false
 
-	for p.current.Kind != lexer.RightParen {
+	for p.current.Kind != lexer.RightParen && p.current.Kind != lexer.DotDotDot {
 		if hasParams {
-			if p.appendAdvance(&node, lexer.Colon, "Expected ',' between function parameters.") {
+			if p.appendAdvance(&node, lexer.Comma, "Expected ',' between function parameters.") {
 				return node, true
 			}
 		}
@@ -102,6 +102,16 @@ func (p *parser) funcNode() (Node, bool) {
 		}
 
 		hasParams = true
+	}
+
+	if p.current.Kind == lexer.DotDotDot {
+		if hasParams {
+			if p.appendAdvance(&node, lexer.Comma, "Expected ',' between function parameters.") {
+				return node, true
+			}
+		}
+
+		node.append(p.advance())
 	}
 
 	// )
