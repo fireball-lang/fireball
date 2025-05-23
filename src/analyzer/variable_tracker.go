@@ -2,32 +2,34 @@ package analyzer
 
 import "fireball/ast"
 
-type variableTracker struct {
-	scopes []variableScope
+type VariableTracker[T any] struct {
+	scopes []variableScope[T]
 }
 
-type variableScope struct {
-	variables []variable
+type variableScope[T any] struct {
+	variables []variable[T]
 }
 
-type variable struct {
+type variable[T any] struct {
 	name  string
 	type_ ast.Type
+	data  T
 }
 
-func (v *variableTracker) find(name string) ast.Type {
+func (v *VariableTracker[T]) Find(name string) (ast.Type, T) {
 	for i := len(v.scopes) - 1; i >= 0; i-- {
 		for _, variable := range v.scopes[i].variables {
 			if variable.name == name {
-				return variable.type_
+				return variable.type_, variable.data
 			}
 		}
 	}
 
-	return nil
+	var data T
+	return nil, data
 }
 
-func (v *variableTracker) add(name string, type_ ast.Type) bool {
+func (v *VariableTracker[T]) Add(name string, type_ ast.Type, data T) bool {
 	scope := &v.scopes[len(v.scopes)-1]
 
 	for _, variable := range scope.variables {
@@ -36,18 +38,19 @@ func (v *variableTracker) add(name string, type_ ast.Type) bool {
 		}
 	}
 
-	scope.variables = append(scope.variables, variable{
+	scope.variables = append(scope.variables, variable[T]{
 		name:  name,
 		type_: type_,
+		data:  data,
 	})
 
 	return true
 }
 
-func (v *variableTracker) pushScope() {
-	v.scopes = append(v.scopes, variableScope{})
+func (v *VariableTracker[T]) PushScope() {
+	v.scopes = append(v.scopes, variableScope[T]{})
 }
 
-func (v *variableTracker) popScope() {
+func (v *VariableTracker[T]) PopScope() {
 	v.scopes = v.scopes[:len(v.scopes)-1]
 }

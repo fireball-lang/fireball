@@ -10,7 +10,7 @@ import (
 
 type analyzer struct {
 	scope     Scope
-	variables variableTracker
+	variables VariableTracker[any]
 
 	diagnostics []utils.Diagnostic
 }
@@ -47,13 +47,13 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 }
 
 func (a *analyzer) VisitFunc(f *ast.Func) {
-	a.variables.pushScope()
+	a.variables.PushScope()
 
 	for _, param := range f.Params {
 		if param.Name != nil && ast.IsValid(param.Type) {
 			name := param.Name.Token.Text
 
-			if !a.variables.add(name, param.Type) {
+			if !a.variables.Add(name, param.Type, nil) {
 				a.error(param.Name, "Parameter with the name '"+name+"' already exists in this scope.")
 			}
 		}
@@ -67,18 +67,18 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 		}
 	}
 
-	a.variables.popScope()
+	a.variables.PopScope()
 }
 
 // Expressions
 
 func (a *analyzer) VisitBlock(b *ast.Block) {
-	a.variables.pushScope()
+	a.variables.PushScope()
 
 	a.acceptChildren(b)
 	b.Result().Set(ast.Value, ast.VoidType)
 
-	a.variables.popScope()
+	a.variables.PopScope()
 }
 
 func (a *analyzer) VisitVar(v *ast.Var) {
@@ -95,7 +95,7 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 
 				a.error(node, "Type 'void' cannot be used for variables.")
 			} else {
-				if !a.variables.add(v.Name.Token.Text, t) {
+				if !a.variables.Add(v.Name.Token.Text, t, nil) {
 					a.error(v.Name, "Variable with the name '"+v.Name.Token.Text+"' already exists in this scope.")
 				}
 			}
@@ -153,7 +153,7 @@ func (a *analyzer) VisitParen(p *ast.Paren) {
 
 func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
 	name := i.Name.Token.Text
-	type_ := a.variables.find(name)
+	type_, _ := a.variables.Find(name)
 
 	if !ast.IsValid(type_) {
 		file := ast.Root(i)
@@ -209,9 +209,14 @@ func (a *analyzer) VisitCall(c *ast.Call) {
 func (a *analyzer) VisitIndex(i *ast.Index) {
 	a.acceptChildren(i)
 
-	err := false
+	err := i.Value.Result().Kind == ast.Invalid
 
 	if ast.IsValid(i.Value) && i.Value.Result().Kind != ast.Invalid {
+		if i.Value.Result().Kind != ast.Address {
+			a.error(i.Value, "Cannot index into a temporary value.")
+			err = true
+		}
+
 		if _, ok := i.Value.Result().Type.(*ast.PointerType); !ok {
 			a.error(i.Value, "Type '"+i.Value.Result().Type.String()+"' cannot be indexed.")
 			err = true
@@ -228,7 +233,7 @@ func (a *analyzer) VisitIndex(i *ast.Index) {
 	if err {
 		i.Result().SetInvalid()
 	} else {
-		i.Result().Set(ast.Value, i.Value.Result().Type.(*ast.PointerType).Pointee)
+		i.Result().Set(i.Value.Result().Kind, i.Value.Result().Type.(*ast.PointerType).Pointee)
 	}
 }
 
@@ -246,7 +251,7 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 			t = p.Pointee
 		}
 
-		if d, ok := m.Value.Result().Type.(*ast.DeclType); ok {
+		if d, ok := t.(*ast.DeclType); ok {
 			if ast.IsValid(d.Decl) {
 				if s, ok := d.Decl.(*ast.Struct); ok {
 					decl = s
@@ -262,12 +267,12 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 	}
 
 	if decl != nil && m.Name != nil {
-		field := decl.GetField(m.Name.Token.Text)
+		field, _ := decl.GetField(m.Name.Token.Text)
 
 		if field == nil {
 			a.error(m.Name, "Struct '"+decl.Name()+"' doesn't have a member with the name '"+m.Name.Token.Text+"'.")
 		} else if ast.IsValid(field.Type) {
-			m.Result().Set(ast.Address, field.Type)
+			m.Result().Set(m.Value.Result().Kind, field.Type)
 		}
 	}
 }
@@ -319,8 +324,8 @@ func (a *analyzer) VisitUnary(u *ast.Unary) {
 
 		// -
 		case lexer.Minus:
-			if p, ok := u.Expr.Result().Type.(*ast.PrimitiveType); !ok || !p.Kind.IsNumeric() {
-				a.error(u.Expr, "Needs to be a numeric type, not '"+u.Expr.Result().Type.String()+"'.")
+			if p, ok := u.Expr.Result().Type.(*ast.PrimitiveType); !ok || !p.Kind.IsNumeric() || p.Kind.IsUnsignedInteger() {
+				a.error(u.Expr, "Needs to be a signed numeric type, not '"+u.Expr.Result().Type.String()+"'.")
 
 				u.Result().SetInvalid()
 				return
@@ -382,24 +387,6 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 
 		b.Result().Set(ast.Value, ast.BoolType)
 
-	// Logical
-	case lexer.Pipe, lexer.Xor, lexer.Ampersand:
-		if !b.Left.Result().Type.Equals(b.Right.Result().Type) {
-			a.error(b, "Types need to be the same for a logical operator.")
-
-			b.Result().SetInvalid()
-			return
-		}
-
-		if p, ok := b.Left.Result().Type.(*ast.PrimitiveType); !ok || !p.Kind.IsNumeric() {
-			a.error(b.Left, "Needs to be a numeric type, not '"+b.Left.Result().Type.String()+"'.")
-
-			b.Result().SetInvalid()
-			return
-		}
-
-		b.Result().Set(ast.Value, b.Left.Result().Type)
-
 	// Equality
 	case lexer.EqualEqual, lexer.BangEqual:
 		if !b.Left.Result().Type.Equals(b.Right.Result().Type) {
@@ -422,6 +409,24 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 		}
 
 		b.Result().Set(ast.Value, ast.BoolType)
+
+	// Logical
+	case lexer.Pipe, lexer.Xor, lexer.Ampersand:
+		if !b.Left.Result().Type.Equals(b.Right.Result().Type) {
+			a.error(b, "Types need to be the same for a logical operator.")
+
+			b.Result().SetInvalid()
+			return
+		}
+
+		if p, ok := b.Left.Result().Type.(*ast.PrimitiveType); !ok || !p.Kind.IsNumeric() {
+			a.error(b.Left, "Needs to be a numeric type, not '"+b.Left.Result().Type.String()+"'.")
+
+			b.Result().SetInvalid()
+			return
+		}
+
+		b.Result().Set(ast.Value, b.Left.Result().Type)
 
 	// Math
 	case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percentage:

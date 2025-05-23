@@ -5,8 +5,8 @@ import (
 )
 
 type Pos struct {
-	Line   uint
-	Column uint
+	Line   uint32
+	Column uint32
 }
 
 func (p Pos) String() string {

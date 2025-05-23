@@ -17,6 +17,10 @@ type Identifier struct {
 	name   string
 }
 
+func NamedIdentifier(name string) Identifier {
+	return Identifier{number: math.MaxUint32, name: name}
+}
+
 func (i Identifier) String() string {
 	if i.number != math.MaxUint32 {
 		return "%" + strconv.FormatUint(uint64(i.number), 10)
@@ -30,12 +34,37 @@ type IdentifierValue struct {
 	identifier Identifier
 }
 
+func NamedIdentifierValue(type_ Type, name string) IdentifierValue {
+	return IdentifierValue{
+		type_:      type_,
+		identifier: Identifier{number: math.MaxUint32, name: name},
+	}
+}
+
 func (i IdentifierValue) Type() Type {
 	return i.type_
 }
 
 func (i IdentifierValue) String() string {
 	return i.identifier.String()
+}
+
+// Zero initializer
+
+type ZeroInitializer struct {
+	type_ Type
+}
+
+func ZeroInitialize(type_ Type) ZeroInitializer {
+	return ZeroInitializer{type_: type_}
+}
+
+func (z ZeroInitializer) Type() Type {
+	return z.type_
+}
+
+func (z ZeroInitializer) String() string {
+	return "zeroinitializer"
 }
 
 // Global
@@ -45,11 +74,33 @@ type GlobalValue struct {
 	type_ Type
 }
 
-func (e *GlobalValue) Type() Type {
+func (g *GlobalValue) Type() Type {
+	return g.type_
+}
+
+func (g *GlobalValue) String() string {
+	return "@" + g.name
+}
+
+// ExternFunc
+
+type ExternFunction struct {
+	name  string
+	type_ Type
+}
+
+func FakeFunctionValue(type_ Type, name string) ExternFunction {
+	return ExternFunction{
+		name:  name,
+		type_: type_,
+	}
+}
+
+func (e *ExternFunction) Type() Type {
 	return e.type_
 }
 
-func (e *GlobalValue) String() string {
+func (e *ExternFunction) String() string {
 	return "@" + e.name
 }
 

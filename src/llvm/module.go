@@ -292,7 +292,7 @@ func (m *Module) NewStructType(name string, fields []Field, size uint32, align u
 	// Metadata
 	_, _ = fmt.Fprintf(
 		&m.footer,
-		"!%d = distinct !DICompositeType(tag: DW_TAG_structure_type, name \"%s\", size: %d, align: %d, elements: !{",
+		"!%d = distinct !DICompositeType(tag: DW_TAG_structure_type, name: \"%s\", size: %d, align: %d, elements: !{",
 		m.debugIndex, name, t.size_, t.align_,
 	)
 
@@ -473,7 +473,7 @@ func (m *Module) NewFunction(name string, type_ Type, paramNames []string) *Func
 	}
 }
 
-func (m *Module) NewExternFunction(name string, type_ Type) *GlobalValue {
+func (m *Module) NewExternFunction(name string, type_ Type) *ExternFunction {
 	if _, ok := type_.(*functionType); !ok {
 		panic("llvm.Module.NewFunction() - Needs to be a function type")
 	}
@@ -486,7 +486,7 @@ func (m *Module) NewExternFunction(name string, type_ Type) *GlobalValue {
 	m.function(name, f, nil)
 	m.body.WriteRune('\n')
 
-	return &GlobalValue{
+	return &ExternFunction{
 		name:  name,
 		type_: f,
 	}

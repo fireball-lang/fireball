@@ -18,11 +18,11 @@ type Function struct {
 	locationDebugIndex uint32
 }
 
-func (f *Function) Block(label string) Identifier {
-	f.m.body.WriteString(label)
+func (f *Function) Block(identifier Identifier) Identifier {
+	f.m.body.WriteString(identifier.name)
 	f.m.body.WriteString(":\n")
 
-	return Identifier{name: label}
+	return identifier
 }
 
 func (f *Function) SetSourceLocation(line, column uint32) {
@@ -248,7 +248,15 @@ func InsertValue[V1, V2 Value](f *Function, v1 V1, v2 V2, index uint32, name str
 // Memory Instructions
 
 func Alloca(f *Function, type_ Type, count uint32, align uint32, name string) IdentifierValue {
-	result := f.getIdentifierValue(type_, name)
+	result := f.getIdentifierValue(&pointerType{
+		baseType: baseType{
+			size_:  64,
+			align_: 64,
+			dbg:    math.MaxUint32,
+		},
+		pointee: type_,
+	}, name)
+
 	f.instruction(result, "alloca %s, i32 %d, align %d", type_, count, align)
 	return result
 }
@@ -264,7 +272,15 @@ func Store[V1, V2 Value](f *Function, valueV V1, ptrV V2) {
 	f.instruction(IdentifierValue{}, "store %s %s, ptr %s", valueV.Type(), valueV.String(), ptrV.String())
 }
 
-func GetElementPtr[V Value](f *Function, v V, i1, i2 uint32, name string) IdentifierValue {
+func GetElementPtr1[V, I Value](f *Function, v V, i I, name string) IdentifierValue {
+	pointee := v.Type().(*pointerType).pointee
+
+	result := f.getIdentifierValue(v.Type(), name)
+	f.instruction(result, "getelementptr %s, ptr %s, %s %s", pointee, v.String(), i.Type(), i.String())
+	return result
+}
+
+func GetElementPtr2[V Value](f *Function, v V, i1, i2 uint32, name string) IdentifierValue {
 	pointee := v.Type().(*pointerType).pointee
 	var t Type
 
@@ -355,45 +371,45 @@ func BitCast[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierVal
 
 // Other Instructions
 
-type CmdIOp string
+type CmpIOp string
 
 const (
-	IEQ  CmdIOp = "eq"
-	INQ  CmdIOp = "nq"
-	IUGT CmdIOp = "ugt"
-	IUGE CmdIOp = "uge"
-	IULT CmdIOp = "ult"
-	IULE CmdIOp = "ule"
-	ISGT CmdIOp = "sgt"
-	ISGE CmdIOp = "sge"
-	ISLT CmdIOp = "slt"
-	ISLE CmdIOp = "sle"
+	IEQ  CmpIOp = "eq"
+	INQ  CmpIOp = "nq"
+	IUGT CmpIOp = "ugt"
+	IUGE CmpIOp = "uge"
+	IULT CmpIOp = "ult"
+	IULE CmpIOp = "ule"
+	ISGT CmpIOp = "sgt"
+	ISGE CmpIOp = "sge"
+	ISLT CmpIOp = "slt"
+	ISLE CmpIOp = "sle"
 )
 
-func CmpI[V1, V2 Value](f *Function, op CmdIOp, v1 V1, v2 V2, name string) IdentifierValue {
+func CmpI[V1, V2 Value](f *Function, op CmpIOp, v1 V1, v2 V2, name string) IdentifierValue {
 	result := f.getIdentifierValue(I1, name)
 	f.instruction(result, "icmp %s %s %s, %s", op, v1.Type(), v1.String(), v2.String())
 	return result
 }
 
-type CmdFOp string
+type CmpFOp string
 
 const (
-	FOEQ CmdFOp = "oeq"
-	FONQ CmdFOp = "onq"
-	FOGT CmdFOp = "ugt"
-	FOGE CmdFOp = "uge"
-	FOLT CmdFOp = "ult"
-	FOLE CmdFOp = "ule"
-	FUEQ CmdFOp = "ueq"
-	FUNQ CmdFOp = "unq"
-	FUGT CmdFOp = "ugt"
-	FUGE CmdFOp = "uge"
-	FULT CmdFOp = "ult"
-	FULE CmdFOp = "ule"
+	FOEQ CmpFOp = "oeq"
+	FONQ CmpFOp = "onq"
+	FOGT CmpFOp = "ugt"
+	FOGE CmpFOp = "uge"
+	FOLT CmpFOp = "ult"
+	FOLE CmpFOp = "ule"
+	FUEQ CmpFOp = "ueq"
+	FUNQ CmpFOp = "unq"
+	FUGT CmpFOp = "ugt"
+	FUGE CmpFOp = "uge"
+	FULT CmpFOp = "ult"
+	FULE CmpFOp = "ule"
 )
 
-func CmpF[V1, V2 Value](f *Function, op CmdFOp, v1 V1, v2 V2, name string) IdentifierValue {
+func CmpF[V1, V2 Value](f *Function, op CmpFOp, v1 V1, v2 V2, name string) IdentifierValue {
 	result := f.getIdentifierValue(I1, name)
 	f.instruction(result, "fcmp %s %s %s, %s", op, v1.Type(), v1.String(), v2.String())
 	return result
@@ -418,7 +434,13 @@ type CallInstruction struct {
 }
 
 func Call[V Value](f *Function, v V, name string) CallInstruction {
-	t := v.Type().(*functionType)
+	var t *functionType
+
+	if p, ok := v.Type().(*pointerType); ok {
+		t = p.pointee.(*functionType)
+	} else {
+		t = v.Type().(*functionType)
+	}
 
 	result := IdentifierValue{}
 	if s, ok := t.returns.(*simpleType); !ok || s.text != "void" {

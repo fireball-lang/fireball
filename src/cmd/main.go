@@ -3,6 +3,7 @@ package main
 import (
 	"fireball/analyzer"
 	"fireball/ast"
+	"fireball/codegen"
 	"fireball/cst"
 	"fmt"
 	"os"
@@ -25,6 +26,12 @@ func main() {
 	fmt.Println()
 	for _, diagnostic := range diagnostics {
 		fmt.Println(diagnostic)
+	}
+
+	if len(diagnostics) == 0 {
+		f, _ := os.Create("test.ll")
+		_ = codegen.Gen(file).Write(f)
+		_ = f.Close()
 	}
 }
 

@@ -39,8 +39,8 @@ func (n *Node) calculateRange() {
 	}
 
 	start := lexer.Pos{
-		Line:   math.MaxUint,
-		Column: math.MaxUint,
+		Line:   math.MaxUint32,
+		Column: math.MaxUint32,
 	}
 
 	end := lexer.Pos{

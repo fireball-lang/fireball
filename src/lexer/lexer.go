@@ -6,8 +6,8 @@ type Lexer struct {
 	runes []rune
 	i     int
 
-	line   uint
-	column uint
+	line   uint32
+	column uint32
 
 	start Pos
 	sb    strings.Builder

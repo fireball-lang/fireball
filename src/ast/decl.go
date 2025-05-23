@@ -52,14 +52,14 @@ func (s *Struct) Visit(visitor DeclVisitor) {
 	visitor.VisitStruct(s)
 }
 
-func (s *Struct) GetField(name string) *Field {
-	for _, field := range s.Fields {
+func (s *Struct) GetField(name string) (*Field, int) {
+	for i, field := range s.Fields {
 		if field.Name != nil && field.Name.Token.Text == name {
-			return field
+			return field, i
 		}
 	}
 
-	return nil
+	return nil, -1
 }
 
 // Field

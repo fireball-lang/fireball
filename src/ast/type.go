@@ -37,6 +37,14 @@ func (p PrimitiveKind) IsInteger() bool {
 	return p >= U8 && p <= I64
 }
 
+func (p PrimitiveKind) IsUnsignedInteger() bool {
+	return p >= U8 && p <= U64
+}
+
+func (p PrimitiveKind) IsSignedInteger() bool {
+	return p >= I8 && p <= I64
+}
+
 func (p PrimitiveKind) IsFloating() bool {
 	return p >= F32 && p <= F64
 }
