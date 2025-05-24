@@ -1,0 +1,5 @@
+func println(v i32) {
+	printf("%d\n", v);
+}
+
+func printf(fmt *u8, ...) void

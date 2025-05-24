@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -70,7 +70,7 @@ func NewModule(filename, dataLayout, triple string) *Module {
 	_, _ = fmt.Fprintf(
 		&m.footer,
 		"!%d = !DIFile(filename: \"%s\", directory: \"%s\")\n",
-		m.fileDebugIndex, filename, path.Dir(filename),
+		m.fileDebugIndex, filepath.Base(filename), filepath.Dir(filename),
 	)
 
 	_, _ = fmt.Fprintf(

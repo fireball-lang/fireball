@@ -182,14 +182,7 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
 	type_, _ := a.variables.Find(name)
 
 	if !ast.IsValid(type_) {
-		file := ast.Root(i)
-
-		for _, decl := range file.Decls {
-			if f, ok := decl.(*ast.Func); ok && f.Name() == name {
-				type_ = f
-				break
-			}
-		}
+		type_ = a.scope.GetFuncDecl(name)
 	}
 
 	if !ast.IsValid(type_) {

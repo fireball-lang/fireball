@@ -13,8 +13,9 @@ type codegen struct {
 	module              *llvm.Module
 	stringConstantCount int
 
-	functions map[*ast.Func]*llvm.ExternFunction
-	types     []typeMapping
+	functions                   map[*ast.Func]*llvm.ExternFunction
+	additionalExternalFunctions map[*ast.Func]any
+	types                       []typeMapping
 
 	fun         *llvm.Function
 	identifiers map[string]int
@@ -25,10 +26,11 @@ type codegen struct {
 	exprValue llvm.Value
 }
 
-func Gen(file *ast.File) *llvm.Module {
+func Gen(file *ast.File, path string) *llvm.Module {
 	c := codegen{
-		module:    llvm.NewModule("test.fb", "", ""),
-		functions: make(map[*ast.Func]*llvm.ExternFunction),
+		module:                      llvm.NewModule(path, "", ""),
+		functions:                   make(map[*ast.Func]*llvm.ExternFunction),
+		additionalExternalFunctions: make(map[*ast.Func]any),
 	}
 
 	for _, decl := range file.Decls {
@@ -41,6 +43,10 @@ func Gen(file *ast.File) *llvm.Module {
 		if f, ok := decl.(*ast.Func); ok {
 			c.VisitFunc(f)
 		}
+	}
+
+	for f := range c.additionalExternalFunctions {
+		c.module.NewExternFunction(f.Name(), c.getType(f))
 	}
 
 	return c.module
@@ -264,14 +270,16 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) {
 	type_, value := c.variables.Find(name)
 
 	if !ast.IsValid(type_) {
-		file := ast.Root(i)
+		f := i.Result().Type.(*ast.Func)
+		type_ = f
 
-		for _, decl := range file.Decls {
-			if f, ok := decl.(*ast.Func); ok && f.Name() == name {
-				type_ = f
-				value = c.functions[f]
-				break
-			}
+		if v, ok := c.functions[f]; ok {
+			value = v
+		} else {
+			v := llvm.FakeFunctionValue(c.getType(f), f.Name())
+			value = &v
+
+			c.additionalExternalFunctions[f] = nil
 		}
 	}
 
