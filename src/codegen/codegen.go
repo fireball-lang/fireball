@@ -92,9 +92,16 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 	}
 
 	c.visit(f.Body)
-	llvm.Ret(c.fun)
-	c.fun.End()
 
+	if f.ReturnType().Equals(ast.VoidType) {
+		expr := ast.GetLastExpr(f.Body)
+
+		if _, ok := expr.(*ast.Return); !ok {
+			llvm.Ret(c.fun)
+		}
+	}
+
+	c.fun.End()
 	c.variables.PopScope()
 	c.fun = nil
 }
@@ -123,6 +130,7 @@ func (c *codegen) collectVariables(expr ast.Expr) {
 // Expressions
 
 func (c *codegen) VisitBlock(b *ast.Block) {
+	c.fun.PushScope()
 	c.variables.PushScope()
 
 	for _, expr := range b.Exprs {
@@ -130,6 +138,7 @@ func (c *codegen) VisitBlock(b *ast.Block) {
 	}
 
 	c.variables.PopScope()
+	c.fun.PopScope()
 }
 
 func (c *codegen) VisitVar(v *ast.Var) {
@@ -199,6 +208,15 @@ func (c *codegen) VisitWhile(w *ast.While) {
 
 	// End
 	c.fun.Block(endL)
+}
+
+func (c *codegen) VisitReturn(r *ast.Return) {
+	if ast.IsValid(r.Value) {
+		value := c.visitLoad(r.Value)
+		llvm.RetValue(c.fun, value)
+	} else {
+		llvm.Ret(c.fun)
+	}
 }
 
 func (c *codegen) VisitLiteral(l *ast.Literal) {

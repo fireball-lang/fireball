@@ -86,6 +86,10 @@ func (p *printer) VisitWhile(w *While) {
 	fmt.Println("While")
 }
 
+func (p *printer) VisitReturn(r *Return) {
+	fmt.Println("Return")
+}
+
 func (p *printer) VisitLiteral(l *Literal) {
 	fmt.Printf("Literal '%s'\n", l.Value.Token.Text)
 }

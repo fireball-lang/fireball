@@ -119,11 +119,18 @@ func (p *parser) funcNode() (Node, bool) {
 		return node, true
 	}
 
-	// Body
+	// Return type
 	if p.current.Kind != lexer.LeftBrace {
-		p.error("Expected '{' before function body.")
-		return node, true
-	} else {
+		child, err := p.typeNode()
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+	}
+
+	// Body
+	if p.current.Kind == lexer.LeftBrace {
 		child, err := p.blockNode()
 		node.append(child)
 

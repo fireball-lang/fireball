@@ -9,6 +9,7 @@ import (
 )
 
 type analyzer struct {
+	fun       *ast.Func
 	scope     Scope
 	variables VariableTracker[any]
 
@@ -59,7 +60,24 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 		}
 	}
 
-	a.acceptChildren(f)
+	if ast.IsValid(f.Body) {
+		a.fun = f
+		a.acceptChildren(f)
+		a.fun = nil
+
+		if !f.ReturnType().Equals(ast.VoidType) {
+			expr := ast.GetLastExpr(f.Body)
+
+			if _, ok := expr.(*ast.Return); !ok {
+				var node ast.Node = f.NameN
+				if !ast.IsValid(node) {
+					node = f
+				}
+
+				a.error(node, "Function '"+f.Name()+"' is missing a return statement.")
+			}
+		}
+	}
 
 	for _, param := range f.Params {
 		if ast.VoidType.Equals(param.Type) {
@@ -119,6 +137,14 @@ func (a *analyzer) VisitWhile(w *ast.While) {
 	a.checkType(w.Condition, ast.BoolType)
 
 	w.Result().Set(ast.Value, ast.VoidType)
+}
+
+func (a *analyzer) VisitReturn(r *ast.Return) {
+	a.acceptChildren(r)
+
+	a.checkType(r.Value, a.fun.ReturnType())
+
+	r.Result().Set(ast.Value, ast.VoidType)
 }
 
 func (a *analyzer) VisitLiteral(l *ast.Literal) {

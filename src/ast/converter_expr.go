@@ -17,6 +17,8 @@ func convertExpr(node *cst.Node) Expr {
 		return convertWhile(node)
 	case cst.For:
 		return convertFor(node)
+	case cst.Return:
+		return convertReturn(node)
 
 	case cst.Literal:
 		return convertLiteral(node)
@@ -183,6 +185,21 @@ func convertFor(node *cst.Node) *Block {
 	}
 
 	return b
+}
+
+func convertReturn(node *cst.Node) *Return {
+	r := &Return{}
+	r.range_ = node.Range
+
+	for i := range node.Children {
+		child := &node.Children[i]
+
+		if child.Kind.IsExpr() {
+			r.Value = convertExpr(child)
+		}
+	}
+
+	return r
 }
 
 func convertLiteral(node *cst.Node) *Literal {

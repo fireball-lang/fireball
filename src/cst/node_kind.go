@@ -21,6 +21,7 @@ const (
 	If
 	While
 	For
+	Return
 
 	Literal
 	Paren
@@ -78,6 +79,8 @@ func (n NodeKind) String() string {
 		return "While"
 	case For:
 		return "For"
+	case Return:
+		return "Return"
 
 	case Literal:
 		return "Literal"

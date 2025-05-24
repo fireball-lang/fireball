@@ -62,6 +62,8 @@ func (p *parser) prefixExprNode() (Node, bool) {
 			return p.whileNode()
 		case "for":
 			return p.forNode()
+		case "return":
+			return p.returnNode()
 		default:
 			return p.identifierNode()
 		}
@@ -330,6 +332,25 @@ func (p *parser) forNode() (Node, bool) {
 	return node, false
 }
 
+func (p *parser) returnNode() (Node, bool) {
+	node := Node{Kind: Return}
+
+	// Keyword
+	node.append(p.advance())
+
+	// <expr>
+	if p.current.Kind != lexer.Semicolon {
+		child, err := p.exprNode(0)
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+	}
+
+	return node, false
+}
+
 func (p *parser) identifierNode() (Node, bool) {
 	node := Node{Kind: Identifier}
 
@@ -511,7 +532,7 @@ func (p *parser) postfixUnaryNode(lhs Node) (Node, bool) {
 // Utils
 
 func needsSemicolon(kind NodeKind) bool {
-	return (kind >= Literal && kind <= Binary) || kind == Var
+	return (kind >= Literal && kind <= Binary) || kind == Var || kind == Return
 }
 
 // Powers

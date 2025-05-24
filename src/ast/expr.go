@@ -18,6 +18,7 @@ type ExprVisitor interface {
 	VisitVar(v *Var)
 	VisitIf(i *If)
 	VisitWhile(w *While)
+	VisitReturn(r *Return)
 
 	VisitLiteral(l *Literal)
 	VisitParen(p *Paren)
@@ -153,6 +154,26 @@ func (w *While) Children() iter.Seq[Node] {
 
 func (w *While) Visit(visitor ExprVisitor) {
 	visitor.VisitWhile(w)
+}
+
+// Return
+
+type Return struct {
+	baseExpr
+
+	Value Expr
+}
+
+func (r *Return) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(r.Value) && !yield(r.Value) {
+			return
+		}
+	}
+}
+
+func (r *Return) Visit(visitor ExprVisitor) {
+	visitor.VisitReturn(r)
 }
 
 // Literal

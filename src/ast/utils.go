@@ -13,3 +13,17 @@ func Root(node Node) *File {
 		node = node.Parent()
 	}
 }
+
+func GetLastExpr(expr Expr) Expr {
+	for {
+		if b, ok := expr.(*Block); ok {
+			if len(b.Exprs) == 0 {
+				return expr
+			}
+
+			expr = b.Exprs[len(b.Exprs)-1]
+		} else {
+			return expr
+		}
+	}
+}
