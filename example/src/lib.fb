@@ -2,4 +2,5 @@ func println(v i32) {
 	printf("%d\n", v);
 }
 
+#[extern]
 func printf(fmt *u8, ...) void

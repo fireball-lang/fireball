@@ -53,6 +53,7 @@ const (
 	Comma
 	Colon
 	Semicolon
+	Hashtag
 
 	Eof
 )
@@ -152,6 +153,8 @@ func (t TokenKind) String() string {
 		return "Colon"
 	case Semicolon:
 		return "Semicolon"
+	case Hashtag:
+		return "Hashtag"
 
 	case Eof:
 		return "EOF"

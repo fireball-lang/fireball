@@ -17,6 +17,43 @@ func convertDecl(node *cst.Node) Decl {
 	}
 }
 
+func convertAttributes(node *cst.Node) []*Attribute {
+	var attributes []*Attribute
+
+	for i := range node.Children {
+		child := &node.Children[i]
+
+		if child.Kind == cst.Attribute {
+			attributes = append(attributes, convertAttribute(child))
+		}
+	}
+
+	return attributes
+}
+
+func convertAttribute(node *cst.Node) *Attribute {
+	a := &Attribute{}
+	a.range_ = node.Range
+
+	for i := range node.Children {
+		child := &node.Children[i]
+
+		if child.Kind == cst.Leaf {
+			if child.Token.Kind == lexer.Identifier {
+				if !IsValid(a.Name) {
+					a.Name = convertLeaf(child)
+				} else {
+					a.Param = child.Token.Text
+				}
+			} else if child.Token.Kind == lexer.String {
+				a.Param = child.Token.Text[1 : len(child.Token.Text)-1]
+			}
+		}
+	}
+
+	return a
+}
+
 func convertStruct(node *cst.Node) *Struct {
 	s := &Struct{}
 	s.range_ = node.Range
@@ -24,7 +61,10 @@ func convertStruct(node *cst.Node) *Struct {
 	for i := range node.Children {
 		child := &node.Children[i]
 
+		//goland:noinspection GoSwitchMissingCasesForIotaConsts
 		switch child.Kind {
+		case cst.Attributes:
+			s.Attributes = convertAttributes(child)
 		case cst.Leaf:
 			if child.Token.Kind == lexer.Identifier {
 				s.NameN = convertLeaf(child)
@@ -62,6 +102,8 @@ func convertFunc(node *cst.Node) *Func {
 		child := &node.Children[i]
 
 		switch child.Kind {
+		case cst.Attributes:
+			f.Attributes = convertAttributes(child)
 		case cst.Leaf:
 			if child.Token.Kind == lexer.Identifier {
 				f.NameN = convertLeaf(child)

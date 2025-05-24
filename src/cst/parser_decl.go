@@ -3,11 +3,22 @@ package cst
 import "fireball/lexer"
 
 func (p *parser) declNode(invalidKeyword *bool) (Node, bool) {
+	var attributes Node
+
+	if p.current.Kind == lexer.Hashtag {
+		attrs, err := p.attributesNode()
+		if err {
+			return attributes, true
+		}
+
+		attributes = attrs
+	}
+
 	switch p.current.Text {
 	case "struct":
-		return p.structNode()
+		return p.structNode(attributes)
 	case "func":
-		return p.funcNode()
+		return p.funcNode(attributes)
 
 	default:
 		*invalidKeyword = true
@@ -15,8 +26,80 @@ func (p *parser) declNode(invalidKeyword *bool) (Node, bool) {
 	}
 }
 
-func (p *parser) structNode() (Node, bool) {
+func (p *parser) attributesNode() (Node, bool) {
+	node := Node{Kind: Attributes}
+
+	// #
+	node.append(p.advance())
+
+	// [
+	if p.appendAdvance(&node, lexer.LeftBracket, "Expected '[' before attributes.") {
+		return node, true
+	}
+
+	// <attributes>
+	hasAttribute := false
+
+	for p.current.Kind != lexer.RightBracket {
+		if hasAttribute {
+			if p.appendAdvance(&node, lexer.Comma, "Expected ',' between attributes.") {
+				return node, true
+			}
+		}
+
+		child, err := p.attributeNode()
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+
+		hasAttribute = true
+	}
+
+	// ]
+	if p.appendAdvance(&node, lexer.RightBracket, "Expected ']' after attributes.") {
+		return node, true
+	}
+
+	return node, false
+}
+
+func (p *parser) attributeNode() (Node, bool) {
+	node := Node{Kind: Attribute}
+
+	// Name
+	if p.appendAdvance(&node, lexer.Identifier, "Expected attribute name.") {
+		return node, true
+	}
+
+	// Parameter
+	if p.current.Kind == lexer.LeftParen {
+		// (
+		node.append(p.advance())
+
+		// param
+		switch p.current.Kind {
+		case lexer.Identifier, lexer.String:
+			node.append(p.advance())
+
+		default:
+			p.error("Expected attribute parameter.")
+			return node, true
+		}
+
+		// )
+		if p.appendAdvance(&node, lexer.RightParen, "Expected ')' after attribute parameter.") {
+			return node, true
+		}
+	}
+
+	return node, false
+}
+
+func (p *parser) structNode(attributes Node) (Node, bool) {
 	node := Node{Kind: Struct}
+	node.append(attributes)
 
 	// Keyword
 	node.append(p.advance())
@@ -68,8 +151,9 @@ func (p *parser) fieldNode() (Node, bool) {
 	return node, err
 }
 
-func (p *parser) funcNode() (Node, bool) {
+func (p *parser) funcNode(attributes Node) (Node, bool) {
 	node := Node{Kind: Func}
+	node.append(attributes)
 
 	// Keyword
 	node.append(p.advance())

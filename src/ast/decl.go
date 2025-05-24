@@ -17,10 +17,42 @@ type DeclVisitor interface {
 	VisitFunc(f *Func)
 }
 
+// Attribute
+
+type Attribute struct {
+	baseRangeNode
+
+	Name  *Leaf
+	Param string
+}
+
+func (a *Attribute) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(a.Name) && !yield(a.Name) {
+			return
+		}
+	}
+}
+
+type attributeHolder struct {
+	Attributes []*Attribute
+}
+
+func (a *attributeHolder) GetAttribute(name string) *Attribute {
+	for _, attribute := range a.Attributes {
+		if attribute.Name != nil && attribute.Name.Token.Text == name {
+			return attribute
+		}
+	}
+
+	return nil
+}
+
 // Struct
 
 type Struct struct {
 	baseRangeNode
+	attributeHolder
 
 	NameN  *Leaf
 	Fields []*Field
@@ -28,6 +60,12 @@ type Struct struct {
 
 func (s *Struct) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
+		for _, attribute := range s.Attributes {
+			if !yield(attribute) {
+				return
+			}
+		}
+
 		if s.NameN != nil && !yield(s.NameN) {
 			return
 		}
@@ -86,6 +124,7 @@ func (f *Field) Children() iter.Seq[Node] {
 
 type Func struct {
 	baseRangeNode
+	attributeHolder
 
 	NameN   *Leaf
 	Params  []*Param
@@ -96,6 +135,12 @@ type Func struct {
 
 func (f *Func) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
+		for _, attribute := range f.Attributes {
+			if !yield(attribute) {
+				return
+			}
+		}
+
 		if f.NameN != nil && !yield(f.NameN) {
 			return
 		}

@@ -15,6 +15,8 @@ const (
 	Field
 	Func
 	Param
+	Attributes
+	Attribute
 
 	Block
 	Var
@@ -68,6 +70,10 @@ func (n NodeKind) String() string {
 		return "Func"
 	case Param:
 		return "Param"
+	case Attributes:
+		return "Attributes"
+	case Attribute:
+		return "Attribute"
 
 	case Block:
 		return "Block"

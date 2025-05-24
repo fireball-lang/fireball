@@ -115,6 +115,8 @@ func (l *Lexer) Next() Token {
 		return l.token(Colon)
 	case ';':
 		return l.token(Semicolon)
+	case '#':
+		return l.token(Hashtag)
 
 	default:
 		return l.tokenPrimitive(Error, "Invalid character '"+string(ch)+"'")

@@ -60,6 +60,11 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 		}
 	}
 
+	var errorNode ast.Node = f.NameN
+	if !ast.IsValid(errorNode) {
+		errorNode = f
+	}
+
 	if ast.IsValid(f.Body) {
 		a.fun = f
 		a.acceptChildren(f)
@@ -69,13 +74,14 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 			expr := ast.GetLastExpr(f.Body)
 
 			if _, ok := expr.(*ast.Return); !ok {
-				var node ast.Node = f.NameN
-				if !ast.IsValid(node) {
-					node = f
-				}
-
-				a.error(node, "Function '"+f.Name()+"' is missing a return statement.")
+				a.error(errorNode, "Function '"+f.Name()+"' is missing a return statement.")
 			}
+		}
+	} else {
+		attr := f.GetAttribute("extern")
+
+		if attr == nil {
+			a.error(errorNode, "Functions without the extern attribute need to have a body.")
 		}
 	}
 
