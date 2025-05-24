@@ -78,6 +78,8 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 			}
 		}
 	} else {
+		a.acceptChildren(f)
+
 		attr := f.GetAttribute("extern")
 
 		if attr == nil {
