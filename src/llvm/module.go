@@ -511,6 +511,14 @@ func (m *Module) function(name string, f *functionType, paramNames []string) {
 		}
 	}
 
+	if f.vararg {
+		if len(f.params) > 0 {
+			m.body.WriteString(", ...")
+		} else {
+			m.body.WriteString("...")
+		}
+	}
+
 	m.body.WriteRune(')')
 }
 

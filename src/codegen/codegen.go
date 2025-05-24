@@ -240,9 +240,12 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 	case lexer.String:
 		c.stringConstantCount++
 
+		text := l.Value.Token.Text[1 : len(l.Value.Token.Text)-1]
+		text = strings.ReplaceAll(text, "\\n", "\n")
+
 		c.exprValue = c.module.NewStringConstant(
 			"string."+strconv.FormatInt(int64(c.stringConstantCount), 10),
-			l.Value.Token.Text[1:len(l.Value.Token.Text)-1],
+			text,
 		)
 
 	default:

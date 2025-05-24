@@ -69,6 +69,11 @@ func (p *parser) funcTypeNode() (Node, bool) {
 			}
 		}
 
+		if p.current.Kind == lexer.DotDotDot {
+			node.append(p.advance())
+			break
+		}
+
 		child, err := p.typeNode()
 		node.append(child)
 
@@ -77,16 +82,6 @@ func (p *parser) funcTypeNode() (Node, bool) {
 		}
 
 		hasParams = true
-	}
-
-	if p.current.Kind == lexer.DotDotDot {
-		if hasParams {
-			if p.appendAdvance(&node, lexer.Comma, "Expected ',' between function parameters.") {
-				return node, true
-			}
-		}
-
-		node.append(p.advance())
 	}
 
 	// )

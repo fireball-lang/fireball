@@ -6,6 +6,7 @@ struct Foo {
 // Main function
 func main() i32 {
 	var foo = /* hi */ 158 + 1;
+	println(foo);
 
 	foo = (++foo);
 	var bar = false;
@@ -22,4 +23,8 @@ func main() i32 {
 	return 0;
 }
 
-func println(v i32) {}
+func println(v i32) {
+	printf("%d\n", v);
+}
+
+func printf(fmt *u8, ...) void
