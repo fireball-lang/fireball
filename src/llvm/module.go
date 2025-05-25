@@ -170,6 +170,7 @@ func (m *Module) NewIntegerType(signed bool, bitCount uint32) Type {
 
 	name := "bool"
 	encoding := "DW_ATE_boolean"
+	sizeAlign := uint32(8)
 
 	if bitCount > 1 {
 		if signed {
@@ -179,12 +180,14 @@ func (m *Module) NewIntegerType(signed bool, bitCount uint32) Type {
 			name = fmt.Sprintf("u%d", bitCount)
 			encoding = "DW_ATE_unsigned"
 		}
+
+		sizeAlign = t.size_
 	}
 
 	_, _ = fmt.Fprintf(
 		&m.footer,
 		"!%d = !DIBasicType(name: \"%s\", encoding: %s, size: %d, align: %d)\n",
-		m.debugIndex, name, encoding, t.size_, t.align_,
+		m.debugIndex, name, encoding, sizeAlign, sizeAlign,
 	)
 
 	m.debugIndex++
@@ -310,8 +313,8 @@ func (m *Module) NewStructType(name string, fields []Field, size uint32, align u
 	for i, field := range fields {
 		_, _ = fmt.Fprintf(
 			&m.footer,
-			"!%d = !DIDerivedType(tag: DW_TAG_member, name: \"%s\", baseType: !%d, size: %d, align: %d)\n",
-			m.debugIndex+1+uint32(i), field.Name, field.Type.debugIndex(), field.Type.size(), field.Type.align(),
+			"!%d = !DIDerivedType(tag: DW_TAG_member, name: \"%s\", baseType: !%d, offset: %d, size: %d, align: %d)\n",
+			m.debugIndex+1+uint32(i), field.Name, field.Type.debugIndex(), field.Offset*8, field.Type.size(), field.Type.align(),
 		)
 	}
 

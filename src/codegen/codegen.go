@@ -87,11 +87,13 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 	c.variableAllocas = make(map[*ast.Var]llvm.IdentifierValue)
 	c.collectVariables(f.Body)
 
-	for _, param := range f.Params {
+	for i, param := range f.Params {
 		c.setSourceLocation(param)
 		type_ := c.getType(param.Type)
 
 		ptr := llvm.Alloca(c.fun, type_, 1, 1, "param."+param.Name.Token.Text)
+		c.fun.LocalVariable(ptr, param.Name.Token.Text, uint32(i+1))
+
 		llvm.Store(c.fun, llvm.NamedIdentifierValue(type_, param.Name.Token.Text), ptr)
 
 		c.variables.Add(param.Name.Token.Text, param.Type, ptr)
@@ -149,7 +151,9 @@ func (c *codegen) VisitBlock(b *ast.Block) {
 
 func (c *codegen) VisitVar(v *ast.Var) {
 	var type_ ast.Type
+
 	ptr := c.variableAllocas[v]
+	c.fun.LocalVariable(ptr, v.Name.Token.Text, 0)
 
 	if ast.IsValid(v.Value) {
 		type_ = v.Value.Result().Type

@@ -86,8 +86,9 @@ func (c *codegen) createDeclType(type_ *ast.DeclType) llvm.Type {
 
 		for i, field := range decl.Fields {
 			fields[i] = llvm.Field{
-				Name: field.Name.Token.Text,
-				Type: c.getType(field.Type),
+				Name:   field.Name.Token.Text,
+				Type:   c.getType(field.Type),
+				Offset: 0,
 			}
 		}
 

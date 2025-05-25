@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/spf13/cobra"
 	"log"
 	"os"
@@ -39,8 +38,6 @@ func runCommand() *cobra.Command {
 			if path == "<errors>" {
 				return nil
 			}
-
-			fmt.Println()
 
 			cmd := exec.Command(path)
 			cmd.Stdout = os.Stdout

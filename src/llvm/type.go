@@ -129,8 +129,9 @@ func (p *pointerType) String() string {
 // Struct
 
 type Field struct {
-	Name string
-	Type Type
+	Name   string
+	Type   Type
+	Offset uint32
 }
 
 type structType struct {

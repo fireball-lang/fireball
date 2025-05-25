@@ -5,13 +5,23 @@ import (
 	"fireball/project"
 	"fireball/utils"
 	"fmt"
+	"github.com/fatih/color"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func build(path string, opt uint8) (string, error) {
+	start := time.Now()
+
+	defer func() {
+		duration := time.Now().Sub(start)
+		fmt.Printf("  Took %s\n", duration)
+		fmt.Println()
+	}()
+
 	// Open project
 	proj, err := project.OpenProject(path)
 	if err != nil {
@@ -77,7 +87,7 @@ func build(path string, opt uint8) (string, error) {
 				return "", err
 			}
 
-			m := codegen.Gen(file.Ast(), file.SrcRelativePath())
+			m := codegen.Gen(file.Ast(), file.AbsolutePath())
 			err = m.Write(f)
 
 			_ = f.Close()
@@ -105,8 +115,14 @@ func build(path string, opt uint8) (string, error) {
 			return "", err
 		}
 
+		fmt.Println()
+		color.Green("Build successful")
+
 		return filepath.Join(proj.AbsolutePath, "out", proj.Config.Name), nil
 	}
+
+	fmt.Println()
+	color.Red("Build failed")
 
 	return "<errors>", nil
 }
