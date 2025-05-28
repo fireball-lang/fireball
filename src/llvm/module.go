@@ -10,6 +10,8 @@ import (
 )
 
 type Module struct {
+	Filename string
+
 	header strings.Builder
 
 	body strings.Builder
@@ -23,7 +25,9 @@ type Module struct {
 }
 
 func NewModule(filename, dataLayout, triple string) *Module {
-	m := &Module{}
+	m := &Module{
+		Filename: filename,
+	}
 
 	m.fileDebugIndex = m.debugIndex
 	m.debugIndex++
@@ -443,7 +447,7 @@ func (m *Module) NewGlobalVariable(name string, type_ Type, definition bool) *Gl
 
 // Functions
 
-func (m *Module) NewFunction(name string, type_ Type, paramNames []string) *Function {
+func (m *Module) NewFunction(linkName, debugName string, type_ Type, paramNames []string) *Function {
 	if _, ok := type_.(*functionType); !ok {
 		panic("llvm.Module.NewFunction() - Needs to be a function type")
 	}
@@ -457,13 +461,13 @@ func (m *Module) NewFunction(name string, type_ Type, paramNames []string) *Func
 	m.body.WriteRune('\n')
 
 	m.body.WriteString("define dso_local ")
-	m.function(name, f, paramNames)
+	m.function(linkName, f, paramNames)
 	_, _ = fmt.Fprintf(&m.body, " !dbg !%d {\n", m.debugIndex)
 
 	_, _ = fmt.Fprintf(
 		&m.footer,
 		"!%d = distinct !DISubprogram(name: \"%s\", unit: !%d, scope: !%d, file: !%d, type: !%d, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition)\n",
-		m.debugIndex, name, m.cuDebugIndex, m.getDebugScope(), m.fileDebugIndex, type_.debugIndex(),
+		m.debugIndex, debugName, m.cuDebugIndex, m.getDebugScope(), m.fileDebugIndex, type_.debugIndex(),
 	)
 
 	m.pushDebugScope(m.debugIndex)
@@ -471,7 +475,7 @@ func (m *Module) NewFunction(name string, type_ Type, paramNames []string) *Func
 
 	return &Function{
 		m:     m,
-		name:  name,
+		name:  linkName,
 		type_: f,
 	}
 }

@@ -93,6 +93,16 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 		}
 	}
 
+	if attr := f.GetAttribute("test"); attr != nil {
+		if len(f.Params) > 0 {
+			a.error(errorNode, "Test functions cannot have any parameters.")
+		}
+
+		if !f.ReturnType().Equals(ast.BoolType) {
+			a.error(errorNode, "Test functions need to return a 'bool'.")
+		}
+	}
+
 	a.variables.PopScope()
 }
 

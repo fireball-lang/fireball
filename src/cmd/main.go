@@ -1,11 +1,31 @@
 package main
 
 import (
+	"fireball/llvm"
+	"fireball/project"
 	"github.com/spf13/cobra"
 	"log"
 	"os"
 	"os/exec"
 )
+
+func main() {
+	root := cobra.Command{
+		Use:     "fireball",
+		Short:   "Tooling for the Fireball programming language",
+		Version: "0.1.0",
+	}
+
+	root.AddCommand(
+		buildCommand(),
+		runCommand(),
+		testCommand(),
+	)
+
+	if err := root.Execute(); err != nil {
+		log.Fatalln(err.Error())
+	}
+}
 
 func buildCommand() *cobra.Command {
 	opt := uint8(0)
@@ -14,7 +34,7 @@ func buildCommand() *cobra.Command {
 		Use:   "build",
 		Short: "Build the project.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := build(".", opt)
+			_, err := buildExe(opt)
 			return err
 		},
 	}
@@ -31,7 +51,7 @@ func runCommand() *cobra.Command {
 		Use:   "run",
 		Short: "Run the project.",
 		RunE: func(_ *cobra.Command, args []string) error {
-			path, err := build(".", opt)
+			path, err := buildExe(opt)
 			if err != nil {
 				return err
 			}
@@ -51,19 +71,22 @@ func runCommand() *cobra.Command {
 	return cmd
 }
 
-func main() {
-	root := cobra.Command{
-		Use:     "fireball",
-		Short:   "Tooling for the Fireball programming language",
-		Version: "0.1.0",
-	}
+func buildExe(opt uint8) (string, error) {
+	return build(".", "", opt, func(proj *project.Project) *llvm.Module {
+		m := llvm.NewModule("", "", "")
 
-	root.AddCommand(
-		buildCommand(),
-		runCommand(),
-	)
+		i32 := m.NewIntegerType(true, 32)
+		mainType := m.NewFunctionType(i32, nil, false)
 
-	if err := root.Execute(); err != nil {
-		log.Fatalln(err.Error())
-	}
+		fbMain := m.NewExternFunction("fb$main", mainType)
+
+		main := m.NewFunction("main", "main", mainType, nil)
+		main.Block(llvm.NamedIdentifier("entry"))
+
+		ret := llvm.Call(main, fbMain, "").End()
+		llvm.RetValue(main, ret)
+		main.End()
+
+		return m
+	})
 }

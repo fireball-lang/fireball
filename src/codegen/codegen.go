@@ -46,7 +46,7 @@ func Gen(file *ast.File, path string) *llvm.Module {
 	}
 
 	for f := range c.additionalExternalFunctions {
-		c.module.NewExternFunction(f.Name(), c.getType(f))
+		c.module.NewExternFunction(GetLinkName(f), c.getType(f))
 	}
 
 	return c.module
@@ -56,7 +56,7 @@ func Gen(file *ast.File, path string) *llvm.Module {
 
 func (c *codegen) collectFunc(f *ast.Func) {
 	type_ := ast.PointerType{Pointee: f}
-	value := llvm.FakeFunctionValue(c.getType(&type_), f.Name())
+	value := llvm.FakeFunctionValue(c.getType(&type_), GetLinkName(f))
 
 	c.functions[f] = &value
 }
@@ -72,9 +72,9 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 			paramNames[i] = param.Name.Token.Text
 		}
 
-		c.fun = c.module.NewFunction(f.Name(), type_, paramNames)
+		c.fun = c.module.NewFunction(GetLinkName(f), f.Name(), type_, paramNames)
 	} else {
-		c.module.NewExternFunction(f.Name(), type_)
+		c.module.NewExternFunction(GetLinkName(f), type_)
 		return
 	}
 
@@ -280,7 +280,7 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) {
 		if v, ok := c.functions[f]; ok {
 			value = v
 		} else {
-			v := llvm.FakeFunctionValue(c.getType(f), f.Name())
+			v := llvm.FakeFunctionValue(c.getType(f), GetLinkName(f))
 			value = &v
 
 			c.additionalExternalFunctions[f] = nil
@@ -308,7 +308,7 @@ func (c *codegen) VisitCall(call *ast.Call) {
 		llvm.Arg(&callBuilder, arg)
 	}
 
-	callBuilder.End()
+	c.exprValue = callBuilder.End()
 }
 
 func (c *codegen) VisitIndex(i *ast.Index) {

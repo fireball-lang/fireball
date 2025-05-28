@@ -2,6 +2,7 @@ package main
 
 import (
 	"fireball/codegen"
+	"fireball/llvm"
 	"fireball/project"
 	"fireball/utils"
 	"fmt"
@@ -13,7 +14,7 @@ import (
 	"time"
 )
 
-func build(path string, opt uint8) (string, error) {
+func build(path string, suffix string, opt uint8, entrypointCb func(proj *project.Project) *llvm.Module) (string, error) {
 	start := time.Now()
 
 	defer func() {
@@ -23,15 +24,42 @@ func build(path string, opt uint8) (string, error) {
 	}()
 
 	// Open project
-	proj, err := project.OpenProject(path)
+	proj, err := openAndAnalyzeProject(path)
 	if err != nil {
 		return "", err
+	}
+
+	// Report diagnostics
+	hasError := reportDiagnostics(proj)
+
+	// Compile
+	if !hasError {
+		path, err := compile(proj, suffix, opt, entrypointCb)
+
+		fmt.Println()
+		color.Green("Build successful")
+
+		return path, err
+	}
+
+	// Build failed
+	fmt.Println()
+	color.Red("Build failed")
+
+	return "<errors>", nil
+}
+
+func openAndAnalyzeProject(path string) (*project.Project, error) {
+	// Open project
+	proj, err := project.OpenProject(path)
+	if err != nil {
+		return nil, err
 	}
 
 	// Analyze all files in src folder
 	entries, err := os.ReadDir(filepath.Join(proj.AbsolutePath, "src"))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	for _, entry := range entries {
@@ -47,7 +75,10 @@ func build(path string, opt uint8) (string, error) {
 
 	proj.Analyze()
 
-	// Report diagnostics
+	return proj, nil
+}
+
+func reportDiagnostics(proj *project.Project) bool {
 	hasError := false
 
 	for file := range proj.Files() {
@@ -68,63 +99,88 @@ func build(path string, opt uint8) (string, error) {
 		}
 	}
 
-	// Compile
-	if !hasError {
-		// Codegen
-		err := os.MkdirAll(filepath.Join(proj.AbsolutePath, "out"), 0750)
-		if err != nil {
-			return "", err
-		}
+	return hasError
+}
 
-		for file := range proj.Files() {
-			path := file.SrcRelativePath()
-			path = strings.ReplaceAll(path, "/", "-")
-			path = strings.TrimSuffix(path, ".fb") + ".ll"
-			path = filepath.Join(proj.AbsolutePath, "out", path)
-
-			f, err := os.Create(path)
-			if err != nil {
-				return "", err
-			}
-
-			m := codegen.Gen(file.Ast(), file.AbsolutePath())
-			err = m.Write(f)
-
-			_ = f.Close()
-
-			if err != nil {
-				return "", err
-			}
-		}
-
-		// Compile
-		cmd := exec.Command("clang", fmt.Sprintf("-O%d", opt), "-o", proj.Config.Name)
-		cmd.Dir = filepath.Join(proj.AbsolutePath, "out")
-		cmd.Stderr = os.Stderr
-
-		for file := range proj.Files() {
-			path := file.SrcRelativePath()
-			path = strings.ReplaceAll(path, "/", "-")
-			path = strings.TrimSuffix(path, ".fb") + ".ll"
-
-			cmd.Args = append(cmd.Args, path)
-		}
-
-		err = cmd.Run()
-		if err != nil {
-			return "", err
-		}
-
-		fmt.Println()
-		color.Green("Build successful")
-
-		return filepath.Join(proj.AbsolutePath, "out", proj.Config.Name), nil
+func compile(proj *project.Project, suffix string, opt uint8, entrypointCb func(proj *project.Project) *llvm.Module) (string, error) {
+	// Codegen
+	err := os.MkdirAll(filepath.Join(proj.AbsolutePath, "out"), 0750)
+	if err != nil {
+		return "", err
 	}
 
-	fmt.Println()
-	color.Red("Build failed")
+	for file := range proj.Files() {
+		path := file.SrcRelativePath()
+		path = strings.ReplaceAll(path, "/", "-")
+		path = strings.TrimSuffix(path, ".fb") + ".ll"
+		path = filepath.Join(proj.AbsolutePath, "out", path)
 
-	return "<errors>", nil
+		f, err := os.Create(path)
+		if err != nil {
+			return "", err
+		}
+
+		m := codegen.Gen(file.Ast(), file.AbsolutePath())
+		err = m.Write(f)
+
+		_ = f.Close()
+
+		if err != nil {
+			return "", err
+		}
+	}
+
+	exeName := proj.Config.Name
+	if suffix != "" {
+		exeName += "_" + suffix
+	}
+
+	entrypoint := entrypointCb(proj)
+
+	entrypointName := "_"
+	if suffix != "" {
+		entrypointName += "_" + suffix
+	}
+	entrypointName += "_entrypoint.ll"
+
+	{
+		path := filepath.Join(proj.AbsolutePath, "out", entrypointName)
+
+		f, err := os.Create(path)
+		if err != nil {
+			return "", err
+		}
+
+		err = entrypoint.Write(f)
+
+		_ = f.Close()
+
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// Compile
+	cmd := exec.Command("clang", fmt.Sprintf("-O%d", opt), "-o", exeName)
+	cmd.Dir = filepath.Join(proj.AbsolutePath, "out")
+	cmd.Stderr = os.Stderr
+
+	for file := range proj.Files() {
+		path := file.SrcRelativePath()
+		path = strings.ReplaceAll(path, "/", "-")
+		path = strings.TrimSuffix(path, ".fb") + ".ll"
+
+		cmd.Args = append(cmd.Args, path)
+	}
+
+	cmd.Args = append(cmd.Args, entrypointName)
+
+	err = cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(proj.AbsolutePath, "out", exeName), nil
 }
 
 type simpleFileContentsProvider struct {

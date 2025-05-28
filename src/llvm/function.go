@@ -16,11 +16,15 @@ type Function struct {
 	line               uint32
 	column             uint32
 	locationDebugIndex uint32
+
+	skipInstructions bool
 }
 
 func (f *Function) Block(identifier Identifier) Identifier {
 	f.m.body.WriteString(identifier.name)
 	f.m.body.WriteString(":\n")
+
+	f.skipInstructions = false
 
 	return identifier
 }
@@ -90,24 +94,52 @@ func (f *Function) String() string {
 // Terminator Instructions
 
 func Ret(f *Function) {
+	if f.skipInstructions {
+		return
+	}
+
 	f.instruction(IdentifierValue{}, "ret void")
+
+	f.skipInstructions = true
 }
 
 func RetValue[V Value](f *Function, v V) {
+	if f.skipInstructions {
+		return
+	}
+
 	f.instruction(IdentifierValue{}, "ret %s %s", v.Type(), v.String())
+
+	f.skipInstructions = true
 }
 
 func Br(f *Function, l Identifier) {
+	if f.skipInstructions {
+		return
+	}
+
 	f.instruction(IdentifierValue{}, "br label %s", l.String())
+
+	f.skipInstructions = true
 }
 
 func BrCond[V Value](f *Function, v V, trueL, falseL Identifier) {
+	if f.skipInstructions {
+		return
+	}
+
 	f.instruction(IdentifierValue{}, "br %s %s, label %s, label %s", v.Type(), v.String(), trueL.String(), falseL.String())
+
+	f.skipInstructions = true
 }
 
 // Unary Instructions
 
 func NegF[V Value](f *Function, v V, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v.Type(), name)
 	f.instruction(result, "fneg %s %s", v.Type(), v.String())
 	return result
@@ -116,6 +148,10 @@ func NegF[V Value](f *Function, v V, name string) IdentifierValue {
 // Binary Instructions
 
 func Add[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v1.Type(), name)
 
 	inst := "add"
@@ -128,6 +164,10 @@ func Add[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
 }
 
 func Sub[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v1.Type(), name)
 
 	inst := "sub"
@@ -140,6 +180,10 @@ func Sub[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
 }
 
 func Mul[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v1.Type(), name)
 
 	inst := "mul"
@@ -152,6 +196,10 @@ func Mul[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
 }
 
 func Div[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v1.Type(), name)
 
 	inst := "fdiv"
@@ -168,6 +216,10 @@ func Div[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
 }
 
 func Rem[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v1.Type(), name)
 
 	inst := "frem"
@@ -186,12 +238,20 @@ func Rem[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
 // Bitwise Binary Instructions
 
 func Shl[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v1.Type(), name)
 	f.instruction(result, "shl %s %s, %s", v1.Type(), v1.String(), v2.String())
 	return result
 }
 
 func Shr[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v1.Type(), name)
 
 	inst := "lshr"
@@ -204,18 +264,30 @@ func Shr[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
 }
 
 func And[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v1.Type(), name)
 	f.instruction(result, "and %s %s, %s", v1.Type(), v1.String(), v2.String())
 	return result
 }
 
 func Or[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v1.Type(), name)
 	f.instruction(result, "or %s %s, %s", v1.Type(), v1.String(), v2.String())
 	return result
 }
 
 func Xor[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v1.Type(), name)
 	f.instruction(result, "xor %s %s, %s", v1.Type(), v1.String(), v2.String())
 	return result
@@ -224,6 +296,10 @@ func Xor[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
 // Aggregate Instructions
 
 func ExtractValue[V Value](f *Function, v V, index uint32, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	var t Type
 
 	if a, ok := v.Type().(*arrayType); ok {
@@ -240,6 +316,10 @@ func ExtractValue[V Value](f *Function, v V, index uint32, name string) Identifi
 }
 
 func InsertValue[V1, V2 Value](f *Function, v1 V1, v2 V2, index uint32, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v1.Type(), name)
 	f.instruction(result, "insertvalue %s %s, %s %s, %d", v1.Type(), v1.String(), v2.Type(), v2.String(), index)
 	return result
@@ -248,6 +328,10 @@ func InsertValue[V1, V2 Value](f *Function, v1 V1, v2 V2, index uint32, name str
 // Memory Instructions
 
 func Alloca(f *Function, type_ Type, count uint32, align uint32, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(&pointerType{
 		baseType: baseType{
 			size_:  64,
@@ -262,6 +346,10 @@ func Alloca(f *Function, type_ Type, count uint32, align uint32, name string) Id
 }
 
 func Load[V Value](f *Function, v V, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	t := v.Type().(*pointerType).pointee
 	result := f.getIdentifierValue(t, name)
 	f.instruction(result, "load %s, ptr %s", t, v.String())
@@ -269,10 +357,18 @@ func Load[V Value](f *Function, v V, name string) IdentifierValue {
 }
 
 func Store[V1, V2 Value](f *Function, valueV V1, ptrV V2) {
+	if f.skipInstructions {
+		return
+	}
+
 	f.instruction(IdentifierValue{}, "store %s %s, ptr %s", valueV.Type(), valueV.String(), ptrV.String())
 }
 
 func GetElementPtr1[V, I Value](f *Function, v V, i I, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	pointee := v.Type().(*pointerType).pointee
 
 	result := f.getIdentifierValue(v.Type(), name)
@@ -281,6 +377,10 @@ func GetElementPtr1[V, I Value](f *Function, v V, i I, name string) IdentifierVa
 }
 
 func GetElementPtr2[V Value](f *Function, v V, i1, i2 uint32, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	pointee := v.Type().(*pointerType).pointee
 	var t Type
 
@@ -300,6 +400,10 @@ func GetElementPtr2[V Value](f *Function, v V, i1, i2 uint32, name string) Ident
 // Conversion Instructions
 
 func Trunc[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v2.Type(), name)
 
 	inst := "trunc"
@@ -311,11 +415,15 @@ func Trunc[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue
 	return result
 }
 
-func Ext[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
-	result := f.getIdentifierValue(v2.Type(), name)
+func Ext[V Value](f *Function, v V, t Type, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
+	result := f.getIdentifierValue(t, name)
 
 	inst := "fpext"
-	if t, ok := v2.Type().(*integerType); ok {
+	if t, ok := t.(*integerType); ok {
 		if t.signed {
 			inst = "sext"
 		} else {
@@ -323,11 +431,15 @@ func Ext[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
 		}
 	}
 
-	f.instruction(result, "%s %s %s to %s", inst, v1.Type(), v1, v2.Type())
+	f.instruction(result, "%s %s %s to %s", inst, v.Type(), v, t)
 	return result
 }
 
 func FloatingToInt[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v2.Type(), name)
 
 	inst := "fptoui"
@@ -340,6 +452,10 @@ func FloatingToInt[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) Identif
 }
 
 func IntToFloating[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v2.Type(), name)
 
 	inst := "uitofp"
@@ -352,18 +468,30 @@ func IntToFloating[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) Identif
 }
 
 func PtrToInt[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v2.Type(), name)
 	f.instruction(result, "ptrtoint ptr %s to %s", v1, v2.Type())
 	return result
 }
 
 func IntToPtr[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v2.Type(), name)
 	f.instruction(result, "inttoptr %s %s to ptr", v1.Type(), v1)
 	return result
 }
 
 func BitCast[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v2.Type(), name)
 	f.instruction(result, "bitcast %s %s to %s", v1.Type(), v1, v2.Type())
 	return result
@@ -375,7 +503,7 @@ type CmpIOp string
 
 const (
 	IEQ  CmpIOp = "eq"
-	INQ  CmpIOp = "nq"
+	INQ  CmpIOp = "ne"
 	IUGT CmpIOp = "ugt"
 	IUGE CmpIOp = "uge"
 	IULT CmpIOp = "ult"
@@ -387,6 +515,10 @@ const (
 )
 
 func CmpI[V1, V2 Value](f *Function, op CmpIOp, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(I1, name)
 	f.instruction(result, "icmp %s %s %s, %s", op, v1.Type(), v1.String(), v2.String())
 	return result
@@ -410,18 +542,30 @@ const (
 )
 
 func CmpF[V1, V2 Value](f *Function, op CmpFOp, v1 V1, v2 V2, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(I1, name)
 	f.instruction(result, "fcmp %s %s %s, %s", op, v1.Type(), v1.String(), v2.String())
 	return result
 }
 
 func Phi[V1, V2 Value](f *Function, v1 V1, l1 Identifier, v2 V2, l2 Identifier, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(v1.Type(), name)
 	f.instruction(result, "phi %s [ %s, %s ], [ %s, %s ]", v1.Type(), v1.String(), l1.String(), v2.String(), l2.String())
 	return result
 }
 
 func Select[V1, V2, V3 Value](f *Function, condV V1, trueV V2, falseV V3, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
 	result := f.getIdentifierValue(trueV.Type(), name)
 	f.instruction(result, "select %s %s, %s %s, %s %s", condV.Type(), condV.String(), trueV.Type(), trueV.String(), falseV.Type(), falseV.String())
 	return result
@@ -434,6 +578,10 @@ type CallInstruction struct {
 }
 
 func Call[V Value](f *Function, v V, name string) CallInstruction {
+	if f.skipInstructions {
+		return CallInstruction{f: nil}
+	}
+
 	var t *functionType
 
 	if p, ok := v.Type().(*pointerType); ok {
@@ -458,6 +606,10 @@ func Call[V Value](f *Function, v V, name string) CallInstruction {
 }
 
 func Arg[V Value](c *CallInstruction, v V) {
+	if c.f == nil {
+		return
+	}
+
 	if c.argI > 0 {
 		c.f.m.body.WriteString(", ")
 	}
@@ -467,9 +619,15 @@ func Arg[V Value](c *CallInstruction, v V) {
 	c.argI++
 }
 
-func (c CallInstruction) End() {
+func (c CallInstruction) End() IdentifierValue {
+	if c.f == nil {
+		return IdentifierValue{}
+	}
+
 	c.f.m.body.WriteRune(')')
 	c.f.instructionEnd()
+
+	return c.result
 }
 
 // Utils

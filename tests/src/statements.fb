@@ -1,0 +1,87 @@
+#[test]
+func variableZeroInit() bool {
+    var n: i32;
+    var b: bool;
+
+    return n == 0 && !b;
+}
+
+#[test]
+func variableShadowing() bool {
+    var a = 3;
+
+    {
+        var a = 6;
+        a = 9;
+
+        if (a != 9) {
+            return false;
+		}
+    }
+
+    return a == 3;
+}
+
+#[test]
+func if() bool {
+    if (true) {
+        return true;
+	}
+
+    return false;
+}
+
+#[test]
+func else() bool {
+    if (false) {
+        return false;
+    } else {
+        return true;
+	}
+
+    return false;
+}
+
+#[test]
+func while() bool {
+    var a = 0;
+
+    while (a < 5) {
+        a++;
+	}
+
+    return a == 5;
+}
+
+#[test("for - all clauses")]
+func for1() bool {
+    var a = 0;
+
+    for (var i = 0; i < 4; i++) {
+        a++;
+	}
+
+    return a == 4;
+}
+
+#[test("for - no initializer")]
+func for2() bool {
+    var a = 0;
+
+    for (; a < 4; a++) {
+	}
+
+    return a == 4;
+}
+
+#[test("for - no increment")]
+func for3() bool {
+    var a = 0;
+
+    for (var i = 0; i < 4;) {
+        i++;
+        a++;
+	}
+
+    return a == 4;
+}
