@@ -55,9 +55,7 @@ func Gen(file *ast.File, path string) *llvm.Module {
 // Declarations
 
 func (c *codegen) collectFunc(f *ast.Func) {
-	type_ := ast.PointerType{Pointee: f}
-	value := llvm.FakeFunctionValue(c.getType(&type_), GetLinkName(f))
-
+	value := llvm.FakeFunctionValue(c.getType(f), GetLinkName(f))
 	c.functions[f] = &value
 }
 

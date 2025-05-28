@@ -187,3 +187,17 @@ func (f *functionType) String() string {
 
 	return sb.String()
 }
+
+// Utils
+
+func getFunctionType(t Type) *functionType {
+	if p, ok := t.(*pointerType); ok {
+		t = p.pointee
+	}
+
+	if f, ok := t.(*functionType); ok {
+		return f
+	}
+
+	panic("llvm.getFunctionType() - Type is not a function or a pointer to a function")
+}

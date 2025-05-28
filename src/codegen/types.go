@@ -106,5 +106,6 @@ func (c *codegen) createFuncType(type_ ast.FuncType) llvm.Type {
 		params = append(params, c.getType(param))
 	}
 
-	return c.module.NewFunctionType(c.getType(type_.ReturnType()), params, type_.VarArgs())
+	funcType := c.module.NewFunctionType(c.getType(type_.ReturnType()), params, type_.VarArgs())
+	return c.module.NewPointerType(funcType)
 }

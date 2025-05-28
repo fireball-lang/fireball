@@ -3,14 +3,14 @@ func returnValue() bool {
 	return getNumber() == 159;
 }
 
-/*#[test]
+#[test]
 func callback() bool {
 	return getNumberWrapper(getNumber) == 159;
 }
 
 func getNumberWrapper(cb fn () i32) i32 {
 	return cb();
-}*/
+}
 
 func getNumber() i32 {
 	return 159;

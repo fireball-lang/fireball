@@ -582,13 +582,7 @@ func Call[V Value](f *Function, v V, name string) CallInstruction {
 		return CallInstruction{f: nil}
 	}
 
-	var t *functionType
-
-	if p, ok := v.Type().(*pointerType); ok {
-		t = p.pointee.(*functionType)
-	} else {
-		t = v.Type().(*functionType)
-	}
+	t := getFunctionType(v.Type())
 
 	result := IdentifierValue{}
 	if s, ok := t.returns.(*simpleType); !ok || s.text != "void" {

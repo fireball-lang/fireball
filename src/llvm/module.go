@@ -448,11 +448,7 @@ func (m *Module) NewGlobalVariable(name string, type_ Type, definition bool) *Gl
 // Functions
 
 func (m *Module) NewFunction(linkName, debugName string, type_ Type, paramNames []string) *Function {
-	if _, ok := type_.(*functionType); !ok {
-		panic("llvm.Module.NewFunction() - Needs to be a function type")
-	}
-
-	f := type_.(*functionType)
+	f := getFunctionType(type_)
 
 	if len(f.params) != len(paramNames) {
 		panic("llvm.Module.NewFunction() - Count of parameter types and names needs to be the same")
@@ -467,7 +463,7 @@ func (m *Module) NewFunction(linkName, debugName string, type_ Type, paramNames 
 	_, _ = fmt.Fprintf(
 		&m.footer,
 		"!%d = distinct !DISubprogram(name: \"%s\", unit: !%d, scope: !%d, file: !%d, type: !%d, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition)\n",
-		m.debugIndex, debugName, m.cuDebugIndex, m.getDebugScope(), m.fileDebugIndex, type_.debugIndex(),
+		m.debugIndex, debugName, m.cuDebugIndex, m.getDebugScope(), m.fileDebugIndex, f.debugIndex(),
 	)
 
 	m.pushDebugScope(m.debugIndex)
@@ -481,11 +477,7 @@ func (m *Module) NewFunction(linkName, debugName string, type_ Type, paramNames 
 }
 
 func (m *Module) NewExternFunction(name string, type_ Type) *ExternFunction {
-	if _, ok := type_.(*functionType); !ok {
-		panic("llvm.Module.NewFunction() - Needs to be a function type")
-	}
-
-	f := type_.(*functionType)
+	f := getFunctionType(type_)
 
 	m.body.WriteRune('\n')
 
