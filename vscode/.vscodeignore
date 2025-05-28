@@ -1,0 +1,4 @@
+.vscode/**
+.vscode-test/**
+.gitignore
+fireball-0.0.1.vsix

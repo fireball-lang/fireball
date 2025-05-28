@@ -1,0 +1,35 @@
+{
+    "name": "fireball",
+    "displayName": "fireball",
+    "description": "General-purpose programming language that compiles to efficient native binaries.",
+    "version": "0.0.1",
+    "repository": "https://github.com/MineGame159/fireball/tree/rewrite",
+    "engines": {
+        "vscode": "^1.100.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "fireball",
+                "aliases": [
+                    "Fireball",
+                    "fireball"
+                ],
+                "extensions": [
+                    ".fb"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "fireball",
+                "scopeName": "source.fb",
+                "path": "./syntaxes/fireball.tmLanguage.json"
+            }
+        ]
+    }
+}
