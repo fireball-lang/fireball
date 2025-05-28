@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -76,6 +77,8 @@ func displayTestResults(result string) {
 	} else {
 		fmt.Println()
 		_, _ = color.New(color.FgYellow).Printf("%d out of %d tests failed", failed, total)
+
+		os.Exit(1)
 	}
 }
 
