@@ -1,0 +1,15 @@
+#[test]
+func orShortCircuit() bool {
+	var test = true;
+	true || (test = false);
+
+	return test;
+}
+
+#[test]
+func andShortCircuit() bool {
+	var test = true;
+	false && (test = false);
+
+	return test;
+}
