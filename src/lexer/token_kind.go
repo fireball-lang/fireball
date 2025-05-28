@@ -58,6 +58,10 @@ const (
 	Eof
 )
 
+func (t TokenKind) IsOperator() bool {
+	return t >= Equal && t <= PercentageEqual
+}
+
 func (t TokenKind) String() string {
 	switch t {
 	case Error:

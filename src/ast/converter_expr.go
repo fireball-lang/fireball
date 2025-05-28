@@ -293,7 +293,7 @@ func convertUnary(node *cst.Node) *Unary {
 
 		if child.Kind.IsExpr() {
 			u.Expr = convertExpr(child)
-		} else if child.Kind == cst.Leaf {
+		} else if child.Kind == cst.Leaf && child.Token.Kind.IsOperator() {
 			u.Op = child.Token.Kind
 			u.Postfix = IsValid(u.Expr)
 		}
@@ -315,7 +315,7 @@ func convertBinary(node *cst.Node) *Binary {
 			} else {
 				b.Right = convertExpr(child)
 			}
-		} else if child.Kind == cst.Leaf {
+		} else if child.Kind == cst.Leaf && child.Token.Kind.IsOperator() {
 			b.Op = child.Token.Kind
 		}
 	}

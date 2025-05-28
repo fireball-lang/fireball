@@ -14,9 +14,8 @@ func variableShadowing() bool {
         var a = 6;
         a = 9;
 
-        if (a != 9) {
+        if (a != 9)
             return false;
-		}
     }
 
     return a == 3;
@@ -24,20 +23,16 @@ func variableShadowing() bool {
 
 #[test]
 func if() bool {
-    if (true) {
+    if (true)
         return true;
-	}
 
     return false;
 }
 
 #[test]
 func else() bool {
-    if (false) {
-        return false;
-    } else {
-        return true;
-	}
+    if (false) return false;
+    else return true;
 
     return false;
 }
@@ -68,8 +63,7 @@ func for1() bool {
 func for2() bool {
     var a = 0;
 
-    for (; a < 4; a++) {
-	}
+    for (; a < 4; a++) { }
 
     return a == 4;
 }

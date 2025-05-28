@@ -113,17 +113,11 @@ func (p *parser) blockNode() (Node, bool) {
 
 	// Body
 	for p.current.Kind != lexer.RightBrace {
-		child, err := p.exprNode(0)
+		child, err := p.exprSemicolonNode()
 		node.append(child)
 
 		if err {
 			return node, true
-		}
-
-		if needsSemicolon(child.Kind) {
-			if p.appendAdvance(&node, lexer.Semicolon, "Expected ';' after expression.") {
-				return node, true
-			}
 		}
 	}
 
@@ -201,7 +195,7 @@ func (p *parser) ifNode() (Node, bool) {
 
 	// <expr>
 	{
-		child, err := p.exprNode(0)
+		child, err := p.exprSemicolonNode()
 		node.append(child)
 
 		if err {
@@ -213,7 +207,7 @@ func (p *parser) ifNode() (Node, bool) {
 	if p.current.Text == "else" {
 		node.append(p.advance())
 
-		child, err := p.exprNode(0)
+		child, err := p.exprSemicolonNode()
 		node.append(child)
 
 		if err {
@@ -252,7 +246,7 @@ func (p *parser) whileNode() (Node, bool) {
 
 	// <expr>
 	{
-		child, err := p.exprNode(0)
+		child, err := p.exprSemicolonNode()
 		node.append(child)
 
 		if err {
@@ -321,7 +315,7 @@ func (p *parser) forNode() (Node, bool) {
 
 	// <expr>
 	{
-		child, err := p.exprNode(0)
+		child, err := p.exprSemicolonNode()
 		node.append(child)
 
 		if err {
@@ -530,6 +524,22 @@ func (p *parser) postfixUnaryNode(lhs Node) (Node, bool) {
 }
 
 // Utils
+
+func (p *parser) exprSemicolonNode() (Node, bool) {
+	node, err := p.exprNode(0)
+
+	if err {
+		return node, true
+	}
+
+	if needsSemicolon(node.Kind) {
+		if p.appendAdvance(&node, lexer.Semicolon, "Expected ';' after expression.") {
+			return node, true
+		}
+	}
+
+	return node, false
+}
 
 func needsSemicolon(kind NodeKind) bool {
 	return (kind >= Literal && kind <= Binary) || kind == Var || kind == Return
