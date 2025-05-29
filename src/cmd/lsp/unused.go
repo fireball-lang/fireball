@@ -198,20 +198,12 @@ func (s *server) OutgoingCalls(ctx context.Context, params *protocol.CallHierarc
 	return nil, errors.New("not implemented")
 }
 
-func (s *server) SemanticTokensFull(ctx context.Context, params *protocol.SemanticTokensParams) (result *protocol.SemanticTokens, err error) {
-	return nil, errors.New("not implemented")
-}
-
 func (s *server) SemanticTokensFullDelta(ctx context.Context, params *protocol.SemanticTokensDeltaParams) (result interface{}, err error) {
 	return nil, errors.New("not implemented")
 }
 
 func (s *server) SemanticTokensRange(ctx context.Context, params *protocol.SemanticTokensRangeParams) (result *protocol.SemanticTokens, err error) {
 	return nil, errors.New("not implemented")
-}
-
-func (s *server) SemanticTokensRefresh(ctx context.Context) (err error) {
-	return errors.New("not implemented")
 }
 
 func (s *server) LinkedEditingRange(ctx context.Context, params *protocol.LinkedEditingRangeParams) (result *protocol.LinkedEditingRanges, err error) {

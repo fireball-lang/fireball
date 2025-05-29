@@ -126,7 +126,7 @@
 			"name": "string.quoted.double.fb"
 		},
 		"keyword": {
-			"match": "\\b(fn|struct|func|var|if|while|for|return)\\b",
+			"match": "\\b(fn|struct|func|var|if|while|for|return|true|false)\\b",
 			"name": "keyword.fb"
 		},
 		"attribute": {

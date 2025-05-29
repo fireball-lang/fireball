@@ -20,7 +20,7 @@ type server struct {
 
 	projects []*project.Project
 
-	analyzing sync.Mutex
+	astMutex sync.RWMutex
 }
 
 func newServer() *server {
@@ -54,6 +54,25 @@ func (s *server) Initialize(_ context.Context, params *protocol.InitializeParams
 		Capabilities: protocol.ServerCapabilities{
 			TextDocumentSync: &protocol.TextDocumentSyncOptions{
 				Change: protocol.TextDocumentSyncKindFull,
+			},
+			SemanticTokensProvider: &SemanticTokensOptions{
+				Legend: protocol.SemanticTokensLegend{
+					TokenTypes: []protocol.SemanticTokenTypes{
+						protocol.SemanticTokenFunction,
+						protocol.SemanticTokenParameter,
+						protocol.SemanticTokenVariable,
+						protocol.SemanticTokenType,
+						protocol.SemanticTokenClass,
+						protocol.SemanticTokenEnum,
+						protocol.SemanticTokenProperty,
+						protocol.SemanticTokenEnumMember,
+						protocol.SemanticTokenNamespace,
+						protocol.SemanticTokenInterface,
+						protocol.SemanticTokenTypeParameter,
+					},
+					TokenModifiers: []protocol.SemanticTokenModifiers{},
+				},
+				Full: &SemanticTokensFull{},
 			},
 		},
 		ServerInfo: &protocol.ServerInfo{
@@ -133,8 +152,8 @@ func (s *server) DidChange(_ context.Context, params *protocol.DidChangeTextDocu
 func (s *server) analyze() {
 	defer stop(start(s, "analyze"))
 
-	s.analyzing.Lock()
-	defer s.analyzing.Unlock()
+	s.astMutex.Lock()
+	defer s.astMutex.Unlock()
 
 	for _, proj := range s.projects {
 		// Analyze
