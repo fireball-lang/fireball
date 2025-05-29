@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -32,26 +33,18 @@ func (s *server) Initialize(_ context.Context, params *protocol.InitializeParams
 
 	// Open projects
 	for _, folder := range params.WorkspaceFolders {
-		// Parse URI
-		uri_, err := uri.Parse(folder.URI)
-		if err != nil {
-			continue
-		}
-
-		// Open project
-		proj, err := project.OpenProject(uri_.Filename())
-		if err != nil {
-			continue
-		}
-
-		// Add project
-		s.projects = append(s.projects, proj)
-		s.logger.Info("Opened project", zap.String("path", proj.AbsolutePath))
+		s.openProject(folder)
 	}
 
 	// Return server info
 	return &protocol.InitializeResult{
 		Capabilities: protocol.ServerCapabilities{
+			Workspace: &protocol.ServerCapabilitiesWorkspace{
+				WorkspaceFolders: &protocol.ServerCapabilitiesWorkspaceFolders{
+					Supported:           true,
+					ChangeNotifications: true,
+				},
+			},
 			TextDocumentSync: &protocol.TextDocumentSyncOptions{
 				Change: protocol.TextDocumentSyncKindFull,
 			},
@@ -85,27 +78,6 @@ func (s *server) Initialize(_ context.Context, params *protocol.InitializeParams
 func (s *server) Initialized(_ context.Context, _ *protocol.InitializedParams) (err error) {
 	defer stop(start(s, "Initialized"))
 
-	// Load initial project files
-	for _, proj := range s.projects {
-		entries, err := os.ReadDir(filepath.Join(proj.AbsolutePath, "src"))
-		if err != nil {
-			continue
-		}
-
-		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".fb") {
-				path := filepath.Join(proj.AbsolutePath, "src", entry.Name())
-
-				doc, err := newDocument(path)
-				if err != nil {
-					continue
-				}
-
-				proj.AddFile(doc)
-			}
-		}
-	}
-
 	// Analyze
 	go s.analyze()
 
@@ -120,6 +92,42 @@ func (s *server) Shutdown(_ context.Context) (err error) {
 
 func (s *server) Exit(_ context.Context) (err error) {
 	defer stop(start(s, "Exit"))
+
+	return nil
+}
+
+func (s *server) DidChangeWorkspaceFolders(_ context.Context, params *protocol.DidChangeWorkspaceFoldersParams) (err error) {
+	defer stop(start(s, "DidChangeWorkspaceFolders"))
+
+	// Add projects
+	for _, folder := range params.Event.Added {
+		s.openProject(folder)
+	}
+
+	// Remove projects
+	for _, folder := range params.Event.Removed {
+		uri_, err := uri.Parse(folder.URI)
+		if err != nil {
+			continue
+		}
+
+		path, err := filepath.Abs(uri_.Filename())
+		if err != nil {
+			continue
+		}
+
+		for i, proj := range s.projects {
+			if proj.AbsolutePath == path {
+				s.projects = slices.Delete(s.projects, i, i+1)
+				s.logger.Info("Closed project", zap.String("path", proj.AbsolutePath))
+
+				break
+			}
+		}
+	}
+
+	// Analyze
+	go s.analyze()
 
 	return nil
 }
@@ -207,12 +215,14 @@ func (s *server) analyze() {
 // Utils
 
 func (s *server) getFile(uri uri.URI) *project.File {
-	uriPath := uri.Filename()
+	uriPath, err := filepath.Abs(uri.Filename())
+	if err != nil {
+		return nil
+	}
 
 	for _, proj := range s.projects {
 		// Find project
-		_, err := filepath.Rel(proj.AbsolutePath, uriPath)
-		if err != nil {
+		if !strings.HasPrefix(uriPath, filepath.Join(proj.AbsolutePath, "src")) {
 			continue
 		}
 
@@ -225,6 +235,43 @@ func (s *server) getFile(uri uri.URI) *project.File {
 	}
 
 	return nil
+}
+
+func (s *server) openProject(folder protocol.WorkspaceFolder) {
+	// Parse URI
+	uri_, err := uri.Parse(folder.URI)
+	if err != nil {
+		return
+	}
+
+	// Open project
+	proj, err := project.OpenProject(uri_.Filename())
+	if err != nil {
+		return
+	}
+
+	// Load source files
+	entries, err := os.ReadDir(filepath.Join(proj.AbsolutePath, "src"))
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".fb") {
+			path := filepath.Join(proj.AbsolutePath, "src", entry.Name())
+
+			doc, err := newDocument(path)
+			if err != nil {
+				continue
+			}
+
+			proj.AddFile(doc)
+		}
+	}
+
+	// Add project
+	s.projects = append(s.projects, proj)
+	s.logger.Info("Opened project", zap.String("path", proj.AbsolutePath))
 }
 
 func (s *server) error(ctx context.Context, msg string) {

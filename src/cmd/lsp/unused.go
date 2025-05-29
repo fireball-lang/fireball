@@ -58,10 +58,6 @@ func (s *server) DidChangeWatchedFiles(ctx context.Context, params *protocol.Did
 	return errors.New("not implemented")
 }
 
-func (s *server) DidChangeWorkspaceFolders(ctx context.Context, params *protocol.DidChangeWorkspaceFoldersParams) (err error) {
-	return errors.New("not implemented")
-}
-
 func (s *server) DidClose(ctx context.Context, params *protocol.DidCloseTextDocumentParams) (err error) {
 	return errors.New("not implemented")
 }
