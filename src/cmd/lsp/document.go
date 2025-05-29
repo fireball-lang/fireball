@@ -13,6 +13,8 @@ type document struct {
 	changed  bool
 
 	version int32
+
+	hasPublishedDiagnostics bool
 }
 
 func newDocument(path string) (*document, error) {

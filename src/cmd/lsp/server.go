@@ -162,8 +162,12 @@ func (s *server) analyze() {
 		// Publish diagnostics
 		for file := range proj.Files() {
 			doc := file.Provider().(*document)
-
 			diagnostics := file.Diagnostics()
+
+			if !doc.hasPublishedDiagnostics && len(diagnostics) == 0 {
+				continue
+			}
+
 			lspDiagnostics := make([]protocol.Diagnostic, len(diagnostics))
 
 			for i, diagnostic := range diagnostics {
@@ -194,6 +198,8 @@ func (s *server) analyze() {
 				Version:     uint32(doc.version),
 				Diagnostics: lspDiagnostics,
 			})
+
+			doc.hasPublishedDiagnostics = len(diagnostics) > 0
 		}
 	}
 }
