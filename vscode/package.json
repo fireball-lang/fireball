@@ -10,6 +10,7 @@
     "categories": [
         "Programming Languages"
     ],
+    "main": "./out/extension.js",
     "contributes": {
         "languages": [
             {
@@ -31,5 +32,18 @@
                 "path": "./syntaxes/fireball.tmLanguage.json"
             }
         ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./"
+    },
+    "devDependencies": {
+        "@types/node": "^22.15.24",
+        "@types/vscode": "^1.100.0",
+        "typescript": "^5.8.3"
+    },
+    "dependencies": {
+        "vscode-languageclient": "^9.0.1"
     }
 }

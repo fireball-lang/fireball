@@ -1,2 +1,6 @@
 .vscode
+
+node_modules
+out
+
 fireball-0.0.1.vsix

@@ -1,4 +1,9 @@
 .vscode/**
 .vscode-test/**
 .gitignore
+
+**/tsconfig.json
+**/*.map
+**/*.ts
+
 fireball-0.0.1.vsix

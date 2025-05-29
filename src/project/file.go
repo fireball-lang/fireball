@@ -28,6 +28,10 @@ type File struct {
 	analyzeDiagnosticsChanged bool
 }
 
+func (f *File) Provider() FileContentsProvider {
+	return f.provider
+}
+
 func (f *File) AbsolutePath() string {
 	return f.provider.AbsolutePath()
 }

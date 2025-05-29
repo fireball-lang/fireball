@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fireball/cmd/lsp"
 	"fireball/llvm"
 	"fireball/project"
 	"github.com/spf13/cobra"
@@ -20,6 +21,7 @@ func main() {
 		buildCommand(),
 		runCommand(),
 		testCommand(),
+		lsp.Command(),
 	)
 
 	if err := root.Execute(); err != nil {

@@ -84,12 +84,19 @@ func (p *Project) Analyze() {
 	// Parse
 
 	wg := sync.WaitGroup{}
+	changed := false
 
 	for _, file := range p.files {
-		if contents, changed := file.provider.Contents(); changed {
+		if contents, fileChanged := file.provider.Contents(); fileChanged {
 			wg.Add(1)
+			changed = true
+
 			go parseFile(file, &wg, contents)
 		}
+	}
+
+	if !changed {
+		return
 	}
 
 	wg.Wait()
@@ -161,5 +168,5 @@ func collectSymbols(file *File, scope *globalScope) {
 }
 
 func didChange(old, new []utils.Diagnostic) bool {
-	return (len(new) == 0 && len(old) > 0) || (len(new) > 0 && len(old) == 0)
+	return (len(new) == 0 && len(old) > 0) || (len(new) > 0 && len(old) == 0) || (len(new) > 0 && len(old) > 0)
 }
