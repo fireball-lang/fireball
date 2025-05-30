@@ -376,6 +376,24 @@ func (a *analyzer) VisitUnary(u *ast.Unary) {
 
 			u.Result().Set(ast.Value, ast.BoolType)
 
+		// &
+		case lexer.Ampersand:
+			if u.Expr.Result().Kind != ast.Address {
+				a.error(u.Expr, "Cannot take an address of a temporary value.")
+			}
+
+			u.Result().Set(ast.Value, &ast.PointerType{Pointee: u.Expr.Result().Type})
+
+		// *
+		case lexer.Star:
+			if p, ok := u.Expr.Result().Type.(*ast.PointerType); ok {
+				u.Result().Set(ast.Address, p.Pointee)
+				return
+			}
+
+			a.error(u.Expr, "Cannot dereference '"+u.Expr.Result().Type.String()+"'.")
+			u.Result().SetInvalid()
+
 		default:
 			panic("analyzer.analyzer.VisitUnary() - Invalid prefix operator")
 		}

@@ -1,0 +1,32 @@
+#[test]
+func dereference() bool {
+	var a = 5;
+	var ptr = &a;
+
+	return *ptr == 5;
+}
+
+#[test]
+func modify() bool {
+	var a = 5;
+
+	var ptr = &a;
+	*ptr = 9;
+
+	return a == 9;
+}
+
+struct WrappedI32 {
+	value i32;
+}
+
+#[test]
+func modifyStructMember() bool {
+	var wrapper: WrappedI32;
+	wrapper.value = 1;
+
+	var ptr = &wrapper.value;
+	*ptr = 2;
+
+	return wrapper.value == 2;
+}

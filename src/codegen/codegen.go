@@ -386,6 +386,14 @@ func (c *codegen) VisitUnary(u *ast.Unary) {
 			value := c.visitLoad(u.Expr)
 			c.exprValue = llvm.Xor(c.fun, value, llvm.True(), "")
 
+		// &
+		case lexer.Ampersand:
+			c.exprValue = c.visit(u.Expr)
+
+		// *
+		case lexer.Star:
+			c.exprValue = c.visitLoad(u.Expr)
+
 		default:
 			panic("codegen.codegen.VisitUnary() - Invalid prefix operator")
 		}

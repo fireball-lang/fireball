@@ -592,8 +592,8 @@ func init() {
 	infix(false, lexer.Plus, lexer.Minus)
 	// *, /, %
 	infix(false, lexer.Star, lexer.Slash, lexer.Percentage)
-	// -x, !x, ++x, --x
-	prefix(lexer.Minus, lexer.Bang, lexer.PlusPlus, lexer.MinusMinus)
+	// -x, !x, ++x, --x, &x, *x
+	prefix(lexer.Minus, lexer.Bang, lexer.PlusPlus, lexer.MinusMinus, lexer.Ampersand, lexer.Star)
 	// x++, x--
 	postfix(lexer.PlusPlus, lexer.MinusMinus)
 	// x[], x()
