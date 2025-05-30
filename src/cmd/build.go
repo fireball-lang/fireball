@@ -73,7 +73,7 @@ func openAndAnalyzeProject(path string) (*project.Project, error) {
 		}
 	}
 
-	proj.Analyze()
+	proj.Analyze(true)
 
 	return proj, nil
 }

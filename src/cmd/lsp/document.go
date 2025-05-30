@@ -9,26 +9,23 @@ type document struct {
 	uri  uri.URI
 	path string
 
-	contents string
-	changed  bool
+	contents  string
+	forceRead bool
+	changed   bool
 
 	version int32
 
 	hasPublishedDiagnostics bool
 }
 
-func newDocument(path string) (*document, error) {
-	bytes, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
+func newDocument(path string) *document {
 	return &document{
-		uri:      uri.File(path),
-		path:     path,
-		contents: string(bytes),
-		changed:  true,
-	}, nil
+		uri:       uri.File(path),
+		path:      path,
+		contents:  "",
+		forceRead: true,
+		changed:   false,
+	}
 }
 
 func (d *document) AbsolutePath() string {
@@ -36,6 +33,16 @@ func (d *document) AbsolutePath() string {
 }
 
 func (d *document) Contents() (string, bool) {
+	if d.forceRead {
+		b, err := os.ReadFile(d.path)
+		if err == nil {
+			d.contents = string(b)
+			d.changed = true
+		}
+
+		d.forceRead = false
+	}
+
 	if !d.changed {
 		return "", false
 	}

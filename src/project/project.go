@@ -17,6 +17,8 @@ type Project struct {
 	AbsolutePath string
 	Config       Config
 
+	Data any
+
 	files map[string]*File
 }
 
@@ -59,15 +61,31 @@ func OpenProject(path string) (*Project, error) {
 	return p, nil
 }
 
-func (p *Project) AddFile(provider FileContentsProvider) {
-	if _, ok := p.files[provider.AbsolutePath()]; ok {
+func (p *Project) AddFile(provider FileContentsProvider) *File {
+	if p.HasFile(provider.AbsolutePath()) {
 		panic("project.Project.AddFile() - File with this path already exists")
 	}
 
-	p.files[provider.AbsolutePath()] = &File{
+	file := &File{
 		project:  p,
 		provider: provider,
 	}
+
+	p.files[provider.AbsolutePath()] = file
+	return file
+}
+
+func (p *Project) RemoveFile(path string) {
+	if !p.HasFile(path) {
+		panic("project.Project.RemoveFile() - File with this path doesn't exist")
+	}
+
+	delete(p.files, path)
+}
+
+func (p *Project) HasFile(path string) bool {
+	_, ok := p.files[path]
+	return ok
 }
 
 func (p *Project) Files() iter.Seq[*File] {
@@ -80,7 +98,7 @@ func (p *Project) Files() iter.Seq[*File] {
 	}
 }
 
-func (p *Project) Analyze() {
+func (p *Project) Analyze(forceWithoutParse bool) {
 	// Parse
 
 	wg := sync.WaitGroup{}
@@ -95,7 +113,7 @@ func (p *Project) Analyze() {
 		}
 	}
 
-	if !changed {
+	if !changed && !forceWithoutParse {
 		return
 	}
 

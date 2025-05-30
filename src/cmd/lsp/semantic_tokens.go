@@ -80,6 +80,8 @@ func (h *highlighter) VisitVar(v *ast.Var) {
 	h.variables.Add(v.Name.Token.Text, v.ActualType(), false)
 
 	h.add(v.Name, variableKind)
+
+	h.visitChildren(v)
 }
 
 func (h *highlighter) VisitIf(i *ast.If) {

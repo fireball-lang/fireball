@@ -1,10 +1,12 @@
 package lsp
 
 import (
+	"cmp"
 	"context"
 	"fireball/project"
 	"fireball/utils"
 	"github.com/MineGame159/protocol"
+	"github.com/fsnotify/fsnotify"
 	"go.lsp.dev/uri"
 	"go.uber.org/zap"
 	"os"
@@ -79,13 +81,19 @@ func (s *server) Initialized(_ context.Context, _ *protocol.InitializedParams) (
 	defer stop(start(s, "Initialized"))
 
 	// Analyze
-	go s.analyze()
+	go s.analyze(true)
 
 	return nil
 }
 
 func (s *server) Shutdown(_ context.Context) (err error) {
 	defer stop(start(s, "Shutdown"))
+
+	for _, proj := range s.projects {
+		data := proj.Data.(*projectData)
+
+		_ = data.watcher.Close()
+	}
 
 	return nil
 }
@@ -127,7 +135,7 @@ func (s *server) DidChangeWorkspaceFolders(_ context.Context, params *protocol.D
 	}
 
 	// Analyze
-	go s.analyze()
+	go s.analyze(false)
 
 	return nil
 }
@@ -150,65 +158,74 @@ func (s *server) DidChange(_ context.Context, params *protocol.DidChangeTextDocu
 	doc.version = params.TextDocument.Version
 
 	// Analyze
-	go s.analyze()
+	go s.analyze(false)
 
 	return nil
 }
 
 // Analyze
 
-func (s *server) analyze() {
+func (s *server) analyze(forceWithoutParse bool) {
 	defer stop(start(s, "analyze"))
 
 	s.astMutex.Lock()
 	defer s.astMutex.Unlock()
 
 	for _, proj := range s.projects {
-		// Analyze
-		proj.Analyze()
+		s.analyzeProject(proj, forceWithoutParse)
+	}
+}
 
-		// Publish diagnostics
-		for file := range proj.Files() {
-			doc := file.Provider().(*document)
-			diagnostics := file.Diagnostics()
+func (s *server) analyzeProject(proj *project.Project, forceWithoutParse bool) {
+	data := proj.Data.(*projectData)
 
-			if !doc.hasPublishedDiagnostics && len(diagnostics) == 0 {
-				continue
-			}
+	data.filesMutex.Lock()
+	defer data.filesMutex.Unlock()
 
-			lspDiagnostics := make([]protocol.Diagnostic, len(diagnostics))
+	// Analyze
+	proj.Analyze(forceWithoutParse)
 
-			for i, diagnostic := range diagnostics {
-				severity := protocol.DiagnosticSeverityError
-				if diagnostic.Kind == utils.Warning {
-					severity = protocol.DiagnosticSeverityWarning
-				}
+	// Publish diagnostics
+	for file := range proj.Files() {
+		doc := file.Provider().(*document)
+		diagnostics := file.Diagnostics()
 
-				lspDiagnostics[i] = protocol.Diagnostic{
-					Range: protocol.Range{
-						Start: protocol.Position{
-							Line:      diagnostic.Range.Start.Line - 1,
-							Character: diagnostic.Range.Start.Column,
-						},
-						End: protocol.Position{
-							Line:      diagnostic.Range.End.Line - 1,
-							Character: diagnostic.Range.End.Column,
-						},
-					},
-					Severity: severity,
-					Source:   "fireball",
-					Message:  diagnostic.Message,
-				}
-			}
-
-			_ = s.client.PublishDiagnostics(context.Background(), &protocol.PublishDiagnosticsParams{
-				URI:         doc.uri,
-				Version:     uint32(doc.version),
-				Diagnostics: lspDiagnostics,
-			})
-
-			doc.hasPublishedDiagnostics = len(diagnostics) > 0
+		if !doc.hasPublishedDiagnostics && len(diagnostics) == 0 {
+			continue
 		}
+
+		lspDiagnostics := make([]protocol.Diagnostic, len(diagnostics))
+
+		for i, diagnostic := range diagnostics {
+			severity := protocol.DiagnosticSeverityError
+			if diagnostic.Kind == utils.Warning {
+				severity = protocol.DiagnosticSeverityWarning
+			}
+
+			lspDiagnostics[i] = protocol.Diagnostic{
+				Range: protocol.Range{
+					Start: protocol.Position{
+						Line:      diagnostic.Range.Start.Line - 1,
+						Character: diagnostic.Range.Start.Column,
+					},
+					End: protocol.Position{
+						Line:      diagnostic.Range.End.Line - 1,
+						Character: diagnostic.Range.End.Column,
+					},
+				},
+				Severity: severity,
+				Source:   "fireball",
+				Message:  diagnostic.Message,
+			}
+		}
+
+		_ = s.client.PublishDiagnostics(context.Background(), &protocol.PublishDiagnosticsParams{
+			URI:         doc.uri,
+			Version:     uint32(doc.version),
+			Diagnostics: lspDiagnostics,
+		})
+
+		doc.hasPublishedDiagnostics = len(diagnostics) > 0
 	}
 }
 
@@ -220,21 +237,45 @@ func (s *server) getFile(uri uri.URI) *project.File {
 		return nil
 	}
 
-	for _, proj := range s.projects {
-		// Find project
-		if !strings.HasPrefix(uriPath, filepath.Join(proj.AbsolutePath, "src")) {
-			continue
-		}
+	if !strings.HasSuffix(uriPath, ".fb") {
+		return nil
+	}
 
-		// Find file
-		for file := range proj.Files() {
-			if file.AbsolutePath() == uriPath {
-				return file
-			}
+	for _, proj := range s.projects {
+		if file := s.getFileFromProject(proj, uriPath); file != nil {
+			return file
 		}
 	}
 
 	return nil
+}
+
+func (s *server) getFileFromProject(proj *project.Project, path string) *project.File {
+	data := proj.Data.(*projectData)
+
+	data.filesMutex.Lock()
+	defer data.filesMutex.Unlock()
+
+	// Check src folder
+	if filepath.Dir(path) != filepath.Join(proj.AbsolutePath, "src") {
+		return nil
+	}
+
+	// Find file
+	for file := range proj.Files() {
+		if file.AbsolutePath() == path {
+			return file
+		}
+	}
+
+	// Create file
+	doc := newDocument(path)
+	return proj.AddFile(doc)
+}
+
+type projectData struct {
+	watcher    *fsnotify.Watcher
+	filesMutex sync.Mutex
 }
 
 func (s *server) openProject(folder protocol.WorkspaceFolder) {
@@ -250,28 +291,103 @@ func (s *server) openProject(folder protocol.WorkspaceFolder) {
 		return
 	}
 
+	data := &projectData{}
+	proj.Data = data
+
 	// Load source files
+	s.scanProjectFiles(proj)
+
+	// Setup file watcher
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return
+	}
+
+	if err := watcher.Add(filepath.Join(proj.AbsolutePath, "src")); err != nil {
+		_ = watcher.Close()
+		return
+	}
+
+	data.watcher = watcher
+
+	go func() {
+		for {
+			select {
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+
+				s.logger.Error("Watcher error", zap.Error(err))
+
+			case ev, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+
+				if ev.Has(fsnotify.Create) || ev.Has(fsnotify.Rename) || ev.Has(fsnotify.Remove) {
+					if s.scanProjectFiles(proj) {
+						go s.analyze(true)
+					}
+				}
+			}
+		}
+	}()
+
+	// Add project
+	s.projects = append(s.projects, proj)
+
+	slices.SortFunc(s.projects, func(a, b *project.Project) int {
+		return cmp.Compare(len(b.AbsolutePath), len(a.AbsolutePath))
+	})
+
+	s.logger.Info("Opened project", zap.String("path", proj.AbsolutePath))
+}
+
+func (s *server) scanProjectFiles(proj *project.Project) (changed bool) {
+	data := proj.Data.(*projectData)
+
+	data.filesMutex.Lock()
+	defer data.filesMutex.Unlock()
+
 	entries, err := os.ReadDir(filepath.Join(proj.AbsolutePath, "src"))
 	if err != nil {
 		return
 	}
 
+	// New files
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".fb") {
 			path := filepath.Join(proj.AbsolutePath, "src", entry.Name())
 
-			doc, err := newDocument(path)
-			if err != nil {
-				continue
-			}
+			if !proj.HasFile(path) {
+				doc := newDocument(path)
+				proj.AddFile(doc)
 
-			proj.AddFile(doc)
+				changed = true
+			}
 		}
 	}
 
-	// Add project
-	s.projects = append(s.projects, proj)
-	s.logger.Info("Opened project", zap.String("path", proj.AbsolutePath))
+	// Deleted files
+	var filesToRemove []string
+
+	for file := range proj.Files() {
+		exists := slices.ContainsFunc(entries, func(entry os.DirEntry) bool {
+			return entry.Name() == file.SrcRelativePath()
+		})
+
+		if !exists {
+			filesToRemove = append(filesToRemove, file.AbsolutePath())
+		}
+	}
+
+	for _, path := range filesToRemove {
+		proj.RemoveFile(path)
+		changed = true
+	}
+
+	return
 }
 
 func (s *server) error(ctx context.Context, msg string) {
