@@ -182,3 +182,29 @@ func True() IntValue {
 func False() IntValue {
 	return IntValue{type_: I1, value: 0}
 }
+
+// Null
+
+var nullType = &pointerType{
+	baseType: baseType{
+		size_:  64,
+		align_: 64,
+		dbg:    math.MaxUint32,
+	},
+	pointee: nil,
+}
+
+type NullValue struct {
+}
+
+func (n NullValue) Type() Type {
+	return nullType
+}
+
+func (n NullValue) String() string {
+	return "null"
+}
+
+func Null() NullValue {
+	return NullValue{}
+}

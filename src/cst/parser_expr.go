@@ -351,7 +351,7 @@ func (p *parser) identifierNode() (Node, bool) {
 	child := p.advance()
 	node.append(child)
 
-	if child.Token.Text == "true" || child.Token.Text == "false" {
+	if child.Token.Text == "true" || child.Token.Text == "false" || child.Token.Text == "nil" {
 		node.Kind = Literal
 	}
 

@@ -170,7 +170,11 @@ func (a *analyzer) VisitReturn(r *ast.Return) {
 func (a *analyzer) VisitLiteral(l *ast.Literal) {
 	switch l.Value.Token.Kind {
 	case lexer.Identifier:
-		l.Result().Set(ast.Value, ast.BoolType)
+		if l.Value.Token.Text == "nil" {
+			l.Result().Set(ast.Value, &ast.PointerType{Pointee: ast.VoidType})
+		} else {
+			l.Result().Set(ast.Value, ast.BoolType)
+		}
 
 	case lexer.Number:
 		type_ := ast.I32Type
@@ -445,6 +449,12 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 	case lexer.EqualEqual, lexer.BangEqual:
 		if !b.Left.Result().Type.Equals(b.Right.Result().Type) {
 			a.error(b, "Types need to be the same for an equality operator.")
+		}
+
+		if _, ok := b.Left.Result().Type.(*ast.PrimitiveType); !ok {
+			if _, ok := b.Left.Result().Type.(*ast.PointerType); !ok {
+				a.error(b.Left, "Can only check equality for primitive and pointer types, not '"+b.Left.Result().Type.String()+"'.")
+			}
 		}
 
 		b.Result().Set(ast.Value, ast.BoolType)

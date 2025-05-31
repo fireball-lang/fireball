@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -261,10 +262,15 @@ func (m *Module) NewPointerType(pointee Type) Type {
 		pointee: pointee,
 	}
 
+	baseType := "null"
+	if pointee.debugIndex() != math.MaxUint32 {
+		baseType = "!" + strconv.FormatUint(uint64(pointee.debugIndex()), 10)
+	}
+
 	_, _ = fmt.Fprintf(
 		&m.footer,
-		"!%d = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !%d, size: %d, align: %d)\n",
-		m.debugIndex, pointee.debugIndex(), t.size_, t.align_,
+		"!%d = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: %s, size: %d, align: %d)\n",
+		m.debugIndex, baseType, t.size_, t.align_,
 	)
 
 	m.debugIndex++

@@ -16,6 +16,12 @@ func modify() bool {
 	return a == 9;
 }
 
+#[test]
+func voidPointer() bool {
+	var ptr: *void;
+	return ptr == nil;
+}
+
 struct WrappedI32 {
 	value i32;
 }

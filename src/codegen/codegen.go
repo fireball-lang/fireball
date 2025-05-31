@@ -230,7 +230,9 @@ func (c *codegen) VisitReturn(r *ast.Return) {
 func (c *codegen) VisitLiteral(l *ast.Literal) {
 	switch l.Value.Token.Kind {
 	case lexer.Identifier:
-		if l.Value.Token.Text == "true" {
+		if l.Value.Token.Text == "nil" {
+			c.exprValue = llvm.Null()
+		} else if l.Value.Token.Text == "true" {
 			c.exprValue = llvm.True()
 		} else {
 			c.exprValue = llvm.False()
@@ -463,25 +465,34 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 	// Equality
 	case lexer.EqualEqual, lexer.BangEqual:
-		kind := b.Left.Result().Type.(*ast.PrimitiveType).Kind
-
 		left := c.visitLoad(b.Left)
 		right := c.visitLoad(b.Right)
 
-		if kind.IsFloating() {
-			op := llvm.FOEQ
-			if b.Op == lexer.BangEqual {
-				op = llvm.FONQ
+		switch type_ := b.Left.Result().Type.(type) {
+		case *ast.PrimitiveType:
+			kind := type_.Kind
+
+			if kind.IsFloating() {
+				op := llvm.FOEQ
+				if b.Op == lexer.BangEqual {
+					op = llvm.FONQ
+				}
+
+				c.exprValue = llvm.CmpF(c.fun, op, left, right, "")
+			} else {
+				op := llvm.IEQ
+				if b.Op == lexer.BangEqual {
+					op = llvm.INQ
+				}
+
+				c.exprValue = llvm.CmpI(c.fun, op, left, right, "")
 			}
 
-			c.exprValue = llvm.CmpF(c.fun, op, left, right, "")
-		} else {
-			op := llvm.IEQ
-			if b.Op == lexer.BangEqual {
-				op = llvm.INQ
-			}
+		case *ast.PointerType:
+			c.exprValue = llvm.CmpI(c.fun, llvm.IEQ, left, right, "")
 
-			c.exprValue = llvm.CmpI(c.fun, op, left, right, "")
+		default:
+			panic("codegen.codegen.VisitBinary() - Equality - Invalid type")
 		}
 
 	// Comparison
