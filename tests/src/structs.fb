@@ -3,15 +3,25 @@ struct Vec2 {
 	y i32;
 }
 
-#[text]
+#[test]
 func memberAddressStruct() bool {
 	var v = getVec2(1, 6);
 	return v.y == 6;
 }
 
-#[text]
+#[test]
 func memberValueStruct() bool {
 	return getVec2(2, 4).y == 4;
+}
+
+#[test]
+func memberThroughPointerStruct() bool {
+	var v = getVec2(1, 2);
+
+	var ptr = &v;
+	ptr.y = 3;
+
+	return (&v).y == 3;
 }
 
 func getVec2(x i32, y i32) Vec2 {

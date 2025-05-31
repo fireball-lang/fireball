@@ -332,8 +332,16 @@ func (c *codegen) VisitMember(m *ast.Member) {
 	_, i := decl.GetField(m.Name.Token.Text)
 
 	if m.Value.Result().Kind == ast.Value {
-		value := c.visitLoad(m.Value)
-		c.exprValue = llvm.ExtractValue(c.fun, value, uint32(i), "")
+		if _, ok := m.Value.Result().Type.(*ast.PointerType); ok {
+			ptr := c.visitLoad(m.Value)
+			ptr = llvm.GetElementPtr2Const(c.fun, ptr, 0, uint32(i), "")
+
+			c.exprValue = llvm.Load(c.fun, ptr, "")
+		} else {
+			value := c.visitLoad(m.Value)
+
+			c.exprValue = llvm.ExtractValue(c.fun, value, uint32(i), "")
+		}
 	} else {
 		ptr := c.visit(m.Value)
 
