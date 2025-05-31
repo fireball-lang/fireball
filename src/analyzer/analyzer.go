@@ -18,6 +18,8 @@ type analyzer struct {
 
 func Analyze(f *ast.File, scope Scope) []utils.Diagnostic {
 	a := analyzer{scope: scope}
+
+	a.diagnostics = resolveTypes(f, scope)
 	a.accept(f)
 
 	return a.diagnostics
@@ -517,15 +519,6 @@ func (a *analyzer) accept(node ast.Node) {
 		node.Visit(a)
 	case ast.Expr:
 		node.Visit(a)
-
-	case *ast.DeclType:
-		decl := a.scope.GetTypeDecl(node.Name.Token.Text)
-
-		if ast.IsValid(decl) {
-			node.Decl = decl
-		} else {
-			a.error(node.Name, "Type with the name '"+node.Name.Token.Text+"' doesn't exist.")
-		}
 
 	default:
 		a.acceptChildren(node)

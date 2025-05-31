@@ -120,6 +120,7 @@ func (p *Project) Analyze(forceWithoutParse bool) {
 	wg.Wait()
 
 	// Create global scope
+
 	scope := newGlobalScope()
 
 	for _, file := range p.files {

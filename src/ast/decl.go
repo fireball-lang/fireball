@@ -129,8 +129,8 @@ type Func struct {
 	NameN   *Leaf
 	Params  []*Param
 	varArgs bool
-	Body    *Block
 	Returns Type
+	Body    *Block
 }
 
 func (f *Func) Children() iter.Seq[Node] {
@@ -151,10 +151,10 @@ func (f *Func) Children() iter.Seq[Node] {
 			}
 		}
 
-		if f.Body != nil && !yield(f.Body) {
+		if IsValid(f.Returns) && !yield(f.Returns) {
 			return
 		}
-		if IsValid(f.Returns) && !yield(f.Returns) {
+		if f.Body != nil && !yield(f.Body) {
 			return
 		}
 	}

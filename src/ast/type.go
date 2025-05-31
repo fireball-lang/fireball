@@ -143,7 +143,7 @@ func (d *DeclType) Range() lexer.Range {
 
 func (d *DeclType) Equals(other Type) bool {
 	if other, ok := other.(*DeclType); ok {
-		return d.Name == other.Name
+		return d.Name.Token.Text == other.Name.Token.Text
 	}
 
 	return false

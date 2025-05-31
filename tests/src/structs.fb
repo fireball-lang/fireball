@@ -1,0 +1,24 @@
+struct Vec2 {
+	x i32;
+	y i32;
+}
+
+#[text]
+func memberAddressStruct() bool {
+	var v = getVec2(1, 6);
+	return v.y == 6;
+}
+
+#[text]
+func memberValueStruct() bool {
+	return getVec2(2, 4).y == 4;
+}
+
+func getVec2(x i32, y i32) Vec2 {
+	var v: Vec2;
+
+	v.x = x;
+	v.y = y;
+
+	return v;
+}

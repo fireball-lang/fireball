@@ -541,6 +541,10 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 	// Logical, Math
 	default:
+		if b.Range().Start.Line == 9 {
+			println()
+		}
+
 		c.exprValue = c.binarySimple(b.Op, c.visitLoad(b.Left), c.visitLoad(b.Right))
 	}
 }
@@ -621,8 +625,13 @@ func (c *codegen) visitLoad(expr ast.Expr) llvm.Value {
 func (c *codegen) visit(expr ast.Expr) llvm.Value {
 	c.setSourceLocation(expr)
 
+	if expr.Result().Kind == ast.Invalid {
+		panic("codegen.codegen.Visit() - Expression result is invalid.")
+	}
+
 	c.exprValue = llvm.IdentifierValue{}
 	expr.Visit(c)
+
 	return c.exprValue
 }
 
