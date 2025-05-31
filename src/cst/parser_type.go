@@ -47,7 +47,7 @@ func (p *parser) arrayTypeNode() (Node, bool) {
 		return node, true
 	}
 
-	if _, err := strconv.ParseUint(node.Children[len(node.Children)-1].Token.Text, 10, 32); err != nil {
+	if num, err := strconv.ParseUint(node.Children[len(node.Children)-1].Token.Text, 10, 32); err != nil || num == 0 {
 		p.diagnostics = append(p.diagnostics, utils.Diagnostic{
 			Kind:    utils.Error,
 			Message: "Invalid array count",
