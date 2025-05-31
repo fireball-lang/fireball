@@ -228,6 +228,8 @@ func (c *codegen) VisitReturn(r *ast.Return) {
 }
 
 func (c *codegen) VisitLiteral(l *ast.Literal) {
+	str := l.Value.Token.Text
+
 	switch l.Value.Token.Kind {
 	case lexer.Identifier:
 		if l.Value.Token.Text == "nil" {
@@ -238,14 +240,31 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 			c.exprValue = llvm.False()
 		}
 
-	case lexer.Number:
-		if strings.ContainsRune(l.Value.Token.Text, '.') {
-			num, _ := strconv.ParseFloat(l.Value.Token.Text, 64)
-			c.exprValue = llvm.Double(num)
+	case lexer.Integer:
+		if strings.ContainsAny(str, "uU") {
+			v, _ := strconv.ParseUint(str[:len(str)-1], 10, 64)
+			c.exprValue = llvm.Uint(c.getType(l.Result().Type), v)
 		} else {
-			num, _ := strconv.ParseInt(l.Value.Token.Text, 10, 32)
-			c.exprValue = llvm.Int(llvm.I32, num)
+			v, _ := strconv.ParseInt(str, 10, 64)
+			c.exprValue = llvm.Int(c.getType(l.Result().Type), v)
 		}
+
+	case lexer.Floating:
+		if strings.ContainsAny(str, "fF") {
+			v, _ := strconv.ParseFloat(str[:len(str)-1], 32)
+			c.exprValue = llvm.Float(float32(v))
+		} else {
+			v, _ := strconv.ParseFloat(str, 64)
+			c.exprValue = llvm.Double(v)
+		}
+
+	case lexer.Hexadecimal:
+		v, _ := strconv.ParseUint(str[2:], 16, 64)
+		c.exprValue = llvm.Uint(c.getType(l.Result().Type), v)
+
+	case lexer.Binary:
+		v, _ := strconv.ParseUint(str[2:], 2, 64)
+		c.exprValue = llvm.Uint(c.getType(l.Result().Type), v)
 
 	case lexer.String:
 		c.stringConstantCount++

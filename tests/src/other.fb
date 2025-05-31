@@ -13,3 +13,27 @@ func andShortCircuit() bool {
 
 	return test;
 }
+
+#[test]
+func numberLiterals() bool {
+	var s1: i32 = 5;
+	var s2: i64 = -3000000000;
+
+	var u1: u32 = 5u;
+	var u2: u64 = 5000000000U;
+
+	var f1: f32 = 5f;
+	var f2: f32 = 5.f;
+	var f3: f32 = 5.0f;
+
+	var d1: f64 = 5.;
+	var d2: f64 = 5.0;
+
+	var h1: u32 = 0x00Ba6;
+	var h2: u64 = 0XFFFFF00Ba6;
+
+	var b1: u32 = 0b10100001;
+	var b2: u64 = 0B1111010101010101010101000010100001;
+
+	return true;
+}

@@ -43,7 +43,7 @@ func (p *parser) arrayTypeNode() (Node, bool) {
 	node.append(p.advance())
 
 	// Count
-	if p.appendAdvance(&node, lexer.Number, "Expected array count.") {
+	if p.appendAdvance(&node, lexer.Integer, "Expected array count.") {
 		return node, true
 	}
 

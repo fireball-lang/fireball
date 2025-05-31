@@ -36,7 +36,7 @@ func (l *Lexer) Next() Token {
 		return l.identifier()
 	}
 	if isNumber(ch) || (ch == '-' && isNumber(l.peek())) {
-		return l.number()
+		return l.number(ch)
 	}
 
 	switch ch {
@@ -131,10 +131,42 @@ func (l *Lexer) identifier() Token {
 	return l.token(Identifier)
 }
 
-func (l *Lexer) number() Token {
+func (l *Lexer) number(ch rune) Token {
+	if ch == '0' && (l.peek() == 'x' || l.peek() == 'X') {
+		l.advance()
+		return l.hexadecimal()
+	}
+
+	if ch == '0' && (l.peek() == 'b' || l.peek() == 'B') {
+		l.advance()
+		return l.binary()
+	}
+
+	return l.integerOrFloating()
+}
+
+func (l *Lexer) hexadecimal() Token {
+	for isHex(l.peek()) {
+		l.advance()
+	}
+
+	return l.token(Hexadecimal)
+}
+
+func (l *Lexer) binary() Token {
+	for isBinary(l.peek()) {
+		l.advance()
+	}
+
+	return l.token(Binary)
+}
+
+func (l *Lexer) integerOrFloating() Token {
 	for isNumber(l.peek()) {
 		l.advance()
 	}
+
+	floating := false
 
 	if l.peek() == '.' {
 		l.advance()
@@ -142,9 +174,24 @@ func (l *Lexer) number() Token {
 		for isNumber(l.peek()) {
 			l.advance()
 		}
+
+		floating = true
 	}
 
-	return l.token(Number)
+	if l.peek() == 'f' || l.peek() == 'F' {
+		l.advance()
+		floating = true
+	}
+
+	if floating {
+		return l.token(Floating)
+	}
+
+	if l.peek() == 'u' || l.peek() == 'U' {
+		l.advance()
+	}
+
+	return l.token(Integer)
 }
 
 func (l *Lexer) string() Token {
@@ -265,4 +312,12 @@ func isAlpha(ch rune) bool {
 
 func isNumber(ch rune) bool {
 	return ch >= '0' && ch <= '9'
+}
+
+func isHex(ch rune) bool {
+	return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')
+}
+
+func isBinary(ch rune) bool {
+	return ch == '0' || ch == '1'
 }

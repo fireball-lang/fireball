@@ -44,7 +44,7 @@ func (p *parser) exprNode(minPower int) (Node, bool) {
 
 func (p *parser) prefixExprNode() (Node, bool) {
 	switch p.current.Kind {
-	case lexer.Number, lexer.String:
+	case lexer.Integer, lexer.Floating, lexer.Hexadecimal, lexer.Binary, lexer.String:
 		return p.literalNode()
 
 	case lexer.LeftParen:

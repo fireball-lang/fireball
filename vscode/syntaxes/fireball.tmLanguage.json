@@ -112,7 +112,7 @@
 			"name": "punctuation.definition.end.bracket.square.fb"
 		},
 		"number": {
-			"match": "\\b(0x[0-9a-zA-Z]+)|(0b(?:0|1)+)|(-?[0-9]+(\\.[0-9]+)?[uUfF]?)\\b",
+			"match": "\\b(0[xX][0-9a-zA-Z]+)|(0[bB](?:0|1)+)|(-?[0-9]+(\\.[0-9]*)?[uUfF]?)\\b",
 			"name": "constant.numeric.fb"
 		},
 		"character": {

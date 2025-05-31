@@ -6,7 +6,10 @@ const (
 	Error TokenKind = iota
 
 	Identifier
-	Number
+	Integer
+	Floating
+	Hexadecimal
+	Binary
 	String
 
 	Equal
@@ -69,8 +72,14 @@ func (t TokenKind) String() string {
 
 	case Identifier:
 		return "Identifier"
-	case Number:
-		return "Number"
+	case Integer:
+		return "Integer"
+	case Floating:
+		return "Floating"
+	case Hexadecimal:
+		return "Hexadecimal"
+	case Binary:
+		return "Binary"
 	case String:
 		return "String"
 

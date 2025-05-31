@@ -5,6 +5,8 @@ import (
 	"fireball/lexer"
 	"fireball/utils"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 )
 
@@ -166,6 +168,8 @@ func (a *analyzer) VisitReturn(r *ast.Return) {
 }
 
 func (a *analyzer) VisitLiteral(l *ast.Literal) {
+	str := l.Value.Token.Text
+
 	switch l.Value.Token.Kind {
 	case lexer.Identifier:
 		if l.Value.Token.Text == "nil" {
@@ -174,20 +178,75 @@ func (a *analyzer) VisitLiteral(l *ast.Literal) {
 			l.Result().Set(ast.Value, ast.BoolType)
 		}
 
-	case lexer.Number:
-		type_ := ast.I32Type
+	case lexer.Integer:
+		if strings.ContainsAny(str, "uU") {
+			a.parseUint(l, 10, "Invalid unsigned integer.")
+		} else {
+			v, err := strconv.ParseInt(str, 10, 64)
 
-		if strings.ContainsRune(l.Value.Token.Text, '.') {
-			type_ = ast.F64Type
+			if err != nil {
+				a.error(l, "Invalid signed integer.")
+				l.Result().SetInvalid()
+			} else {
+				type_ := ast.I64Type
+				if v >= math.MinInt32 && v <= math.MaxInt32 {
+					type_ = ast.I32Type
+				}
+
+				l.Result().Set(ast.Value, type_)
+			}
 		}
 
-		l.Result().Set(ast.Value, type_)
+	case lexer.Floating:
+		if strings.ContainsAny(str, "fF") {
+			if _, err := strconv.ParseFloat(str[:len(str)-1], 32); err != nil {
+				a.error(l, "Invalid 32-bit floating number.")
+			}
+
+			l.Result().Set(ast.Value, ast.F32Type)
+		} else {
+			if _, err := strconv.ParseFloat(str, 64); err != nil {
+				a.error(l, "Invalid 64-bit floating number.")
+			}
+
+			l.Result().Set(ast.Value, ast.F64Type)
+		}
+
+	case lexer.Hexadecimal:
+		a.parseUint(l, 16, "Invalid hexadecimal integer.")
+
+	case lexer.Binary:
+		a.parseUint(l, 2, "Invalid binary integer.")
 
 	case lexer.String:
 		l.Result().Set(ast.Value, &ast.PointerType{Pointee: ast.U8Type})
 
 	default:
 		panic("analyzer.analyzer.VisitLiteral() - Invalid token kind")
+	}
+}
+
+func (a *analyzer) parseUint(l *ast.Literal, base int, errorMsg string) {
+	str := l.Value.Token.Text
+
+	if base == 10 {
+		str = str[:len(str)-1]
+	} else {
+		str = str[2:]
+	}
+
+	v, err := strconv.ParseUint(str, base, 64)
+
+	if err != nil {
+		a.error(l, errorMsg)
+		l.Result().SetInvalid()
+	} else {
+		type_ := ast.U64Type
+		if v <= math.MaxUint32 {
+			type_ = ast.U32Type
+		}
+
+		l.Result().Set(ast.Value, type_)
 	}
 }
 

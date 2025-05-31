@@ -58,7 +58,7 @@ func convertArrayType(node *cst.Node) Type {
 	for i := range node.Children {
 		child := &node.Children[i]
 
-		if child.Kind == cst.Leaf && child.Token.Kind == lexer.Number {
+		if child.Kind == cst.Leaf && child.Token.Kind == lexer.Integer {
 			count, _ := strconv.ParseUint(child.Token.Text, 10, 32)
 			a.Count = uint32(count)
 		} else if child.Kind.IsType() {

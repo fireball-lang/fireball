@@ -118,10 +118,15 @@ func Int(type_ Type, value int64) IntValue {
 		panic("llvm.Int() - Invalid type")
 	}
 
+	v := uint64(value)
+	if value < 0 {
+		v = uint64(-value)
+	}
+
 	return IntValue{
 		type_:    type_,
 		negative: value < 0,
-		value:    uint64(value),
+		value:    v,
 	}
 }
 

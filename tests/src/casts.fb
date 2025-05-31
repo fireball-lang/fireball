@@ -18,22 +18,22 @@ func primitive2primitive_none() bool {
 
 #[test]
 func primitive2primitive_float2double() bool {
-    return ((5 as f32) as f64) == 5.0;
+    return (5f as f64) == 5.0;
 }
 
 #[test]
 func primitive2primitive_double2float() bool {
-    return (5.0 as f32) == (5 as f32);
+    return 5f == (5 as f32);
 }
 
 #[test]
 func primitive2primitive_int2float() bool {
-    return (5 as f32) == (5 as f32);
+    return 5f == (5 as f32);
 }
 
 #[test]
 func primitive2primitive_float2int() bool {
-    return ((5 as f32) as i32) == 5;
+    return (5f as i32) == 5;
 }
 
 #[test]
