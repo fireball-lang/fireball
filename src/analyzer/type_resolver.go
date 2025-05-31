@@ -5,7 +5,7 @@ import (
 	"fireball/utils"
 )
 
-func resolveTypes(node ast.Node, scope Scope) (diagnostics []utils.Diagnostic) {
+func ResolveTypes(node ast.Node, scope Scope) (diagnostics []utils.Diagnostic) {
 	if declType, ok := node.(*ast.DeclType); ok {
 		decl := scope.GetTypeDecl(declType.Name.Token.Text)
 
@@ -20,7 +20,7 @@ func resolveTypes(node ast.Node, scope Scope) (diagnostics []utils.Diagnostic) {
 		}
 	} else {
 		for child := range node.Children() {
-			diagnostics = resolveTypes(child, scope)
+			diagnostics = ResolveTypes(child, scope)
 		}
 	}
 

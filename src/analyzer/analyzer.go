@@ -18,8 +18,6 @@ type analyzer struct {
 
 func Analyze(f *ast.File, scope Scope) []utils.Diagnostic {
 	a := analyzer{scope: scope}
-
-	a.diagnostics = resolveTypes(f, scope)
 	a.accept(f)
 
 	return a.diagnostics

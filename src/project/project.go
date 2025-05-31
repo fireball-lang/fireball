@@ -127,10 +127,19 @@ func (p *Project) Analyze(forceWithoutParse bool) {
 		collectSymbols(file, scope)
 	}
 
+	// Resolve types
+
+	fileDiagnostics := make(map[*File][]utils.Diagnostic)
+
+	for _, file := range p.files {
+		fileDiagnostics[file] = analyzer.ResolveTypes(file.ast, scope)
+	}
+
 	// Analyze
 
 	for _, file := range p.files {
-		diagnostics := analyzer.Analyze(file.ast, scope)
+		diagnostics := fileDiagnostics[file]
+		diagnostics = append(diagnostics, analyzer.Analyze(file.ast, scope)...)
 
 		if didChange(file.analyzeDiagnostics, diagnostics) {
 			file.analyzeDiagnostics = diagnostics
