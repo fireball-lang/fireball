@@ -513,6 +513,22 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 	}
 }
 
+func (a *analyzer) VisitCast(c *ast.Cast) {
+	a.acceptChildren(c)
+	c.Result().SetInvalid()
+
+	if !ast.IsValid(c.Value) || !ast.IsValid(c.Type) || c.Value.Result().Kind == ast.Invalid {
+		return
+	}
+
+	if _, ok := ast.GetCastKind(c.Value.Result().Type, c.Type); !ok {
+		a.error(c, "Cannot cast from '"+c.Value.Result().Type.String()+"' to '"+c.Type.String()+"'.")
+		return
+	}
+
+	c.Result().Set(ast.Value, c.Type)
+}
+
 // Utils
 
 func (a *analyzer) acceptChildren(node ast.Node) {

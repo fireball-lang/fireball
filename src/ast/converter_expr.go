@@ -36,6 +36,8 @@ func convertExpr(node *cst.Node) Expr {
 		return convertUnary(node)
 	case cst.Binary:
 		return convertBinary(node)
+	case cst.Cast:
+		return convertCast(node)
 
 	default:
 		panic("ast.convertExpr() - Invalid node kind")
@@ -321,4 +323,21 @@ func convertBinary(node *cst.Node) *Binary {
 	}
 
 	return b
+}
+
+func convertCast(node *cst.Node) *Cast {
+	c := &Cast{}
+	c.range_ = node.Range
+
+	for i := range node.Children {
+		child := &node.Children[i]
+
+		if child.Kind.IsExpr() {
+			c.Value = convertExpr(child)
+		} else if child.Kind.IsType() {
+			c.Type = convertType(child)
+		}
+	}
+
+	return c
 }

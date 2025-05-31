@@ -416,19 +416,19 @@ func GetElementPtr2Dyn[V, I1, I2 Value](f *Function, v V, i1 I1, i2 I2, name str
 
 // Conversion Instructions
 
-func Trunc[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+func Trunc[V Value](f *Function, v V, t Type, name string) IdentifierValue {
 	if f.skipInstructions {
 		return IdentifierValue{}
 	}
 
-	result := f.getIdentifierValue(v2.Type(), name)
+	result := f.getIdentifierValue(t, name)
 
 	inst := "trunc"
-	if t, ok := v2.Type().(*simpleType); ok && (t.text == "float" || t.text == "double") {
-		inst = "ftrunc"
+	if t, ok := v.Type().(*simpleType); ok && (t.text == "float" || t.text == "double") {
+		inst = "fptrunc"
 	}
 
-	f.instruction(result, "%s %s %s to %s", inst, v1.Type(), v1, v2.Type())
+	f.instruction(result, "%s %s %s to %s", inst, v.Type(), v, t)
 	return result
 }
 
@@ -440,7 +440,7 @@ func Ext[V Value](f *Function, v V, t Type, name string) IdentifierValue {
 	result := f.getIdentifierValue(t, name)
 
 	inst := "fpext"
-	if t, ok := t.(*integerType); ok {
+	if t, ok := v.Type().(*integerType); ok {
 		if t.signed {
 			inst = "sext"
 		} else {
@@ -452,65 +452,65 @@ func Ext[V Value](f *Function, v V, t Type, name string) IdentifierValue {
 	return result
 }
 
-func FloatingToInt[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+func FloatingToInt[V Value](f *Function, v V, t Type, name string) IdentifierValue {
 	if f.skipInstructions {
 		return IdentifierValue{}
 	}
 
-	result := f.getIdentifierValue(v2.Type(), name)
+	result := f.getIdentifierValue(t, name)
 
 	inst := "fptoui"
-	if t, ok := v2.Type().(*integerType); ok && t.signed {
+	if t, ok := t.(*integerType); ok && t.signed {
 		inst = "fptosi"
 	}
 
-	f.instruction(result, "%s %s %s to %s", inst, v1.Type(), v1, v2.Type())
+	f.instruction(result, "%s %s %s to %s", inst, v.Type(), v, t)
 	return result
 }
 
-func IntToFloating[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+func IntToFloating[V Value](f *Function, v V, t Type, name string) IdentifierValue {
 	if f.skipInstructions {
 		return IdentifierValue{}
 	}
 
-	result := f.getIdentifierValue(v2.Type(), name)
+	result := f.getIdentifierValue(t, name)
 
 	inst := "uitofp"
-	if t, ok := v2.Type().(*integerType); ok && t.signed {
+	if t, ok := v.Type().(*integerType); ok && t.signed {
 		inst = "sitofp"
 	}
 
-	f.instruction(result, "%s %s %s to %s", inst, v1.Type(), v1, v2.Type())
+	f.instruction(result, "%s %s %s to %s", inst, v.Type(), v, t)
 	return result
 }
 
-func PtrToInt[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+func PtrToInt[V Value](f *Function, v V, t Type, name string) IdentifierValue {
 	if f.skipInstructions {
 		return IdentifierValue{}
 	}
 
-	result := f.getIdentifierValue(v2.Type(), name)
-	f.instruction(result, "ptrtoint ptr %s to %s", v1, v2.Type())
+	result := f.getIdentifierValue(t, name)
+	f.instruction(result, "ptrtoint ptr %s to %s", v, t)
 	return result
 }
 
-func IntToPtr[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+func IntToPtr[V Value](f *Function, v V, t Type, name string) IdentifierValue {
 	if f.skipInstructions {
 		return IdentifierValue{}
 	}
 
-	result := f.getIdentifierValue(v2.Type(), name)
-	f.instruction(result, "inttoptr %s %s to ptr", v1.Type(), v1)
+	result := f.getIdentifierValue(t, name)
+	f.instruction(result, "inttoptr %s %s to ptr", v.Type(), v)
 	return result
 }
 
-func BitCast[V1, V2 Value](f *Function, v1 V1, v2 V2, name string) IdentifierValue {
+func BitCast[V Value](f *Function, v V, t Type, name string) IdentifierValue {
 	if f.skipInstructions {
 		return IdentifierValue{}
 	}
 
-	result := f.getIdentifierValue(v2.Type(), name)
-	f.instruction(result, "bitcast %s %s to %s", v1.Type(), v1, v2.Type())
+	result := f.getIdentifierValue(t, name)
+	f.instruction(result, "bitcast %s %s to %s", v.Type(), v, t)
 	return result
 }
 

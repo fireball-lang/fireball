@@ -11,8 +11,8 @@ func (p *parser) exprNode(minPower int) (Node, bool) {
 		return lhs, true
 	}
 
-	for slices.Contains(infixAndPostfixOperators, p.current.Kind) {
-		op := p.current.Kind
+	for isIndexOrPostfix(p.current) {
+		op := p.current
 
 		if leftPower := postfixExprPower(op); leftPower != -1 {
 			if leftPower < minPower {
@@ -359,7 +359,7 @@ func (p *parser) identifierNode() (Node, bool) {
 }
 
 func (p *parser) prefixUnaryNode() (Node, bool) {
-	rightPower := prefixExprPower(p.current.Kind)
+	rightPower := prefixExprPower(p.current)
 
 	if rightPower == -1 {
 		p.error("Expected an expression.")
@@ -386,10 +386,12 @@ func (p *parser) prefixUnaryNode() (Node, bool) {
 
 // Infix
 
-func (p *parser) infixExprNode(op lexer.TokenKind, lhs Node, rightPower int) (Node, bool) {
-	switch op {
+func (p *parser) infixExprNode(token lexer.Token, lhs Node, rightPower int) (Node, bool) {
+	switch token.Kind {
 	case lexer.Dot:
 		return p.memberNode(lhs)
+	case lexer.Identifier:
+		return p.castNode(lhs)
 	default:
 		return p.binaryNode(lhs, rightPower)
 	}
@@ -434,10 +436,32 @@ func (p *parser) binaryNode(lhs Node, rightPower int) (Node, bool) {
 	return node, false
 }
 
+func (p *parser) castNode(lhs Node) (Node, bool) {
+	node := Node{Kind: Cast}
+
+	// left
+	node.append(lhs)
+
+	// as
+	node.append(p.advance())
+
+	// Type
+	{
+		child, err := p.typeNode()
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+	}
+
+	return node, false
+}
+
 // Postfix
 
-func (p *parser) postfixExprNode(op lexer.TokenKind, lhs Node) (Node, bool) {
-	switch op {
+func (p *parser) postfixExprNode(token lexer.Token, lhs Node) (Node, bool) {
+	switch token.Kind {
 	case lexer.LeftBracket:
 		return p.indexNode(lhs)
 	case lexer.LeftParen:
@@ -542,7 +566,7 @@ func (p *parser) exprSemicolonNode() (Node, bool) {
 }
 
 func needsSemicolon(kind NodeKind) bool {
-	return (kind >= Literal && kind <= Binary) || kind == Var || kind == Return
+	return (kind >= Literal && kind <= Cast) || kind == Var || kind == Return
 }
 
 // Powers
@@ -556,9 +580,11 @@ type tokenPowers struct {
 	postfixLeftPower int
 }
 
+var identifierPowerTable = make(map[string]tokenPowers)
 var tokenPowerTable = make([]tokenPowers, lexer.Eof+1)
 var tokenPowerTableCount = 0
 
+var infixAndPostfixIdentifiers []string
 var infixAndPostfixOperators []lexer.TokenKind
 
 func init() {
@@ -573,37 +599,56 @@ func init() {
 	}
 
 	// =, +=, -=, *=, /=, %=, |=, ^=, &=
-	infix(false, lexer.Equal, lexer.PlusEqual, lexer.MinusEqual, lexer.StarEqual, lexer.SlashEqual, lexer.PercentageEqual, lexer.PipeEqual, lexer.XorEqual, lexer.AmpersandEqual)
+	infix(false, nil, lexer.Equal, lexer.PlusEqual, lexer.MinusEqual, lexer.StarEqual, lexer.SlashEqual, lexer.PercentageEqual, lexer.PipeEqual, lexer.XorEqual, lexer.AmpersandEqual)
 	// ||
-	infix(false, lexer.PipePipe)
+	infix(false, nil, lexer.PipePipe)
 	// &&
-	infix(false, lexer.AmpersandAmpersand)
+	infix(false, nil, lexer.AmpersandAmpersand)
 	// |
-	infix(false, lexer.Pipe)
+	infix(false, nil, lexer.Pipe)
 	// ^
-	infix(false, lexer.Xor)
+	infix(false, nil, lexer.Xor)
 	// &
-	infix(false, lexer.Ampersand)
+	infix(false, nil, lexer.Ampersand)
 	// ==, !=
-	infix(false, lexer.EqualEqual, lexer.BangEqual)
-	// >, <=, >, >=
-	infix(false, lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual)
+	infix(false, nil, lexer.EqualEqual, lexer.BangEqual)
+	// >, <=, >, >=, as
+	infix(false, []string{"as"}, lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual)
 	// +, -
-	infix(false, lexer.Plus, lexer.Minus)
+	infix(false, nil, lexer.Plus, lexer.Minus)
 	// *, /, %
-	infix(false, lexer.Star, lexer.Slash, lexer.Percentage)
+	infix(false, nil, lexer.Star, lexer.Slash, lexer.Percentage)
 	// -x, !x, ++x, --x, &x, *x
-	prefix(lexer.Minus, lexer.Bang, lexer.PlusPlus, lexer.MinusMinus, lexer.Ampersand, lexer.Star)
+	prefix(nil, lexer.Minus, lexer.Bang, lexer.PlusPlus, lexer.MinusMinus, lexer.Ampersand, lexer.Star)
 	// x++, x--
-	postfix(lexer.PlusPlus, lexer.MinusMinus)
+	postfix(nil, lexer.PlusPlus, lexer.MinusMinus)
 	// x[], x()
-	postfix(lexer.LeftBracket, lexer.LeftParen)
+	postfix(nil, lexer.LeftBracket, lexer.LeftParen)
 	// x.y
-	infix(false, lexer.Dot)
+	infix(false, nil, lexer.Dot)
 
 }
 
-func prefix(kinds ...lexer.TokenKind) {
+func getIdentifierPowers(identifier string) tokenPowers {
+	if powers, ok := identifierPowerTable[identifier]; ok {
+		return powers
+	}
+
+	return tokenPowers{
+		prefixRightPower: -1,
+		infixLeftPower:   -1,
+		infixRightPower:  -1,
+		postfixLeftPower: -1,
+	}
+}
+
+func prefix(identifiers []string, kinds ...lexer.TokenKind) {
+	for _, identifier := range identifiers {
+		powers := getIdentifierPowers(identifier)
+		powers.prefixRightPower = (tokenPowerTableCount * 2) + 1
+		identifierPowerTable[identifier] = powers
+	}
+
 	for _, kind := range kinds {
 		tokenPowerTable[kind].prefixRightPower = (tokenPowerTableCount * 2) + 1
 	}
@@ -611,7 +656,21 @@ func prefix(kinds ...lexer.TokenKind) {
 	tokenPowerTableCount++
 }
 
-func infix(rightAssociative bool, kinds ...lexer.TokenKind) {
+func infix(rightAssociative bool, identifiers []string, kinds ...lexer.TokenKind) {
+	for _, identifier := range identifiers {
+		powers := getIdentifierPowers(identifier)
+		if rightAssociative {
+			powers.infixLeftPower = (tokenPowerTableCount * 2) + 2
+			powers.infixRightPower = (tokenPowerTableCount * 2) + 1
+		} else {
+			powers.infixLeftPower = (tokenPowerTableCount * 2) + 1
+			powers.infixRightPower = (tokenPowerTableCount * 2) + 2
+		}
+		identifierPowerTable[identifier] = powers
+
+		infixAndPostfixIdentifiers = append(infixAndPostfixIdentifiers, identifier)
+	}
+
 	for _, kind := range kinds {
 		if rightAssociative {
 			tokenPowerTable[kind].infixLeftPower = (tokenPowerTableCount * 2) + 2
@@ -627,7 +686,15 @@ func infix(rightAssociative bool, kinds ...lexer.TokenKind) {
 	tokenPowerTableCount++
 }
 
-func postfix(kinds ...lexer.TokenKind) {
+func postfix(identifiers []string, kinds ...lexer.TokenKind) {
+	for _, identifier := range identifiers {
+		powers := getIdentifierPowers(identifier)
+		powers.postfixLeftPower = (tokenPowerTableCount * 2) + 1
+		identifierPowerTable[identifier] = powers
+
+		infixAndPostfixIdentifiers = append(infixAndPostfixIdentifiers, identifier)
+	}
+
 	for _, kind := range kinds {
 		tokenPowerTable[kind].postfixLeftPower = (tokenPowerTableCount * 2) + 1
 
@@ -637,15 +704,44 @@ func postfix(kinds ...lexer.TokenKind) {
 	tokenPowerTableCount++
 }
 
-func prefixExprPower(kind lexer.TokenKind) int {
-	return tokenPowerTable[kind].prefixRightPower
+func isIndexOrPostfix(token lexer.Token) bool {
+	if token.Kind == lexer.Identifier {
+		return slices.Contains(infixAndPostfixIdentifiers, token.Text)
+	}
+
+	return slices.Contains(infixAndPostfixOperators, token.Kind)
 }
 
-func infixExprPower(kind lexer.TokenKind) (int, int) {
-	powers := tokenPowerTable[kind]
+func prefixExprPower(token lexer.Token) int {
+	if token.Kind == lexer.Identifier {
+		if powers, ok := identifierPowerTable[token.Text]; ok {
+			return powers.prefixRightPower
+		}
+		return -1
+	}
+
+	return tokenPowerTable[token.Kind].prefixRightPower
+}
+
+func infixExprPower(token lexer.Token) (int, int) {
+	if token.Kind == lexer.Identifier {
+		if powers, ok := identifierPowerTable[token.Text]; ok {
+			return powers.infixLeftPower, powers.infixRightPower
+		}
+		return -1, -1
+	}
+
+	powers := tokenPowerTable[token.Kind]
 	return powers.infixLeftPower, powers.infixRightPower
 }
 
-func postfixExprPower(kind lexer.TokenKind) int {
-	return tokenPowerTable[kind].postfixLeftPower
+func postfixExprPower(token lexer.Token) int {
+	if token.Kind == lexer.Identifier {
+		if powers, ok := identifierPowerTable[token.Text]; ok {
+			return powers.postfixLeftPower
+		}
+		return -1
+	}
+
+	return tokenPowerTable[token.Kind].postfixLeftPower
 }

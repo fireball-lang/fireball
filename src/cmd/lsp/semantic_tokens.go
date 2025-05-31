@@ -140,6 +140,10 @@ func (h *highlighter) VisitBinary(b *ast.Binary) {
 	h.visitChildren(b)
 }
 
+func (h *highlighter) VisitCast(c *ast.Cast) {
+	h.visitChildren(c)
+}
+
 // Visit
 
 func (h *highlighter) visitChildren(node ast.Node) {

@@ -34,6 +34,7 @@ const (
 	Member
 	Unary
 	Binary
+	Cast
 )
 
 func (n NodeKind) IsType() bool {
@@ -45,7 +46,7 @@ func (n NodeKind) IsDecl() bool {
 }
 
 func (n NodeKind) IsExpr() bool {
-	return n >= Block && n <= Binary
+	return n >= Block && n <= Cast
 }
 
 func (n NodeKind) String() string {
@@ -107,6 +108,8 @@ func (n NodeKind) String() string {
 		return "Unary"
 	case Binary:
 		return "Binary"
+	case Cast:
+		return "Cast"
 
 	default:
 		panic("cst.NodeKind.String() - Invalid")

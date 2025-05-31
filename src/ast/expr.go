@@ -28,6 +28,7 @@ type ExprVisitor interface {
 	VisitMember(m *Member)
 	VisitUnary(u *Unary)
 	VisitBinary(b *Binary)
+	VisitCast(c *Cast)
 }
 
 // baseExpr
@@ -374,4 +375,28 @@ func (b *Binary) Children() iter.Seq[Node] {
 
 func (b *Binary) Visit(visitor ExprVisitor) {
 	visitor.VisitBinary(b)
+}
+
+// Cast
+
+type Cast struct {
+	baseExpr
+
+	Value Expr
+	Type  Type
+}
+
+func (c *Cast) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(c.Value) && !yield(c.Value) {
+			return
+		}
+		if IsValid(c.Type) && !yield(c.Type) {
+			return
+		}
+	}
+}
+
+func (c *Cast) Visit(visitor ExprVisitor) {
+	visitor.VisitCast(c)
 }

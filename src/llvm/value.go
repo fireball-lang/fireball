@@ -208,3 +208,25 @@ func (n NullValue) String() string {
 func Null() NullValue {
 	return NullValue{}
 }
+
+// TypedWrapper
+
+type TypedWrapper struct {
+	type_ Type
+	value Value
+}
+
+func (t TypedWrapper) Type() Type {
+	return t.type_
+}
+
+func (t TypedWrapper) String() string {
+	return t.value.String()
+}
+
+func ChangeValueType(value Value, newType Type) TypedWrapper {
+	return TypedWrapper{
+		type_: newType,
+		value: value,
+	}
+}

@@ -587,6 +587,29 @@ func (c *codegen) binarySimple(op lexer.TokenKind, left, right llvm.Value) llvm.
 	}
 }
 
+func (c *codegen) VisitCast(cast *ast.Cast) {
+	value := c.visitLoad(cast.Value)
+	type_ := c.getType(cast.Type)
+
+	kind, _ := ast.GetCastKind(cast.Value.Result().Type, cast.Type)
+
+	switch kind {
+	case ast.Nop:
+		c.exprValue = llvm.ChangeValueType(value, type_)
+	case ast.Extend:
+		c.exprValue = llvm.Ext(c.fun, value, type_, "")
+	case ast.Truncate:
+		c.exprValue = llvm.Trunc(c.fun, value, type_, "")
+	case ast.IntegerToFloating:
+		c.exprValue = llvm.IntToFloating(c.fun, value, type_, "")
+	case ast.FloatingToInteger:
+		c.exprValue = llvm.FloatingToInt(c.fun, value, type_, "")
+
+	default:
+		panic("codegen.codegen.VisitCast() - Invalid cast kind")
+	}
+}
+
 // Utils
 
 func (c *codegen) getConstantOne(type_ ast.Type) llvm.Value {

@@ -1,0 +1,53 @@
+#[test]
+func primitive2primitive_extend() bool {
+    var a = 5 as i32;
+    return (a as i64) == (5 as i64);
+}
+
+#[test]
+func primitive2primitive_truncate() bool {
+    var a = 5 as i32;
+    return (a as i16) == (5 as i16);
+}
+
+#[test]
+func primitive2primitive_none() bool {
+    var a = 5 as i32;
+    return (a as u32) == (5 as u32);
+}
+
+#[test]
+func primitive2primitive_float2double() bool {
+    return ((5 as f32) as f64) == 5.0;
+}
+
+#[test]
+func primitive2primitive_double2float() bool {
+    return (5.0 as f32) == (5 as f32);
+}
+
+#[test]
+func primitive2primitive_int2float() bool {
+    return (5 as f32) == (5 as f32);
+}
+
+#[test]
+func primitive2primitive_float2int() bool {
+    return ((5 as f32) as i32) == 5;
+}
+
+#[test]
+func pointer2pointer() bool {
+    var a: *i32;
+    var _b = a as *f64;
+
+    return true;
+}
+
+#[test]
+func pointer2func() bool {
+    var a: *i32;
+    var _b = a as fn () void;
+
+    return true;
+}

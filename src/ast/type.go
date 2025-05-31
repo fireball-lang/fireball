@@ -34,6 +34,25 @@ const (
 	F64
 )
 
+func (p PrimitiveKind) BitCount() uint32 {
+	switch p {
+	case Void:
+		return 0
+	case Bool:
+		return 1
+	case U8, I8:
+		return 8
+	case U16, I16:
+		return 16
+	case U32, I32, F32:
+		return 32
+	case U64, I64, F64:
+		return 64
+	default:
+		panic("ast.PrimitiveKind.BitCount() - Invalid primitive kind")
+	}
+}
+
 func (p PrimitiveKind) IsInteger() bool {
 	return p >= U8 && p <= I64
 }

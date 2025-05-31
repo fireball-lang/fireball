@@ -131,3 +131,7 @@ func (p *printer) VisitUnary(u *Unary) {
 func (p *printer) VisitBinary(b *Binary) {
 	fmt.Printf("Binary '%s'\n", b.Op)
 }
+
+func (p *printer) VisitCast(c *Cast) {
+	fmt.Printf("Cast '%s'\n", c.Type.String())
+}
