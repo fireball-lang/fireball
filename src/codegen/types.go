@@ -22,10 +22,12 @@ func (c *codegen) getType(type_ ast.Type) llvm.Type {
 	switch type_ := type_.(type) {
 	case *ast.PrimitiveType:
 		t = c.createPrimitiveType(type_)
-	case *ast.PointerType:
-		t = c.createPointerType(type_)
 	case *ast.DeclType:
 		t = c.createDeclType(type_)
+	case *ast.ArrayType:
+		t = c.createArrayType(type_)
+	case *ast.PointerType:
+		t = c.createPointerType(type_)
 	case ast.FuncType:
 		t = c.createFuncType(type_)
 
@@ -73,10 +75,6 @@ func (c *codegen) createPrimitiveType(type_ *ast.PrimitiveType) llvm.Type {
 	}
 }
 
-func (c *codegen) createPointerType(type_ *ast.PointerType) llvm.Type {
-	return c.module.NewPointerType(c.getType(type_.Pointee))
-}
-
 func (c *codegen) createDeclType(type_ *ast.DeclType) llvm.Type {
 	switch decl := type_.Decl.(type) {
 	case *ast.Struct:
@@ -97,6 +95,14 @@ func (c *codegen) createDeclType(type_ *ast.DeclType) llvm.Type {
 	default:
 		panic("codegen.codegen.createDeclType() - Invalid declaration")
 	}
+}
+
+func (c *codegen) createArrayType(type_ *ast.ArrayType) llvm.Type {
+	return c.module.NewArrayType(type_.Count, c.getType(type_.Element))
+}
+
+func (c *codegen) createPointerType(type_ *ast.PointerType) llvm.Type {
+	return c.module.NewPointerType(c.getType(type_.Pointee))
 }
 
 func (c *codegen) createFuncType(type_ ast.FuncType) llvm.Type {

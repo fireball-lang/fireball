@@ -245,32 +245,29 @@ func (a *analyzer) VisitCall(c *ast.Call) {
 
 func (a *analyzer) VisitIndex(i *ast.Index) {
 	a.acceptChildren(i)
-
-	err := i.Value.Result().Kind == ast.Invalid
+	i.Result().SetInvalid()
 
 	if ast.IsValid(i.Value) && i.Value.Result().Kind != ast.Invalid {
-		if i.Value.Result().Kind != ast.Address {
-			a.error(i.Value, "Cannot index into a temporary value.")
-			err = true
+		// TODO: Allow indexing into temporary values
+		if i.Value.Result().Kind == ast.Value {
+			a.error(i.Value, "Indexing into temporary values is not allowed.")
 		}
 
-		if _, ok := i.Value.Result().Type.(*ast.PointerType); !ok {
+		switch type_ := i.Value.Result().Type.(type) {
+		case *ast.ArrayType:
+			i.Result().Set(i.Value.Result().Kind, type_.Element)
+		case *ast.PointerType:
+			i.Result().Set(i.Value.Result().Kind, type_.Pointee)
+
+		default:
 			a.error(i.Value, "Type '"+i.Value.Result().Type.String()+"' cannot be indexed.")
-			err = true
 		}
 	}
 
 	if ast.IsValid(i.Index) && i.Index.Result().Kind != ast.Invalid {
 		if p, ok := i.Index.Result().Type.(*ast.PrimitiveType); !ok || !p.Kind.IsInteger() {
 			a.error(i.Index, "Only integer types can index, not '"+i.Index.Result().Type.String()+"'.")
-			err = true
 		}
-	}
-
-	if err {
-		i.Result().SetInvalid()
-	} else {
-		i.Result().Set(i.Value.Result().Kind, i.Value.Result().Type.(*ast.PointerType).Pointee)
 	}
 }
 

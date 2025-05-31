@@ -1,0 +1,23 @@
+#[test]
+func indexAddressArray() bool {
+	var arr = getArray(1, 2);
+	return arr[1] == 2;
+}
+
+/*#[test]
+func indexValueArray() bool {
+	return getArray(3, 4)[1] == 4;
+}*/
+
+func getArray(x i32, y i32) [2]i32 {
+	var arr: [2]i32;
+
+	arr[num(0)] = x;
+	arr[num(1)] = y;
+
+	return arr;
+}
+
+func num(i i32) i32 {
+	return i;
+}

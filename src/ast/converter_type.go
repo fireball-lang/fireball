@@ -3,12 +3,15 @@ package ast
 import (
 	"fireball/cst"
 	"fireball/lexer"
+	"strconv"
 )
 
 func convertType(node *cst.Node) Type {
 	switch node.Kind {
 	case cst.DeclType:
 		return convertDeclType(node)
+	case cst.ArrayType:
+		return convertArrayType(node)
 	case cst.PointerType:
 		return convertPointerType(node)
 	case cst.FuncType:
@@ -46,6 +49,24 @@ func convertDeclType(node *cst.Node) Type {
 	}
 
 	return d
+}
+
+func convertArrayType(node *cst.Node) Type {
+	a := &ArrayType{}
+	a.range_ = node.Range
+
+	for i := range node.Children {
+		child := &node.Children[i]
+
+		if child.Kind == cst.Leaf && child.Token.Kind == lexer.Number {
+			count, _ := strconv.ParseUint(child.Token.Text, 10, 32)
+			a.Count = uint32(count)
+		} else if child.Kind.IsType() {
+			a.Element = convertType(child)
+		}
+	}
+
+	return a
 }
 
 func convertPointerType(node *cst.Node) Type {

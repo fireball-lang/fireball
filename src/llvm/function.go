@@ -376,7 +376,26 @@ func GetElementPtr1[V, I Value](f *Function, v V, i I, name string) IdentifierVa
 	return result
 }
 
-func GetElementPtr2[V Value](f *Function, v V, i1, i2 uint32, name string) IdentifierValue {
+func GetElementPtr2Const[V Value](f *Function, v V, i1, i2 uint32, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
+	pointee := v.Type().(*pointerType).pointee
+	var t Type
+
+	if s, ok := pointee.(*structType); ok {
+		t = s.fields[i2].Type
+	} else {
+		panic("llvm.GetElementPtr2Const() - Invalid pointee type")
+	}
+
+	result := f.getIdentifierValue(&pointerType{baseType: baseType{size_: 64, align_: 64, dbg: math.MaxUint32}, pointee: t}, name)
+	f.instruction(result, "getelementptr %s, ptr %s, i32 %d, i32 %d", pointee, v.String(), i1, i2)
+	return result
+}
+
+func GetElementPtr2Dyn[V, I1, I2 Value](f *Function, v V, i1 I1, i2 I2, name string) IdentifierValue {
 	if f.skipInstructions {
 		return IdentifierValue{}
 	}
@@ -386,14 +405,12 @@ func GetElementPtr2[V Value](f *Function, v V, i1, i2 uint32, name string) Ident
 
 	if a, ok := pointee.(*arrayType); ok {
 		t = a.element
-	} else if s, ok := pointee.(*structType); ok {
-		t = s.fields[i2].Type
 	} else {
-		panic("llvm.GetElementPtr() - Invalid pointee type")
+		panic("llvm.GetElementPtr2Dyn() - Invalid pointee type")
 	}
 
 	result := f.getIdentifierValue(&pointerType{baseType: baseType{size_: 64, align_: 64, dbg: math.MaxUint32}, pointee: t}, name)
-	f.instruction(result, "getelementptr %s, ptr %s, i32 %d, i32 %d", pointee, v.String(), i1, i2)
+	f.instruction(result, "getelementptr %s, ptr %s, %s %s, %s %s", pointee, v.String(), i1.Type(), i1, i2.Type(), i2)
 	return result
 }
 

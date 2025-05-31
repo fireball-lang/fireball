@@ -8,6 +8,7 @@ const (
 	File
 
 	DeclType
+	ArrayType
 	PointerType
 	FuncType
 
@@ -57,6 +58,8 @@ func (n NodeKind) String() string {
 
 	case DeclType:
 		return "DeclType"
+	case ArrayType:
+		return "ArrayType"
 	case PointerType:
 		return "PointerType"
 	case FuncType:

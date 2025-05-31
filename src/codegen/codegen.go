@@ -310,10 +310,10 @@ func (c *codegen) VisitCall(call *ast.Call) {
 }
 
 func (c *codegen) VisitIndex(i *ast.Index) {
-	ptr := c.visitLoad(i.Value)
+	ptr := c.visit(i.Value)
 	index := c.visitLoad(i.Index)
 
-	c.exprValue = llvm.GetElementPtr1(c.fun, ptr, index, "")
+	c.exprValue = llvm.GetElementPtr2Dyn(c.fun, ptr, llvm.Int(llvm.I32, 0), index, "")
 }
 
 func (c *codegen) VisitMember(m *ast.Member) {
@@ -339,7 +339,7 @@ func (c *codegen) VisitMember(m *ast.Member) {
 			ptr = llvm.Load(c.fun, ptr, "")
 		}
 
-		c.exprValue = llvm.GetElementPtr2(c.fun, ptr, 0, uint32(i), "")
+		c.exprValue = llvm.GetElementPtr2Const(c.fun, ptr, 0, uint32(i), "")
 	}
 }
 

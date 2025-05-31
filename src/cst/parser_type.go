@@ -1,6 +1,10 @@
 package cst
 
-import "fireball/lexer"
+import (
+	"fireball/lexer"
+	"fireball/utils"
+	"strconv"
+)
 
 func (p *parser) typeNode() (Node, bool) {
 	switch p.current.Kind {
@@ -10,6 +14,9 @@ func (p *parser) typeNode() (Node, bool) {
 		}
 
 		return p.declTypeNode()
+
+	case lexer.LeftBracket:
+		return p.arrayTypeNode()
 
 	case lexer.Star:
 		return p.pointerTypeNode()
@@ -25,6 +32,45 @@ func (p *parser) declTypeNode() (Node, bool) {
 
 	// Type name
 	node.append(p.advance())
+
+	return node, false
+}
+
+func (p *parser) arrayTypeNode() (Node, bool) {
+	node := Node{Kind: ArrayType}
+
+	// [
+	node.append(p.advance())
+
+	// Count
+	if p.appendAdvance(&node, lexer.Number, "Expected array count.") {
+		return node, true
+	}
+
+	if _, err := strconv.ParseUint(node.Children[len(node.Children)-1].Token.Text, 10, 32); err != nil {
+		p.diagnostics = append(p.diagnostics, utils.Diagnostic{
+			Kind:    utils.Error,
+			Message: "Invalid array count",
+			Range:   node.Children[len(node.Children)-1].Range,
+		})
+
+		node.Children = node.Children[:len(node.Children)-1]
+	}
+
+	// ]
+	if p.appendAdvance(&node, lexer.RightBracket, "Expected ']' after array count.") {
+		return node, true
+	}
+
+	// Element
+	{
+		child, err := p.typeNode()
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+	}
 
 	return node, false
 }

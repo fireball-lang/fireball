@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fireball/lexer"
+	"fmt"
 	"iter"
 	"slices"
 	"strings"
@@ -150,6 +151,35 @@ func (d *DeclType) Equals(other Type) bool {
 
 func (d *DeclType) String() string {
 	return d.Name.Token.Text
+}
+
+// ArrayType
+
+type ArrayType struct {
+	baseRangeNode
+
+	Count   uint32
+	Element Type
+}
+
+func (a *ArrayType) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(a.Element) && !yield(a.Element) {
+			return
+		}
+	}
+}
+
+func (a *ArrayType) Equals(other Type) bool {
+	if other, ok := other.(*ArrayType); ok {
+		return a.Count == other.Count && a.Element.Equals(other.Element)
+	}
+
+	return false
+}
+
+func (a *ArrayType) String() string {
+	return fmt.Sprintf("[%d]%s", a.Count, a.Element.String())
 }
 
 // PointerType
