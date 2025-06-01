@@ -397,7 +397,7 @@ func (c *codegen) VisitUnary(u *ast.Unary) {
 			ptr := c.visit(u.Expr)
 
 			oldValue := llvm.Load(c.fun, ptr, "")
-			newValue := llvm.Add(c.fun, oldValue, c.getConstantOne(u.Expr.Result().Type), "")
+			newValue := c.binarySimple(u.Op, oldValue, c.getConstantOne(u.Expr.Result().Type))
 
 			llvm.Store(c.fun, newValue, ptr)
 			c.exprValue = oldValue
@@ -412,7 +412,7 @@ func (c *codegen) VisitUnary(u *ast.Unary) {
 			ptr := c.visit(u.Expr)
 
 			oldValue := llvm.Load(c.fun, ptr, "")
-			newValue := llvm.Add(c.fun, oldValue, c.getConstantOne(u.Expr.Result().Type), "")
+			newValue := c.binarySimple(u.Op, oldValue, c.getConstantOne(u.Expr.Result().Type))
 
 			llvm.Store(c.fun, newValue, ptr)
 			c.exprValue = newValue
@@ -615,9 +615,9 @@ func (c *codegen) binarySimple(op lexer.TokenKind, left, right llvm.Value) llvm.
 		return llvm.And(c.fun, left, right, "")
 
 	// Math
-	case lexer.Plus, lexer.PlusEqual:
+	case lexer.Plus, lexer.PlusEqual, lexer.PlusPlus:
 		return llvm.Add(c.fun, left, right, "")
-	case lexer.Minus, lexer.MinusEqual:
+	case lexer.Minus, lexer.MinusEqual, lexer.MinusMinus:
 		return llvm.Sub(c.fun, left, right, "")
 	case lexer.Star, lexer.StarEqual:
 		return llvm.Mul(c.fun, left, right, "")

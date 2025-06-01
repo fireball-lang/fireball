@@ -37,3 +37,25 @@ func numberLiterals() bool {
 
 	return true;
 }
+
+#[test]
+func increment() bool {
+	var a = 1;
+	var b = a++;
+
+	a = 1;
+	var c = ++a;
+
+	return b == 1 && c == 2;
+}
+
+#[test]
+func decrement() bool {
+	var a = 1;
+	var b = a--;
+
+	a = 1;
+	var c = --a;
+
+	return b == 1 && c == 0;
+}
