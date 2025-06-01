@@ -86,6 +86,10 @@ func (p *printer) VisitWhile(w *While) {
 	fmt.Println("While")
 }
 
+func (p *printer) VisitBreak(b *Break) {
+	fmt.Println("Break")
+}
+
 func (p *printer) VisitReturn(r *Return) {
 	fmt.Println("Return")
 }

@@ -62,6 +62,8 @@ func (p *parser) prefixExprNode() (Node, bool) {
 			return p.whileNode()
 		case "for":
 			return p.forNode()
+		case "break":
+			return p.breakNode()
 		case "return":
 			return p.returnNode()
 		default:
@@ -326,6 +328,15 @@ func (p *parser) forNode() (Node, bool) {
 	return node, false
 }
 
+func (p *parser) breakNode() (Node, bool) {
+	node := Node{Kind: Break}
+
+	// Keyword
+	node.append(p.advance())
+
+	return node, false
+}
+
 func (p *parser) returnNode() (Node, bool) {
 	node := Node{Kind: Return}
 
@@ -566,7 +577,7 @@ func (p *parser) exprSemicolonNode() (Node, bool) {
 }
 
 func needsSemicolon(kind NodeKind) bool {
-	return (kind >= Literal && kind <= Cast) || kind == Var || kind == Return
+	return (kind >= Literal && kind <= Cast) || kind == Var || kind == Break || kind == Return
 }
 
 // Powers

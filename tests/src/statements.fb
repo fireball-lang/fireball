@@ -79,3 +79,29 @@ func for3() bool {
 
     return a == 4;
 }
+
+#[test]
+func whileBreak() bool {
+	var i = 0;
+
+	while (true) {
+		if (i == 3)
+			break;
+
+		i++;
+	}
+
+	return i == 3;
+}
+
+#[test]
+func forBreak() bool {
+	var i = 0;
+
+	for (;; i++) {
+		if (i == 4)
+			break;
+	}
+
+	return i == 4;
+}

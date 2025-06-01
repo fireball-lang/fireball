@@ -24,6 +24,7 @@ const (
 	If
 	While
 	For
+	Break
 	Return
 
 	Literal
@@ -89,6 +90,8 @@ func (n NodeKind) String() string {
 		return "While"
 	case For:
 		return "For"
+	case Break:
+		return "Break"
 	case Return:
 		return "Return"
 

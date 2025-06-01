@@ -23,6 +23,8 @@ type codegen struct {
 	variables       analyzer.VariableTracker[llvm.IdentifierValue]
 	variableAllocas map[*ast.Var]llvm.IdentifierValue
 
+	loopEndL llvm.Identifier
+
 	exprValue llvm.Value
 }
 
@@ -200,14 +202,14 @@ func (c *codegen) VisitIf(i *ast.If) {
 func (c *codegen) VisitWhile(w *ast.While) {
 	conditionL := c.getNamedIdentifier("while.condition")
 	bodyL := c.getNamedIdentifier("while.body")
-	endL := c.getNamedIdentifier("while.end")
+	c.loopEndL = c.getNamedIdentifier("while.end")
 
 	llvm.Br(c.fun, conditionL)
 
 	// Condition
 	c.fun.Block(conditionL)
 	condition := c.visitLoad(w.Condition)
-	llvm.BrCond(c.fun, condition, bodyL, endL)
+	llvm.BrCond(c.fun, condition, bodyL, c.loopEndL)
 
 	// Body
 	c.fun.Block(bodyL)
@@ -215,7 +217,11 @@ func (c *codegen) VisitWhile(w *ast.While) {
 	llvm.Br(c.fun, conditionL)
 
 	// End
-	c.fun.Block(endL)
+	c.fun.Block(c.loopEndL)
+}
+
+func (c *codegen) VisitBreak(b *ast.Break) {
+	llvm.Br(c.fun, c.loopEndL)
 }
 
 func (c *codegen) VisitReturn(r *ast.Return) {

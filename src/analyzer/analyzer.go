@@ -15,6 +15,8 @@ type analyzer struct {
 	scope     Scope
 	variables VariableTracker[any]
 
+	isLoopBody bool
+
 	diagnostics []utils.Diagnostic
 }
 
@@ -152,11 +154,24 @@ func (a *analyzer) VisitIf(i *ast.If) {
 }
 
 func (a *analyzer) VisitWhile(w *ast.While) {
+	prevIsLoopBody := a.isLoopBody
+	a.isLoopBody = true
+
 	a.acceptChildren(w)
+
+	a.isLoopBody = prevIsLoopBody
 
 	a.checkType(w.Condition, ast.BoolType)
 
 	w.Result().Set(ast.Value, ast.VoidType)
+}
+
+func (a *analyzer) VisitBreak(b *ast.Break) {
+	if !a.isLoopBody {
+		a.error(b, "Break can only be inside a loop body.")
+	}
+
+	b.Result().Set(ast.Value, ast.VoidType)
 }
 
 func (a *analyzer) VisitReturn(r *ast.Return) {

@@ -17,6 +17,8 @@ func convertExpr(node *cst.Node) Expr {
 		return convertWhile(node)
 	case cst.For:
 		return convertFor(node)
+	case cst.Break:
+		return convertBreak(node)
 	case cst.Return:
 		return convertReturn(node)
 
@@ -162,6 +164,13 @@ func convertFor(node *cst.Node) *Block {
 		}
 	}
 
+	if !IsValid(condition) {
+		condition = &Literal{Value: &Leaf{Token: lexer.Token{
+			Kind: lexer.Identifier,
+			Text: "true",
+		}}}
+	}
+
 	b := &Block{}
 	b.range_ = node.Range
 
@@ -169,22 +178,27 @@ func convertFor(node *cst.Node) *Block {
 		b.Exprs = append(b.Exprs, initializer)
 	}
 
-	if IsValid(condition) || IsValid(body) {
-		w := &While{}
-		b.Exprs = append(b.Exprs, w)
+	w := &While{}
+	b.Exprs = append(b.Exprs, w)
 
-		w.Condition = condition
-		w.Body = body
+	w.Condition = condition
+	w.Body = body
 
-		if IsValid(increment) {
-			b := &Block{}
+	if IsValid(increment) {
+		b := &Block{}
 
-			b.Exprs = append(b.Exprs, w.Body)
-			b.Exprs = append(b.Exprs, increment)
+		b.Exprs = append(b.Exprs, w.Body)
+		b.Exprs = append(b.Exprs, increment)
 
-			w.Body = b
-		}
+		w.Body = b
 	}
+
+	return b
+}
+
+func convertBreak(node *cst.Node) *Break {
+	b := &Break{}
+	b.range_ = node.Range
 
 	return b
 }

@@ -92,6 +92,10 @@ func (h *highlighter) VisitWhile(w *ast.While) {
 	h.visitChildren(w)
 }
 
+func (h *highlighter) VisitBreak(b *ast.Break) {
+	h.visitChildren(b)
+}
+
 func (h *highlighter) VisitReturn(r *ast.Return) {
 	h.visitChildren(r)
 }
