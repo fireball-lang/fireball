@@ -6,29 +6,29 @@ import (
 	"strconv"
 )
 
-func convertType(node *cst.Node) Type {
+func (c *converter) convertType(node *cst.Node) Type {
 	switch node.Kind {
 	case cst.DeclType:
-		return convertDeclType(node)
+		return c.convertDeclType(node)
 	case cst.ArrayType:
-		return convertArrayType(node)
+		return c.convertArrayType(node)
 	case cst.PointerType:
-		return convertPointerType(node)
+		return c.convertPointerType(node)
 	case cst.FuncType:
-		return convertFuncType(node)
+		return c.convertFuncType(node)
 
 	default:
 		panic("ast.convertType() - Invalid node kind")
 	}
 }
 
-func convertDeclType(node *cst.Node) Type {
+func (c *converter) convertDeclType(node *cst.Node) Type {
 	// PrimitiveType
 	for i := range node.Children {
 		child := &node.Children[i]
 
 		if child.Kind == cst.Leaf {
-			if kind, ok := getPrimitiveKind(child.Token.Text); ok {
+			if kind, ok := c.getPrimitiveKind(child.Token.Text); ok {
 				return &PrimitiveType{
 					baseRangeNode: baseRangeNode{range_: node.Range},
 					Kind:          kind,
@@ -44,14 +44,14 @@ func convertDeclType(node *cst.Node) Type {
 		child := &node.Children[i]
 
 		if child.Kind == cst.Leaf {
-			d.Name = convertLeaf(child)
+			d.Name = c.convertLeaf(child)
 		}
 	}
 
 	return d
 }
 
-func convertArrayType(node *cst.Node) Type {
+func (c *converter) convertArrayType(node *cst.Node) Type {
 	a := &ArrayType{}
 	a.range_ = node.Range
 
@@ -62,14 +62,14 @@ func convertArrayType(node *cst.Node) Type {
 			count, _ := strconv.ParseUint(child.Token.Text, 10, 32)
 			a.Count = uint32(count)
 		} else if child.Kind.IsType() {
-			a.Element = convertType(child)
+			a.Element = c.convertType(child)
 		}
 	}
 
 	return a
 }
 
-func convertPointerType(node *cst.Node) Type {
+func (c *converter) convertPointerType(node *cst.Node) Type {
 	p := &PointerType{}
 	p.range_ = node.Range
 
@@ -77,14 +77,14 @@ func convertPointerType(node *cst.Node) Type {
 		child := &node.Children[i]
 
 		if child.Kind.IsType() {
-			p.Pointee = convertType(child)
+			p.Pointee = c.convertType(child)
 		}
 	}
 
 	return p
 }
 
-func convertFuncType(node *cst.Node) Type {
+func (c *converter) convertFuncType(node *cst.Node) Type {
 	f := &SimpleFuncType{}
 	f.range_ = node.Range
 
@@ -98,7 +98,7 @@ func convertFuncType(node *cst.Node) Type {
 				f.params = append(f.params, lastType)
 			}
 
-			lastType = convertType(child)
+			lastType = c.convertType(child)
 		} else if child.Kind == cst.Leaf && child.Token.Kind == lexer.DotDotDot {
 			f.varArgs = true
 		}
@@ -111,7 +111,7 @@ func convertFuncType(node *cst.Node) Type {
 	return f
 }
 
-func getPrimitiveKind(text string) (PrimitiveKind, bool) {
+func (c *converter) getPrimitiveKind(text string) (PrimitiveKind, bool) {
 	switch text {
 	case "void":
 		return Void, true

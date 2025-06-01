@@ -25,6 +25,7 @@ const (
 	While
 	For
 	Break
+	Continue
 	Return
 
 	Literal
@@ -92,6 +93,8 @@ func (n NodeKind) String() string {
 		return "For"
 	case Break:
 		return "Break"
+	case Continue:
+		return "Continue"
 	case Return:
 		return "Return"
 

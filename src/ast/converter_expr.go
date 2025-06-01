@@ -5,48 +5,50 @@ import (
 	"fireball/lexer"
 )
 
-func convertExpr(node *cst.Node) Expr {
+func (c *converter) convertExpr(node *cst.Node) Expr {
 	switch node.Kind {
 	case cst.Block:
-		return convertBlock(node)
+		return c.convertBlock(node)
 	case cst.Var:
-		return convertVar(node)
+		return c.convertVar(node)
 	case cst.If:
-		return convertIf(node)
+		return c.convertIf(node)
 	case cst.While:
-		return convertWhile(node)
+		return c.convertWhile(node)
 	case cst.For:
-		return convertFor(node)
+		return c.convertFor(node)
 	case cst.Break:
-		return convertBreak(node)
+		return c.convertBreak(node)
+	case cst.Continue:
+		return c.convertContinue(node)
 	case cst.Return:
-		return convertReturn(node)
+		return c.convertReturn(node)
 
 	case cst.Literal:
-		return convertLiteral(node)
+		return c.convertLiteral(node)
 	case cst.Paren:
-		return convertParen(node)
+		return c.convertParen(node)
 	case cst.Identifier:
-		return convertIdentifier(node)
+		return c.convertIdentifier(node)
 	case cst.Call:
-		return convertCall(node)
+		return c.convertCall(node)
 	case cst.Index:
-		return convertIndex(node)
+		return c.convertIndex(node)
 	case cst.Member:
-		return convertMember(node)
+		return c.convertMember(node)
 	case cst.Unary:
-		return convertUnary(node)
+		return c.convertUnary(node)
 	case cst.Binary:
-		return convertBinary(node)
+		return c.convertBinary(node)
 	case cst.Cast:
-		return convertCast(node)
+		return c.convertCast(node)
 
 	default:
 		panic("ast.convertExpr() - Invalid node kind")
 	}
 }
 
-func convertBlock(node *cst.Node) *Block {
+func (c *converter) convertBlock(node *cst.Node) *Block {
 	b := &Block{}
 	b.range_ = node.Range
 
@@ -54,14 +56,14 @@ func convertBlock(node *cst.Node) *Block {
 		child := &node.Children[i]
 
 		if child.Kind.IsExpr() {
-			b.Exprs = append(b.Exprs, convertExpr(child))
+			b.Exprs = append(b.Exprs, c.convertExpr(child))
 		}
 	}
 
 	return b
 }
 
-func convertVar(node *cst.Node) *Var {
+func (c *converter) convertVar(node *cst.Node) *Var {
 	v := &Var{}
 	v.range_ = node.Range
 
@@ -69,18 +71,18 @@ func convertVar(node *cst.Node) *Var {
 		child := &node.Children[i]
 
 		if child.Kind == cst.Leaf && child.Token.Kind == lexer.Identifier {
-			v.Name = convertLeaf(child)
+			v.Name = c.convertLeaf(child)
 		} else if child.Kind.IsType() {
-			v.Type = convertType(child)
+			v.Type = c.convertType(child)
 		} else if child.Kind.IsExpr() {
-			v.Value = convertExpr(child)
+			v.Value = c.convertExpr(child)
 		}
 	}
 
 	return v
 }
 
-func convertIf(node *cst.Node) *If {
+func (c *converter) convertIf(node *cst.Node) *If {
 	i := &If{}
 	i.range_ = node.Range
 
@@ -89,11 +91,11 @@ func convertIf(node *cst.Node) *If {
 
 		if child.Kind.IsExpr() {
 			if !IsValid(i.Condition) {
-				i.Condition = convertExpr(child)
+				i.Condition = c.convertExpr(child)
 			} else if !IsValid(i.Then) {
-				i.Then = convertExpr(child)
+				i.Then = c.convertExpr(child)
 			} else {
-				i.Else = convertExpr(child)
+				i.Else = c.convertExpr(child)
 			}
 		}
 	}
@@ -101,7 +103,10 @@ func convertIf(node *cst.Node) *If {
 	return i
 }
 
-func convertWhile(node *cst.Node) *While {
+func (c *converter) convertWhile(node *cst.Node) *While {
+	prevLoopKind := c.loopKind
+	c.loopKind = whileLoop
+
 	w := &While{}
 	w.range_ = node.Range
 
@@ -110,17 +115,24 @@ func convertWhile(node *cst.Node) *While {
 
 		if child.Kind.IsExpr() {
 			if !IsValid(w.Condition) {
-				w.Condition = convertExpr(child)
+				w.Condition = c.convertExpr(child)
 			} else {
-				w.Body = convertExpr(child)
+				w.Body = c.convertExpr(child)
 			}
 		}
 	}
 
+	c.loopKind = prevLoopKind
+
 	return w
 }
 
-func convertFor(node *cst.Node) *Block {
+func (c *converter) convertFor(node *cst.Node) *Block {
+	prevLoopKind := c.loopKind
+	c.loopKind = forLoop
+
+	prevForIncrement := c.forIncrement
+
 	var initializer Expr
 	var condition Expr
 	var increment Expr
@@ -134,30 +146,33 @@ func convertFor(node *cst.Node) *Block {
 		if child.Kind.IsExpr() {
 			if delimiterCount == 0 {
 				if !IsValid(initializer) {
-					initializer = convertExpr(child)
+					initializer = c.convertExpr(child)
 				} else if !IsValid(condition) {
-					condition = convertExpr(child)
+					condition = c.convertExpr(child)
 				} else if !IsValid(increment) {
-					increment = convertExpr(child)
+					c.forIncrement = child
+					increment = c.convertExpr(child)
 				} else {
-					body = convertExpr(child)
+					body = c.convertExpr(child)
 				}
 			} else if delimiterCount == 1 {
 				if !IsValid(condition) {
-					condition = convertExpr(child)
+					condition = c.convertExpr(child)
 				} else if !IsValid(increment) {
-					increment = convertExpr(child)
+					c.forIncrement = child
+					increment = c.convertExpr(child)
 				} else {
-					body = convertExpr(child)
+					body = c.convertExpr(child)
 				}
 			} else if delimiterCount == 2 {
 				if !IsValid(increment) {
-					increment = convertExpr(child)
+					c.forIncrement = child
+					increment = c.convertExpr(child)
 				} else {
-					body = convertExpr(child)
+					body = c.convertExpr(child)
 				}
 			} else {
-				body = convertExpr(child)
+				body = c.convertExpr(child)
 			}
 		} else if child.Kind == cst.Leaf && (child.Token.Kind == lexer.Semicolon || child.Token.Kind == lexer.RightParen) {
 			delimiterCount++
@@ -193,17 +208,36 @@ func convertFor(node *cst.Node) *Block {
 		w.Body = b
 	}
 
+	c.loopKind = prevLoopKind
+	c.forIncrement = prevForIncrement
+
 	return b
 }
 
-func convertBreak(node *cst.Node) *Break {
+func (c *converter) convertBreak(node *cst.Node) *Break {
 	b := &Break{}
 	b.range_ = node.Range
 
 	return b
 }
 
-func convertReturn(node *cst.Node) *Return {
+func (c *converter) convertContinue(node *cst.Node) Expr {
+	co := &Continue{}
+	co.range_ = node.Range
+
+	if c.loopKind == forLoop {
+		b := &Block{}
+
+		b.Exprs = append(b.Exprs, c.convertExpr(c.forIncrement))
+		b.Exprs = append(b.Exprs, co)
+
+		return b
+	}
+
+	return co
+}
+
+func (c *converter) convertReturn(node *cst.Node) *Return {
 	r := &Return{}
 	r.range_ = node.Range
 
@@ -211,20 +245,20 @@ func convertReturn(node *cst.Node) *Return {
 		child := &node.Children[i]
 
 		if child.Kind.IsExpr() {
-			r.Value = convertExpr(child)
+			r.Value = c.convertExpr(child)
 		}
 	}
 
 	return r
 }
 
-func convertLiteral(node *cst.Node) *Literal {
+func (c *converter) convertLiteral(node *cst.Node) *Literal {
 	return &Literal{
-		Value: convertLeaf(&node.Children[0]),
+		Value: c.convertLeaf(&node.Children[0]),
 	}
 }
 
-func convertParen(node *cst.Node) *Paren {
+func (c *converter) convertParen(node *cst.Node) *Paren {
 	p := &Paren{}
 	p.range_ = node.Range
 
@@ -232,39 +266,39 @@ func convertParen(node *cst.Node) *Paren {
 		child := &node.Children[i]
 
 		if child.Kind.IsExpr() {
-			p.Expr = convertExpr(child)
+			p.Expr = c.convertExpr(child)
 		}
 	}
 
 	return p
 }
 
-func convertIdentifier(node *cst.Node) *Identifier {
+func (c *converter) convertIdentifier(node *cst.Node) *Identifier {
 	return &Identifier{
-		Name: convertLeaf(&node.Children[0]),
+		Name: c.convertLeaf(&node.Children[0]),
 	}
 }
 
-func convertCall(node *cst.Node) *Call {
-	c := &Call{}
-	c.range_ = node.Range
+func (c *converter) convertCall(node *cst.Node) *Call {
+	call := &Call{}
+	call.range_ = node.Range
 
 	for i := range node.Children {
 		child := &node.Children[i]
 
 		if child.Kind.IsExpr() {
-			if !IsValid(c.Callee) {
-				c.Callee = convertExpr(child)
+			if !IsValid(call.Callee) {
+				call.Callee = c.convertExpr(child)
 			} else {
-				c.Args = append(c.Args, convertExpr(child))
+				call.Args = append(call.Args, c.convertExpr(child))
 			}
 		}
 	}
 
-	return c
+	return call
 }
 
-func convertIndex(node *cst.Node) *Index {
+func (c *converter) convertIndex(node *cst.Node) *Index {
 	i := &Index{}
 	i.range_ = node.Range
 
@@ -273,9 +307,9 @@ func convertIndex(node *cst.Node) *Index {
 
 		if child.Kind.IsExpr() {
 			if !IsValid(i.Value) {
-				i.Value = convertExpr(child)
+				i.Value = c.convertExpr(child)
 			} else {
-				i.Index = convertExpr(child)
+				i.Index = c.convertExpr(child)
 			}
 		}
 	}
@@ -283,7 +317,7 @@ func convertIndex(node *cst.Node) *Index {
 	return i
 }
 
-func convertMember(node *cst.Node) *Member {
+func (c *converter) convertMember(node *cst.Node) *Member {
 	m := &Member{}
 	m.range_ = node.Range
 
@@ -291,16 +325,16 @@ func convertMember(node *cst.Node) *Member {
 		child := &node.Children[i]
 
 		if child.Kind.IsExpr() {
-			m.Value = convertExpr(child)
+			m.Value = c.convertExpr(child)
 		} else if child.Kind == cst.Leaf && child.Token.Kind == lexer.Identifier {
-			m.Name = convertLeaf(child)
+			m.Name = c.convertLeaf(child)
 		}
 	}
 
 	return m
 }
 
-func convertUnary(node *cst.Node) *Unary {
+func (c *converter) convertUnary(node *cst.Node) *Unary {
 	u := &Unary{}
 	u.range_ = node.Range
 
@@ -308,7 +342,7 @@ func convertUnary(node *cst.Node) *Unary {
 		child := &node.Children[i]
 
 		if child.Kind.IsExpr() {
-			u.Expr = convertExpr(child)
+			u.Expr = c.convertExpr(child)
 		} else if child.Kind == cst.Leaf && child.Token.Kind.IsOperator() {
 			u.Op = child.Token.Kind
 			u.Postfix = IsValid(u.Expr)
@@ -318,7 +352,7 @@ func convertUnary(node *cst.Node) *Unary {
 	return u
 }
 
-func convertBinary(node *cst.Node) *Binary {
+func (c *converter) convertBinary(node *cst.Node) *Binary {
 	b := &Binary{}
 	b.range_ = node.Range
 
@@ -327,9 +361,9 @@ func convertBinary(node *cst.Node) *Binary {
 
 		if child.Kind.IsExpr() {
 			if !IsValid(b.Left) {
-				b.Left = convertExpr(child)
+				b.Left = c.convertExpr(child)
 			} else {
-				b.Right = convertExpr(child)
+				b.Right = c.convertExpr(child)
 			}
 		} else if child.Kind == cst.Leaf && child.Token.Kind.IsOperator() {
 			b.Op = child.Token.Kind
@@ -339,19 +373,19 @@ func convertBinary(node *cst.Node) *Binary {
 	return b
 }
 
-func convertCast(node *cst.Node) *Cast {
-	c := &Cast{}
-	c.range_ = node.Range
+func (c *converter) convertCast(node *cst.Node) *Cast {
+	cast := &Cast{}
+	cast.range_ = node.Range
 
 	for i := range node.Children {
 		child := &node.Children[i]
 
 		if child.Kind.IsExpr() {
-			c.Value = convertExpr(child)
+			cast.Value = c.convertExpr(child)
 		} else if child.Kind.IsType() {
-			c.Type = convertType(child)
+			cast.Type = c.convertType(child)
 		}
 	}
 
-	return c
+	return cast
 }

@@ -5,33 +5,33 @@ import (
 	"fireball/lexer"
 )
 
-func convertDecl(node *cst.Node) Decl {
+func (c *converter) convertDecl(node *cst.Node) Decl {
 	switch node.Kind {
 	case cst.Struct:
-		return convertStruct(node)
+		return c.convertStruct(node)
 	case cst.Func:
-		return convertFunc(node)
+		return c.convertFunc(node)
 
 	default:
 		panic("ast.convertDecl() - Invalid node kind")
 	}
 }
 
-func convertAttributes(node *cst.Node) []*Attribute {
+func (c *converter) convertAttributes(node *cst.Node) []*Attribute {
 	var attributes []*Attribute
 
 	for i := range node.Children {
 		child := &node.Children[i]
 
 		if child.Kind == cst.Attribute {
-			attributes = append(attributes, convertAttribute(child))
+			attributes = append(attributes, c.convertAttribute(child))
 		}
 	}
 
 	return attributes
 }
 
-func convertAttribute(node *cst.Node) *Attribute {
+func (c *converter) convertAttribute(node *cst.Node) *Attribute {
 	a := &Attribute{}
 	a.range_ = node.Range
 
@@ -41,7 +41,7 @@ func convertAttribute(node *cst.Node) *Attribute {
 		if child.Kind == cst.Leaf {
 			if child.Token.Kind == lexer.Identifier {
 				if !IsValid(a.Name) {
-					a.Name = convertLeaf(child)
+					a.Name = c.convertLeaf(child)
 				} else {
 					a.Param = child.Token.Text
 				}
@@ -54,7 +54,7 @@ func convertAttribute(node *cst.Node) *Attribute {
 	return a
 }
 
-func convertStruct(node *cst.Node) *Struct {
+func (c *converter) convertStruct(node *cst.Node) *Struct {
 	s := &Struct{}
 	s.range_ = node.Range
 
@@ -64,20 +64,20 @@ func convertStruct(node *cst.Node) *Struct {
 		//goland:noinspection GoSwitchMissingCasesForIotaConsts
 		switch child.Kind {
 		case cst.Attributes:
-			s.Attributes = convertAttributes(child)
+			s.Attributes = c.convertAttributes(child)
 		case cst.Leaf:
 			if child.Token.Kind == lexer.Identifier {
-				s.NameN = convertLeaf(child)
+				s.NameN = c.convertLeaf(child)
 			}
 		case cst.Field:
-			s.Fields = append(s.Fields, convertField(child))
+			s.Fields = append(s.Fields, c.convertField(child))
 		}
 	}
 
 	return s
 }
 
-func convertField(node *cst.Node) *Field {
+func (c *converter) convertField(node *cst.Node) *Field {
 	f := &Field{}
 	f.range_ = node.Range
 
@@ -85,16 +85,16 @@ func convertField(node *cst.Node) *Field {
 		child := &node.Children[i]
 
 		if child.Kind == cst.Leaf {
-			f.Name = convertLeaf(child)
+			f.Name = c.convertLeaf(child)
 		} else if child.Kind.IsType() {
-			f.Type = convertType(child)
+			f.Type = c.convertType(child)
 		}
 	}
 
 	return f
 }
 
-func convertFunc(node *cst.Node) *Func {
+func (c *converter) convertFunc(node *cst.Node) *Func {
 	f := &Func{}
 	f.range_ = node.Range
 
@@ -103,20 +103,20 @@ func convertFunc(node *cst.Node) *Func {
 
 		switch child.Kind {
 		case cst.Attributes:
-			f.Attributes = convertAttributes(child)
+			f.Attributes = c.convertAttributes(child)
 		case cst.Leaf:
 			if child.Token.Kind == lexer.Identifier {
-				f.NameN = convertLeaf(child)
+				f.NameN = c.convertLeaf(child)
 			} else if child.Token.Kind == lexer.DotDotDot {
 				f.varArgs = true
 			}
 		case cst.Param:
-			f.Params = append(f.Params, convertParam(child))
+			f.Params = append(f.Params, c.convertParam(child))
 		case cst.Block:
-			f.Body = convertBlock(child)
+			f.Body = c.convertBlock(child)
 		default:
 			if child.Kind.IsType() {
-				f.Returns = convertType(child)
+				f.Returns = c.convertType(child)
 			}
 		}
 	}
@@ -124,7 +124,7 @@ func convertFunc(node *cst.Node) *Func {
 	return f
 }
 
-func convertParam(node *cst.Node) *Param {
+func (c *converter) convertParam(node *cst.Node) *Param {
 	p := &Param{}
 	p.range_ = node.Range
 
@@ -132,9 +132,9 @@ func convertParam(node *cst.Node) *Param {
 		child := &node.Children[i]
 
 		if child.Kind == cst.Leaf {
-			p.Name = convertLeaf(child)
+			p.Name = c.convertLeaf(child)
 		} else if child.Kind.IsType() {
-			p.Type = convertType(child)
+			p.Type = c.convertType(child)
 		}
 	}
 

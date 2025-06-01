@@ -23,7 +23,8 @@ type codegen struct {
 	variables       analyzer.VariableTracker[llvm.IdentifierValue]
 	variableAllocas map[*ast.Var]llvm.IdentifierValue
 
-	loopEndL llvm.Identifier
+	loopConditionL llvm.Identifier
+	loopEndL       llvm.Identifier
 
 	exprValue llvm.Value
 }
@@ -200,28 +201,38 @@ func (c *codegen) VisitIf(i *ast.If) {
 }
 
 func (c *codegen) VisitWhile(w *ast.While) {
-	conditionL := c.getNamedIdentifier("while.condition")
+	prevLoopConditionL := c.loopConditionL
+	prevLoopEndL := c.loopEndL
+
+	c.loopConditionL = c.getNamedIdentifier("while.condition")
 	bodyL := c.getNamedIdentifier("while.body")
 	c.loopEndL = c.getNamedIdentifier("while.end")
 
-	llvm.Br(c.fun, conditionL)
+	llvm.Br(c.fun, c.loopConditionL)
 
 	// Condition
-	c.fun.Block(conditionL)
+	c.fun.Block(c.loopConditionL)
 	condition := c.visitLoad(w.Condition)
 	llvm.BrCond(c.fun, condition, bodyL, c.loopEndL)
 
 	// Body
 	c.fun.Block(bodyL)
 	c.visit(w.Body)
-	llvm.Br(c.fun, conditionL)
+	llvm.Br(c.fun, c.loopConditionL)
 
 	// End
 	c.fun.Block(c.loopEndL)
+
+	c.loopConditionL = prevLoopConditionL
+	c.loopEndL = prevLoopEndL
 }
 
 func (c *codegen) VisitBreak(b *ast.Break) {
 	llvm.Br(c.fun, c.loopEndL)
+}
+
+func (c *codegen) VisitContinue(co *ast.Continue) {
+	llvm.Br(c.fun, c.loopConditionL)
 }
 
 func (c *codegen) VisitReturn(r *ast.Return) {

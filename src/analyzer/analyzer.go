@@ -174,6 +174,14 @@ func (a *analyzer) VisitBreak(b *ast.Break) {
 	b.Result().Set(ast.Value, ast.VoidType)
 }
 
+func (a *analyzer) VisitContinue(c *ast.Continue) {
+	if !a.isLoopBody {
+		a.error(c, "Continue can only be inside a loop body.")
+	}
+
+	c.Result().Set(ast.Value, ast.VoidType)
+}
+
 func (a *analyzer) VisitReturn(r *ast.Return) {
 	a.acceptChildren(r)
 

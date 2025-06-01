@@ -90,6 +90,10 @@ func (p *printer) VisitBreak(b *Break) {
 	fmt.Println("Break")
 }
 
+func (p *printer) VisitContinue(c *Continue) {
+	fmt.Println("Continue")
+}
+
 func (p *printer) VisitReturn(r *Return) {
 	fmt.Println("Return")
 }
