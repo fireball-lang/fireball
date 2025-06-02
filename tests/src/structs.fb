@@ -5,30 +5,21 @@ struct Vec2 {
 
 #[test]
 func memberAddressStruct() bool {
-	var v = getVec2(1, 6);
+	var v = Vec2 { x: 1, y: 6 };
 	return v.y == 6;
 }
 
 #[test]
 func memberValueStruct() bool {
-	return getVec2(2, 4).y == 4;
+	return Vec2 { x: 2, y: 4 }.y == 4;
 }
 
 #[test]
 func memberThroughPointerStruct() bool {
-	var v = getVec2(1, 2);
+	var v = Vec2 { x: 1, y: 2 };
 
 	var ptr = &v;
 	ptr.y = 3;
 
 	return (&v).y == 3;
-}
-
-func getVec2(x i32, y i32) Vec2 {
-	var v: Vec2;
-
-	v.x = x;
-	v.y = y;
-
-	return v;
 }

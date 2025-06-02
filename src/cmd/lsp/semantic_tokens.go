@@ -107,6 +107,15 @@ func (h *highlighter) VisitReturn(r *ast.Return) {
 func (h *highlighter) VisitLiteral(l *ast.Literal) {
 }
 
+func (h *highlighter) VisitStructInitializer(s *ast.StructInitializer) {
+	h.add(s.Name, classKind)
+
+	for _, field := range s.Fields {
+		h.add(field.Name, propertyKind)
+		h.visit(field.Value)
+	}
+}
+
 func (h *highlighter) VisitParen(p *ast.Paren) {
 	h.visitChildren(p)
 }
@@ -161,6 +170,10 @@ func (h *highlighter) visitChildren(node ast.Node) {
 }
 
 func (h *highlighter) visit(node ast.Node) {
+	if !ast.IsValid(node) {
+		return
+	}
+
 	switch node := node.(type) {
 	case ast.Decl:
 		node.Visit(h)

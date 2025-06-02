@@ -26,6 +26,8 @@ func (c *converter) convertExpr(node *cst.Node) Expr {
 
 	case cst.Literal:
 		return c.convertLiteral(node)
+	case cst.StructInitializer:
+		return c.convertStructInitializer(node)
 	case cst.Paren:
 		return c.convertParen(node)
 	case cst.Identifier:
@@ -256,6 +258,40 @@ func (c *converter) convertLiteral(node *cst.Node) *Literal {
 	return &Literal{
 		Value: c.convertLeaf(&node.Children[0]),
 	}
+}
+
+func (c *converter) convertStructInitializer(node *cst.Node) *StructInitializer {
+	s := &StructInitializer{}
+	s.range_ = node.Range
+
+	for i := range node.Children {
+		child := &node.Children[i]
+
+		if child.Kind == cst.Leaf && child.Token.Kind == lexer.Identifier {
+			s.Name = c.convertLeaf(child)
+		} else if child.Kind == cst.StructInitializerField {
+			s.Fields = append(s.Fields, c.convertStructInitializerField(child))
+		}
+	}
+
+	return s
+}
+
+func (c *converter) convertStructInitializerField(node *cst.Node) *StructInitializerField {
+	s := &StructInitializerField{}
+	s.range_ = node.Range
+
+	for i := range node.Children {
+		child := &node.Children[i]
+
+		if child.Kind == cst.Leaf && child.Token.Kind == lexer.Identifier {
+			s.Name = c.convertLeaf(child)
+		} else if child.Kind.IsExpr() {
+			s.Value = c.convertExpr(child)
+		}
+	}
+
+	return s
 }
 
 func (c *converter) convertParen(node *cst.Node) *Paren {

@@ -273,6 +273,30 @@ func (a *analyzer) parseUint(l *ast.Literal, base int, errorMsg string) {
 	}
 }
 
+func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) {
+	a.acceptChildren(s)
+
+	if s.Struct == nil {
+		return
+	}
+
+	for _, field := range s.Fields {
+		sField, _ := s.Struct.GetField(field.Name.Token.Text)
+
+		if sField == nil {
+			a.error(field.Name, "Field with the name '"+field.Name.Token.Text+"' doesn't exist on struct '"+s.Struct.Name()+"'.")
+			continue
+		}
+
+		a.checkType(field.Value, sField.Type)
+	}
+
+	s.Result().Set(ast.Value, &ast.DeclType{
+		Name: s.Name,
+		Decl: s.Struct,
+	})
+}
+
 func (a *analyzer) VisitParen(p *ast.Paren) {
 	a.acceptChildren(p)
 

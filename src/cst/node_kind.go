@@ -29,6 +29,8 @@ const (
 	Return
 
 	Literal
+	StructInitializer
+	StructInitializerField
 	Paren
 	Identifier
 	Call
@@ -100,6 +102,10 @@ func (n NodeKind) String() string {
 
 	case Literal:
 		return "Literal"
+	case StructInitializer:
+		return "StructInitializer"
+	case StructInitializerField:
+		return "StructInitializerField"
 	case Paren:
 		return "Paren"
 	case Identifier:

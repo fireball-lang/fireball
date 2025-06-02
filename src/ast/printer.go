@@ -102,6 +102,10 @@ func (p *printer) VisitLiteral(l *Literal) {
 	fmt.Printf("Literal '%s'\n", l.Value.Token.Text)
 }
 
+func (p *printer) VisitStructInitializer(s *StructInitializer) {
+	fmt.Printf("StructInitializer '%s'\n", s.Name.Token.Text)
+}
+
 func (p *printer) VisitParen(pa *Paren) {
 	fmt.Println("Paren")
 }

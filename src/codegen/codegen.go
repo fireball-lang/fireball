@@ -299,6 +299,19 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 	}
 }
 
+func (c *codegen) VisitStructInitializer(s *ast.StructInitializer) {
+	var v llvm.Value = llvm.ZeroInitialize(c.getType(s.Result().Type))
+
+	for _, field := range s.Fields {
+		_, i := s.Struct.GetField(field.Name.Token.Text)
+
+		value := c.visitLoad(field.Value)
+		v = llvm.InsertValue(c.fun, v, value, uint32(i), "")
+	}
+
+	c.exprValue = v
+}
+
 func (c *codegen) VisitParen(p *ast.Paren) {
 	c.exprValue = c.visit(p.Expr)
 }

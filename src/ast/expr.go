@@ -23,6 +23,7 @@ type ExprVisitor interface {
 	VisitReturn(r *Return)
 
 	VisitLiteral(l *Literal)
+	VisitStructInitializer(s *StructInitializer)
 	VisitParen(p *Paren)
 	VisitIdentifier(i *Identifier)
 	VisitCall(c *Call)
@@ -234,6 +235,55 @@ func (l *Literal) Result() *ExprResult {
 
 func (l *Literal) Visit(visitor ExprVisitor) {
 	visitor.VisitLiteral(l)
+}
+
+// StructInitializer
+
+type StructInitializer struct {
+	baseExpr
+
+	Name   *Leaf
+	Struct *Struct
+
+	Fields []*StructInitializerField
+}
+
+func (s *StructInitializer) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(s.Name) && !yield(s.Name) {
+			return
+		}
+
+		for _, field := range s.Fields {
+			if !yield(field) {
+				return
+			}
+		}
+	}
+}
+
+func (s *StructInitializer) Visit(visitor ExprVisitor) {
+	visitor.VisitStructInitializer(s)
+}
+
+// StructInitializerField
+
+type StructInitializerField struct {
+	baseRangeNode
+
+	Name  *Leaf
+	Value Expr
+}
+
+func (s *StructInitializerField) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(s.Name) && !yield(s.Name) {
+			return
+		}
+		if IsValid(s.Value) && !yield(s.Value) {
+			return
+		}
+	}
 }
 
 // Paren

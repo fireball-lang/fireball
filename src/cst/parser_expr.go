@@ -68,8 +68,15 @@ func (p *parser) prefixExprNode() (Node, bool) {
 			return p.continueNode()
 		case "return":
 			return p.returnNode()
+
 		default:
-			return p.identifierNode()
+			identifier := p.advance()
+
+			if p.current.Kind == lexer.LeftBrace {
+				return p.structInitializerNode(identifier)
+			}
+
+			return p.identifierNode(identifier)
 		}
 
 	default:
@@ -81,6 +88,71 @@ func (p *parser) literalNode() (Node, bool) {
 	node := Node{Kind: Literal}
 
 	node.append(p.advance())
+
+	return node, false
+}
+
+func (p *parser) structInitializerNode(name Node) (Node, bool) {
+	node := Node{Kind: StructInitializer}
+
+	// Name
+	node.append(name)
+
+	// {
+	node.append(p.advance())
+
+	// Fields
+	hasField := false
+
+	for p.current.Kind != lexer.RightBrace {
+		// ,
+		if hasField {
+			if p.appendAdvance(&node, lexer.Comma, "Expected ',' between fields.") {
+				return node, true
+			}
+		}
+
+		// Field
+		child, err := p.structInitializerFieldNode()
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+
+		hasField = true
+	}
+
+	// }
+	if p.appendAdvance(&node, lexer.RightBrace, "Expected '}' after struct fields.") {
+		return node, true
+	}
+
+	return node, false
+}
+
+func (p *parser) structInitializerFieldNode() (Node, bool) {
+	node := Node{Kind: StructInitializerField}
+
+	// Name
+	if p.appendAdvance(&node, lexer.Identifier, "Expected field name.") {
+		return node, true
+	}
+
+	// :
+	if p.appendAdvance(&node, lexer.Colon, "Expected ':' after field name.") {
+		return node, true
+	}
+
+	// Value
+	{
+		child, err := p.exprNode(0)
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+	}
 
 	return node, false
 }
@@ -367,13 +439,12 @@ func (p *parser) returnNode() (Node, bool) {
 	return node, false
 }
 
-func (p *parser) identifierNode() (Node, bool) {
+func (p *parser) identifierNode(identifier Node) (Node, bool) {
 	node := Node{Kind: Identifier}
 
-	child := p.advance()
-	node.append(child)
+	node.append(identifier)
 
-	if child.Token.Text == "true" || child.Token.Text == "false" || child.Token.Text == "nil" {
+	if identifier.Token.Text == "true" || identifier.Token.Text == "false" || identifier.Token.Text == "nil" {
 		node.Kind = Literal
 	}
 

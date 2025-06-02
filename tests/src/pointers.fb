@@ -28,8 +28,9 @@ struct WrappedI32 {
 
 #[test]
 func modifyStructMember() bool {
-	var wrapper: WrappedI32;
-	wrapper.value = 1;
+	var wrapper = WrappedI32 {
+		value: 1
+	};
 
 	var ptr = &wrapper.value;
 	*ptr = 2;
