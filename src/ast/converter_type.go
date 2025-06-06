@@ -95,17 +95,17 @@ func (c *converter) convertFuncType(node *cst.Node) Type {
 
 		if child.Kind.IsType() {
 			if IsValid(lastType) {
-				f.params = append(f.params, lastType)
+				f.Params = append(f.Params, lastType)
 			}
 
 			lastType = c.convertType(child)
 		} else if child.Kind == cst.Leaf && child.Token.Kind == lexer.DotDotDot {
-			f.varArgs = true
+			f.VarArgs_ = true
 		}
 	}
 
 	if IsValid(lastType) {
-		f.returns = lastType
+		f.Returns = lastType
 	}
 
 	return f

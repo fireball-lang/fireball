@@ -1,6 +1,7 @@
 package codegen
 
 import (
+	"fireball/abi"
 	"fireball/analyzer"
 	"fireball/ast"
 	"fireball/lexer"
@@ -12,10 +13,11 @@ import (
 type codegen struct {
 	module              *llvm.Module
 	stringConstantCount int
+	arch                abi.Arch
 
 	functions                   map[*ast.Func]*llvm.ExternFunction
 	additionalExternalFunctions map[*ast.Func]any
-	types                       []typeMapping
+	types                       TypeCache
 
 	fun         *llvm.Function
 	identifiers map[string]int
@@ -29,11 +31,16 @@ type codegen struct {
 	exprValue llvm.Value
 }
 
-func Gen(file *ast.File, path string) *llvm.Module {
+func Emit(file *ast.File, path string, arch abi.Arch) *llvm.Module {
+	module := llvm.NewModule(path, "", "")
+
 	c := codegen{
-		module:                      llvm.NewModule(path, "", ""),
+		module: module,
+		arch:   arch,
+
 		functions:                   make(map[*ast.Func]*llvm.ExternFunction),
 		additionalExternalFunctions: make(map[*ast.Func]any),
+		types:                       TypeCache{Arch: arch, Module: module},
 	}
 
 	for _, decl := range file.Decls {
@@ -49,7 +56,7 @@ func Gen(file *ast.File, path string) *llvm.Module {
 	}
 
 	for f := range c.additionalExternalFunctions {
-		c.module.NewExternFunction(GetLinkName(f), c.getType(f))
+		c.module.NewExternFunction(GetLinkName(f), c.types.Get(f))
 	}
 
 	return c.module
@@ -58,13 +65,13 @@ func Gen(file *ast.File, path string) *llvm.Module {
 // Declarations
 
 func (c *codegen) collectFunc(f *ast.Func) {
-	value := llvm.FakeFunctionValue(c.getType(f), GetLinkName(f))
+	value := llvm.FakeFunctionValue(c.types.Get(f), GetLinkName(f))
 	c.functions[f] = &value
 }
 
 func (c *codegen) VisitFunc(f *ast.Func) {
 	// Header
-	type_ := c.getType(f)
+	type_ := c.types.Get(f)
 
 	if ast.IsValid(f.Body) {
 		paramNames := make([]string, len(f.Params))
@@ -90,9 +97,11 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 
 	for i, param := range f.Params {
 		c.setSourceLocation(param)
-		type_ := c.getType(param.Type)
 
-		ptr := llvm.Alloca(c.fun, type_, 1, 1, "param."+param.Name.Token.Text)
+		type_ := c.types.Get(param.Type)
+		_, align := abi.TypeInfo(c.arch, param.Type)
+
+		ptr := llvm.Alloca(c.fun, type_, 1, align, "param."+param.Name.Token.Text)
 		c.fun.LocalVariable(ptr, param.Name.Token.Text, uint32(i+1))
 
 		llvm.Store(c.fun, llvm.NamedIdentifierValue(type_, param.Name.Token.Text), ptr)
@@ -126,7 +135,8 @@ func (c *codegen) collectVariables(expr ast.Expr) {
 		c.setSourceLocation(v)
 		name := c.getNamedIdentifierString("var." + v.Name.Token.Text)
 
-		c.variableAllocas[v] = llvm.Alloca(c.fun, c.getType(type_), 1, 1, name)
+		_, align := abi.TypeInfo(c.arch, type_)
+		c.variableAllocas[v] = llvm.Alloca(c.fun, c.types.Get(type_), 1, align, name)
 	}
 
 	for node := range expr.Children() {
@@ -164,7 +174,7 @@ func (c *codegen) VisitVar(v *ast.Var) {
 	} else {
 		type_ = v.Type
 
-		value := llvm.ZeroInitialize(c.getType(type_))
+		value := llvm.ZeroInitialize(c.types.Get(type_))
 		llvm.Store(c.fun, value, ptr)
 	}
 
@@ -260,10 +270,10 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 	case lexer.Integer:
 		if strings.ContainsAny(str, "uU") {
 			v, _ := strconv.ParseUint(str[:len(str)-1], 10, 64)
-			c.exprValue = llvm.Uint(c.getType(l.Result().Type), v)
+			c.exprValue = llvm.Uint(c.types.Get(l.Result().Type), v)
 		} else {
 			v, _ := strconv.ParseInt(str, 10, 64)
-			c.exprValue = llvm.Int(c.getType(l.Result().Type), v)
+			c.exprValue = llvm.Int(c.types.Get(l.Result().Type), v)
 		}
 
 	case lexer.Floating:
@@ -277,11 +287,11 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 
 	case lexer.Hexadecimal:
 		v, _ := strconv.ParseUint(str[2:], 16, 64)
-		c.exprValue = llvm.Uint(c.getType(l.Result().Type), v)
+		c.exprValue = llvm.Uint(c.types.Get(l.Result().Type), v)
 
 	case lexer.Binary:
 		v, _ := strconv.ParseUint(str[2:], 2, 64)
-		c.exprValue = llvm.Uint(c.getType(l.Result().Type), v)
+		c.exprValue = llvm.Uint(c.types.Get(l.Result().Type), v)
 
 	case lexer.String:
 		c.stringConstantCount++
@@ -300,7 +310,7 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 }
 
 func (c *codegen) VisitStructInitializer(s *ast.StructInitializer) {
-	var v llvm.Value = llvm.ZeroInitialize(c.getType(s.Result().Type))
+	var v llvm.Value = llvm.ZeroInitialize(c.types.Get(s.Result().Type))
 
 	for _, field := range s.Fields {
 		_, i := s.Struct.GetField(field.Name.Token.Text)
@@ -329,7 +339,7 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) {
 		if v, ok := c.functions[f]; ok {
 			value = v
 		} else {
-			v := llvm.FakeFunctionValue(c.getType(f), GetLinkName(f))
+			v := llvm.FakeFunctionValue(c.types.Get(f), GetLinkName(f))
 			value = &v
 
 			c.additionalExternalFunctions[f] = nil
@@ -437,7 +447,7 @@ func (c *codegen) VisitUnary(u *ast.Unary) {
 			if u.Expr.Result().Type.(*ast.PrimitiveType).Kind.IsFloating() {
 				c.exprValue = llvm.NegF(c.fun, value, "")
 			} else {
-				c.exprValue = llvm.Sub(c.fun, llvm.Int(c.getType(u.Expr.Result().Type), 0), value, "")
+				c.exprValue = llvm.Sub(c.fun, llvm.Int(c.types.Get(u.Expr.Result().Type), 0), value, "")
 			}
 
 		// !
@@ -646,7 +656,7 @@ func (c *codegen) binarySimple(op lexer.TokenKind, left, right llvm.Value) llvm.
 
 func (c *codegen) VisitCast(cast *ast.Cast) {
 	value := c.visitLoad(cast.Value)
-	type_ := c.getType(cast.Type)
+	type_ := c.types.Get(cast.Type)
 
 	kind, _ := ast.GetCastKind(cast.Value.Result().Type, cast.Type)
 
@@ -679,7 +689,7 @@ func (c *codegen) getConstantOne(type_ ast.Type) llvm.Value {
 		return llvm.Double(1)
 	}
 
-	return llvm.Int(c.getType(type_), 1)
+	return llvm.Int(c.types.Get(type_), 1)
 }
 
 func (c *codegen) getNamedIdentifier(name string) llvm.Identifier {

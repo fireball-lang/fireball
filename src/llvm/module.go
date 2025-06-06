@@ -162,11 +162,11 @@ func (m *Module) NewVoidType() Type {
 	return t
 }
 
-func (m *Module) NewIntegerType(signed bool, bitCount uint32) Type {
+func (m *Module) NewIntegerType(size, align uint32, signed bool, bitCount uint32) Type {
 	t := &integerType{
 		baseType: baseType{
-			size_:  bitCount,
-			align_: bitCount,
+			size_:  size * 8,
+			align_: align * 8,
 			dbg:    m.debugIndex,
 		},
 		signed:   signed,
@@ -175,7 +175,6 @@ func (m *Module) NewIntegerType(signed bool, bitCount uint32) Type {
 
 	name := "bool"
 	encoding := "DW_ATE_boolean"
-	sizeAlign := uint32(8)
 
 	if bitCount > 1 {
 		if signed {
@@ -185,25 +184,23 @@ func (m *Module) NewIntegerType(signed bool, bitCount uint32) Type {
 			name = fmt.Sprintf("u%d", bitCount)
 			encoding = "DW_ATE_unsigned"
 		}
-
-		sizeAlign = t.size_
 	}
 
 	_, _ = fmt.Fprintf(
 		&m.footer,
 		"!%d = !DIBasicType(name: \"%s\", encoding: %s, size: %d, align: %d)\n",
-		m.debugIndex, name, encoding, sizeAlign, sizeAlign,
+		m.debugIndex, name, encoding, t.size_, t.align_,
 	)
 
 	m.debugIndex++
 	return t
 }
 
-func (m *Module) NewFloatingType(double bool) Type {
+func (m *Module) NewFloatingType(size, align uint32, double bool) Type {
 	t := &simpleType{
 		baseType: baseType{
-			size_:  32,
-			align_: 32,
+			size_:  size * 8,
+			align_: align * 8,
 			dbg:    m.debugIndex,
 		},
 		text: "float",
@@ -211,8 +208,6 @@ func (m *Module) NewFloatingType(double bool) Type {
 
 	if double {
 		t.text = "double"
-		t.size_ = 64
-		t.align_ = 64
 	}
 
 	_, _ = fmt.Fprintf(
@@ -225,11 +220,11 @@ func (m *Module) NewFloatingType(double bool) Type {
 	return t
 }
 
-func (m *Module) NewArrayType(count uint32, element Type) Type {
+func (m *Module) NewArrayType(size, align, count uint32, element Type) Type {
 	t := &arrayType{
 		baseType: baseType{
-			size_:  element.size() * count,
-			align_: element.align(),
+			size_:  size * 8,
+			align_: align * 8,
 			dbg:    m.debugIndex,
 		},
 		count:   count,
@@ -252,11 +247,11 @@ func (m *Module) NewArrayType(count uint32, element Type) Type {
 	return t
 }
 
-func (m *Module) NewPointerType(pointee Type) Type {
+func (m *Module) NewPointerType(size, align uint32, pointee Type) Type {
 	t := &pointerType{
 		baseType: baseType{
-			size_:  64,
-			align_: 64,
+			size_:  size * 8,
+			align_: align * 8,
 			dbg:    m.debugIndex,
 		},
 		pointee: pointee,
@@ -324,7 +319,7 @@ func (m *Module) NewStructType(name string, fields []Field, size uint32, align u
 		_, _ = fmt.Fprintf(
 			&m.footer,
 			"!%d = !DIDerivedType(tag: DW_TAG_member, name: \"%s\", baseType: !%d, offset: %d, size: %d, align: %d)\n",
-			m.debugIndex+1+uint32(i), field.Name, field.Type.debugIndex(), field.Offset*8, field.Type.size(), field.Type.align(),
+			m.debugIndex+1+uint32(i), field.Name, field.Type.debugIndex(), field.Offset*8, field.Type.Size(), field.Type.Align(),
 		)
 	}
 
@@ -332,11 +327,11 @@ func (m *Module) NewStructType(name string, fields []Field, size uint32, align u
 	return t
 }
 
-func (m *Module) NewFunctionType(returns Type, params []Type, vararg bool) Type {
+func (m *Module) NewFunctionType(size, align uint32, returns Type, params []Type, vararg bool) Type {
 	t := &functionType{
 		baseType: baseType{
-			size_:  64,
-			align_: 64,
+			size_:  size * 8,
+			align_: align * 8,
 			dbg:    m.debugIndex,
 		},
 		returns: returns,
@@ -371,7 +366,7 @@ func (m *Module) NewFunctionType(returns Type, params []Type, vararg bool) Type 
 func (m *Module) NewStringConstant(name, value string) *GlobalValue {
 	m.header.WriteRune('\n')
 
-	type_ := m.NewArrayType(uint32(len(value))+1, U8)
+	type_ := m.NewArrayType(uint32(len(value))+1, 1, uint32(len(value))+1, U8)
 	var sb strings.Builder
 
 	for _, b := range value {
@@ -428,7 +423,7 @@ func (m *Module) NewGlobalVariable(name string, type_ Type, definition bool) *Gl
 	_, _ = fmt.Fprintf(
 		&m.header,
 		"@%s = external global %s, align %d, !dbg !%d\n",
-		name, type_, type_.align(), m.debugIndex,
+		name, type_, type_.Align(), m.debugIndex,
 	)
 
 	_, _ = fmt.Fprintf(

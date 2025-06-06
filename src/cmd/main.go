@@ -1,7 +1,10 @@
 package main
 
 import (
+	"fireball/abi"
+	"fireball/ast"
 	"fireball/cmd/lsp"
+	"fireball/codegen"
 	"fireball/llvm"
 	"fireball/project"
 	"github.com/spf13/cobra"
@@ -76,10 +79,9 @@ func runCommand() *cobra.Command {
 func buildExe(opt uint8) (string, error) {
 	return build(".", "", opt, func(proj *project.Project) *llvm.Module {
 		m := llvm.NewModule("", "", "")
+		types := codegen.TypeCache{Arch: abi.AMD64, Module: m}
 
-		i32 := m.NewIntegerType(true, 32)
-		mainType := m.NewFunctionType(i32, nil, false)
-
+		mainType := types.Get(&ast.SimpleFuncType{Returns: &ast.PrimitiveType{Kind: ast.I32}})
 		fbMain := m.NewExternFunction("fb$main", mainType)
 
 		main := m.NewFunction("main", "main", mainType, nil)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fireball/abi"
 	"fireball/ast"
 	"fireball/codegen"
 	"fireball/llvm"
@@ -84,8 +85,9 @@ func displayTestResults(result string) {
 
 func createTestModule(proj *project.Project) *llvm.Module {
 	m := llvm.NewModule("", "", "")
+	types := codegen.TypeCache{Arch: abi.AMD64, Module: m}
 
-	testType := m.NewFunctionType(m.NewIntegerType(false, 1), nil, false)
+	testType := types.Get(&ast.SimpleFuncType{Returns: &ast.PrimitiveType{Kind: ast.Bool}})
 
 	var tests []*llvm.ExternFunction
 
@@ -99,23 +101,27 @@ func createTestModule(proj *project.Project) *llvm.Module {
 		}
 	}
 
-	i32 := m.NewIntegerType(true, 32)
-	puts := m.NewExternFunction("putchar", m.NewFunctionType(i32, []llvm.Type{i32}, false))
+	i32 := &ast.PrimitiveType{Kind: ast.I32}
+	i32Type := types.Get(i32)
 
-	main := m.NewFunction("main", "main", m.NewFunctionType(i32, nil, false), nil)
+	putsType := types.Get(&ast.SimpleFuncType{Params: []ast.Type{i32}, Returns: i32})
+	puts := m.NewExternFunction("putchar", putsType)
+
+	mainType := types.Get(&ast.SimpleFuncType{Returns: i32})
+	main := m.NewFunction("main", "main", mainType, nil)
 	main.Block(llvm.NamedIdentifier("entry"))
 
-	var counter llvm.Value = llvm.Int(i32, 0)
+	var counter llvm.Value = llvm.Int(i32Type, 0)
 
 	for _, test := range tests {
 		ok := llvm.Call(main, test, "").End()
-		v := llvm.Select(main, ok, llvm.Int(i32, '1'), llvm.Int(i32, '0'), "")
+		v := llvm.Select(main, ok, llvm.Int(i32Type, '1'), llvm.Int(i32Type, '0'), "")
 
 		call := llvm.Call(main, puts, "")
 		llvm.Arg(&call, v)
 		call.End()
 
-		oki32 := llvm.Ext(main, ok, i32, "")
+		oki32 := llvm.Ext(main, ok, i32Type, "")
 		counter = llvm.Add(main, counter, oki32, "")
 	}
 

@@ -10,8 +10,8 @@ type Type interface {
 	write(sb *strings.Builder)
 	String() string
 
-	size() uint32
-	align() uint32
+	Size() uint32
+	Align() uint32
 
 	debugIndex() uint32
 }
@@ -23,11 +23,11 @@ type baseType struct {
 	dbg uint32
 }
 
-func (b *baseType) size() uint32 {
+func (b *baseType) Size() uint32 {
 	return b.size_
 }
 
-func (b *baseType) align() uint32 {
+func (b *baseType) Align() uint32 {
 	return b.align_
 }
 

@@ -243,20 +243,20 @@ type FuncType interface {
 type SimpleFuncType struct {
 	baseRangeNode
 
-	params  []Type
-	varArgs bool
-	returns Type
+	Params   []Type
+	VarArgs_ bool
+	Returns  Type
 }
 
 func (s *SimpleFuncType) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		for _, param := range s.params {
+		for _, param := range s.Params {
 			if !yield(param) {
 				return
 			}
 		}
 
-		if IsValid(s.returns) && !yield(s.returns) {
+		if IsValid(s.Returns) && !yield(s.Returns) {
 			return
 		}
 	}
@@ -271,16 +271,16 @@ func (s *SimpleFuncType) String() string {
 }
 
 func (s *SimpleFuncType) ParamTypes() iter.Seq[Type] {
-	return slices.Values(s.params)
+	return slices.Values(s.Params)
 }
 
 func (s *SimpleFuncType) VarArgs() bool {
-	return s.varArgs
+	return s.VarArgs_
 }
 
 func (s *SimpleFuncType) ReturnType() Type {
-	if IsValid(s.returns) {
-		return s.returns
+	if IsValid(s.Returns) {
+		return s.Returns
 	}
 
 	return VoidType
