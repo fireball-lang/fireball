@@ -79,7 +79,7 @@ func runCommand() *cobra.Command {
 func buildExe(opt uint8) (string, error) {
 	return build(".", "", opt, func(proj *project.Project) *llvm.Module {
 		m := llvm.NewModule("", "", "")
-		types := codegen.TypeCache{Arch: abi.AMD64, Module: m}
+		types := codegen.TypeCache{Arch: abi.AMD64, CallConv: abi.SystemV, Module: m}
 
 		mainType := types.Get(&ast.SimpleFuncType{Returns: &ast.PrimitiveType{Kind: ast.I32}})
 		fbMain := m.NewExternFunction("fb$main", mainType)

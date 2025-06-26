@@ -85,7 +85,7 @@ func displayTestResults(result string) {
 
 func createTestModule(proj *project.Project) *llvm.Module {
 	m := llvm.NewModule("", "", "")
-	types := codegen.TypeCache{Arch: abi.AMD64, Module: m}
+	types := codegen.TypeCache{Arch: abi.AMD64, CallConv: abi.SystemV, Module: m}
 
 	testType := types.Get(&ast.SimpleFuncType{Returns: &ast.PrimitiveType{Kind: ast.Bool}})
 
@@ -101,6 +101,9 @@ func createTestModule(proj *project.Project) *llvm.Module {
 		}
 	}
 
+	i1 := &ast.PrimitiveType{Kind: ast.Bool}
+	i1Type := types.Get(i1)
+
 	i32 := &ast.PrimitiveType{Kind: ast.I32}
 	i32Type := types.Get(i32)
 
@@ -114,14 +117,15 @@ func createTestModule(proj *project.Project) *llvm.Module {
 	var counter llvm.Value = llvm.Int(i32Type, 0)
 
 	for _, test := range tests {
-		ok := llvm.Call(main, test, "").End()
-		v := llvm.Select(main, ok, llvm.Int(i32Type, '1'), llvm.Int(i32Type, '0'), "")
+		okI8 := llvm.Call(main, test, "").End()
+		okI1 := llvm.Trunc(main, okI8, i1Type, "")
+		v := llvm.Select(main, okI1, llvm.Int(i32Type, '1'), llvm.Int(i32Type, '0'), "")
 
 		call := llvm.Call(main, puts, "")
 		llvm.Arg(&call, v)
 		call.End()
 
-		oki32 := llvm.Ext(main, ok, i32Type, "")
+		oki32 := llvm.Ext(main, okI1, i32Type, "")
 		counter = llvm.Add(main, counter, oki32, "")
 	}
 

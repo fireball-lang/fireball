@@ -14,16 +14,18 @@ type codegen struct {
 	module              *llvm.Module
 	stringConstantCount int
 	arch                abi.Arch
+	callConv            abi.CallConv
 
 	functions                   map[*ast.Func]*llvm.ExternFunction
 	additionalExternalFunctions map[*ast.Func]any
 	types                       TypeCache
 
-	fun         *llvm.Function
-	identifiers map[string]int
+	fun          *llvm.Function
+	funReturnPtr llvm.Value
+	identifiers  map[string]int
 
-	variables       analyzer.VariableTracker[llvm.IdentifierValue]
-	variableAllocas map[*ast.Var]llvm.IdentifierValue
+	variables analyzer.VariableTracker[llvm.IdentifierValue]
+	allocas   map[ast.Expr]llvm.IdentifierValue
 
 	loopConditionL llvm.Identifier
 	loopEndL       llvm.Identifier
@@ -31,16 +33,17 @@ type codegen struct {
 	exprValue llvm.Value
 }
 
-func Emit(file *ast.File, path string, arch abi.Arch) *llvm.Module {
+func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *llvm.Module {
 	module := llvm.NewModule(path, "", "")
 
 	c := codegen{
-		module: module,
-		arch:   arch,
+		module:   module,
+		arch:     arch,
+		callConv: callConv,
 
 		functions:                   make(map[*ast.Func]*llvm.ExternFunction),
 		additionalExternalFunctions: make(map[*ast.Func]any),
-		types:                       TypeCache{Arch: arch, Module: module},
+		types:                       TypeCache{Arch: arch, CallConv: callConv, Module: module},
 	}
 
 	for _, decl := range file.Decls {
@@ -73,11 +76,17 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 	// Header
 	type_ := c.types.Get(f)
 
-	if ast.IsValid(f.Body) {
-		paramNames := make([]string, len(f.Params))
+	returnTypeRegs := c.callConv.Classify(f.ReturnType())
 
-		for i, param := range f.Params {
-			paramNames[i] = param.Name.Token.Text
+	if ast.IsValid(f.Body) {
+		paramNames := make([]string, 0, len(f.Params))
+
+		if len(returnTypeRegs) == 1 && returnTypeRegs[0].Class == abi.Memory {
+			paramNames = append(paramNames, "func.return_value")
+		}
+
+		for _, param := range f.Params {
+			paramNames = append(paramNames, param.Name.Token.Text)
 		}
 
 		c.fun = c.module.NewFunction(GetLinkName(f), f.Name(), type_, paramNames)
@@ -92,8 +101,13 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 	c.fun.Block(llvm.NamedIdentifier("func.entry"))
 
 	c.identifiers = make(map[string]int)
-	c.variableAllocas = make(map[*ast.Var]llvm.IdentifierValue)
-	c.collectVariables(f.Body)
+	c.allocas = make(map[ast.Expr]llvm.IdentifierValue)
+	c.collectAllocas(f.Body)
+
+	c.funReturnPtr = nil
+	if len(returnTypeRegs) == 1 && returnTypeRegs[0].Class == abi.Memory {
+		c.funReturnPtr = llvm.NamedIdentifierValue(c.types.Get(f.ReturnType()), "func.return_value")
+	}
 
 	for i, param := range f.Params {
 		c.setSourceLocation(param)
@@ -104,7 +118,15 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 		ptr := llvm.Alloca(c.fun, type_, 1, align, "param."+param.Name.Token.Text)
 		c.fun.LocalVariable(ptr, param.Name.Token.Text, uint32(i+1))
 
-		llvm.Store(c.fun, llvm.NamedIdentifierValue(type_, param.Name.Token.Text), ptr)
+		t := c.types.Get(getClassifiedType(c.callConv, param.Type))
+		value := llvm.NamedIdentifierValue(t, param.Name.Token.Text)
+
+		regs := c.callConv.Classify(param.Type)
+		if len(regs) == 1 && regs[0].Class == abi.Memory {
+			value = llvm.Load(c.fun, value, "")
+		}
+
+		llvm.Store(c.fun, value, ptr)
 
 		c.variables.Add(param.Name.Token.Text, param.Type, ptr)
 	}
@@ -124,28 +146,6 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 	c.fun = nil
 }
 
-func (c *codegen) collectVariables(expr ast.Expr) {
-	if v, ok := expr.(*ast.Var); ok {
-		type_ := v.Type
-
-		if !ast.IsValid(type_) {
-			type_ = v.Value.Result().Type
-		}
-
-		c.setSourceLocation(v)
-		name := c.getNamedIdentifierString("var." + v.Name.Token.Text)
-
-		_, align := abi.TypeInfo(c.arch, type_)
-		c.variableAllocas[v] = llvm.Alloca(c.fun, c.types.Get(type_), 1, align, name)
-	}
-
-	for node := range expr.Children() {
-		if expr, ok := node.(ast.Expr); ok {
-			c.collectVariables(expr)
-		}
-	}
-}
-
 // Expressions
 
 func (c *codegen) VisitBlock(b *ast.Block) {
@@ -163,7 +163,7 @@ func (c *codegen) VisitBlock(b *ast.Block) {
 func (c *codegen) VisitVar(v *ast.Var) {
 	var type_ ast.Type
 
-	ptr := c.variableAllocas[v]
+	ptr := c.allocas[v]
 	c.fun.LocalVariable(ptr, v.Name.Token.Text, 0)
 
 	if ast.IsValid(v.Value) {
@@ -247,8 +247,15 @@ func (c *codegen) VisitContinue(co *ast.Continue) {
 
 func (c *codegen) VisitReturn(r *ast.Return) {
 	if ast.IsValid(r.Value) {
-		value := c.visitLoad(r.Value)
-		llvm.RetValue(c.fun, value)
+		value := c.visitLoadClassified(r.Value, func() llvm.Value {
+			return c.funReturnPtr
+		})
+
+		if c.funReturnPtr != nil {
+			llvm.Ret(c.fun)
+		} else {
+			llvm.RetValue(c.fun, value)
+		}
 	} else {
 		llvm.Ret(c.fun)
 	}
@@ -355,10 +362,20 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) {
 
 func (c *codegen) VisitCall(call *ast.Call) {
 	callee := c.visitLoad(call.Callee)
-	args := make([]llvm.Value, len(call.Args))
+	args := make([]llvm.Value, 0, len(call.Args))
 
-	for i, arg := range call.Args {
-		args[i] = c.visitLoad(arg)
+	f, _ := call.Callee.Result().Type.(ast.FuncType)
+	regs := c.callConv.Classify(f.ReturnType())
+
+	if len(regs) == 1 && regs[0].Class == abi.Memory {
+		ptr := c.allocas[call]
+		args = append(args, ptr)
+	}
+
+	for _, arg := range call.Args {
+		args = append(args, c.visitLoadClassified(arg, func() llvm.Value {
+			return c.allocas[arg]
+		}))
 	}
 
 	callBuilder := llvm.Call(c.fun, callee, "")
@@ -368,6 +385,15 @@ func (c *codegen) VisitCall(call *ast.Call) {
 	}
 
 	c.exprValue = callBuilder.End()
+
+	if len(regs) > 0 {
+		if regs[0].Class == abi.Memory {
+			ptr := c.allocas[call]
+			c.exprValue = c.declassify(call, f.ReturnType(), ptr)
+		} else {
+			c.exprValue = c.declassify(call, f.ReturnType(), c.exprValue)
+		}
+	}
 }
 
 func (c *codegen) VisitIndex(i *ast.Index) {
@@ -656,24 +682,35 @@ func (c *codegen) binarySimple(op lexer.TokenKind, left, right llvm.Value) llvm.
 
 func (c *codegen) VisitCast(cast *ast.Cast) {
 	value := c.visitLoad(cast.Value)
-	type_ := c.types.Get(cast.Type)
+	c.exprValue = c.cast(value, cast.Value.Result().Type, cast.Type, false)
+}
 
-	kind, _ := ast.GetCastKind(cast.Value.Result().Type, cast.Type)
+func (c *codegen) cast(value llvm.Value, from, to ast.Type, allowExtended bool) llvm.Value {
+	kind, ok := ast.GetCastKind(from, to, allowExtended)
+	if !ok {
+		panic("codegen.codegen.cast() - Invalid cast kind")
+	}
+
+	type_ := c.types.Get(to)
 
 	switch kind {
 	case ast.Nop:
-		c.exprValue = llvm.ChangeValueType(value, type_)
+		return llvm.ChangeValueType(value, type_)
 	case ast.Extend:
-		c.exprValue = llvm.Ext(c.fun, value, type_, "")
+		return llvm.Ext(c.fun, value, type_, "")
 	case ast.Truncate:
-		c.exprValue = llvm.Trunc(c.fun, value, type_, "")
+		return llvm.Trunc(c.fun, value, type_, "")
 	case ast.IntegerToFloating:
-		c.exprValue = llvm.IntToFloating(c.fun, value, type_, "")
+		return llvm.IntToFloating(c.fun, value, type_, "")
 	case ast.FloatingToInteger:
-		c.exprValue = llvm.FloatingToInt(c.fun, value, type_, "")
+		return llvm.FloatingToInt(c.fun, value, type_, "")
+	case ast.IntegerToPointer:
+		return llvm.IntToPtr(c.fun, value, type_, "")
+	case ast.PointerToInteger:
+		return llvm.PtrToInt(c.fun, value, type_, "")
 
 	default:
-		panic("codegen.codegen.VisitCast() - Invalid cast kind")
+		panic("codegen.codegen.cast() - Invalid cast kind")
 	}
 }
 
@@ -709,9 +746,7 @@ func (c *codegen) getNamedIdentifierString(name string) string {
 	return name + "." + strconv.FormatInt(int64(count), 10)
 }
 
-func (c *codegen) visitLoad(expr ast.Expr) llvm.Value {
-	value := c.visit(expr)
-
+func (c *codegen) load(expr ast.Expr, value llvm.Value) llvm.Value {
 	if expr.Result().Kind == ast.Address {
 		if _, ok := value.(*llvm.Function); !ok {
 			if _, ok := value.(*llvm.ExternFunction); !ok {
@@ -721,6 +756,11 @@ func (c *codegen) visitLoad(expr ast.Expr) llvm.Value {
 	}
 
 	return value
+}
+
+func (c *codegen) visitLoad(expr ast.Expr) llvm.Value {
+	value := c.visit(expr)
+	return c.load(expr, value)
 }
 
 func (c *codegen) visit(expr ast.Expr) llvm.Value {

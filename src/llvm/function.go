@@ -356,6 +356,16 @@ func Load[V Value](f *Function, v V, name string) IdentifierValue {
 	return result
 }
 
+func LoadAs[V Value](f *Function, v V, t Type, name string) IdentifierValue {
+	if f.skipInstructions {
+		return IdentifierValue{}
+	}
+
+	result := f.getIdentifierValue(t, name)
+	f.instruction(result, "load %s, ptr %s", t, v.String())
+	return result
+}
+
 func Store[V1, V2 Value](f *Function, valueV V1, ptrV V2) {
 	if f.skipInstructions {
 		return

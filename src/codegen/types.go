@@ -7,8 +7,9 @@ import (
 )
 
 type TypeCache struct {
-	Arch   abi.Arch
-	Module *llvm.Module
+	Arch     abi.Arch
+	CallConv abi.CallConv
+	Module   *llvm.Module
 
 	types []typeMapping
 }
@@ -118,14 +119,26 @@ func (t *TypeCache) createPointerType(type_ *ast.PointerType) llvm.Type {
 }
 
 func (t *TypeCache) createFuncType(type_ ast.FuncType) llvm.Type {
+	returns := t.Get(getClassifiedType(t.CallConv, type_.ReturnType()))
+	debugReturns := t.Get(type_.ReturnType())
+
 	var params []llvm.Type
+	var debugParams []llvm.Type
+
+	regs := t.CallConv.Classify(type_.ReturnType())
+
+	if len(regs) == 1 && regs[0].Class == abi.Memory {
+		params = append(params, returns)
+		returns = t.Module.NewVoidType()
+	}
 
 	for param := range type_.ParamTypes() {
-		params = append(params, t.Get(param))
+		params = append(params, t.Get(getClassifiedType(t.CallConv, param)))
+		debugParams = append(debugParams, t.Get(param))
 	}
 
 	size, align := abi.TypeInfo(t.Arch, type_)
-	funcType := t.Module.NewFunctionType(size, align, t.Get(type_.ReturnType()), params, type_.VarArgs())
+	funcType := t.Module.NewFunctionType(size, align, returns, debugReturns, params, debugParams, type_.VarArgs())
 
 	ptr := ast.PointerType{Pointee: type_}
 	size, align = abi.TypeInfo(t.Arch, &ptr)

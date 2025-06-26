@@ -1,0 +1,93 @@
+// Small struct
+
+struct SmallStruct {
+	x i32;
+	y i32;
+}
+
+#[test]
+func smallStructParamValue() bool {
+	return getSmallY(SmallStruct { x: 2, y: 9 }) == 9;
+}
+
+#[test]
+func smallStructParamAddress() bool {
+	var s = SmallStruct { x: 2, y: 9 };
+	return getSmallY(s) == 9;
+}
+
+func getSmallY(s SmallStruct) i32 {
+	return s.y;
+}
+
+#[test]
+func smallStructReturn() bool {
+	return getSmallStruct().y == 9;
+}
+
+func getSmallStruct() SmallStruct {
+	return SmallStruct { x: 2, y: 9 };
+}
+
+// Medium struct
+
+struct MediumStruct {
+	x i32;
+	y i32;
+	z i32;
+}
+
+#[test]
+func mediumStructParamValue() bool {
+	return getMediumY(MediumStruct { x: 8, y: 3, z: 62 }) == 3;
+}
+
+#[test]
+func mediumStructParamAddress() bool {
+	var s = MediumStruct { x: 8, y: 3, z: 62 };
+	return getMediumY(s) == 3;
+}
+
+func getMediumY(s MediumStruct) i32 {
+	return s.y;
+}
+
+#[test]
+func mediumStructReturn() bool {
+	return getMediumStruct().y == 3;
+}
+
+func getMediumStruct() MediumStruct {
+	return MediumStruct { x: 8, y: 3, z: 62 };
+}
+
+// Big struct
+
+struct BigStruct {
+	array [8]i32;
+	number i32;
+}
+
+#[test]
+func bigStructParamValue() bool {
+	return getBigNumber(BigStruct { number: 5 }) == 5;
+}
+
+#[test]
+func bigStructParamAddress() bool {
+	var s = BigStruct { number: 5 };
+	return getBigNumber(s) == 5;
+}
+
+func getBigNumber(s BigStruct) i32 {
+	return s.number;
+}
+
+#[test]
+func bigStructReturn() bool {
+	return getBigStruct().number == 5;
+}
+
+func getBigStruct() BigStruct {
+	return BigStruct { number: 5 };
+}

@@ -627,7 +627,7 @@ func (a *analyzer) VisitCast(c *ast.Cast) {
 		return
 	}
 
-	if _, ok := ast.GetCastKind(c.Value.Result().Type, c.Type); !ok {
+	if _, ok := ast.GetCastKind(c.Value.Result().Type, c.Type, false); !ok {
 		a.error(c, "Cannot cast from '"+c.Value.Result().Type.String()+"' to '"+c.Type.String()+"'.")
 		return
 	}

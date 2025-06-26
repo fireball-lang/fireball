@@ -149,6 +149,34 @@ func (s *structType) String() string {
 	return "%struct." + s.name
 }
 
+// Anonymous struct
+
+type anonStructType struct {
+	baseType
+	fields []Type
+}
+
+func (a *anonStructType) write(sb *strings.Builder) {
+	sb.WriteString("{ ")
+
+	for i, field := range a.fields {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+
+		field.write(sb)
+	}
+
+	sb.WriteString("} ")
+}
+
+func (a *anonStructType) String() string {
+	sb := strings.Builder{}
+	a.write(&sb)
+
+	return sb.String()
+}
+
 // Function
 
 type functionType struct {

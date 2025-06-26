@@ -8,9 +8,11 @@ const (
 	Truncate
 	IntegerToFloating
 	FloatingToInteger
+	IntegerToPointer
+	PointerToInteger
 )
 
-func GetCastKind(from Type, to Type) (CastKind, bool) {
+func GetCastKind(from Type, to Type, allowExtended bool) (CastKind, bool) {
 	switch from := from.(type) {
 	case *PrimitiveType:
 		if to, ok := to.(*PrimitiveType); ok {
@@ -31,6 +33,25 @@ func GetCastKind(from Type, to Type) (CastKind, bool) {
 			if from.Kind.IsFloating() && to.Kind.IsInteger() {
 				return FloatingToInteger, true
 			}
+
+			if allowExtended {
+				if from.Kind == Bool && to.Kind.IsInteger() {
+					return Extend, true
+				}
+
+				if from.Kind.IsInteger() && to.Kind == Bool {
+					return Truncate, true
+				}
+			}
+		}
+
+		if allowExtended {
+			_, toIsPointer := to.(*PointerType)
+			_, toIsFunc := to.(FuncType)
+
+			if from.Kind.IsInteger() && (toIsPointer || toIsFunc) {
+				return IntegerToPointer, true
+			}
 		}
 
 	case *PointerType:
@@ -40,6 +61,15 @@ func GetCastKind(from Type, to Type) (CastKind, bool) {
 
 		if _, ok := to.(FuncType); ok {
 			return Nop, true
+		}
+
+		if to, ok := to.(*PrimitiveType); allowExtended && ok && to.Kind.IsInteger() {
+			return PointerToInteger, true
+		}
+
+	case FuncType:
+		if to, ok := to.(*PrimitiveType); allowExtended && ok && to.Kind.IsInteger() {
+			return PointerToInteger, true
 		}
 	}
 

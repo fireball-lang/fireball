@@ -247,6 +247,17 @@ func (m *Module) NewArrayType(size, align, count uint32, element Type) Type {
 	return t
 }
 
+func NewPointerTypeRaw(size, align uint32, pointee Type) Type {
+	return &pointerType{
+		baseType: baseType{
+			size_:  size * 8,
+			align_: align * 8,
+			dbg:    math.MaxUint32,
+		},
+		pointee: pointee,
+	}
+}
+
 func (m *Module) NewPointerType(size, align uint32, pointee Type) Type {
 	t := &pointerType{
 		baseType: baseType{
@@ -327,7 +338,18 @@ func (m *Module) NewStructType(name string, fields []Field, size uint32, align u
 	return t
 }
 
-func (m *Module) NewFunctionType(size, align uint32, returns Type, params []Type, vararg bool) Type {
+func (m *Module) NewAnonymouseStructType(fields []Type, size uint32, align uint32) Type {
+	return &anonStructType{
+		baseType: baseType{
+			size_:  size * 8,
+			align_: align * 8,
+			dbg:    math.MaxUint32,
+		},
+		fields: fields,
+	}
+}
+
+func (m *Module) NewFunctionType(size, align uint32, returns, debugReturns Type, params, debugParams []Type, vararg bool) Type {
 	t := &functionType{
 		baseType: baseType{
 			size_:  size * 8,
@@ -345,19 +367,19 @@ func (m *Module) NewFunctionType(size, align uint32, returns Type, params []Type
 		m.debugIndex,
 	)
 
-	if returns.debugIndex() == math.MaxUint32 {
+	if debugReturns.debugIndex() == math.MaxUint32 {
 		m.footer.WriteString("null")
 	} else {
-		_, _ = fmt.Fprintf(&m.footer, "!%d", returns.debugIndex())
+		_, _ = fmt.Fprintf(&m.footer, "!%d", debugReturns.debugIndex())
 	}
 
-	for _, param := range params {
+	for _, param := range debugParams {
 		_, _ = fmt.Fprintf(&m.footer, ", !%d", param.debugIndex())
 	}
 
 	m.footer.WriteString("})\n")
 
-	m.debugIndex += 1 + 1 + uint32(len(params))
+	m.debugIndex += 1 + 1 + uint32(len(debugParams))
 	return t
 }
 

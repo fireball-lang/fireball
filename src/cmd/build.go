@@ -121,7 +121,7 @@ func compile(proj *project.Project, suffix string, opt uint8, entrypointCb func(
 			return "", err
 		}
 
-		m := codegen.Emit(file.Ast(), file.AbsolutePath(), abi.AMD64)
+		m := codegen.Emit(file.Ast(), file.AbsolutePath(), abi.AMD64, abi.SystemV)
 		err = m.Write(f)
 
 		_ = f.Close()
