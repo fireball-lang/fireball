@@ -51,8 +51,17 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 	}
 }
 
+func (a *analyzer) VisitImpl(i *ast.Impl) {
+	a.acceptChildren(i)
+}
+
 func (a *analyzer) VisitFunc(f *ast.Func) {
 	a.variables.PushScope()
+
+	if impl, ok := f.Parent().(*ast.Impl); ok {
+		type_ := ast.GetStructPointerType(impl.Struct)
+		a.variables.Add("this", type_, nil)
+	}
 
 	for _, param := range f.Params {
 		if param.Name != nil && ast.IsValid(param.Type) {
@@ -98,12 +107,16 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	}
 
 	if attr := f.GetAttribute("test"); attr != nil {
-		if len(f.Params) > 0 {
-			a.error(errorNode, "Test functions cannot have any parameters.")
-		}
+		if f.IsMethod() {
+			a.error(errorNode, "Methods cannot be marked with the Test attribute, only global functions.")
+		} else {
+			if len(f.Params) > 0 {
+				a.error(errorNode, "Test functions cannot have any parameters.")
+			}
 
-		if !f.ReturnType().Equals(ast.BoolType) {
-			a.error(errorNode, "Test functions need to return a 'bool'.")
+			if !f.ReturnType().Equals(ast.BoolType) {
+				a.error(errorNode, "Test functions need to return a 'bool'.")
+			}
 		}
 	}
 
@@ -414,7 +427,13 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 		field, _ := decl.GetField(m.Name.Token.Text)
 
 		if field == nil {
-			a.error(m.Name, "Struct '"+decl.Name()+"' doesn't have a member with the name '"+m.Name.Token.Text+"'.")
+			method := a.scope.GetStructMethod(decl, m.Name.Token.Text)
+
+			if method == nil {
+				a.error(m.Name, "Struct '"+decl.Name()+"' doesn't have a member with the name '"+m.Name.Token.Text+"'.")
+			} else {
+				m.Result().Set(ast.Address, method)
+			}
 		} else if ast.IsValid(field.Type) {
 			m.Result().Set(m.Value.Result().Kind, field.Type)
 		}

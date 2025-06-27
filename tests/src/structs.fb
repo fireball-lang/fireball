@@ -3,15 +3,22 @@ struct Vec2 {
 	y i32;
 }
 
-#[test]
-func memberAddressStruct() bool {
-	var v = Vec2 { x: 1, y: 6 };
-	return v.y == 6;
+impl Vec2 {
+	func max() i32 {
+		if (this.x > this.y) return this.x;
+		return this.y;
+	}
 }
 
 #[test]
 func memberValueStruct() bool {
 	return Vec2 { x: 2, y: 4 }.y == 4;
+}
+
+#[test]
+func memberAddressStruct() bool {
+	var v = Vec2 { x: 1, y: 6 };
+	return v.y == 6;
 }
 
 #[test]
@@ -22,4 +29,15 @@ func memberThroughPointerStruct() bool {
 	ptr.y = 3;
 
 	return (&v).y == 3;
+}
+
+#[test]
+func methodValueStruct() bool {
+	return Vec2 { x: 3, y: 6 }.max() == 6;
+}
+
+#[test]
+func methodAddressStruct() bool {
+	var v = Vec2 { x: 3, y: 6 };
+	return v.max() == 6;
 }

@@ -7,6 +7,23 @@ import (
 
 func ResolveTypes(node ast.Node, scope Scope) (diagnostics []utils.Diagnostic) {
 	switch node := node.(type) {
+	case *ast.Impl:
+		if node.NameN == nil {
+			node.Struct = nil
+		} else {
+			decl := scope.GetTypeDecl(node.Name())
+
+			if s, ok := decl.(*ast.Struct); ok {
+				node.Struct = s
+			} else {
+				diagnostics = append(diagnostics, utils.Diagnostic{
+					Kind:    utils.Error,
+					Message: "Type with the name '" + node.Name() + "' is not a struct.",
+					Range:   node.NameN.Range(),
+				})
+			}
+		}
+
 	case *ast.StructInitializer:
 		decl := scope.GetTypeDecl(node.Name.Token.Text)
 

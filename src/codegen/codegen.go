@@ -26,6 +26,7 @@ type codegen struct {
 
 	variables analyzer.VariableTracker[llvm.IdentifierValue]
 	allocas   map[ast.Expr]llvm.IdentifierValue
+	allocas2  map[ast.Expr]llvm.IdentifierValue
 
 	loopConditionL llvm.Identifier
 	loopEndL       llvm.Identifier
@@ -47,14 +48,26 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ll
 	}
 
 	for _, decl := range file.Decls {
-		if f, ok := decl.(*ast.Func); ok {
-			c.collectFunc(f)
+		switch decl := decl.(type) {
+		case *ast.Impl:
+			for _, method := range decl.Methods {
+				c.collectFunc(method)
+			}
+
+		case *ast.Func:
+			c.collectFunc(decl)
 		}
 	}
 
 	for _, decl := range file.Decls {
-		if f, ok := decl.(*ast.Func); ok {
-			c.VisitFunc(f)
+		switch decl := decl.(type) {
+		case *ast.Impl:
+			for _, method := range decl.Methods {
+				c.VisitFunc(method)
+			}
+
+		case *ast.Func:
+			c.VisitFunc(decl)
 		}
 	}
 
@@ -85,6 +98,10 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 			paramNames = append(paramNames, "func.return_value")
 		}
 
+		if _, ok := f.Parent().(*ast.Impl); ok {
+			paramNames = append(paramNames, "this")
+		}
+
 		for _, param := range f.Params {
 			paramNames = append(paramNames, param.Name.Token.Text)
 		}
@@ -102,6 +119,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 
 	c.identifiers = make(map[string]int)
 	c.allocas = make(map[ast.Expr]llvm.IdentifierValue)
+	c.allocas2 = make(map[ast.Expr]llvm.IdentifierValue)
 	c.collectAllocas(f.Body)
 
 	c.funReturnPtr = nil
@@ -109,14 +127,34 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 		c.funReturnPtr = llvm.NamedIdentifierValue(c.types.Get(f.ReturnType()), "func.return_value")
 	}
 
-	for i, param := range f.Params {
+	paramI := uint32(1)
+
+	if impl, ok := f.Parent().(*ast.Impl); ok {
+		c.setSourceLocation(f.NameN)
+
+		astType := ast.GetStructPointerType(impl.Struct)
+		llvmType := c.types.Get(astType)
+		_, align := abi.TypeInfo(c.arch, astType)
+
+		ptr := llvm.Alloca(c.fun, llvmType, 1, align, "param.this")
+		c.fun.LocalVariable(ptr, "this", paramI)
+
+		value := llvm.NamedIdentifierValue(llvmType, "this")
+		llvm.Store(c.fun, value, ptr)
+
+		c.variables.Add("this", astType, ptr)
+
+		paramI++
+	}
+
+	for _, param := range f.Params {
 		c.setSourceLocation(param)
 
 		type_ := c.types.Get(param.Type)
 		_, align := abi.TypeInfo(c.arch, param.Type)
 
 		ptr := llvm.Alloca(c.fun, type_, 1, align, "param."+param.Name.Token.Text)
-		c.fun.LocalVariable(ptr, param.Name.Token.Text, uint32(i+1))
+		c.fun.LocalVariable(ptr, param.Name.Token.Text, paramI)
 
 		t := c.types.Get(getClassifiedType(c.callConv, param.Type))
 		value := llvm.NamedIdentifierValue(t, param.Name.Token.Text)
@@ -129,6 +167,8 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 		llvm.Store(c.fun, value, ptr)
 
 		c.variables.Add(param.Name.Token.Text, param.Type, ptr)
+
+		paramI++
 	}
 
 	c.visit(f.Body)
@@ -343,14 +383,7 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) {
 		f := i.Result().Type.(*ast.Func)
 		type_ = f
 
-		if v, ok := c.functions[f]; ok {
-			value = v
-		} else {
-			v := llvm.FakeFunctionValue(c.types.Get(f), GetLinkName(f))
-			value = &v
-
-			c.additionalExternalFunctions[f] = nil
-		}
+		value = c.getValueForFunc(f)
 	}
 
 	if !ast.IsValid(type_) {
@@ -370,6 +403,20 @@ func (c *codegen) VisitCall(call *ast.Call) {
 	if len(regs) == 1 && regs[0].Class == abi.Memory {
 		ptr := c.allocas[call]
 		args = append(args, ptr)
+	}
+
+	if _, ok := f.Parent().(*ast.Impl); ok {
+		expr := call.Callee.(*ast.Member).Value
+		value := c.visit(expr)
+
+		if expr.Result().Kind == ast.Value {
+			ptr := c.allocas2[call]
+			llvm.Store(c.fun, value, ptr)
+
+			value = ptr
+		}
+
+		args = append(args, value)
 	}
 
 	for _, arg := range call.Args {
@@ -414,6 +461,13 @@ func (c *codegen) VisitMember(m *ast.Member) {
 		decl = m.Value.Result().Type.(*ast.DeclType).Decl.(*ast.Struct)
 	}
 
+	// Method
+	if f, ok := m.Result().Type.(*ast.Func); ok {
+		c.exprValue = c.getValueForFunc(f)
+		return
+	}
+
+	// Field
 	_, i := decl.GetField(m.Name.Token.Text)
 
 	if m.Value.Result().Kind == ast.Value {
@@ -715,6 +769,17 @@ func (c *codegen) cast(value llvm.Value, from, to ast.Type, allowExtended bool) 
 }
 
 // Utils
+
+func (c *codegen) getValueForFunc(f *ast.Func) llvm.Value {
+	if v, ok := c.functions[f]; ok {
+		return v
+	} else {
+		v := llvm.FakeFunctionValue(c.types.Get(f), GetLinkName(f))
+		c.additionalExternalFunctions[f] = nil
+
+		return &v
+	}
+}
 
 func (c *codegen) getConstantOne(type_ ast.Type) llvm.Value {
 	kind := type_.(*ast.PrimitiveType).Kind

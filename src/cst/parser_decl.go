@@ -17,6 +17,8 @@ func (p *parser) declNode(invalidKeyword *bool) (Node, bool) {
 	switch p.current.Text {
 	case "struct":
 		return p.structNode(attributes)
+	case "impl":
+		return p.implNode(attributes)
 	case "func":
 		return p.funcNode(attributes)
 
@@ -130,6 +132,52 @@ func (p *parser) structNode(attributes Node) (Node, bool) {
 
 	// }
 	if p.appendAdvance(&node, lexer.RightBrace, "Expected '}' after struct fields.") {
+		return node, true
+	}
+
+	return node, false
+}
+
+func (p *parser) implNode(attributes Node) (Node, bool) {
+	node := Node{Kind: Impl}
+	node.append(attributes)
+
+	// Keyword
+	node.append(p.advance())
+
+	// Name
+	if p.appendAdvance(&node, lexer.Identifier, "Expected struct name.") {
+		return node, true
+	}
+
+	// {
+	if p.appendAdvance(&node, lexer.LeftBrace, "Expected '{' before methods.") {
+		return node, true
+	}
+
+	// Methods
+	for p.current.Kind != lexer.RightBrace {
+		var attributes Node
+
+		if p.current.Kind == lexer.Hashtag {
+			attrs, err := p.attributesNode()
+			if err {
+				return node, true
+			}
+
+			attributes = attrs
+		}
+
+		child, err := p.funcNode(attributes)
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+	}
+
+	// }
+	if p.appendAdvance(&node, lexer.RightBrace, "Expected '}' after methods.") {
 		return node, true
 	}
 

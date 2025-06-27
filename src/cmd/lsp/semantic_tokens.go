@@ -37,7 +37,7 @@ func (s *server) SemanticTokensRefresh(_ context.Context) (err error) {
 // Highlighter
 
 type highlighter struct {
-	variables analyzer.VariableTracker[bool]
+	variables analyzer.VariableTracker[semanticKind]
 	tokens    []semantic
 }
 
@@ -52,13 +52,24 @@ func (h *highlighter) VisitStruct(f *ast.Struct) {
 	}
 }
 
+func (h *highlighter) VisitImpl(i *ast.Impl) {
+	h.add(i.NameN, classKind)
+
+	h.visitChildren(i)
+}
+
 func (h *highlighter) VisitFunc(f *ast.Func) {
 	h.variables.PushScope()
 
 	h.add(f.NameN, functionKind)
 
+	if impl, ok := f.Parent().(*ast.Impl); ok {
+		type_ := ast.GetStructPointerType(impl.Struct)
+		h.variables.Add("this", type_, keywordKind)
+	}
+
 	for _, param := range f.Params {
-		h.variables.Add(param.Name.Token.Text, param.Type, true)
+		h.variables.Add(param.Name.Token.Text, param.Type, parameterKind)
 
 		h.add(param.Name, parameterKind)
 	}
@@ -77,7 +88,7 @@ func (h *highlighter) VisitBlock(b *ast.Block) {
 }
 
 func (h *highlighter) VisitVar(v *ast.Var) {
-	h.variables.Add(v.Name.Token.Text, v.ActualType(), false)
+	h.variables.Add(v.Name.Token.Text, v.ActualType(), variableKind)
 
 	h.add(v.Name, variableKind)
 
@@ -128,8 +139,8 @@ func (h *highlighter) VisitIdentifier(i *ast.Identifier) {
 		kind = functionKind
 
 	default:
-		if v, param := h.variables.Find(i.Name.Token.Text); v != nil && param {
-			kind = parameterKind
+		if v, varKind := h.variables.Find(i.Name.Token.Text); v != nil {
+			kind = varKind
 		}
 	}
 
@@ -146,7 +157,14 @@ func (h *highlighter) VisitIndex(i *ast.Index) {
 
 func (h *highlighter) VisitMember(m *ast.Member) {
 	h.visit(m.Value)
-	h.add(m.Name, propertyKind)
+
+	kind := propertyKind
+
+	if _, ok := m.Result().Type.(ast.FuncType); ok {
+		kind = functionKind
+	}
+
+	h.add(m.Name, kind)
 }
 
 func (h *highlighter) VisitUnary(u *ast.Unary) {
@@ -208,6 +226,7 @@ const (
 	namespaceKind
 	interfaceKind
 	genericKind
+	keywordKind
 )
 
 type semantic struct {

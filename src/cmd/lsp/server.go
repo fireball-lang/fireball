@@ -64,6 +64,7 @@ func (s *server) Initialize(_ context.Context, params *protocol.InitializeParams
 						protocol.SemanticTokenNamespace,
 						protocol.SemanticTokenInterface,
 						protocol.SemanticTokenTypeParameter,
+						protocol.SemanticTokenKeyword,
 					},
 					TokenModifiers: []protocol.SemanticTokenModifiers{},
 				},

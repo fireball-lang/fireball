@@ -176,6 +176,17 @@ func collectSymbols(file *File, scope *globalScope) {
 				scope.types[decl.Name()] = decl
 			}
 
+		case *ast.Impl:
+			for _, method := range decl.Methods {
+				if !scope.addMethod(decl.Name(), method) {
+					diagnostics = append(diagnostics, utils.Diagnostic{
+						Kind:    utils.Error,
+						Message: "Method with the name '" + method.Name() + "' already exists on struct '" + decl.Name() + "'.",
+						Range:   decl.NameN.Range(),
+					})
+				}
+			}
+
 		case *ast.Func:
 			if _, ok := scope.functions[decl.Name()]; ok {
 				diagnostics = append(diagnostics, utils.Diagnostic{

@@ -1,5 +1,7 @@
 package ast
 
+import "fireball/lexer"
+
 func Root(node Node) *File {
 	for {
 		if !IsValid(node) {
@@ -26,4 +28,11 @@ func GetLastExpr(expr Expr) Expr {
 			return expr
 		}
 	}
+}
+
+func GetStructPointerType(s *Struct) *PointerType {
+	return &PointerType{Pointee: &DeclType{
+		Name: &Leaf{Token: lexer.Token{Kind: lexer.Identifier, Text: s.Name()}},
+		Decl: s,
+	}}
 }

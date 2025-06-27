@@ -59,6 +59,10 @@ func (p *printer) VisitStruct(s *Struct) {
 	}
 }
 
+func (p *printer) VisitImpl(i *Impl) {
+	fmt.Printf("Impl '%s'\n", i.Name())
+}
+
 func (p *printer) VisitFunc(f *Func) {
 	fmt.Printf("Func '%s'\n", f.Name())
 }

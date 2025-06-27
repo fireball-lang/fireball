@@ -46,6 +46,15 @@ func (c *codegen) collectAllocasCall(call *ast.Call) {
 		c.allocas[call] = llvm.Alloca(c.fun, t, 1, t.Align()/8, "abi.call")
 	}
 
+	if _, ok := f.Parent().(*ast.Impl); ok {
+		expr := call.Callee.(*ast.Member).Value
+
+		if expr.Result().Kind == ast.Value {
+			t := c.types.Get(expr.Result().Type)
+			c.allocas2[call] = llvm.Alloca(c.fun, t, 1, t.Align()/8, "call.this")
+		}
+	}
+
 	for _, arg := range call.Args {
 		c.collectAllocasArg(arg)
 	}

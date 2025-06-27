@@ -9,6 +9,8 @@ func (c *converter) convertDecl(node *cst.Node) Decl {
 	switch node.Kind {
 	case cst.Struct:
 		return c.convertStruct(node)
+	case cst.Impl:
+		return c.convertImpl(node)
 	case cst.Func:
 		return c.convertFunc(node)
 
@@ -92,6 +94,29 @@ func (c *converter) convertField(node *cst.Node) *Field {
 	}
 
 	return f
+}
+
+func (c *converter) convertImpl(node *cst.Node) *Impl {
+	i := &Impl{}
+	i.range_ = node.Range
+
+	for index := range node.Children {
+		child := &node.Children[index]
+
+		//goland:noinspection GoSwitchMissingCasesForIotaConsts
+		switch child.Kind {
+		case cst.Attributes:
+			i.Attributes = c.convertAttributes(child)
+		case cst.Leaf:
+			if child.Token.Kind == lexer.Identifier {
+				i.NameN = c.convertLeaf(child)
+			}
+		case cst.Func:
+			i.Methods = append(i.Methods, c.convertFunc(child))
+		}
+	}
+
+	return i
 }
 
 func (c *converter) convertFunc(node *cst.Node) *Func {

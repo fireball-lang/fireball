@@ -14,6 +14,7 @@ const (
 
 	Struct
 	Field
+	Impl
 	Func
 	Param
 	Attributes
@@ -46,7 +47,7 @@ func (n NodeKind) IsType() bool {
 }
 
 func (n NodeKind) IsDecl() bool {
-	return n == Struct || n == Func
+	return n == Struct || n == Impl || n == Func
 }
 
 func (n NodeKind) IsExpr() bool {
@@ -74,6 +75,8 @@ func (n NodeKind) String() string {
 		return "Struct"
 	case Field:
 		return "Field"
+	case Impl:
+		return "Impl"
 	case Func:
 		return "Func"
 	case Param:

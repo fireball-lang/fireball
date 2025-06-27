@@ -132,6 +132,13 @@ func (t *TypeCache) createFuncType(type_ ast.FuncType) llvm.Type {
 		returns = t.Module.NewVoidType()
 	}
 
+	if impl, ok := type_.Parent().(*ast.Impl); ok {
+		type_ := t.Get(ast.GetStructPointerType(impl.Struct))
+
+		params = append(params, type_)
+		debugParams = append(debugParams, type_)
+	}
+
 	for param := range type_.ParamTypes() {
 		params = append(params, t.Get(getClassifiedType(t.CallConv, param)))
 		debugParams = append(debugParams, t.Get(param))

@@ -14,6 +14,7 @@ type Decl interface {
 
 type DeclVisitor interface {
 	VisitStruct(f *Struct)
+	VisitImpl(i *Impl)
 	VisitFunc(f *Func)
 }
 
@@ -120,6 +121,50 @@ func (f *Field) Children() iter.Seq[Node] {
 	}
 }
 
+// Impl
+
+type Impl struct {
+	baseRangeNode
+	attributeHolder
+
+	NameN  *Leaf
+	Struct *Struct
+
+	Methods []*Func
+}
+
+func (i *Impl) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, attribute := range i.Attributes {
+			if !yield(attribute) {
+				return
+			}
+		}
+
+		if i.NameN != nil && !yield(i.NameN) {
+			return
+		}
+
+		for _, method := range i.Methods {
+			if !yield(method) {
+				return
+			}
+		}
+	}
+}
+
+func (i *Impl) Name() string {
+	if i.NameN != nil {
+		return i.NameN.Token.Text
+	}
+
+	return ""
+}
+
+func (i *Impl) Visit(visitor DeclVisitor) {
+	visitor.VisitImpl(i)
+}
+
 // Func
 
 type Func struct {
@@ -200,6 +245,14 @@ func (f *Func) ReturnType() Type {
 	}
 
 	return VoidType
+}
+
+func (f *Func) IsMethod() bool {
+	if _, ok := f.Parent().(*Impl); ok {
+		return true
+	}
+
+	return false
 }
 
 // Param
