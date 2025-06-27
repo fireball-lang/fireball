@@ -70,6 +70,7 @@ func (s *server) Initialize(_ context.Context, params *protocol.InitializeParams
 				},
 				Full: &SemanticTokensFull{},
 			},
+			HoverProvider: true,
 		},
 		ServerInfo: &protocol.ServerInfo{
 			Name:    "fireball",

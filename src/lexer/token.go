@@ -9,6 +9,30 @@ type Pos struct {
 	Column uint32
 }
 
+func (p Pos) LessThan(o Pos) bool {
+	if p.Line < o.Line {
+		return true
+	}
+
+	if p.Line == o.Line {
+		return p.Column < o.Column
+	}
+
+	return false
+}
+
+func (p Pos) GreaterThanEqual(o Pos) bool {
+	if p.Line > o.Line {
+		return true
+	}
+
+	if p.Line == o.Line {
+		return p.Column >= o.Column
+	}
+
+	return false
+}
+
 func (p Pos) String() string {
 	return fmt.Sprintf("%d:%d", p.Line, p.Column)
 }
@@ -30,6 +54,15 @@ func Max(p1, p2 Pos) Pos {
 type Range struct {
 	Start Pos
 	End   Pos
+}
+
+func (r Range) IsZero() bool {
+	var zero Range
+	return r == zero
+}
+
+func (r Range) Contains(pos Pos) bool {
+	return pos.GreaterThanEqual(r.Start) && pos.LessThan(r.End)
 }
 
 type Token struct {

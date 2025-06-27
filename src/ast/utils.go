@@ -30,6 +30,24 @@ func GetLastExpr(expr Expr) Expr {
 	}
 }
 
+func GetLeafAtPos(node Node, pos lexer.Pos) *Leaf {
+	r := node.Range()
+
+	if leaf, ok := node.(*Leaf); ok && r.Contains(pos) {
+		return leaf
+	}
+
+	if r.IsZero() || r.Contains(pos) {
+		for child := range node.Children() {
+			if leaf := GetLeafAtPos(child, pos); leaf != nil {
+				return leaf
+			}
+		}
+	}
+
+	return nil
+}
+
 func GetStructPointerType(s *Struct) *PointerType {
 	return &PointerType{Pointee: &DeclType{
 		Name: &Leaf{Token: lexer.Token{Kind: lexer.Identifier, Text: s.Name()}},
