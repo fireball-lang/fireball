@@ -222,7 +222,11 @@ func (f *Func) Equals(other Type) bool {
 }
 
 func (f *Func) String() string {
-	return funcTypeString(f)
+	return funcTypeString(f, false)
+}
+
+func (f *Func) StringWithParamNames() string {
+	return funcTypeString(f, true)
 }
 
 func (f *Func) ParamTypes() iter.Seq[Type] {

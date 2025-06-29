@@ -35,16 +35,7 @@ func (s *server) Hover(_ context.Context, params *protocol.HoverParams) (result 
 				Kind:  protocol.PlainText,
 				Value: hover,
 			},
-			Range: &protocol.Range{
-				Start: protocol.Position{
-					Line:      leaf.Range().Start.Line - 1,
-					Character: leaf.Range().Start.Column,
-				},
-				End: protocol.Position{
-					Line:      leaf.Range().End.Line - 1,
-					Character: leaf.Range().End.Column,
-				},
-			},
+			Range: rangeToProtocolPtr(leaf.Range()),
 		}, nil
 	}
 

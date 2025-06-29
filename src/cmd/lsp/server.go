@@ -3,6 +3,7 @@ package lsp
 import (
 	"cmp"
 	"context"
+	"fireball/lexer"
 	"fireball/project"
 	"fireball/utils"
 	"github.com/MineGame159/protocol"
@@ -71,6 +72,10 @@ func (s *server) Initialize(_ context.Context, params *protocol.InitializeParams
 				Full: &SemanticTokensFull{},
 			},
 			HoverProvider: true,
+			DocumentSymbolProvider: &protocol.DocumentSymbolOptions{
+				Label: "Fireball",
+			},
+			WorkspaceSymbolProvider: true,
 		},
 		ServerInfo: &protocol.ServerInfo{
 			Name:    "fireball",
@@ -205,16 +210,7 @@ func (s *server) analyzeProject(proj *project.Project, forceWithoutParse bool) {
 			}
 
 			lspDiagnostics[i] = protocol.Diagnostic{
-				Range: protocol.Range{
-					Start: protocol.Position{
-						Line:      diagnostic.Range.Start.Line - 1,
-						Character: diagnostic.Range.Start.Column,
-					},
-					End: protocol.Position{
-						Line:      diagnostic.Range.End.Line - 1,
-						Character: diagnostic.Range.End.Column,
-					},
-				},
+				Range:    rangeToProtocol(diagnostic.Range),
 				Severity: severity,
 				Source:   "fireball",
 				Message:  diagnostic.Message,
@@ -397,6 +393,24 @@ func (s *server) error(ctx context.Context, msg string) {
 		Message: msg,
 		Type:    protocol.MessageTypeError,
 	})
+}
+
+func rangeToProtocol(r lexer.Range) protocol.Range {
+	return protocol.Range{
+		Start: protocol.Position{
+			Line:      r.Start.Line - 1,
+			Character: r.Start.Column,
+		},
+		End: protocol.Position{
+			Line:      r.End.Line - 1,
+			Character: r.End.Column,
+		},
+	}
+}
+
+func rangeToProtocolPtr(r lexer.Range) *protocol.Range {
+	protocolRange := rangeToProtocol(r)
+	return &protocolRange
 }
 
 // Start / Stop

@@ -198,7 +198,11 @@ func (a *ArrayType) Equals(other Type) bool {
 }
 
 func (a *ArrayType) String() string {
-	return fmt.Sprintf("[%d]%s", a.Count, a.Element.String())
+	if IsValid(a.Element) {
+		return fmt.Sprintf("[%d]%s", a.Count, a.Element.String())
+	}
+
+	return fmt.Sprintf("[%d]", a.Count)
 }
 
 // PointerType
@@ -226,7 +230,11 @@ func (p *PointerType) Equals(other Type) bool {
 }
 
 func (p *PointerType) String() string {
-	return "*" + p.Pointee.String()
+	if IsValid(p.Pointee) {
+		return "*" + p.Pointee.String()
+	}
+
+	return "*"
 }
 
 // FuncType
@@ -267,7 +275,7 @@ func (s *SimpleFuncType) Equals(other Type) bool {
 }
 
 func (s *SimpleFuncType) String() string {
-	return funcTypeString(s)
+	return funcTypeString(s, false)
 }
 
 func (s *SimpleFuncType) ParamTypes() iter.Seq[Type] {
@@ -321,8 +329,14 @@ func funcTypeEquals(f FuncType, other Type) bool {
 	return false
 }
 
-func funcTypeString(f FuncType) string {
+func funcTypeString(f FuncType, paramNames bool) string {
 	var sb strings.Builder
+
+	var params []*Param
+
+	if fu, ok := f.(*Func); ok && paramNames {
+		params = fu.Params
+	}
 
 	sb.WriteString("fn (")
 	i := 0
@@ -330,6 +344,15 @@ func funcTypeString(f FuncType) string {
 	for param := range f.ParamTypes() {
 		if i > 0 {
 			sb.WriteString(", ")
+		}
+
+		if params != nil {
+			name := params[i].Name
+
+			if name != nil {
+				sb.WriteString(name.Token.Text)
+				sb.WriteRune(' ')
+			}
 		}
 
 		sb.WriteString(param.String())
