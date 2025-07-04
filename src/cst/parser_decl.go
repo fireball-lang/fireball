@@ -15,6 +15,10 @@ func (p *parser) declNode(invalidKeyword *bool) (Node, bool) {
 	}
 
 	switch p.current.Text {
+	case "mod":
+		return p.modNode(attributes)
+	case "import":
+		return p.importNode(attributes)
 	case "struct":
 		return p.structNode(attributes)
 	case "impl":
@@ -97,6 +101,120 @@ func (p *parser) attributeNode() (Node, bool) {
 	}
 
 	return node, false
+}
+
+func (p *parser) modNode(attributes Node) (Node, bool) {
+	node := Node{Kind: Mod}
+	node.append(attributes)
+
+	// Keyword
+	node.append(p.advance())
+
+	// Path
+	{
+		child, err := p.pathNode()
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+	}
+
+	// ;
+	if p.appendAdvance(&node, lexer.Semicolon, "Expected ';' after path segments.") {
+		return node, true
+	}
+
+	return node, false
+}
+
+func (p *parser) importNode(attributes Node) (Node, bool) {
+	node := Node{Kind: Import}
+	node.append(attributes)
+
+	// Keyword
+	node.append(p.advance())
+
+	// Path
+	hasSymbols := false
+
+	{
+		child, err, colon := p.importPathNode()
+		node.append(child)
+		node.append(colon)
+
+		if colon.Kind == Leaf && colon.Token.Kind == lexer.Colon {
+			hasSymbols = true
+		}
+
+		if err {
+			return node, true
+		}
+	}
+
+	// Symbols
+	if hasSymbols {
+		if p.appendAdvance(&node, lexer.LeftBrace, "Expected '{' before symbols to import.") {
+			return node, true
+		}
+
+		hasSymbol := false
+
+		for p.current.Kind != lexer.RightBrace {
+			if hasSymbol {
+				if p.appendAdvance(&node, lexer.Comma, "Expected ',' before symbols.") {
+					return node, true
+				}
+			}
+
+			if p.current.Kind == lexer.Star {
+				node.append(p.advance())
+			} else {
+				if p.appendAdvance(&node, lexer.Identifier, "Expected symbol name or *.") {
+					return node, true
+				}
+			}
+
+			hasSymbol = true
+		}
+
+		if p.appendAdvance(&node, lexer.RightBrace, "Expected '}' after symbols to import.") {
+			return node, true
+		}
+	}
+
+	// ;
+	if p.appendAdvance(&node, lexer.Semicolon, "Expected ';' after import.") {
+		return node, true
+	}
+
+	return node, false
+}
+
+func (p *parser) importPathNode() (Node, bool, Node) {
+	node := Node{Kind: Path}
+
+	// First segment
+	if p.appendAdvance(&node, lexer.Identifier, "Expected an identifier.") {
+		return node, true, Node{}
+	}
+
+	// Additional segments
+	for p.current.Kind == lexer.Colon {
+		colon := p.advance()
+
+		if p.current.Kind == lexer.LeftBrace {
+			return node, false, colon
+		}
+
+		node.append(colon)
+
+		if p.appendAdvance(&node, lexer.Identifier, "Expected an identifier as a path segment after ':'.") {
+			return node, true, Node{}
+		}
+	}
+
+	return node, false, Node{}
 }
 
 func (p *parser) structNode(attributes Node) (Node, bool) {

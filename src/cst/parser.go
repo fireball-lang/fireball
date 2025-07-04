@@ -19,7 +19,7 @@ func Parse(source string) (Node, []utils.Diagnostic) {
 	}
 
 	p.advance()
-	node := p.file()
+	node := p.fileNode()
 
 	calculateRange(&node)
 
@@ -34,7 +34,45 @@ func calculateRange(node *Node) {
 	node.calculateRange()
 }
 
-func (p *parser) file() Node {
+func (p *parser) pathNode() (Node, bool) {
+	node := Node{Kind: Path}
+
+	// First segment
+	if p.appendAdvance(&node, lexer.Identifier, "Expected an identifier.") {
+		return node, true
+	}
+
+	// Additional segments
+	for p.current.Kind == lexer.Colon {
+		node.append(p.advance())
+
+		if p.appendAdvance(&node, lexer.Identifier, "Expected an identifier as a path segment after ':'.") {
+			return node, true
+		}
+	}
+
+	return node, false
+}
+
+func (p *parser) pathNodeWithFirstIdentifier(identifier Node) (Node, bool) {
+	node := Node{Kind: Path}
+
+	// First segment
+	node.append(identifier)
+
+	// Additional segments
+	for p.current.Kind == lexer.Colon {
+		node.append(p.advance())
+
+		if p.appendAdvance(&node, lexer.Identifier, "Expected an identifier as a path segment after ':'.") {
+			return node, true
+		}
+	}
+
+	return node, false
+}
+
+func (p *parser) fileNode() Node {
 	node := Node{Kind: File}
 
 	lastErr := false

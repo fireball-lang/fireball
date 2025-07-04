@@ -6,13 +6,16 @@ import (
 	"fireball/utils"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 )
 
 type analyzer struct {
+	ctx   Context
+	scope Scope
+
 	fun       *ast.Func
-	scope     Scope
 	variables VariableTracker[any]
 
 	isLoopBody bool
@@ -20,14 +23,30 @@ type analyzer struct {
 	diagnostics []utils.Diagnostic
 }
 
-func Analyze(f *ast.File, scope Scope) []utils.Diagnostic {
-	a := analyzer{scope: scope}
-	a.accept(f)
+func Analyze(file *ast.File, ctx Context, scope Scope) []utils.Diagnostic {
+	a := analyzer{
+		ctx:   ctx,
+		scope: getFileScope(file, ctx, scope, utils.DiagnosticConsumer(nil)),
+	}
+
+	a.accept(file)
 
 	return a.diagnostics
 }
 
 // Declarations
+
+func (a *analyzer) VisitMod(m *ast.Mod) {
+	if m.Parent().(*ast.File).Decls[0] != m {
+		a.error(m, "Module declaration needs to be at the top of the file and there can only be one.")
+	}
+}
+
+func (a *analyzer) VisitImport(i *ast.Import) {
+	if slices.ContainsFunc(i.Symbols, isLeafStar) && len(i.Symbols) != 1 {
+		errorSlice(a, i.Symbols, "When importing all symbols using '*', it needs to be the only symbol in  the list.")
+	}
+}
 
 func (a *analyzer) VisitStruct(s *ast.Struct) {
 	a.acceptChildren(s)
@@ -53,12 +72,21 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 
 func (a *analyzer) VisitImpl(i *ast.Impl) {
 	a.acceptChildren(i)
+
+	if i.Struct != nil {
+		structModulePath := ast.Root(i.Struct).ModulePath()
+		implModulePath := ast.Root(i).ModulePath()
+
+		if !ast.PathEquals(structModulePath, implModulePath) {
+			a.error(firstNonNil(i.NameN, i), "Can only implement methods for structs in the same module.")
+		}
+	}
 }
 
 func (a *analyzer) VisitFunc(f *ast.Func) {
 	a.variables.PushScope()
 
-	if impl, ok := f.Parent().(*ast.Impl); ok {
+	if impl, ok := f.Parent().(*ast.Impl); ok && impl.Struct != nil {
 		type_ := ast.GetStructPointerType(impl.Struct)
 		a.variables.Add("this", type_, nil)
 	}
@@ -305,7 +333,7 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) {
 	}
 
 	s.Result().Set(ast.Value, &ast.DeclType{
-		Name: s.Name,
+		Path: getDeclPath(s.Struct),
 		Decl: s.Struct,
 	})
 }
@@ -319,15 +347,23 @@ func (a *analyzer) VisitParen(p *ast.Paren) {
 }
 
 func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
-	name := i.Name.Token.Text
-	type_, _ := a.variables.Find(name)
+	var type_ ast.Type
+	name := i.Path.SegmentAt(i.Path.SegmentCount() - 1)
 
-	if !ast.IsValid(type_) {
-		type_ = a.scope.GetFuncDecl(name)
+	if i.Path.SegmentCount() == 1 {
+		type_, _ = a.variables.Find(name)
 	}
 
 	if !ast.IsValid(type_) {
-		a.error(i.Name, "Symbol with the name '"+name+"' doesn't exist.")
+		lookup := getSymbolLookup(a.ctx, a.scope, i.Path)
+
+		if !utils.IsNil(lookup) {
+			type_ = lookup.GetFuncDecl(name)
+		}
+	}
+
+	if !ast.IsValid(type_) {
+		a.error(i.Path, "Symbol with the path '"+ast.PathString(i.Path)+"' doesn't exist in the current scope.")
 		i.Result().SetInvalid()
 	} else {
 		i.Result().Set(ast.Address, type_)
@@ -674,6 +710,14 @@ func (a *analyzer) accept(node ast.Node) {
 	}
 }
 
+func firstNonNil(first, second ast.Node) ast.Node {
+	if ast.IsValid(first) {
+		return first
+	}
+
+	return second
+}
+
 func (a *analyzer) checkType(expr ast.Expr, expected ast.Type) bool {
 	if ast.IsValid(expr) && ast.IsValid(expected) && expr.Result().Kind != ast.Invalid && !expr.Result().Type.Equals(expected) {
 		a.error(expr, fmt.Sprintf("Expected type '%s' but got '%s'.", expected, expr.Result().Type))
@@ -688,5 +732,16 @@ func (a *analyzer) error(node ast.Node, message string) {
 		Kind:    utils.Error,
 		Message: message,
 		Range:   node.Range(),
+	})
+}
+
+func errorSlice[T ast.Node](a *analyzer, nodes []T, message string) {
+	a.diagnostics = append(a.diagnostics, utils.Diagnostic{
+		Kind:    utils.Error,
+		Message: message,
+		Range: lexer.Range{
+			Start: nodes[0].Range().Start,
+			End:   nodes[len(nodes)-1].Range().End,
+		},
 	})
 }

@@ -4,6 +4,7 @@ import (
 	"fireball/abi"
 	"fireball/ast"
 	"fireball/llvm"
+	"strings"
 )
 
 type TypeCache struct {
@@ -57,7 +58,7 @@ func (t *TypeCache) createPrimitiveType(type_ *ast.PrimitiveType) llvm.Type {
 
 	switch type_.Kind {
 	case ast.Void:
-		return t.Module.NewVoidType()
+		return llvm.NewVoidType()
 	case ast.Bool:
 		return t.Module.NewIntegerType(size, align, false, 1)
 	case ast.U8:
@@ -100,8 +101,18 @@ func (t *TypeCache) createDeclType(type_ *ast.DeclType) llvm.Type {
 			}
 		}
 
+		modPath := ast.Root(decl).ModulePath()
+		var name strings.Builder
+
+		for i := 0; i < modPath.SegmentCount(); i++ {
+			name.WriteString(modPath.SegmentAt(i))
+			name.WriteRune('.') // TODO: replace with :
+		}
+
+		name.WriteString(decl.Name())
+
 		size, align := layout.Info()
-		return t.Module.NewStructType(type_.Name.Token.Text, fields, size, align)
+		return t.Module.NewStructType(name.String(), fields, size, align)
 
 	default:
 		panic("codegen.TypeCache.createDeclType() - Invalid declaration")
@@ -119,7 +130,7 @@ func (t *TypeCache) createPointerType(type_ *ast.PointerType) llvm.Type {
 }
 
 func (t *TypeCache) createFuncType(type_ ast.FuncType) llvm.Type {
-	returns := t.Get(getClassifiedType(t.CallConv, type_.ReturnType()))
+	returns := getClassifiedLlvmType(t, type_.ReturnType(), false)
 	debugReturns := t.Get(type_.ReturnType())
 
 	var params []llvm.Type
@@ -129,7 +140,7 @@ func (t *TypeCache) createFuncType(type_ ast.FuncType) llvm.Type {
 
 	if len(regs) == 1 && regs[0].Class == abi.Memory {
 		params = append(params, returns)
-		returns = t.Module.NewVoidType()
+		returns = llvm.NewVoidType()
 	}
 
 	if impl, ok := type_.Parent().(*ast.Impl); ok {
@@ -140,7 +151,7 @@ func (t *TypeCache) createFuncType(type_ ast.FuncType) llvm.Type {
 	}
 
 	for param := range type_.ParamTypes() {
-		params = append(params, t.Get(getClassifiedType(t.CallConv, param)))
+		params = append(params, getClassifiedLlvmType(t, param, false))
 		debugParams = append(debugParams, t.Get(param))
 	}
 

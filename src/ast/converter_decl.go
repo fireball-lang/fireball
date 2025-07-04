@@ -7,6 +7,10 @@ import (
 
 func (c *converter) convertDecl(node *cst.Node) Decl {
 	switch node.Kind {
+	case cst.Mod:
+		return c.convertMod(node)
+	case cst.Import:
+		return c.convertImport(node)
 	case cst.Struct:
 		return c.convertStruct(node)
 	case cst.Impl:
@@ -54,6 +58,44 @@ func (c *converter) convertAttribute(node *cst.Node) *Attribute {
 	}
 
 	return a
+}
+
+func (c *converter) convertMod(node *cst.Node) *Mod {
+	m := &Mod{}
+	m.range_ = node.Range
+
+	for i := range node.Children {
+		child := &node.Children[i]
+
+		if child.Kind == cst.Path {
+			m.Path = c.convertPath(child)
+		}
+	}
+
+	return m
+}
+
+func (c *converter) convertImport(node *cst.Node) *Import {
+	i := &Import{}
+	i.range_ = node.Range
+
+	for index := range node.Children {
+		child := &node.Children[index]
+
+		//goland:noinspection GoSwitchMissingCasesForIotaConsts
+		switch child.Kind {
+		case cst.Attributes:
+			i.Attributes = c.convertAttributes(child)
+		case cst.Path:
+			i.Path = c.convertPath(child)
+		case cst.Leaf:
+			if child.Token.Kind == lexer.Star || (child.Token.Kind == lexer.Identifier && child.Token.Text != "import") {
+				i.Symbols = append(i.Symbols, c.convertLeaf(child))
+			}
+		}
+	}
+
+	return i
 }
 
 func (c *converter) convertStruct(node *cst.Node) *Struct {

@@ -23,30 +23,28 @@ func (c *converter) convertType(node *cst.Node) Type {
 }
 
 func (c *converter) convertDeclType(node *cst.Node) Type {
-	// PrimitiveType
+	var path *Path
+
 	for i := range node.Children {
 		child := &node.Children[i]
 
-		if child.Kind == cst.Leaf {
-			if kind, ok := c.getPrimitiveKind(child.Token.Text); ok {
-				return &PrimitiveType{
-					baseRangeNode: baseRangeNode{range_: node.Range},
-					Kind:          kind,
-				}
+		if child.Kind == cst.Path {
+			path = c.convertPath(child)
+		}
+	}
+
+	// PrimitiveType
+	if path != nil && path.SegmentCount() == 1 {
+		if kind, ok := c.getPrimitiveKind(path.SegmentAt(0)); ok {
+			return &PrimitiveType{
+				baseRangeNode: baseRangeNode{range_: node.Range},
+				Kind:          kind,
 			}
 		}
 	}
 
 	// DeclType
-	d := &DeclType{}
-
-	for i := range node.Children {
-		child := &node.Children[i]
-
-		if child.Kind == cst.Leaf {
-			d.Name = c.convertLeaf(child)
-		}
-	}
+	d := &DeclType{Path: path}
 
 	return d
 }

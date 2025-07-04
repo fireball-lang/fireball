@@ -10,7 +10,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"go.lsp.dev/uri"
 	"go.uber.org/zap"
-	"os"
+	"io/fs"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -255,7 +255,7 @@ func (s *server) getFileFromProject(proj *project.Project, path string) *project
 	defer data.filesMutex.Unlock()
 
 	// Check src folder
-	if filepath.Dir(path) != filepath.Join(proj.AbsolutePath, "src") {
+	if !strings.HasPrefix(path, filepath.Join(proj.AbsolutePath, "src")) {
 		return nil
 	}
 
@@ -292,21 +292,16 @@ func (s *server) openProject(folder protocol.WorkspaceFolder) {
 	data := &projectData{}
 	proj.Data = data
 
-	// Load source files
-	s.scanProjectFiles(proj)
-
 	// Setup file watcher
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return
 	}
 
-	if err := watcher.Add(filepath.Join(proj.AbsolutePath, "src")); err != nil {
-		_ = watcher.Close()
-		return
-	}
-
 	data.watcher = watcher
+
+	// Load source files
+	s.scanProjectFiles(proj)
 
 	go func() {
 		for {
@@ -348,15 +343,23 @@ func (s *server) scanProjectFiles(proj *project.Project) (changed bool) {
 	data.filesMutex.Lock()
 	defer data.filesMutex.Unlock()
 
-	entries, err := os.ReadDir(filepath.Join(proj.AbsolutePath, "src"))
-	if err != nil {
-		return
-	}
-
 	// New files
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".fb") {
-			path := filepath.Join(proj.AbsolutePath, "src", entry.Name())
+	var filePaths []string
+
+	err := filepath.WalkDir(filepath.Join(proj.AbsolutePath, "src"), func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if entry.IsDir() {
+			err := data.watcher.Add(path)
+			if err != nil {
+				return err
+			}
+		}
+
+		if !entry.IsDir() && strings.HasSuffix(path, ".fb") {
+			filePaths = append(filePaths, path)
 
 			if !proj.HasFile(path) {
 				doc := newDocument(path)
@@ -365,14 +368,20 @@ func (s *server) scanProjectFiles(proj *project.Project) (changed bool) {
 				changed = true
 			}
 		}
+
+		return nil
+	})
+
+	if err != nil {
+		return
 	}
 
 	// Deleted files
 	var filesToRemove []string
 
 	for file := range proj.Files() {
-		exists := slices.ContainsFunc(entries, func(entry os.DirEntry) bool {
-			return entry.Name() == file.SrcRelativePath()
+		exists := slices.ContainsFunc(filePaths, func(entry string) bool {
+			return entry == file.AbsolutePath()
 		})
 
 		if !exists {

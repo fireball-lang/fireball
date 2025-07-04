@@ -13,6 +13,8 @@ type Decl interface {
 }
 
 type DeclVisitor interface {
+	VisitMod(m *Mod)
+	VisitImport(i *Import)
 	VisitStruct(f *Struct)
 	VisitImpl(i *Impl)
 	VisitFunc(f *Func)
@@ -47,6 +49,65 @@ func (a *attributeHolder) GetAttribute(name string) *Attribute {
 	}
 
 	return nil
+}
+
+// Mod
+
+type Mod struct {
+	baseRangeNode
+	attributeHolder
+
+	Path *Path
+}
+
+func (m *Mod) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if m.Path != nil && !yield(m.Path) {
+			return
+		}
+	}
+}
+
+func (m *Mod) Name() string {
+	return "<mod>"
+}
+
+func (m *Mod) Visit(visitor DeclVisitor) {
+	visitor.VisitMod(m)
+}
+
+// Import
+
+type Import struct {
+	baseRangeNode
+	attributeHolder
+
+	Path    *Path
+	Symbols []*Leaf
+
+	ResolvedSymbols []Decl
+}
+
+func (i *Import) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if i.Path != nil && !yield(i.Path) {
+			return
+		}
+
+		for _, symbol := range i.Symbols {
+			if !yield(symbol) {
+				return
+			}
+		}
+	}
+}
+
+func (i *Import) Name() string {
+	return "<import>"
+}
+
+func (i *Import) Visit(visitor DeclVisitor) {
+	visitor.VisitImport(i)
 }
 
 // Struct

@@ -167,7 +167,7 @@ func (a *anonStructType) write(sb *strings.Builder) {
 		field.write(sb)
 	}
 
-	sb.WriteString("} ")
+	sb.WriteString(" }")
 }
 
 func (a *anonStructType) String() string {

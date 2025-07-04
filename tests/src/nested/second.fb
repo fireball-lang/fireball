@@ -1,0 +1,13 @@
+mod tests:nested;
+
+struct Bar {
+	number i32;
+}
+
+func foo() i32 {
+	return 2;
+}
+
+func unused() bool {
+	return false;
+}

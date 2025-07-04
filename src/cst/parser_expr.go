@@ -442,10 +442,22 @@ func (p *parser) returnNode() (Node, bool) {
 func (p *parser) identifierNode(identifier Node) (Node, bool) {
 	node := Node{Kind: Identifier}
 
-	node.append(identifier)
-
+	// Literal
 	if identifier.Token.Text == "true" || identifier.Token.Text == "false" || identifier.Token.Text == "nil" {
 		node.Kind = Literal
+		node.append(identifier)
+
+		return node, false
+	}
+
+	// Identifier
+	{
+		child, err := p.pathNodeWithFirstIdentifier(identifier)
+		node.append(child)
+
+		if err {
+			return node, true
+		}
 	}
 
 	return node, false

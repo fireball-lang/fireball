@@ -30,8 +30,15 @@ func (p *parser) typeNode() (Node, bool) {
 func (p *parser) declTypeNode() (Node, bool) {
 	node := Node{Kind: DeclType}
 
-	// Type name
-	node.append(p.advance())
+	// Type path
+	{
+		child, err := p.pathNode()
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+	}
 
 	return node, false
 }

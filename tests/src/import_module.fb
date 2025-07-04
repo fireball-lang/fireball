@@ -1,0 +1,16 @@
+mod tests;
+
+import tests:nested;
+
+#[test]
+func importModuleFunction() bool {
+	return nested:foo() == 2;
+}
+
+#[test]
+func importModuleType() bool {
+	var v: nested:Bar;
+	v.number = 6;
+
+	return true;
+}

@@ -70,6 +70,32 @@ func (l *Leaf) Range() lexer.Range {
 	return l.Token.Range
 }
 
+// Path
+
+type Path struct {
+	baseRangeNode
+
+	Segments []*Leaf
+}
+
+func (p *Path) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, segment := range p.Segments {
+			if !yield(segment) {
+				return
+			}
+		}
+	}
+}
+
+func (p *Path) SegmentCount() int {
+	return len(p.Segments)
+}
+
+func (p *Path) SegmentAt(index int) string {
+	return p.Segments[index].Token.Text
+}
+
 // File
 
 type File struct {
@@ -86,4 +112,14 @@ func (f *File) Children() iter.Seq[Node] {
 			}
 		}
 	}
+}
+
+func (f *File) ModulePath() *Path {
+	for _, decl := range f.Decls {
+		if mod, ok := decl.(*Mod); ok && mod.Path != nil {
+			return mod.Path
+		}
+	}
+
+	return &Path{}
 }

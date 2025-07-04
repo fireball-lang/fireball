@@ -81,8 +81,11 @@ func buildExe(opt uint8) (string, error) {
 		m := llvm.NewModule("", "", "")
 		types := codegen.TypeCache{Arch: abi.AMD64, CallConv: abi.SystemV, Module: m}
 
-		mainType := types.Get(&ast.SimpleFuncType{Returns: &ast.PrimitiveType{Kind: ast.I32}})
-		fbMain := m.NewExternFunction("fb$main", mainType)
+		mainFuncType := &ast.SimpleFuncType{Returns: &ast.PrimitiveType{Kind: ast.I32}}
+		mainFunc := getMainFunc(proj, mainFuncType)
+
+		mainType := types.Get(mainFuncType)
+		fbMain := m.NewExternFunction(codegen.GetLinkName(mainFunc), mainType)
 
 		main := m.NewFunction("main", "main", mainType, nil)
 		main.Block(llvm.NamedIdentifier("entry"))
@@ -93,4 +96,16 @@ func buildExe(opt uint8) (string, error) {
 
 		return m
 	})
+}
+
+func getMainFunc(proj *project.Project, type_ ast.FuncType) *ast.Func {
+	for file := range proj.Files() {
+		for _, decl := range file.Ast().Decls {
+			if f, ok := decl.(*ast.Func); ok && f.Name() == "main" && f.Equals(type_) {
+				return f
+			}
+		}
+	}
+
+	panic("no main function")
 }

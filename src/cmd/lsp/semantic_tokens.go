@@ -43,6 +43,31 @@ type highlighter struct {
 
 // Declarations
 
+func (h *highlighter) VisitMod(m *ast.Mod) {
+	h.visitChildren(m)
+}
+
+func (h *highlighter) VisitImport(i *ast.Import) {
+	h.visitChildren(i)
+
+	if i.ResolvedSymbols != nil {
+		for index, leaf := range i.Symbols {
+			var kind semanticKind
+
+			switch i.ResolvedSymbols[index].(type) {
+			case *ast.Struct:
+				kind = classKind
+			case *ast.Func:
+				kind = functionKind
+			default:
+				continue
+			}
+
+			h.add(leaf, kind)
+		}
+	}
+}
+
 func (h *highlighter) VisitStruct(f *ast.Struct) {
 	h.add(f.NameN, classKind)
 
@@ -63,7 +88,7 @@ func (h *highlighter) VisitFunc(f *ast.Func) {
 
 	h.add(f.NameN, functionKind)
 
-	if impl, ok := f.Parent().(*ast.Impl); ok {
+	if impl, ok := f.Parent().(*ast.Impl); ok && impl.Struct != nil {
 		type_ := ast.GetStructPointerType(impl.Struct)
 		h.variables.Add("this", type_, keywordKind)
 	}
@@ -139,12 +164,18 @@ func (h *highlighter) VisitIdentifier(i *ast.Identifier) {
 		kind = functionKind
 
 	default:
-		if v, varKind := h.variables.Find(i.Name.Token.Text); v != nil {
-			kind = varKind
+		if i.Path.SegmentCount() == 1 {
+			if v, varKind := h.variables.Find(i.Path.SegmentAt(0)); v != nil {
+				kind = varKind
+			}
 		}
 	}
 
-	h.add(i.Name, kind)
+	for j := 0; j < len(i.Path.Segments)-1; j++ {
+		h.add(i.Path.Segments[j], namespaceKind)
+	}
+
+	h.add(i.Path.Segments[len(i.Path.Segments)-1], kind)
 }
 
 func (h *highlighter) VisitCall(c *ast.Call) {
@@ -193,6 +224,11 @@ func (h *highlighter) visit(node ast.Node) {
 	}
 
 	switch node := node.(type) {
+	case *ast.Path:
+		for _, segment := range node.Segments {
+			h.add(segment, namespaceKind)
+		}
+
 	case ast.Decl:
 		node.Visit(h)
 	case ast.Expr:
@@ -201,7 +237,13 @@ func (h *highlighter) visit(node ast.Node) {
 	case *ast.PrimitiveType:
 		h.add(node, typeKind)
 	case *ast.DeclType:
-		h.add(node.Name, classKind)
+		if node.Path != nil {
+			for i := 0; i < len(node.Path.Segments)-1; i++ {
+				h.add(node.Path.Segments[i], namespaceKind)
+			}
+
+			h.add(node.Path.Segments[len(node.Path.Segments)-1], classKind)
+		}
 
 	default:
 		for child := range node.Children() {

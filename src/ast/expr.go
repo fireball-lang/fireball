@@ -311,20 +311,20 @@ func (p *Paren) Visit(visitor ExprVisitor) {
 type Identifier struct {
 	baseNode
 
-	Name   *Leaf
+	Path   *Path
 	result ExprResult
 }
 
 func (i *Identifier) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		if i.Name != nil && !yield(i.Name) {
+		if i.Path != nil && !yield(i.Path) {
 			return
 		}
 	}
 }
 
 func (i *Identifier) Range() lexer.Range {
-	return i.Name.Range()
+	return i.Path.Range()
 }
 
 func (i *Identifier) Result() *ExprResult {

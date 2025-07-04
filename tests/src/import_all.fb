@@ -1,0 +1,16 @@
+mod tests;
+
+import tests:nested:{*};
+
+#[test]
+func importAllFunction() bool {
+	return foo() == 2;
+}
+
+#[test]
+func importAllType() bool {
+	var v: Bar;
+	v.number = 6;
+
+	return true;
+}

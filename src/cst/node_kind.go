@@ -4,6 +4,7 @@ type NodeKind uint8
 
 const (
 	Leaf NodeKind = iota
+	Path
 
 	File
 
@@ -12,6 +13,8 @@ const (
 	PointerType
 	FuncType
 
+	Mod
+	Import
 	Struct
 	Field
 	Impl
@@ -47,7 +50,7 @@ func (n NodeKind) IsType() bool {
 }
 
 func (n NodeKind) IsDecl() bool {
-	return n == Struct || n == Impl || n == Func
+	return n == Mod || n == Import || n == Struct || n == Impl || n == Func
 }
 
 func (n NodeKind) IsExpr() bool {
@@ -58,6 +61,8 @@ func (n NodeKind) String() string {
 	switch n {
 	case Leaf:
 		return "Leaf"
+	case Path:
+		return "Path"
 
 	case File:
 		return "File"
@@ -71,6 +76,10 @@ func (n NodeKind) String() string {
 	case FuncType:
 		return "FuncType"
 
+	case Mod:
+		return "Mod"
+	case Import:
+		return "Import"
 	case Struct:
 		return "Struct"
 	case Field:

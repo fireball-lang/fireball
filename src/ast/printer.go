@@ -42,6 +42,18 @@ func (p *printer) visit(node Node) {
 
 // Decls
 
+func (p *printer) VisitMod(s *Mod) {
+	fmt.Print("Mod '")
+	printPath(s.Path)
+	fmt.Println('\'')
+}
+
+func (p *printer) VisitImport(i *Import) {
+	fmt.Print("Import '")
+	printPath(i.Path)
+	fmt.Printf("' %d symbols\n", len(i.Symbols))
+}
+
 func (p *printer) VisitStruct(s *Struct) {
 	fmt.Printf("Struct '%s'\n", s.Name())
 
@@ -115,7 +127,9 @@ func (p *printer) VisitParen(pa *Paren) {
 }
 
 func (p *printer) VisitIdentifier(i *Identifier) {
-	fmt.Printf("Identifier '%s'\n", i.Name.Token.Text)
+	fmt.Printf("Identifier '")
+	printPath(i.Path)
+	fmt.Println('\'')
 }
 
 func (p *printer) VisitCall(c *Call) {
@@ -150,4 +164,20 @@ func (p *printer) VisitBinary(b *Binary) {
 
 func (p *printer) VisitCast(c *Cast) {
 	fmt.Printf("Cast '%s'\n", c.Type.String())
+}
+
+// Utils
+
+func printPath(p *Path) {
+	if p == nil {
+		return
+	}
+
+	for i, segment := range p.Segments {
+		if i > 0 {
+			fmt.Print(':')
+		}
+
+		fmt.Print(segment.Token.Text)
+	}
 }

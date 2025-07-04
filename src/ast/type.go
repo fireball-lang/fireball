@@ -144,32 +144,44 @@ var F64Type = &PrimitiveType{Kind: F64}
 type DeclType struct {
 	baseNode
 
-	Name *Leaf
+	Path *Path
 	Decl Decl
 }
 
 func (d *DeclType) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		if d.Name != nil && !yield(d.Name) {
+		if d.Path != nil && !yield(d.Path) {
 			return
 		}
 	}
 }
 
 func (d *DeclType) Range() lexer.Range {
-	return d.Name.Range()
+	return d.Path.Range()
 }
 
 func (d *DeclType) Equals(other Type) bool {
 	if other, ok := other.(*DeclType); ok {
-		return d.Name.Token.Text == other.Name.Token.Text
+		return IsValid(d.Decl) && d.Decl == other.Decl
 	}
 
 	return false
 }
 
 func (d *DeclType) String() string {
-	return d.Name.Token.Text
+	var sb strings.Builder
+
+	if d.Path != nil {
+		for i, segment := range d.Path.Segments {
+			if i > 0 {
+				sb.WriteRune(':')
+			}
+
+			sb.WriteString(segment.Token.Text)
+		}
+	}
+
+	return sb.String()
 }
 
 // ArrayType

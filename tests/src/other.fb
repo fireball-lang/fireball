@@ -1,3 +1,5 @@
+mod tests;
+
 #[test]
 func orShortCircuit() bool {
 	var test = true;

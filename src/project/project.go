@@ -119,12 +119,16 @@ func (p *Project) Analyze(forceWithoutParse bool) {
 
 	wg.Wait()
 
-	// Create global scope
+	// Create context
 
-	scope := newGlobalScope()
+	ctx := &context{}
 
 	for _, file := range p.files {
-		collectSymbols(file, scope)
+		ctx.addFile(file)
+	}
+
+	for _, module := range ctx.modules {
+		module.checkNameCollisions()
 	}
 
 	// Resolve types
@@ -132,14 +136,42 @@ func (p *Project) Analyze(forceWithoutParse bool) {
 	fileDiagnostics := make(map[*File][]utils.Diagnostic)
 
 	for _, file := range p.files {
-		fileDiagnostics[file] = analyzer.ResolveTypes(file.ast, scope)
+		modulePath := file.Ast().ModulePath()
+
+		if modulePath.SegmentCount() == 0 {
+			var node ast.Node = file.Ast()
+
+			if len(file.Ast().Decls) > 0 {
+				node = file.Ast().Decls[0]
+			}
+
+			fileDiagnostics[file] = []utils.Diagnostic{{
+				Kind:    utils.Error,
+				Message: "Expected a module declaration at the top of the file.",
+				Range:   node.Range(),
+			}}
+
+			continue
+		}
+
+		module := ctx.GetAbsoluteModule(modulePath)
+
+		if !utils.IsNil(module) {
+			scope := fileScope{ctx: ctx, mod: module}
+			fileDiagnostics[file] = analyzer.ResolveTypes(file.ast, ctx, &scope)
+		}
 	}
 
 	// Analyze
 
 	for _, file := range p.files {
+		module := ctx.GetAbsoluteModule(file.Ast().ModulePath())
 		diagnostics := fileDiagnostics[file]
-		diagnostics = append(diagnostics, analyzer.Analyze(file.ast, scope)...)
+
+		if !utils.IsNil(module) {
+			scope := fileScope{ctx: ctx, mod: module}
+			diagnostics = append(diagnostics, analyzer.Analyze(file.ast, ctx, &scope)...)
+		}
 
 		if didChange(file.analyzeDiagnostics, diagnostics) {
 			file.analyzeDiagnostics = diagnostics
@@ -158,52 +190,6 @@ func parseFile(file *File, wg *sync.WaitGroup, contents string) {
 	}
 
 	wg.Done()
-}
-
-func collectSymbols(file *File, scope *globalScope) {
-	var diagnostics []utils.Diagnostic
-
-	for _, decl := range file.ast.Decls {
-		switch decl := decl.(type) {
-		case *ast.Struct:
-			if _, ok := scope.types[decl.Name()]; ok {
-				diagnostics = append(diagnostics, utils.Diagnostic{
-					Kind:    utils.Error,
-					Message: "Type with the name '" + decl.Name() + "' already exists.",
-					Range:   decl.NameN.Range(),
-				})
-			} else {
-				scope.types[decl.Name()] = decl
-			}
-
-		case *ast.Impl:
-			for _, method := range decl.Methods {
-				if !scope.addMethod(decl.Name(), method) {
-					diagnostics = append(diagnostics, utils.Diagnostic{
-						Kind:    utils.Error,
-						Message: "Method with the name '" + method.Name() + "' already exists on struct '" + decl.Name() + "'.",
-						Range:   decl.NameN.Range(),
-					})
-				}
-			}
-
-		case *ast.Func:
-			if _, ok := scope.functions[decl.Name()]; ok {
-				diagnostics = append(diagnostics, utils.Diagnostic{
-					Kind:    utils.Error,
-					Message: "Function with the name '" + decl.Name() + "' already exists.",
-					Range:   decl.NameN.Range(),
-				})
-			} else {
-				scope.functions[decl.Name()] = decl
-			}
-		}
-	}
-
-	if didChange(file.analyzeDiagnostics, diagnostics) {
-		file.collectSymbolsDiagnostics = diagnostics
-		file.collectSymbolsDiagnosticsChanged = true
-	}
 }
 
 func didChange(old, new []utils.Diagnostic) bool {

@@ -149,7 +149,7 @@ func (m *Module) popDebugScope() {
 
 // Types
 
-func (m *Module) NewVoidType() Type {
+func NewVoidType() Type {
 	t := &simpleType{
 		baseType: baseType{
 			size_:  0,
@@ -338,7 +338,7 @@ func (m *Module) NewStructType(name string, fields []Field, size uint32, align u
 	return t
 }
 
-func (m *Module) NewAnonymouseStructType(fields []Type, size uint32, align uint32) Type {
+func NewAnonymouseStructType(fields []Type, size uint32, align uint32) Type {
 	return &anonStructType{
 		baseType: baseType{
 			size_:  size * 8,

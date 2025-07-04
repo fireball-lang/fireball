@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fireball/cst"
+	"fireball/lexer"
 )
 
 type loopKind uint8
@@ -51,4 +52,19 @@ func (c *converter) convertLeaf(node *cst.Node) *Leaf {
 	return &Leaf{
 		Token: node.Token,
 	}
+}
+
+func (c *converter) convertPath(node *cst.Node) *Path {
+	p := &Path{}
+	p.range_ = node.Range
+
+	for i := range node.Children {
+		child := &node.Children[i]
+
+		if child.Kind == cst.Leaf && child.Token.Kind == lexer.Identifier {
+			p.Segments = append(p.Segments, c.convertLeaf(child))
+		}
+	}
+
+	return p
 }

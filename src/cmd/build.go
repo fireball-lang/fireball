@@ -8,6 +8,7 @@ import (
 	"fireball/utils"
 	"fmt"
 	"github.com/fatih/color"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -58,20 +59,23 @@ func openAndAnalyzeProject(path string) (*project.Project, error) {
 	}
 
 	// Analyze all files in src folder
-	entries, err := os.ReadDir(filepath.Join(proj.AbsolutePath, "src"))
-	if err != nil {
-		return nil, err
-	}
+	err = filepath.WalkDir(filepath.Join(proj.AbsolutePath, "src"), func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
 
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".fb") {
-			path := filepath.Join(proj.AbsolutePath, "src", entry.Name())
-
+		if !entry.IsDir() && strings.HasSuffix(path, ".fb") {
 			proj.AddFile(&simpleFileContentsProvider{
 				path:    path,
 				changed: true,
 			})
 		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
 	proj.Analyze(true)

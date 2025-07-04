@@ -1,3 +1,5 @@
+mod tests;
+
 #[test]
 func returnValue() bool {
 	return getNumber() == 159;

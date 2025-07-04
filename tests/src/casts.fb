@@ -1,3 +1,5 @@
+mod tests;
+
 #[test]
 func primitive2primitive_extend() bool {
     var a = 5 as i32;

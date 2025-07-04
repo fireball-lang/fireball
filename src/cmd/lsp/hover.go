@@ -5,6 +5,7 @@ import (
 	"fireball/ast"
 	"fireball/lexer"
 	"github.com/MineGame159/protocol"
+	"slices"
 )
 
 func (s *server) Hover(_ context.Context, params *protocol.HoverParams) (result *protocol.Hover, err error) {
@@ -44,6 +45,27 @@ func (s *server) Hover(_ context.Context, params *protocol.HoverParams) (result 
 
 func getHover(leaf *ast.Leaf) string {
 	switch node := leaf.Parent().(type) {
+	case *ast.Import:
+		if node.ResolvedSymbols == nil {
+			return ""
+		}
+
+		index := slices.Index(node.Symbols, leaf)
+		resolved := node.ResolvedSymbols[index]
+
+		if ast.IsValid(resolved) {
+			switch resolved := resolved.(type) {
+			case *ast.Struct:
+				return resolved.Name()
+			case *ast.Func:
+				return resolved.StringWithParamNames()
+			default:
+				panic("cmd.lsp.getHover() - Invalid import type")
+			}
+		}
+
+		return ""
+
 	case *ast.Param:
 		return node.Type.String()
 
@@ -55,6 +77,13 @@ func getHover(leaf *ast.Leaf) string {
 
 	case ast.Expr:
 		return node.Result().Type.String()
+
+	case *ast.Path:
+		if expr, ok := node.Parent().(ast.Expr); ok {
+			return expr.Result().Type.String()
+		}
+
+		return ""
 
 	default:
 		return ""

@@ -310,9 +310,17 @@ func (c *converter) convertParen(node *cst.Node) *Paren {
 }
 
 func (c *converter) convertIdentifier(node *cst.Node) *Identifier {
-	return &Identifier{
-		Name: c.convertLeaf(&node.Children[0]),
+	i := &Identifier{}
+
+	for index := range node.Children {
+		child := &node.Children[index]
+
+		if child.Kind == cst.Path {
+			i.Path = c.convertPath(child)
+		}
 	}
+
+	return i
 }
 
 func (c *converter) convertCall(node *cst.Node) *Call {

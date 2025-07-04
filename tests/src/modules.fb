@@ -1,0 +1,20 @@
+mod tests;
+
+func getNum() i32 {
+	return 5;
+}
+
+#[test]
+func modulesFullyQualifiedCall() bool {
+	return tests:nested:getNum() == 7;
+}
+
+#[test]
+func modulesFullyQualifiedType() bool {
+	var v: tests:nested:Vec2;
+
+	v.x = 6 as i8;
+	v.y = 9 as i64;
+
+	return true;
+}

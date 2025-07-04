@@ -1,3 +1,5 @@
+mod tests;
+
 #[test]
 func indexAddressArray() bool {
 	var arr = getArray(1, 2);

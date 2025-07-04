@@ -1,0 +1,10 @@
+mod tests:nested;
+
+struct Vec2 {
+	x i8;
+	y i64;
+}
+
+func getNum() i32 {
+	return 7;
+}

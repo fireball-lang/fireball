@@ -156,7 +156,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 		ptr := llvm.Alloca(c.fun, type_, 1, align, "param."+param.Name.Token.Text)
 		c.fun.LocalVariable(ptr, param.Name.Token.Text, paramI)
 
-		t := c.types.Get(getClassifiedType(c.callConv, param.Type))
+		t := getClassifiedLlvmType(&c.types, param.Type, false)
 		value := llvm.NamedIdentifierValue(t, param.Name.Token.Text)
 
 		regs := c.callConv.Classify(param.Type)
@@ -374,10 +374,13 @@ func (c *codegen) VisitParen(p *ast.Paren) {
 }
 
 func (c *codegen) VisitIdentifier(i *ast.Identifier) {
-	name := i.Name.Token.Text
-
+	var type_ ast.Type
 	var value llvm.Value
-	type_, value := c.variables.Find(name)
+
+	if i.Path.SegmentCount() == 1 {
+		name := i.Path.SegmentAt(0)
+		type_, value = c.variables.Find(name)
+	}
 
 	if !ast.IsValid(type_) {
 		f := i.Result().Type.(*ast.Func)
