@@ -165,7 +165,7 @@ func (a *analyzer) VisitBlock(b *ast.Block) {
 func (a *analyzer) VisitVar(v *ast.Var) {
 	a.acceptChildren(v)
 
-	if a.checkType(v.Value, v.Type) {
+	if a.checkType(v.Value, v.Type, true) {
 		if t := v.ActualType(); ast.IsValid(t) {
 			if t.Equals(ast.VoidType) {
 				var node ast.Node = v.Type
@@ -189,7 +189,7 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 func (a *analyzer) VisitIf(i *ast.If) {
 	a.acceptChildren(i)
 
-	a.checkType(i.Condition, ast.BoolType)
+	a.checkType(i.Condition, ast.BoolType, true)
 
 	i.Result().Set(ast.Value, ast.VoidType)
 }
@@ -202,7 +202,7 @@ func (a *analyzer) VisitWhile(w *ast.While) {
 
 	a.isLoopBody = prevIsLoopBody
 
-	a.checkType(w.Condition, ast.BoolType)
+	a.checkType(w.Condition, ast.BoolType, true)
 
 	w.Result().Set(ast.Value, ast.VoidType)
 }
@@ -226,7 +226,8 @@ func (a *analyzer) VisitContinue(c *ast.Continue) {
 func (a *analyzer) VisitReturn(r *ast.Return) {
 	a.acceptChildren(r)
 
-	a.checkType(r.Value, a.fun.ReturnType())
+	// TODO: allow implicit casts
+	a.checkType(r.Value, a.fun.ReturnType(), false)
 
 	r.Result().Set(ast.Value, ast.VoidType)
 }
@@ -329,7 +330,7 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) {
 			continue
 		}
 
-		a.checkType(field.Value, sField.Type)
+		a.checkType(field.Value, sField.Type, true)
 	}
 
 	s.Result().Set(ast.Value, &ast.DeclType{
@@ -393,7 +394,8 @@ func (a *analyzer) VisitCall(c *ast.Call) {
 			return
 		}
 
-		a.checkType(c.Args[i], expected)
+		// TODO: allow implicit casts
+		a.checkType(c.Args[i], expected, false)
 		i++
 	}
 
@@ -534,7 +536,7 @@ func (a *analyzer) VisitUnary(u *ast.Unary) {
 
 		// !
 		case lexer.Bang:
-			a.checkType(u.Expr, ast.BoolType)
+			a.checkType(u.Expr, ast.BoolType, true)
 
 			u.Result().Set(ast.Value, ast.BoolType)
 
@@ -599,8 +601,8 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 
 	// Boolean
 	case lexer.PipePipe, lexer.AmpersandAmpersand:
-		a.checkType(b.Left, ast.BoolType)
-		a.checkType(b.Right, ast.BoolType)
+		a.checkType(b.Left, ast.BoolType, true)
+		a.checkType(b.Right, ast.BoolType, true)
 
 		b.Result().Set(ast.Value, ast.BoolType)
 
@@ -718,8 +720,18 @@ func firstNonNil(first, second ast.Node) ast.Node {
 	return second
 }
 
-func (a *analyzer) checkType(expr ast.Expr, expected ast.Type) bool {
-	if ast.IsValid(expr) && ast.IsValid(expected) && expr.Result().Kind != ast.Invalid && !expr.Result().Type.Equals(expected) {
+func (a *analyzer) checkType(expr ast.Expr, expected ast.Type, allowImplicitCasts bool) bool {
+	if !ast.IsValid(expr) || !ast.IsValid(expected) || expr.Result().Kind == ast.Invalid {
+		return true
+	}
+
+	if allowImplicitCasts {
+		if _, ok := ast.GetImplicitCastKind(expr.Result().Type, expected); ok {
+			return true
+		}
+	}
+
+	if !expr.Result().Type.Equals(expected) {
 		a.error(expr, fmt.Sprintf("Expected type '%s' but got '%s'.", expected, expr.Result().Type))
 		return false
 	}

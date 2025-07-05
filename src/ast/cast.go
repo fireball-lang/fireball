@@ -12,7 +12,7 @@ const (
 	PointerToInteger
 )
 
-func GetCastKind(from Type, to Type, allowExtended bool) (CastKind, bool) {
+func GetCastKind(from, to Type, allowExtended bool) (CastKind, bool) {
 	switch from := from.(type) {
 	case *PrimitiveType:
 		if to, ok := to.(*PrimitiveType); ok {
@@ -70,6 +70,26 @@ func GetCastKind(from Type, to Type, allowExtended bool) (CastKind, bool) {
 	case FuncType:
 		if to, ok := to.(*PrimitiveType); allowExtended && ok && to.Kind.IsInteger() {
 			return PointerToInteger, true
+		}
+	}
+
+	return Nop, false
+}
+
+func GetImplicitCastKind(from, to Type) (CastKind, bool) {
+	switch from := from.(type) {
+	case *PrimitiveType:
+		if to, ok := to.(*PrimitiveType); ok {
+			if (from.Kind.IsSignedInteger() && to.Kind.IsSignedInteger()) || (from.Kind.IsUnsignedInteger() && to.Kind.IsUnsignedInteger()) || (from.Kind.IsFloating() && to.Kind.IsFloating()) {
+				if from.Kind.BitCount() < to.Kind.BitCount() {
+					return Extend, true
+				}
+			}
+		}
+
+	case *PointerType:
+		if to, ok := to.(*PointerType); ok && to.Pointee.Equals(VoidType) {
+			return Nop, true
 		}
 	}
 

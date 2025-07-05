@@ -1,0 +1,35 @@
+mod tests;
+
+#[test]
+func implicitCastsExtendSignedInteger() bool {
+	var i8 = -5 as i8;
+	var i16: i16 = i8;
+	var i32: i32 = i16;
+	var i64: i64 = i32;
+
+	return i64 == -5 as i64;
+}
+
+#[test]
+func implicitCastsExtendUnsignedInteger() bool {
+	var u8 = 5u as u8;
+	var u16: u16 = u8;
+	var u32: u32 = u16;
+	var u64: u64 = u32;
+
+	return u64 == 5u as u64;
+}
+
+#[test]
+func implicitCastsExtendF32() bool {
+	var f: f64 = 5f;
+	return f == 5.0;
+}
+
+#[test]
+func implicitCastsPointerToVoidPointer() bool {
+	var a = 5;
+	var ptr: *void = &a;
+
+	return true;
+}

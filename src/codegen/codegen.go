@@ -209,7 +209,7 @@ func (c *codegen) VisitVar(v *ast.Var) {
 	if ast.IsValid(v.Value) {
 		type_ = v.Value.Result().Type
 
-		value := c.visitLoad(v.Value)
+		value := c.visitLoadImplicitCast(v.Value, v.Type)
 		llvm.Store(c.fun, value, ptr)
 	} else {
 		type_ = v.Type
@@ -231,7 +231,7 @@ func (c *codegen) VisitIf(i *ast.If) {
 	}
 
 	// Condition
-	condition := c.visitLoad(i.Condition)
+	condition := c.visitLoadImplicitCast(i.Condition, ast.BoolType)
 	llvm.BrCond(c.fun, condition, trueL, falseL)
 
 	// Then
@@ -262,7 +262,7 @@ func (c *codegen) VisitWhile(w *ast.While) {
 
 	// Condition
 	c.fun.Block(c.loopConditionL)
-	condition := c.visitLoad(w.Condition)
+	condition := c.visitLoadImplicitCast(w.Condition, ast.BoolType)
 	llvm.BrCond(c.fun, condition, bodyL, c.loopEndL)
 
 	// Body
@@ -360,9 +360,9 @@ func (c *codegen) VisitStructInitializer(s *ast.StructInitializer) {
 	var v llvm.Value = llvm.ZeroInitialize(c.types.Get(s.Result().Type))
 
 	for _, field := range s.Fields {
-		_, i := s.Struct.GetField(field.Name.Token.Text)
+		f, i := s.Struct.GetField(field.Name.Token.Text)
 
-		value := c.visitLoad(field.Value)
+		value := c.visitLoadImplicitCast(field.Value, f.Type)
 		v = llvm.InsertValue(c.fun, v, value, uint32(i), "")
 	}
 
@@ -535,7 +535,7 @@ func (c *codegen) VisitUnary(u *ast.Unary) {
 
 		// !
 		case lexer.Bang:
-			value := c.visitLoad(u.Expr)
+			value := c.visitLoadImplicitCast(u.Expr, ast.BoolType)
 			c.exprValue = llvm.Xor(c.fun, value, llvm.True(), "")
 
 		// &
@@ -580,12 +580,12 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 		// Left
 		c.fun.Block(leftL)
-		left := c.visitLoad(b.Left)
+		left := c.visitLoadImplicitCast(b.Left, ast.BoolType)
 		llvm.BrCond(c.fun, left, exitL, rightL)
 
 		// Right
 		c.fun.Block(rightL)
-		right := c.visitLoad(b.Right)
+		right := c.visitLoadImplicitCast(b.Right, ast.BoolType)
 		llvm.Br(c.fun, exitL)
 
 		// Exit
@@ -601,12 +601,12 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 		// Left
 		c.fun.Block(leftL)
-		left := c.visitLoad(b.Left)
+		left := c.visitLoadImplicitCast(b.Left, ast.BoolType)
 		llvm.BrCond(c.fun, left, rightL, exitL)
 
 		// Right
 		c.fun.Block(rightL)
-		right := c.visitLoad(b.Right)
+		right := c.visitLoadImplicitCast(b.Right, ast.BoolType)
 		llvm.Br(c.fun, exitL)
 
 		// Exit
@@ -739,15 +739,16 @@ func (c *codegen) binarySimple(op lexer.TokenKind, left, right llvm.Value) llvm.
 
 func (c *codegen) VisitCast(cast *ast.Cast) {
 	value := c.visitLoad(cast.Value)
-	c.exprValue = c.cast(value, cast.Value.Result().Type, cast.Type, false)
-}
 
-func (c *codegen) cast(value llvm.Value, from, to ast.Type, allowExtended bool) llvm.Value {
-	kind, ok := ast.GetCastKind(from, to, allowExtended)
+	kind, ok := ast.GetCastKind(cast.Value.Result().Type, cast.Type, false)
 	if !ok {
-		panic("codegen.codegen.cast() - Invalid cast kind")
+		panic("codegen.codegen.VisitCast() - Invalid cast kind")
 	}
 
+	c.exprValue = c.cast(value, cast.Type, kind)
+}
+
+func (c *codegen) cast(value llvm.Value, to ast.Type, kind ast.CastKind) llvm.Value {
 	type_ := c.types.Get(to)
 
 	switch kind {
@@ -820,6 +821,18 @@ func (c *codegen) load(expr ast.Expr, value llvm.Value) llvm.Value {
 			if _, ok := value.(*llvm.ExternFunction); !ok {
 				value = llvm.Load(c.fun, value, "")
 			}
+		}
+	}
+
+	return value
+}
+
+func (c *codegen) visitLoadImplicitCast(expr ast.Expr, to ast.Type) llvm.Value {
+	value := c.visitLoad(expr)
+
+	if ast.IsValid(to) {
+		if kind, ok := ast.GetImplicitCastKind(expr.Result().Type, to); ok {
+			value = c.cast(value, to, kind)
 		}
 	}
 

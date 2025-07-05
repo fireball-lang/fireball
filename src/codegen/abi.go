@@ -95,7 +95,13 @@ func (c *codegen) visitLoadClassified(expr ast.Expr, memoryClassPtrGetter func()
 	}
 
 	value = c.load(expr, value)
-	return c.cast(value, expr.Result().Type, astType, true)
+
+	kind, ok := ast.GetCastKind(expr.Result().Type, astType, true)
+	if !ok {
+		panic("codegen.codegen.visitLoadClassified() - Invalid cast kind")
+	}
+
+	return c.cast(value, astType, kind)
 }
 
 func (c *codegen) declassify(call *ast.Call, type_ ast.Type, value llvm.Value) llvm.Value {
@@ -117,7 +123,13 @@ func (c *codegen) declassify(call *ast.Call, type_ ast.Type, value llvm.Value) l
 	}
 
 	astType := getClassifiedAstType(c.callConv, type_)
-	return c.cast(value, astType, type_, true)
+
+	kind, ok := ast.GetCastKind(astType, type_, true)
+	if !ok {
+		panic("codegen.codegen.declassify() - Invalid cast kind")
+	}
+
+	return c.cast(value, type_, kind)
 }
 
 func getClassifiedAstType(callConv abi.CallConv, type_ ast.Type) ast.Type {
