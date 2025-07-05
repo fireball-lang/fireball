@@ -24,11 +24,16 @@ func getSmallY(s SmallStruct) i32 {
 
 #[test]
 func smallStructReturn() bool {
-	return getSmallStruct().y == 9;
+	return getSmallStructAddress().y == 9;
 }
 
-func getSmallStruct() SmallStruct {
+func getSmallStructValue() SmallStruct {
 	return SmallStruct { x: 2, y: 9 };
+}
+
+func getSmallStructAddress() SmallStruct {
+	var s = getSmallStructValue();
+	return s;
 }
 
 // Medium struct
@@ -56,11 +61,16 @@ func getMediumY(s MediumStruct) i32 {
 
 #[test]
 func mediumStructReturn() bool {
-	return getMediumStruct().y == 3;
+	return getMediumStructAddress().y == 3;
 }
 
-func getMediumStruct() MediumStruct {
+func getMediumStructValue() MediumStruct {
 	return MediumStruct { x: 8, y: 3, z: 62 };
+}
+
+func getMediumStructAddress() MediumStruct {
+	var s = getMediumStructValue();
+	return s;
 }
 
 // Big struct
@@ -87,9 +97,14 @@ func getBigNumber(s BigStruct) i32 {
 
 #[test]
 func bigStructReturn() bool {
-	return getBigStruct().number == 5;
+	return getBigStructAddress().number == 5;
 }
 
-func getBigStruct() BigStruct {
+func getBigStructValue() BigStruct {
 	return BigStruct { number: 5 };
+}
+
+func getBigStructAddress() BigStruct {
+	var s = getBigStructValue();
+	return s;
 }

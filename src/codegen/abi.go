@@ -56,12 +56,16 @@ func (c *codegen) collectAllocasReturn(r *ast.Return) {
 	}
 }
 
-func (c *codegen) visitLoadClassified(expr ast.Expr, memoryClassPtrGetter func() llvm.Value) llvm.Value {
+func (c *codegen) visitLoadClassified(expr ast.Expr, memoryClassPtrGetter func() llvm.Value, alwaysStoreToPtr bool) llvm.Value {
 	value := c.visit(expr)
 	regs := c.callConv.Classify(expr.Result().Type)
 
 	if len(regs) == 1 && regs[0].Class == abi.Memory {
-		if expr.Result().Kind == ast.Value {
+		if alwaysStoreToPtr || expr.Result().Kind == ast.Value {
+			if expr.Result().Kind == ast.Address {
+				value = llvm.Load(c.fun, value, "")
+			}
+
 			ptr := memoryClassPtrGetter()
 			llvm.Store(c.fun, value, ptr)
 

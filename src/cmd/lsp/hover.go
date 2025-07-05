@@ -73,7 +73,11 @@ func getHover(leaf *ast.Leaf) string {
 		return node.Value.Result().Type.String()
 
 	case *ast.Var:
-		return node.ActualType().String()
+		if ast.IsValid(node.ActualType()) {
+			return node.ActualType().String()
+		}
+
+		return ""
 
 	case ast.Expr:
 		return node.Result().Type.String()

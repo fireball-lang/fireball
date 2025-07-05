@@ -234,7 +234,7 @@ func (p *PointerType) Children() iter.Seq[Node] {
 }
 
 func (p *PointerType) Equals(other Type) bool {
-	if other, ok := other.(*PointerType); ok {
+	if other, ok := other.(*PointerType); ok && IsValid(p.Pointee) {
 		return p.Pointee.Equals(other.Pointee)
 	}
 

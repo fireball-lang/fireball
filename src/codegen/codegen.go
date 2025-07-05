@@ -289,7 +289,7 @@ func (c *codegen) VisitReturn(r *ast.Return) {
 	if ast.IsValid(r.Value) {
 		value := c.visitLoadClassified(r.Value, func() llvm.Value {
 			return c.funReturnPtr
-		})
+		}, true)
 
 		if c.funReturnPtr != nil {
 			llvm.Ret(c.fun)
@@ -425,7 +425,7 @@ func (c *codegen) VisitCall(call *ast.Call) {
 	for _, arg := range call.Args {
 		args = append(args, c.visitLoadClassified(arg, func() llvm.Value {
 			return c.allocas[arg]
-		}))
+		}, false))
 	}
 
 	callBuilder := llvm.Call(c.fun, callee, "")
