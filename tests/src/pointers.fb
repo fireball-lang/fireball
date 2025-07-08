@@ -39,3 +39,10 @@ func modifyStructMember() bool {
 
 	return wrapper.value == 2;
 }
+
+#[test]
+func indexPointer() bool {
+	var num = 3;
+	var ptr = &num;
+	return ptr[0] == 3;
+}

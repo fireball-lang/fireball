@@ -450,7 +450,12 @@ func (c *codegen) VisitIndex(i *ast.Index) {
 	ptr := c.visit(i.Value)
 	index := c.visitLoad(i.Index)
 
-	c.exprValue = llvm.GetElementPtr2Dyn(c.fun, ptr, llvm.Int(llvm.I32, 0), index, "")
+	if _, ok := i.Value.Result().Type.(*ast.PointerType); ok {
+		ptr = c.load(i.Value, ptr)
+		c.exprValue = llvm.GetElementPtr1(c.fun, ptr, index, "")
+	} else {
+		c.exprValue = llvm.GetElementPtr2Dyn(c.fun, ptr, llvm.Int(llvm.I32, 0), index, "")
+	}
 }
 
 func (c *codegen) VisitMember(m *ast.Member) {
