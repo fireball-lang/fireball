@@ -290,6 +290,14 @@ func (f *Func) StringWithParamNames() string {
 	return funcTypeString(f, true)
 }
 
+func (f *Func) ParamTypeCount() int {
+	return len(f.Params)
+}
+
+func (f *Func) ParamTypeAt(index int) Type {
+	return f.Params[index].Type
+}
+
 func (f *Func) ParamTypes() iter.Seq[Type] {
 	return func(yield func(Type) bool) {
 		for _, param := range f.Params {

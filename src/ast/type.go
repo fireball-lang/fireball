@@ -254,7 +254,10 @@ func (p *PointerType) String() string {
 type FuncType interface {
 	Type
 
+	ParamTypeCount() int
+	ParamTypeAt(index int) Type
 	ParamTypes() iter.Seq[Type]
+
 	VarArgs() bool
 
 	ReturnType() Type
@@ -288,6 +291,14 @@ func (s *SimpleFuncType) Equals(other Type) bool {
 
 func (s *SimpleFuncType) String() string {
 	return funcTypeString(s, false)
+}
+
+func (s *SimpleFuncType) ParamTypeCount() int {
+	return len(s.Params)
+}
+
+func (s *SimpleFuncType) ParamTypeAt(index int) Type {
+	return s.Params[index]
 }
 
 func (s *SimpleFuncType) ParamTypes() iter.Seq[Type] {

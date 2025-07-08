@@ -33,3 +33,21 @@ func implicitCastsPointerToVoidPointer() bool {
 
 	return true;
 }
+
+#[test]
+func implicitCastsCallArgument() bool {
+	return takeI64(6);
+}
+
+#[test]
+func implicitCastsReturn() bool {
+	return returnI64() == 6 as i64;
+}
+
+func takeI64(num i64) bool {
+	return num == 6 as i64;
+}
+
+func returnI64() i64 {
+	return 6;
+}

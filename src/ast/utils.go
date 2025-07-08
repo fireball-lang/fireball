@@ -5,12 +5,17 @@ import (
 )
 
 func Root(node Node) *File {
+	return Parent[*File](node)
+}
+
+func Parent[T Node](node Node) T {
 	for {
 		if !IsValid(node) {
-			return nil
+			var empty T
+			return empty
 		}
 
-		if f, ok := node.(*File); ok {
+		if f, ok := node.(T); ok {
 			return f
 		}
 

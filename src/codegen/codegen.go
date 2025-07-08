@@ -287,7 +287,9 @@ func (c *codegen) VisitContinue(co *ast.Continue) {
 
 func (c *codegen) VisitReturn(r *ast.Return) {
 	if ast.IsValid(r.Value) {
-		value := c.visitLoadClassified(r.Value, func() llvm.Value {
+		f := ast.Parent[*ast.Func](r)
+
+		value := c.visitLoadClassified(r.Value, f.ReturnType(), func() llvm.Value {
 			return c.funReturnPtr
 		}, true)
 
@@ -445,8 +447,14 @@ func (c *codegen) VisitCall(call *ast.Call) {
 		args = append(args, value)
 	}
 
-	for _, arg := range call.Args {
-		args = append(args, c.visitLoadClassified(arg, func() llvm.Value {
+	for i, arg := range call.Args {
+		var paramType ast.Type
+
+		if i < f.ParamTypeCount() {
+			paramType = f.ParamTypeAt(i)
+		}
+
+		args = append(args, c.visitLoadClassified(arg, paramType, func() llvm.Value {
 			return c.allocas[arg]
 		}, false))
 	}
@@ -855,14 +863,19 @@ func (c *codegen) load(expr ast.Expr, value llvm.Value) llvm.Value {
 	return value
 }
 
-func (c *codegen) visitLoadImplicitCast(expr ast.Expr, to ast.Type) llvm.Value {
-	value := c.visitLoad(expr)
-
-	if ast.IsValid(to) {
-		if kind, ok := ast.GetImplicitCastKind(expr.Result().Type, to); ok {
+func (c *codegen) implicitCast(value llvm.Value, from, to ast.Type) llvm.Value {
+	if ast.IsValid(from) && ast.IsValid(to) {
+		if kind, ok := ast.GetImplicitCastKind(from, to); ok {
 			value = c.cast(value, to, kind)
 		}
 	}
+
+	return value
+}
+
+func (c *codegen) visitLoadImplicitCast(expr ast.Expr, to ast.Type) llvm.Value {
+	value := c.visitLoad(expr)
+	value = c.implicitCast(value, expr.Result().Type, to)
 
 	return value
 }

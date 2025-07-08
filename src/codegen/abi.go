@@ -56,9 +56,20 @@ func (c *codegen) collectAllocasReturn(r *ast.Return) {
 	}
 }
 
-func (c *codegen) visitLoadClassified(expr ast.Expr, memoryClassPtrGetter func() llvm.Value, alwaysStoreToPtr bool) llvm.Value {
+func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtrGetter func() llvm.Value, alwaysStoreToPtr bool) llvm.Value {
 	value := c.visit(expr)
-	regs := c.callConv.Classify(expr.Result().Type)
+	type_ := expr.Result().Type
+
+	if ast.IsValid(to) {
+		if kind, ok := ast.GetImplicitCastKind(expr.Result().Type, to); ok && kind != ast.Nop {
+			value = c.load(expr, value)
+			value = c.cast(value, to, kind)
+
+			type_ = to
+		}
+	}
+
+	regs := c.callConv.Classify(type_)
 
 	if len(regs) == 1 && regs[0].Class == abi.Memory {
 		if alwaysStoreToPtr || expr.Result().Kind == ast.Value {
@@ -75,15 +86,15 @@ func (c *codegen) visitLoadClassified(expr ast.Expr, memoryClassPtrGetter func()
 		return value
 	}
 
-	astType := getClassifiedAstType(c.callConv, expr.Result().Type)
-	llvmType := getClassifiedLlvmType(&c.types, expr.Result().Type, false)
+	astType := getClassifiedAstType(c.callConv, type_)
+	llvmType := getClassifiedLlvmType(&c.types, type_, false)
 
-	if isPointerType(expr.Result().Type) {
+	if isPointerType(type_) {
 		value = c.load(expr, value)
 		return llvm.PtrToInt(c.fun, value, llvmType, "")
 	}
 
-	if isAggregateType(expr.Result().Type) {
+	if isAggregateType(type_) {
 		if expr.Result().Kind == ast.Value {
 			ptr := c.allocas[expr]
 			llvm.Store(c.fun, value, ptr)
@@ -96,7 +107,7 @@ func (c *codegen) visitLoadClassified(expr ast.Expr, memoryClassPtrGetter func()
 
 	value = c.load(expr, value)
 
-	kind, ok := ast.GetCastKind(expr.Result().Type, astType, true)
+	kind, ok := ast.GetCastKind(type_, astType, true)
 	if !ok {
 		panic("codegen.codegen.visitLoadClassified() - Invalid cast kind")
 	}
