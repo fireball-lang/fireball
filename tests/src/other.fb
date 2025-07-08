@@ -41,6 +41,12 @@ func numberLiterals() bool {
 }
 
 #[test]
+func characterLiteral() bool {
+	var ch = 'a';
+	return ch == 97 as u8;
+}
+
+#[test]
 func increment() bool {
 	var a = 1;
 	var b = a++;

@@ -10,6 +10,7 @@ const (
 	Floating
 	Hexadecimal
 	Binary
+	Character
 	String
 
 	Equal
@@ -80,6 +81,8 @@ func (t TokenKind) String() string {
 		return "Hexadecimal"
 	case Binary:
 		return "Binary"
+	case Character:
+		return "Character"
 	case String:
 		return "String"
 

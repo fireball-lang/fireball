@@ -283,6 +283,9 @@ func (a *analyzer) VisitLiteral(l *ast.Literal) {
 	case lexer.Binary:
 		a.parseUint(l, 2, "Invalid binary integer.")
 
+	case lexer.Character:
+		l.Result().Set(ast.Value, ast.U8Type)
+
 	case lexer.String:
 		l.Result().Set(ast.Value, &ast.PointerType{Pointee: ast.U8Type})
 

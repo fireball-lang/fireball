@@ -40,6 +40,8 @@ func (l *Lexer) Next() Token {
 	}
 
 	switch ch {
+	case '\'':
+		return l.character()
 	case '"':
 		return l.string()
 
@@ -194,6 +196,28 @@ func (l *Lexer) integerOrFloating() Token {
 	return l.token(Integer)
 }
 
+func (l *Lexer) character() Token {
+	if l.isAtEnd() || l.peek() == '\'' {
+		return l.tokenPrimitive(Error, "Empty character.")
+	}
+
+	if l.advance() == '\\' && !l.isAtEnd() {
+		c := l.advance()
+
+		if c != '\'' && c != '0' && c != 'n' && c != 'r' && c != 't' {
+			return l.tokenPrimitive(Error, "Unexpected character.")
+		}
+	}
+
+	if l.peek() != '\'' {
+		return l.tokenPrimitive(Error, "Unterminated character.")
+	}
+
+	l.advance()
+
+	return l.token(Character)
+}
+
 func (l *Lexer) string() Token {
 	for {
 		if l.i >= len(l.runes) {
@@ -268,6 +292,10 @@ func (l *Lexer) skipWhitespace() {
 			return
 		}
 	}
+}
+
+func (l *Lexer) isAtEnd() bool {
+	return l.i >= len(l.runes)
 }
 
 func (l *Lexer) peek() rune {
