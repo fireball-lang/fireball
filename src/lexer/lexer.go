@@ -26,7 +26,7 @@ func (l *Lexer) Next() Token {
 	l.start = Pos{Line: l.line, Column: l.column}
 	l.sb.Reset()
 
-	if l.i >= len(l.runes) {
+	if l.isAtEnd() {
 		return l.tokenPrimitive(Eof, "")
 	}
 
@@ -204,7 +204,7 @@ func (l *Lexer) character() Token {
 	if l.advance() == '\\' && !l.isAtEnd() {
 		c := l.advance()
 
-		if c != '\'' && c != '0' && c != 'n' && c != 'r' && c != 't' {
+		if c != '0' && c != 'a' && c != 'b' && c != 'f' && c != 'n' && c != 'r' && c != 't' && c != 'v' && c != '\\' && c != '\'' {
 			return l.tokenPrimitive(Error, "Unexpected character.")
 		}
 	}
@@ -220,14 +220,19 @@ func (l *Lexer) character() Token {
 
 func (l *Lexer) string() Token {
 	for {
-		if l.i >= len(l.runes) {
+		if l.isAtEnd() {
 			return l.tokenPrimitive(Error, "Unterminated string.")
 		}
 
-		ch := l.advance()
+		if l.peekN(0) == '\\' && l.peekN(1) == '"' {
+			l.advance()
+			l.advance()
+		} else {
+			ch := l.advance()
 
-		if ch == '"' {
-			break
+			if ch == '"' {
+				break
+			}
 		}
 	}
 

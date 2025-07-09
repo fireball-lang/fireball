@@ -42,8 +42,27 @@ func numberLiterals() bool {
 
 #[test]
 func characterLiteral() bool {
-	var ch = 'a';
-	return ch == 97 as u8;
+	var c0 = '\0';
+	var c1 = '\a';
+	var c2 = '\b';
+	var c3 = '\f';
+	var c4 = '\n';
+	var c5 = '\r';
+	var c6 = '\t';
+	var c7 = '\v';
+	var c8 = '\\';
+	var c9 = '\'';
+
+	return '\n' == 10 as u8 && '\'' == 39 as u8;
+}
+
+#[test]
+func stringLiteral() bool {
+	"\a \b \f \n \r \t \v \\ \"";
+	"\023 \255";
+	"\x0F \xa3";
+
+	return true;
 }
 
 #[test]

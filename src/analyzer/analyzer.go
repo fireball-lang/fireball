@@ -287,6 +287,11 @@ func (a *analyzer) VisitLiteral(l *ast.Literal) {
 		l.Result().Set(ast.Value, ast.U8Type)
 
 	case lexer.String:
+		s := stringBuilder{startPos: l.Range().Start}
+		ParseString(l.Value.Token.Text, &s)
+
+		a.diagnostics = append(a.diagnostics, s.errors...)
+
 		l.Result().Set(ast.Value, &ast.PointerType{Pointee: ast.U8Type})
 
 	default:

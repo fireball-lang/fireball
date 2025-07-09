@@ -347,20 +347,25 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 		var number uint8
 
 		switch char {
-		case "'":
-			number = '\''
 		case "\\0":
 			number = '\000'
-
+		case "\\a":
+			number = '\a'
+		case "\\b":
+			number = '\n'
+		case "\\f":
+			number = '\f'
 		case "\\n":
 			number = '\n'
 		case "\\r":
 			number = '\r'
 		case "\\t":
 			number = '\t'
+		case "\\v":
+			number = '\v'
 
 		default:
-			number = char[0]
+			number = char[len(char)-1]
 		}
 
 		c.exprValue = llvm.Uint(c.types.Get(l.Result().Type), uint64(number))
@@ -368,12 +373,14 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 	case lexer.String:
 		c.stringConstantCount++
 
-		text := l.Value.Token.Text[1 : len(l.Value.Token.Text)-1]
-		text = strings.ReplaceAll(text, "\\n", "\n")
+		s := stringBuilder{}
+		analyzer.ParseString(l.Value.Token.Text[1:len(l.Value.Token.Text)-1], &s)
+		s.WriteRune('\000')
 
 		c.exprValue = c.module.NewStringConstant(
 			"string."+strconv.FormatInt(int64(c.stringConstantCount), 10),
-			text,
+			s.String(),
+			s.length,
 		)
 
 	default:

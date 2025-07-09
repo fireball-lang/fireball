@@ -385,30 +385,10 @@ func (m *Module) NewFunctionType(size, align uint32, returns, debugReturns Type,
 
 // Global Variables
 
-func (m *Module) NewStringConstant(name, value string) *GlobalValue {
+func (m *Module) NewStringConstant(name, value string, length uint32) *GlobalValue {
 	m.header.WriteRune('\n')
 
-	type_ := m.NewArrayType(uint32(len(value))+1, 1, uint32(len(value))+1, U8)
-	var sb strings.Builder
-
-	for _, b := range value {
-		switch b {
-		case '\000':
-			sb.WriteString("\\00")
-		case '\n':
-			sb.WriteString("\\0A")
-		case '\r':
-			sb.WriteString("\\0D")
-		case '\t':
-			sb.WriteString("\\09")
-
-		default:
-			sb.WriteRune(b)
-		}
-	}
-
-	sb.WriteString("\\00")
-	value = sb.String()
+	type_ := m.NewArrayType(length, 1, length, U8)
 
 	_, _ = fmt.Fprintf(
 		&m.header,
