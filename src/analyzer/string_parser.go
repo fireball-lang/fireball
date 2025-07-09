@@ -40,7 +40,8 @@ func (s *stringParser[T]) parse() {
 			continue
 		}
 
-		switch s.peek() {
+		ch := s.advance()
+		switch ch {
 		case '\a':
 			s.builder.WriteEscapeSequence('\a')
 		case '\b':
@@ -56,7 +57,7 @@ func (s *stringParser[T]) parse() {
 		case '\v':
 			s.builder.WriteEscapeSequence('\v')
 		default:
-			s.builder.WriteRune(s.advance())
+			s.builder.WriteRune(ch)
 		}
 	}
 }
@@ -173,7 +174,7 @@ func (s *stringParser[T]) advance() rune {
 
 	if r == '\n' {
 		s.pos.Line++
-		s.pos.Column++
+		s.pos.Column = 0
 	} else {
 		s.pos.Column++
 	}
