@@ -17,7 +17,7 @@ func (s *server) Hover(_ context.Context, params *protocol.HoverParams) (result 
 		return nil, nil
 	}
 
-	// Compute
+	// Get leaf
 	s.astMutex.RLock()
 	defer s.astMutex.RUnlock()
 
@@ -30,6 +30,7 @@ func (s *server) Hover(_ context.Context, params *protocol.HoverParams) (result 
 		return nil, nil
 	}
 
+	// Get hover text
 	if hover := getHover(leaf); hover != "" {
 		return &protocol.Hover{
 			Contents: protocol.MarkupContent{

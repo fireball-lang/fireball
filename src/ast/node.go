@@ -102,6 +102,8 @@ type File struct {
 	baseRangeNode
 
 	Decls []Decl
+
+	AbsolutePath string
 }
 
 func (f *File) Children() iter.Seq[Node] {

@@ -76,6 +76,7 @@ func (s *server) Initialize(_ context.Context, params *protocol.InitializeParams
 				Label: "Fireball",
 			},
 			WorkspaceSymbolProvider: true,
+			DefinitionProvider:      true,
 		},
 		ServerInfo: &protocol.ServerInfo{
 			Name:    "fireball",

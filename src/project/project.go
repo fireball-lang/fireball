@@ -182,7 +182,9 @@ func (p *Project) Analyze(forceWithoutParse bool) {
 
 func parseFile(file *File, wg *sync.WaitGroup, contents string) {
 	fileCst, diagnostics := cst.Parse(contents)
+
 	file.ast = ast.Convert(&fileCst)
+	file.ast.AbsolutePath = file.AbsolutePath()
 
 	if didChange(file.parseDiagnostics, diagnostics) {
 		file.parseDiagnostics = diagnostics

@@ -395,6 +395,8 @@ type Member struct {
 
 	Value Expr
 	Name  *Leaf
+
+	Resolved Node
 }
 
 func (m *Member) Children() iter.Seq[Node] {

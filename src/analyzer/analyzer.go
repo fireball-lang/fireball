@@ -508,9 +508,11 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 				a.error(m.Name, "Struct '"+decl.Name()+"' doesn't have a member with the name '"+m.Name.Token.Text+"'.")
 			} else {
 				m.Result().Set(ast.Address, method)
+				m.Resolved = method
 			}
 		} else if ast.IsValid(field.Type) {
 			m.Result().Set(m.Value.Result().Kind, field.Type)
+			m.Resolved = field
 		}
 	}
 }

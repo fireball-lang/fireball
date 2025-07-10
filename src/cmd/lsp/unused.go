@@ -46,10 +46,6 @@ func (s *server) Declaration(ctx context.Context, params *protocol.DeclarationPa
 	return nil, errors.New("not implemented")
 }
 
-func (s *server) Definition(ctx context.Context, params *protocol.DefinitionParams) (result []protocol.Location, err error) {
-	return nil, errors.New("not implemented")
-}
-
 func (s *server) DidChangeConfiguration(ctx context.Context, params *protocol.DidChangeConfigurationParams) (err error) {
 	return errors.New("not implemented")
 }
