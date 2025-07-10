@@ -106,6 +106,10 @@ func (f *fileScope) GetTypeDecl(name string) ast.Decl {
 	return f.parent.GetTypeDecl(name)
 }
 
+func (f *fileScope) GetGlobalVar(name string) *ast.GlobalVar {
+	return f.parent.GetGlobalVar(name)
+}
+
 func (f *fileScope) GetFuncDecl(name string) *ast.Func {
 	for _, lookup := range f.lookups {
 		if fun := lookup.GetFuncDecl(name); ast.IsValid(fun) {

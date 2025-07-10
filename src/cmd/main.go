@@ -85,7 +85,7 @@ func buildExe(opt uint8) (string, error) {
 		mainFunc := getMainFunc(proj, mainFuncType)
 
 		mainType := types.Get(mainFuncType)
-		fbMain := m.NewExternFunction(codegen.GetLinkName(mainFunc), mainType)
+		fbMain := m.NewExternFunction(codegen.GetFuncLinkName(mainFunc), mainType)
 
 		main := m.NewFunction("main", "main", mainType, nil)
 		main.Block(llvm.NamedIdentifier("entry"))

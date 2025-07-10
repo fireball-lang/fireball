@@ -6,6 +6,7 @@ import (
 	"fireball/ast"
 	"fireball/lexer"
 	"fireball/llvm"
+	"fireball/utils"
 	"strconv"
 	"strings"
 )
@@ -16,9 +17,13 @@ type codegen struct {
 	arch                abi.Arch
 	callConv            abi.CallConv
 
+	types TypeCache
+
+	globalVars                   map[*ast.GlobalVar]*llvm.GlobalValue
+	additionalExternalGlobalVars map[*ast.GlobalVar]any
+
 	functions                   map[*ast.Func]*llvm.ExternFunction
 	additionalExternalFunctions map[*ast.Func]any
-	types                       TypeCache
 
 	fun          *llvm.Function
 	funReturnPtr llvm.Value
@@ -42,9 +47,13 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ll
 		arch:     arch,
 		callConv: callConv,
 
+		types: TypeCache{Arch: arch, CallConv: callConv, Module: module},
+
+		globalVars:                   make(map[*ast.GlobalVar]*llvm.GlobalValue),
+		additionalExternalGlobalVars: make(map[*ast.GlobalVar]any),
+
 		functions:                   make(map[*ast.Func]*llvm.ExternFunction),
 		additionalExternalFunctions: make(map[*ast.Func]any),
-		types:                       TypeCache{Arch: arch, CallConv: callConv, Module: module},
 	}
 
 	for _, decl := range file.Decls {
@@ -53,6 +62,9 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ll
 			for _, method := range decl.Methods {
 				c.collectFunc(method)
 			}
+
+		case *ast.GlobalVar:
+			c.collectGlobalVar(decl)
 
 		case *ast.Func:
 			c.collectFunc(decl)
@@ -71,8 +83,12 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ll
 		}
 	}
 
+	for g := range c.additionalExternalGlobalVars {
+		c.module.NewExternGlobalVariable(GetGlobalVarLinkName(g), c.types.Get(g.Type))
+	}
+
 	for f := range c.additionalExternalFunctions {
-		c.module.NewExternFunction(GetLinkName(f), c.types.Get(f))
+		c.module.NewExternFunction(GetFuncLinkName(f), c.types.Get(f))
 	}
 
 	return c.module
@@ -80,8 +96,12 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ll
 
 // Declarations
 
+func (c *codegen) collectGlobalVar(g *ast.GlobalVar) {
+	c.globalVars[g] = c.module.NewGlobalVariable(GetGlobalVarLinkName(g), c.types.Get(g.Type))
+}
+
 func (c *codegen) collectFunc(f *ast.Func) {
-	value := llvm.FakeFunctionValue(c.types.Get(f), GetLinkName(f))
+	value := llvm.FakeFunctionValue(c.types.Get(f), GetFuncLinkName(f))
 	c.functions[f] = &value
 }
 
@@ -106,9 +126,9 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 			paramNames = append(paramNames, param.Name.Token.Text)
 		}
 
-		c.fun = c.module.NewFunction(GetLinkName(f), f.Name(), type_, paramNames)
+		c.fun = c.module.NewFunction(GetFuncLinkName(f), f.Name(), type_, paramNames)
 	} else {
-		c.module.NewExternFunction(GetLinkName(f), type_)
+		c.module.NewExternFunction(GetFuncLinkName(f), type_)
 		return
 	}
 
@@ -406,25 +426,22 @@ func (c *codegen) VisitParen(p *ast.Paren) {
 }
 
 func (c *codegen) VisitIdentifier(i *ast.Identifier) {
-	var type_ ast.Type
-	var value llvm.Value
+	switch node := i.Resolved.(type) {
+	case *ast.Func:
+		c.exprValue = c.getValueForFunc(node)
 
-	if i.Path.SegmentCount() == 1 {
-		name := i.Path.SegmentAt(0)
-		type_, value = c.variables.Find(name)
-	}
+	case *ast.Var, *ast.Impl, *ast.Param:
+		_, c.exprValue = c.variables.Find(i.Path.SegmentAt(0))
 
-	if !ast.IsValid(type_) {
-		f := i.Result().Type.(*ast.Func)
-		type_ = f
+		if utils.IsNil(c.exprValue) {
+			panic("codegen.codegen.VisitIdentifier() - Failed to find local variable")
+		}
 
-		value = c.getValueForFunc(f)
-	}
+	case *ast.GlobalVar:
+		c.exprValue = c.getValueForGlobalVar(node)
 
-	if !ast.IsValid(type_) {
-		panic("codegen.codegen.VisitIdentifier() - Failed to find symbol")
-	} else {
-		c.exprValue = value
+	default:
+		panic("codegen.codegen.VisitIdentifier() - Invalid node type")
 	}
 }
 
@@ -817,11 +834,22 @@ func (c *codegen) cast(value llvm.Value, to ast.Type, kind ast.CastKind) llvm.Va
 
 // Utils
 
+func (c *codegen) getValueForGlobalVar(g *ast.GlobalVar) llvm.Value {
+	if v, ok := c.globalVars[g]; ok {
+		return v
+	} else {
+		v := llvm.FakeGlobalValue(c.types.Get(g.Type), GetGlobalVarLinkName(g))
+		c.additionalExternalGlobalVars[g] = nil
+
+		return &v
+	}
+}
+
 func (c *codegen) getValueForFunc(f *ast.Func) llvm.Value {
 	if v, ok := c.functions[f]; ok {
 		return v
 	} else {
-		v := llvm.FakeFunctionValue(c.types.Get(f), GetLinkName(f))
+		v := llvm.FakeFunctionValue(c.types.Get(f), GetFuncLinkName(f))
 		c.additionalExternalFunctions[f] = nil
 
 		return &v

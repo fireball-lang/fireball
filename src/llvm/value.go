@@ -74,6 +74,16 @@ type GlobalValue struct {
 	type_ Type
 }
 
+func FakeGlobalValue(type_ Type, name string) GlobalValue {
+	return GlobalValue{
+		name: name,
+		type_: &pointerType{
+			baseType: baseType{size_: 64, align_: 64, dbg: math.MaxUint32},
+			pointee:  type_,
+		},
+	}
+}
+
 func (g *GlobalValue) Type() Type {
 	return g.type_
 }

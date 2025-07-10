@@ -1,0 +1,7 @@
+mod tests;
+
+#[test]
+func globalVariable2() bool {
+	number = 3;
+	return number == 3;
+}

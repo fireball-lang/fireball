@@ -86,3 +86,11 @@ func decrement() bool {
 
 	return b == 1 && c == 0;
 }
+
+var number i32;
+
+#[test]
+func globalVariable() bool {
+	number = 7;
+	return number == 7;
+}

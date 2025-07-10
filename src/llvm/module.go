@@ -419,7 +419,39 @@ func (m *Module) NewStringConstant(name, value string, length uint32) *GlobalVal
 	}
 }
 
-func (m *Module) NewGlobalVariable(name string, type_ Type, definition bool) *GlobalValue {
+func (m *Module) NewGlobalVariable(name string, type_ Type) *GlobalValue {
+	m.header.WriteRune('\n')
+
+	_, _ = fmt.Fprintf(
+		&m.header,
+		"@%s = global %s zeroinitializer, align %d, !dbg !%d\n",
+		name, type_, type_.Align(), m.debugIndex,
+	)
+
+	_, _ = fmt.Fprintf(
+		&m.footer,
+		"!%d = !DIGlobalVariableExpression(var: !%d, expr: !DIExpression())\n",
+		m.debugIndex, m.debugIndex+1,
+	)
+
+	_, _ = fmt.Fprintf(
+		&m.footer,
+		"!%d = distinct !DIGlobalVariable(name: \"%s\", type: !%d, file: !%d, isLocal: true, isDefinition: true)\n",
+		m.debugIndex+1, name, type_.debugIndex(), m.fileDebugIndex,
+	)
+
+	m.debugIndex += 2
+
+	return &GlobalValue{
+		name: name,
+		type_: &pointerType{
+			baseType: baseType{size_: 64, align_: 64, dbg: math.MaxUint32},
+			pointee:  type_,
+		},
+	}
+}
+
+func (m *Module) NewExternGlobalVariable(name string, type_ Type) *GlobalValue {
 	m.header.WriteRune('\n')
 
 	_, _ = fmt.Fprintf(
@@ -436,15 +468,18 @@ func (m *Module) NewGlobalVariable(name string, type_ Type, definition bool) *Gl
 
 	_, _ = fmt.Fprintf(
 		&m.footer,
-		"!%d = distinct !DIGlobalVariable(name: \"%s\", type: !%d, file: !%d, isLocal: %t, isDefinition: %t)\n",
-		m.debugIndex+1, name, type_.debugIndex(), m.fileDebugIndex, definition, definition,
+		"!%d = distinct !DIGlobalVariable(name: \"%s\", type: !%d, file: !%d, isLocal: false, isDefinition: false)\n",
+		m.debugIndex+1, name, type_.debugIndex(), m.fileDebugIndex,
 	)
 
 	m.debugIndex += 2
 
 	return &GlobalValue{
-		name:  name,
-		type_: type_,
+		name: name,
+		type_: &pointerType{
+			baseType: baseType{size_: 64, align_: 64, dbg: math.MaxUint32},
+			pointee:  type_,
+		},
 	}
 }
 

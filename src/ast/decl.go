@@ -17,6 +17,7 @@ type DeclVisitor interface {
 	VisitImport(i *Import)
 	VisitStruct(f *Struct)
 	VisitImpl(i *Impl)
+	VisitGlobalVar(g *GlobalVar)
 	VisitFunc(f *Func)
 }
 
@@ -224,6 +225,39 @@ func (i *Impl) Name() string {
 
 func (i *Impl) Visit(visitor DeclVisitor) {
 	visitor.VisitImpl(i)
+}
+
+// GlobalVar
+
+type GlobalVar struct {
+	baseRangeNode
+	attributeHolder
+
+	NameN *Leaf
+	Type  Type
+}
+
+func (g *GlobalVar) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if g.NameN != nil && !yield(g.NameN) {
+			return
+		}
+		if IsValid(g.Type) && !yield(g.Type) {
+			return
+		}
+	}
+}
+
+func (g *GlobalVar) Name() string {
+	if g.NameN != nil {
+		return g.NameN.Token.Text
+	}
+
+	return ""
+}
+
+func (g *GlobalVar) Visit(visitor DeclVisitor) {
+	visitor.VisitGlobalVar(g)
 }
 
 // Func

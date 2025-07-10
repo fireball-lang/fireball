@@ -83,6 +83,12 @@ func (h *highlighter) VisitImpl(i *ast.Impl) {
 	h.visitChildren(i)
 }
 
+func (h *highlighter) VisitGlobalVar(g *ast.GlobalVar) {
+	h.add(g.NameN, variableKind)
+
+	h.visitChildren(g)
+}
+
 func (h *highlighter) VisitFunc(f *ast.Func) {
 	h.variables.PushScope()
 
@@ -157,18 +163,17 @@ func (h *highlighter) VisitParen(p *ast.Paren) {
 }
 
 func (h *highlighter) VisitIdentifier(i *ast.Identifier) {
-	kind := variableKind
+	var kind semanticKind
 
-	switch i.Result().Type.(type) {
+	switch i.Resolved.(type) {
 	case *ast.Func:
 		kind = functionKind
-
+	case *ast.Impl:
+		kind = keywordKind
+	case *ast.Param:
+		kind = parameterKind
 	default:
-		if i.Path.SegmentCount() == 1 {
-			if v, varKind := h.variables.Find(i.Path.SegmentAt(0)); v != nil {
-				kind = varKind
-			}
-		}
+		kind = variableKind
 	}
 
 	for j := 0; j < len(i.Path.Segments)-1; j++ {

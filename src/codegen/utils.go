@@ -7,11 +7,30 @@ import (
 	"strings"
 )
 
-func GetLinkName(f *ast.Func) string {
+func GetGlobalVarLinkName(g *ast.GlobalVar) string {
+	// Extern
+	if g.GetAttribute("extern") != nil {
+		return g.Name()
+	}
+
+	// Normal
+	var sb strings.Builder
+	sb.WriteString("fb$")
+
+	modPath := ast.Root(g).ModulePath()
+	writePath(&sb, modPath)
+
+	sb.WriteString(g.Name())
+	return sb.String()
+}
+
+func GetFuncLinkName(f *ast.Func) string {
+	// Extern
 	if f.GetAttribute("extern") != nil {
 		return f.Name()
 	}
 
+	// Normal
 	var sb strings.Builder
 	sb.WriteString("fb$")
 

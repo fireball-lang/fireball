@@ -311,7 +311,9 @@ func (p *Paren) Visit(visitor ExprVisitor) {
 type Identifier struct {
 	baseNode
 
-	Path   *Path
+	Path     *Path
+	Resolved Node
+
 	result ExprResult
 }
 

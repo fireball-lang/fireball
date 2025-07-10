@@ -96,7 +96,7 @@ func createTestModule(proj *project.Project) *llvm.Module {
 			if f, ok := decl.(*ast.Func); ok && f.GetAttribute("test") != nil {
 				testFunctions = append(testFunctions, f)
 
-				tests = append(tests, m.NewExternFunction(codegen.GetLinkName(f), testType))
+				tests = append(tests, m.NewExternFunction(codegen.GetFuncLinkName(f), testType))
 			}
 		}
 	}

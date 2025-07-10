@@ -11,6 +11,7 @@ type Context interface {
 
 type SymbolLookup interface {
 	GetTypeDecl(name string) ast.Decl
+	GetGlobalVar(name string) *ast.GlobalVar
 	GetFuncDecl(name string) *ast.Func
 	GetStructMethod(s *ast.Struct, name string) *ast.Func
 }
@@ -43,6 +44,16 @@ func (c *combinedScope) GetTypeDecl(name string) ast.Decl {
 	for _, scope := range c.scopes {
 		if d := scope.GetTypeDecl(name); !utils.IsNil(d) {
 			return d
+		}
+	}
+
+	return nil
+}
+
+func (c *combinedScope) GetGlobalVar(name string) *ast.GlobalVar {
+	for _, scope := range c.scopes {
+		if g := scope.GetGlobalVar(name); g != nil {
+			return g
 		}
 	}
 

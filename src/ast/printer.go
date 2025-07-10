@@ -75,6 +75,10 @@ func (p *printer) VisitImpl(i *Impl) {
 	fmt.Printf("Impl '%s'\n", i.Name())
 }
 
+func (p *printer) VisitGlobalVar(g *GlobalVar) {
+	fmt.Printf("GlobalVar '%s'\n", g.Name())
+}
+
 func (p *printer) VisitFunc(f *Func) {
 	fmt.Printf("Func '%s'\n", f.Name())
 }

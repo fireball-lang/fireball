@@ -23,6 +23,8 @@ func (p *parser) declNode(invalidKeyword *bool) (Node, bool) {
 		return p.structNode(attributes)
 	case "impl":
 		return p.implNode(attributes)
+	case "var":
+		return p.globalVarNode(attributes)
 	case "func":
 		return p.funcNode(attributes)
 
@@ -315,6 +317,36 @@ func (p *parser) fieldNode() (Node, bool) {
 	node.append(child)
 
 	return node, err
+}
+
+func (p *parser) globalVarNode(attributes Node) (Node, bool) {
+	node := Node{Kind: GlobalVar}
+	node.append(attributes)
+
+	// Keyword
+	node.append(p.advance())
+
+	// Name
+	if p.appendAdvance(&node, lexer.Identifier, "Expected a global variable name.") {
+		return node, true
+	}
+
+	// <type>
+	{
+		child, err := p.typeNode()
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+	}
+
+	// ;
+	if p.appendAdvance(&node, lexer.Semicolon, "Expected ';' global variable.") {
+		return node, true
+	}
+
+	return node, false
 }
 
 func (p *parser) funcNode(attributes Node) (Node, bool) {

@@ -204,7 +204,10 @@ func (c *converter) convertFor(node *cst.Node) *Block {
 	if IsValid(increment) {
 		b := &Block{}
 
-		b.Exprs = append(b.Exprs, w.Body)
+		if IsValid(w.Body) {
+			b.Exprs = append(b.Exprs, w.Body)
+		}
+
 		b.Exprs = append(b.Exprs, increment)
 
 		w.Body = b

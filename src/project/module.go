@@ -2,6 +2,7 @@ package project
 
 import (
 	"fireball/ast"
+	"fireball/lexer"
 	"fireball/utils"
 )
 
@@ -19,26 +20,11 @@ func (m *Module) checkNameCollisions() {
 		for _, decl := range file.ast.Decls {
 			switch decl := decl.(type) {
 			case *ast.Struct:
-				if _, ok := names[decl.Name()]; ok {
-					diagnostics = append(diagnostics, utils.Diagnostic{
-						Kind:    utils.Error,
-						Message: "Symbol with the name '" + decl.Name() + "' already exists in this module.",
-						Range:   decl.NameN.Range(),
-					})
-				} else {
-					names[decl.Name()] = nil
-				}
-
+				checkName(decl, decl.NameN.Range(), names, &diagnostics)
+			case *ast.GlobalVar:
+				checkName(decl, decl.NameN.Range(), names, &diagnostics)
 			case *ast.Func:
-				if _, ok := names[decl.Name()]; ok {
-					diagnostics = append(diagnostics, utils.Diagnostic{
-						Kind:    utils.Error,
-						Message: "Symbol with the name '" + decl.Name() + "' already exists in this module.",
-						Range:   decl.NameN.Range(),
-					})
-				} else {
-					names[decl.Name()] = nil
-				}
+				checkName(decl, decl.NameN.Range(), names, &diagnostics)
 			}
 		}
 
@@ -49,6 +35,18 @@ func (m *Module) checkNameCollisions() {
 	}
 }
 
+func checkName(decl ast.Decl, nameRange lexer.Range, names map[string]any, diagnostics *[]utils.Diagnostic) {
+	if _, ok := names[decl.Name()]; ok {
+		*diagnostics = append(*diagnostics, utils.Diagnostic{
+			Kind:    utils.Error,
+			Message: "Symbol with the name '" + decl.Name() + "' already exists in this module.",
+			Range:   nameRange,
+		})
+	} else {
+		names[decl.Name()] = nil
+	}
+}
+
 // analyzer.SymbolLookup
 
 func (m *Module) GetTypeDecl(name string) ast.Decl {
@@ -56,6 +54,18 @@ func (m *Module) GetTypeDecl(name string) ast.Decl {
 		for _, decl := range file.ast.Decls {
 			if s, ok := decl.(*ast.Struct); ok && s.Name() == name {
 				return s
+			}
+		}
+	}
+
+	return nil
+}
+
+func (m *Module) GetGlobalVar(name string) *ast.GlobalVar {
+	for _, file := range m.files {
+		for _, decl := range file.ast.Decls {
+			if g, ok := decl.(*ast.GlobalVar); ok && g.Name() == name {
+				return g
 			}
 		}
 	}

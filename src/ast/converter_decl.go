@@ -15,6 +15,8 @@ func (c *converter) convertDecl(node *cst.Node) Decl {
 		return c.convertStruct(node)
 	case cst.Impl:
 		return c.convertImpl(node)
+	case cst.GlobalVar:
+		return c.convertGlobalVar(node)
 	case cst.Func:
 		return c.convertFunc(node)
 
@@ -159,6 +161,25 @@ func (c *converter) convertImpl(node *cst.Node) *Impl {
 	}
 
 	return i
+}
+
+func (c *converter) convertGlobalVar(node *cst.Node) *GlobalVar {
+	g := &GlobalVar{}
+	g.range_ = node.Range
+
+	for i := range node.Children {
+		child := &node.Children[i]
+
+		if child.Kind == cst.Attributes {
+			g.Attributes = c.convertAttributes(child)
+		} else if child.Kind == cst.Leaf && child.Token.Kind == lexer.Identifier {
+			g.NameN = c.convertLeaf(child)
+		} else if child.Kind.IsType() {
+			g.Type = c.convertType(child)
+		}
+	}
+
+	return g
 }
 
 func (c *converter) convertFunc(node *cst.Node) *Func {

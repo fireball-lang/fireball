@@ -135,6 +135,16 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 					})
 				}
 
+			case *ast.GlobalVar:
+				symbols.add(symbol{
+					file:           file,
+					kind:           protocol.SymbolKindVariable,
+					name:           getText(decl.NameN),
+					detail:         getTypeString(decl.Type),
+					range_:         getRange(decl),
+					selectionRange: getRange(decl.NameN),
+				})
+
 			case *ast.Func:
 				detail := ""
 

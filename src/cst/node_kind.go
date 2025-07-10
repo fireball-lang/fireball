@@ -18,6 +18,7 @@ const (
 	Struct
 	Field
 	Impl
+	GlobalVar
 	Func
 	Param
 	Attributes
@@ -50,7 +51,7 @@ func (n NodeKind) IsType() bool {
 }
 
 func (n NodeKind) IsDecl() bool {
-	return n == Mod || n == Import || n == Struct || n == Impl || n == Func
+	return n == Mod || n == Import || n == Struct || n == Impl || n == GlobalVar || n == Func
 }
 
 func (n NodeKind) IsExpr() bool {
@@ -86,6 +87,8 @@ func (n NodeKind) String() string {
 		return "Field"
 	case Impl:
 		return "Impl"
+	case GlobalVar:
+		return "GlobalVar"
 	case Func:
 		return "Func"
 	case Param:

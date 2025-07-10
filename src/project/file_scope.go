@@ -16,6 +16,10 @@ func (f *fileScope) GetTypeDecl(name string) ast.Decl {
 	return f.mod.GetTypeDecl(name)
 }
 
+func (f *fileScope) GetGlobalVar(name string) *ast.GlobalVar {
+	return f.mod.GetGlobalVar(name)
+}
+
 func (f *fileScope) GetFuncDecl(name string) *ast.Func {
 	return f.mod.GetFuncDecl(name)
 }

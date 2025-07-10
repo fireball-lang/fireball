@@ -16,7 +16,7 @@ type analyzer struct {
 	scope Scope
 
 	fun       *ast.Func
-	variables VariableTracker[any]
+	variables VariableTracker[ast.Node]
 
 	isLoopBody bool
 
@@ -83,19 +83,27 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	}
 }
 
+func (a *analyzer) VisitGlobalVar(g *ast.GlobalVar) {
+	a.acceptChildren(g)
+
+	if ast.IsValid(g.Type) && g.Type.Equals(ast.VoidType) {
+		a.error(g.Type, "Type 'void' cannot be used for global variables.")
+	}
+}
+
 func (a *analyzer) VisitFunc(f *ast.Func) {
 	a.variables.PushScope()
 
 	if impl, ok := f.Parent().(*ast.Impl); ok && impl.Struct != nil {
 		type_ := ast.GetStructPointerType(impl.Struct)
-		a.variables.Add("this", type_, nil)
+		a.variables.Add("this", type_, impl)
 	}
 
 	for _, param := range f.Params {
 		if param.Name != nil && ast.IsValid(param.Type) {
 			name := param.Name.Token.Text
 
-			if !a.variables.Add(name, param.Type, nil) {
+			if !a.variables.Add(name, param.Type, param) {
 				a.error(param.Name, "Parameter with the name '"+name+"' already exists in this scope.")
 			}
 		}
@@ -176,7 +184,7 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 
 				a.error(node, "Type 'void' cannot be used for variables.")
 			} else {
-				if !a.variables.Add(v.Name.Token.Text, t, nil) {
+				if !a.variables.Add(v.Name.Token.Text, t, v) {
 					a.error(v.Name, "Variable with the name '"+v.Name.Token.Text+"' already exists in this scope.")
 				}
 			}
@@ -357,25 +365,46 @@ func (a *analyzer) VisitParen(p *ast.Paren) {
 
 func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
 	var type_ ast.Type
+	var node ast.Node
+
 	name := i.Path.SegmentAt(i.Path.SegmentCount() - 1)
 
+	// Variables
 	if i.Path.SegmentCount() == 1 {
-		type_, _ = a.variables.Find(name)
+		// Local
+		type_, node = a.variables.Find(name)
+
+		// Global
+		if !ast.IsValid(type_) {
+			g := a.scope.GetGlobalVar(name)
+
+			if g != nil {
+				type_ = g.Type
+				node = g
+			}
+		}
 	}
 
+	// Function
 	if !ast.IsValid(type_) {
 		lookup := getSymbolLookup(a.ctx, a.scope, i.Path)
 
 		if !utils.IsNil(lookup) {
-			type_ = lookup.GetFuncDecl(name)
+			f := lookup.GetFuncDecl(name)
+
+			type_ = f
+			node = f
 		}
 	}
 
 	if !ast.IsValid(type_) {
 		a.error(i.Path, "Symbol with the path '"+ast.PathString(i.Path)+"' doesn't exist in the current scope.")
+
 		i.Result().SetInvalid()
+		i.Resolved = nil
 	} else {
 		i.Result().Set(ast.Address, type_)
+		i.Resolved = node
 	}
 }
 
