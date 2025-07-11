@@ -21,6 +21,8 @@ func (p *parser) declNode(invalidKeyword *bool) (Node, bool) {
 		return p.importNode(attributes)
 	case "struct":
 		return p.structNode(attributes)
+	case "enum":
+		return p.enumNode(attributes)
 	case "impl":
 		return p.implNode(attributes)
 	case "var":
@@ -253,6 +255,96 @@ func (p *parser) structNode(attributes Node) (Node, bool) {
 	// }
 	if p.appendAdvance(&node, lexer.RightBrace, "Expected '}' after struct fields.") {
 		return node, true
+	}
+
+	return node, false
+}
+
+func (p *parser) enumNode(attributes Node) (Node, bool) {
+	node := Node{Kind: Enum}
+	node.append(attributes)
+
+	// Keyword
+	node.append(p.advance())
+
+	// Name
+	if p.appendAdvance(&node, lexer.Identifier, "Expected enum name.") {
+		return node, true
+	}
+
+	// : <type>
+	if p.current.Kind == lexer.Colon {
+		// :
+		node.append(p.advance())
+
+		// <type>
+		{
+			child, err := p.typeNode()
+			node.append(child)
+
+			if err {
+				return node, true
+			}
+		}
+	}
+
+	// {
+	if p.appendAdvance(&node, lexer.LeftBrace, "Expected '{' before enum cases.") {
+		return node, true
+	}
+
+	// Cases
+	hasCase := false
+
+	for p.current.Kind != lexer.RightBrace {
+		// ,
+		if hasCase {
+			if p.appendAdvance(&node, lexer.Comma, "Expected ',' between enum cases.") {
+				return node, true
+			}
+		}
+
+		// <case>
+		{
+			child, err := p.enumCaseNode()
+			node.append(child)
+
+			if err {
+				return node, true
+			}
+		}
+
+		hasCase = true
+	}
+
+	// }
+	if p.appendAdvance(&node, lexer.RightBrace, "Expected '}' after enum cases.") {
+		return node, true
+	}
+
+	return node, false
+}
+
+func (p *parser) enumCaseNode() (Node, bool) {
+	node := Node{Kind: EnumCase}
+
+	// Name
+	if p.appendAdvance(&node, lexer.Identifier, "Expected enum case name.") {
+		return node, true
+	}
+
+	// = <integer>
+	if p.current.Kind == lexer.Equal {
+		// =
+		node.append(p.advance())
+
+		// <integer>
+		if p.current.Kind != lexer.Integer && p.current.Kind != lexer.Hexadecimal && p.current.Kind != lexer.Binary {
+			p.error("Expected integer for enum case value.")
+			return node, true
+		}
+
+		node.append(p.advance())
 	}
 
 	return node, false

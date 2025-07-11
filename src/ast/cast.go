@@ -45,6 +45,14 @@ func GetCastKind(from, to Type, allowExtended bool) (CastKind, bool) {
 			}
 		}
 
+		if from.Kind.IsInteger() {
+			if to, ok := to.(*DeclType); ok {
+				if decl, ok := to.Decl.(*Enum); ok {
+					return GetCastKind(from, decl.ActualType, false)
+				}
+			}
+		}
+
 		if allowExtended {
 			_, toIsPointer := to.(*PointerType)
 			_, toIsFunc := to.(FuncType)
@@ -65,6 +73,13 @@ func GetCastKind(from, to Type, allowExtended bool) (CastKind, bool) {
 
 		if to, ok := to.(*PrimitiveType); allowExtended && ok && to.Kind.IsInteger() {
 			return PointerToInteger, true
+		}
+
+	case *DeclType:
+		if decl, ok := from.Decl.(*Enum); ok {
+			if p, ok := to.(*PrimitiveType); ok && p.Kind.IsInteger() {
+				return GetCastKind(decl.ActualType, p, false)
+			}
 		}
 
 	case FuncType:

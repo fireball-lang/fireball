@@ -16,8 +16,14 @@ func TypeInfo(arch Arch, type_ ast.Type) (uint32, uint32) {
 		return arch.WordSize, arch.WordSize
 
 	case *ast.DeclType:
-		s := type_.Decl.(*ast.Struct)
-		return getStructInfo(arch, s)
+		switch decl := type_.Decl.(type) {
+		case *ast.Struct:
+			return getStructInfo(arch, decl)
+		case *ast.Enum:
+			return TypeInfo(arch, decl.ActualType)
+		default:
+			panic("abi.TypeInfo() - Invalid DeclType declaration")
+		}
 
 	default:
 		panic("abi.TypeInfo() - Invalid type")

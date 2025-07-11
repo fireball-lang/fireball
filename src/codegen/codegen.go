@@ -514,6 +514,23 @@ func (c *codegen) VisitIndex(i *ast.Index) {
 }
 
 func (c *codegen) VisitMember(m *ast.Member) {
+	// Enum case
+	if i, ok := m.Value.(*ast.Identifier); ok {
+		if decl, ok := i.Resolved.(*ast.Enum); ok {
+			backing := decl.ActualType.(*ast.PrimitiveType)
+			value := m.Resolved.(*ast.EnumCase).ActualValue
+
+			if backing.Kind.IsSignedInteger() {
+				c.exprValue = llvm.Int(c.types.Get(backing), value.Signed())
+			} else {
+				c.exprValue = llvm.Uint(c.types.Get(backing), value.Unsigned())
+			}
+
+			return
+		}
+	}
+
+	// Member
 	var decl *ast.Struct
 	isPtr := false
 
@@ -700,6 +717,15 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 		case *ast.PointerType:
 			c.exprValue = llvm.CmpI(c.fun, llvm.IEQ, left, right, "")
+
+		case *ast.DeclType:
+			switch type_.Decl.(type) {
+			case *ast.Enum:
+				c.exprValue = llvm.CmpI(c.fun, llvm.IEQ, left, right, "")
+
+			default:
+				panic("codegen.codegen.VisitBinary() - Equality - Invalid DeclType declaration")
+			}
 
 		default:
 			panic("codegen.codegen.VisitBinary() - Equality - Invalid type")

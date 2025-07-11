@@ -2,8 +2,10 @@ package ast
 
 import (
 	"fireball/lexer"
+	"fireball/utils"
 	"fmt"
 	"iter"
+	"math"
 	"slices"
 	"strings"
 )
@@ -71,6 +73,38 @@ func (p PrimitiveKind) IsFloating() bool {
 
 func (p PrimitiveKind) IsNumeric() bool {
 	return p >= U8 && p <= F64
+}
+
+func (p PrimitiveKind) IntegerBounds() (utils.Integer, utils.Integer) {
+	if !p.IsInteger() {
+		panic("ast.PrimitiveKind.IntegerBounds() - Primitive kind is not integer")
+	}
+
+	bits := p.BitCount()
+
+	if p.IsUnsignedInteger() {
+		if bits <= 8 {
+			return utils.Unsigned(false, 0), utils.Unsigned(false, math.MaxUint8)
+		}
+		if bits <= 16 {
+			return utils.Unsigned(false, 0), utils.Unsigned(false, math.MaxUint16)
+		}
+		if bits <= 32 {
+			return utils.Unsigned(false, 0), utils.Unsigned(false, math.MaxUint32)
+		}
+		return utils.Unsigned(false, 0), utils.Unsigned(false, math.MaxUint64)
+	}
+
+	if bits <= 8 {
+		return utils.Signed(math.MinInt8), utils.Unsigned(false, math.MaxInt8)
+	}
+	if bits <= 16 {
+		return utils.Signed(math.MinInt16), utils.Unsigned(false, math.MaxInt16)
+	}
+	if bits <= 32 {
+		return utils.Signed(math.MinInt32), utils.Unsigned(false, math.MaxInt32)
+	}
+	return utils.Signed(math.MinInt64), utils.Unsigned(false, math.MaxInt64)
 }
 
 func (p PrimitiveKind) String() string {

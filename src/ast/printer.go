@@ -71,6 +71,14 @@ func (p *printer) VisitStruct(s *Struct) {
 	}
 }
 
+func (p *printer) VisitEnum(e *Enum) {
+	fmt.Printf("Enum '%s'\n", e.Name())
+
+	for _, c := range e.Cases {
+		fmt.Printf("Case '%s'\n", c.Name.Token.Text)
+	}
+}
+
 func (p *printer) VisitImpl(i *Impl) {
 	fmt.Printf("Impl '%s'\n", i.Name())
 }

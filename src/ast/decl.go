@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fireball/utils"
 	"iter"
 )
 
@@ -16,6 +17,7 @@ type DeclVisitor interface {
 	VisitMod(m *Mod)
 	VisitImport(i *Import)
 	VisitStruct(f *Struct)
+	VisitEnum(e *Enum)
 	VisitImpl(i *Impl)
 	VisitGlobalVar(g *GlobalVar)
 	VisitFunc(f *Func)
@@ -178,6 +180,69 @@ func (f *Field) Children() iter.Seq[Node] {
 			return
 		}
 		if IsValid(f.Type) && !yield(f.Type) {
+			return
+		}
+	}
+}
+
+// Enum
+
+type Enum struct {
+	baseRangeNode
+	attributeHolder
+
+	NameN *Leaf
+	Type  Type
+	Cases []*EnumCase
+
+	ActualType Type
+}
+
+func (e *Enum) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if e.NameN != nil && !yield(e.NameN) {
+			return
+		}
+		if IsValid(e.Type) && !yield(e.Type) {
+			return
+		}
+		for _, enumCase := range e.Cases {
+			if !yield(enumCase) {
+				return
+			}
+		}
+	}
+}
+
+func (e *Enum) Name() string {
+	if e.NameN != nil {
+		return e.NameN.Token.Text
+	}
+
+	return ""
+}
+
+func (e *Enum) Visit(visitor DeclVisitor) {
+	visitor.VisitEnum(e)
+}
+
+// EnumCase
+
+type EnumCase struct {
+	baseRangeNode
+
+	Name  *Leaf
+	Value *Leaf
+
+	ActualValue utils.Integer
+}
+
+func (e *EnumCase) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if e.Name != nil && !yield(e.Name) {
+			return
+		}
+		if e.Value != nil && !yield(e.Value) {
 			return
 		}
 	}

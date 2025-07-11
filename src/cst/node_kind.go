@@ -17,6 +17,8 @@ const (
 	Import
 	Struct
 	Field
+	Enum
+	EnumCase
 	Impl
 	GlobalVar
 	Func
@@ -51,7 +53,7 @@ func (n NodeKind) IsType() bool {
 }
 
 func (n NodeKind) IsDecl() bool {
-	return n == Mod || n == Import || n == Struct || n == Impl || n == GlobalVar || n == Func
+	return n == Mod || n == Import || n == Struct || n == Enum || n == Impl || n == GlobalVar || n == Func
 }
 
 func (n NodeKind) IsExpr() bool {
@@ -85,6 +87,10 @@ func (n NodeKind) String() string {
 		return "Struct"
 	case Field:
 		return "Field"
+	case Enum:
+		return "Enum"
+	case EnumCase:
+		return "EnumCase"
 	case Impl:
 		return "Impl"
 	case GlobalVar:

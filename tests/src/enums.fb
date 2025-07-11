@@ -1,0 +1,19 @@
+mod tests;
+
+enum Animal {
+	None,
+	Cat = 6,
+	Dog,
+	Mouse = -2,
+	Rat
+}
+
+#[test]
+func enumCastToInt() bool {
+	return Animal.Rat as i32 == -1;
+}
+
+#[test]
+func intCastToEnum() bool {
+	return 7 as Animal == Animal.Dog;
+}

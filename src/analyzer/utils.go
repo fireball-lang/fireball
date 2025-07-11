@@ -4,6 +4,8 @@ import (
 	"fireball/ast"
 	"fireball/lexer"
 	"fireball/utils"
+	"strconv"
+	"strings"
 )
 
 func combinePathsWithoutLastSegments[T1, T2 ast.PathLike](path1 T1, path2 T2) ast.StringPath {
@@ -52,4 +54,57 @@ func addError[T utils.DiagnosticConsumer](diagnostics T, node ast.Node, message 
 			Range:   node.Range(),
 		})
 	}
+}
+
+func parseInteger(token lexer.Token) (utils.Integer, string) {
+	switch token.Kind {
+	case lexer.Integer:
+		if strings.ContainsAny(token.Text, "uU") {
+			return parseUint(token.Text, 10, "Invalid unsigned integer.")
+		}
+
+		v, err := strconv.ParseInt(token.Text, 10, 64)
+
+		if err != nil {
+			return utils.Integer{}, "Invalid signed integer."
+		}
+
+		return utils.Signed(v), ""
+
+	case lexer.Hexadecimal:
+		return parseUint(token.Text, 16, "Invalid hexadecimal integer.")
+
+	case lexer.Binary:
+		return parseUint(token.Text, 2, "Invalid binary integer.")
+
+	default:
+		panic("analyzer.parseInteger() - Invalid token kind")
+	}
+}
+
+func parseUint(str string, base int, errorMsg string) (utils.Integer, string) {
+	if base == 10 {
+		str = str[:len(str)-1]
+	} else {
+		str = str[2:]
+	}
+
+	v, err := strconv.ParseUint(str, base, 64)
+
+	if err != nil {
+		return utils.Integer{}, errorMsg
+	}
+
+	return utils.Unsigned(false, v), ""
+}
+
+func GetDeclFromDeclType[T ast.Decl](type_ ast.Type) (T, bool) {
+	if type_, ok := type_.(*ast.DeclType); ok {
+		if decl, ok := type_.Decl.(T); ok {
+			return decl, true
+		}
+	}
+
+	var empty T
+	return empty, false
 }

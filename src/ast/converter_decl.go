@@ -13,6 +13,8 @@ func (c *converter) convertDecl(node *cst.Node) Decl {
 		return c.convertImport(node)
 	case cst.Struct:
 		return c.convertStruct(node)
+	case cst.Enum:
+		return c.convertEnum(node)
 	case cst.Impl:
 		return c.convertImpl(node)
 	case cst.GlobalVar:
@@ -130,7 +132,7 @@ func (c *converter) convertField(node *cst.Node) *Field {
 	for i := range node.Children {
 		child := &node.Children[i]
 
-		if child.Kind == cst.Leaf {
+		if child.Kind == cst.Leaf && child.Token.Kind == lexer.Identifier {
 			f.Name = c.convertLeaf(child)
 		} else if child.Kind.IsType() {
 			f.Type = c.convertType(child)
@@ -138,6 +140,46 @@ func (c *converter) convertField(node *cst.Node) *Field {
 	}
 
 	return f
+}
+
+func (c *converter) convertEnum(node *cst.Node) *Enum {
+	e := &Enum{}
+	e.range_ = node.Range
+
+	for index := range node.Children {
+		child := &node.Children[index]
+
+		if child.Kind == cst.Attributes {
+			e.Attributes = c.convertAttributes(child)
+		} else if child.Kind == cst.Leaf && child.Token.Kind == lexer.Identifier {
+			e.NameN = c.convertLeaf(child)
+		} else if child.Kind.IsType() {
+			e.Type = c.convertType(child)
+		} else if child.Kind == cst.EnumCase {
+			e.Cases = append(e.Cases, c.convertEnumCase(child))
+		}
+	}
+
+	return e
+}
+
+func (c *converter) convertEnumCase(node *cst.Node) *EnumCase {
+	e := &EnumCase{}
+	e.range_ = node.Range
+
+	for index := range node.Children {
+		child := &node.Children[index]
+
+		if child.Kind == cst.Leaf {
+			if child.Token.Kind == lexer.Identifier {
+				e.Name = c.convertLeaf(child)
+			} else if child.Token.Kind == lexer.Integer || child.Token.Kind == lexer.Hexadecimal || child.Token.Kind == lexer.Binary {
+				e.Value = c.convertLeaf(child)
+			}
+		}
+	}
+
+	return e
 }
 
 func (c *converter) convertImpl(node *cst.Node) *Impl {

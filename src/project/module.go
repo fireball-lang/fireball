@@ -21,6 +21,8 @@ func (m *Module) checkNameCollisions() {
 			switch decl := decl.(type) {
 			case *ast.Struct:
 				checkName(decl, decl.NameN.Range(), names, &diagnostics)
+			case *ast.Enum:
+				checkName(decl, decl.NameN.Range(), names, &diagnostics)
 			case *ast.GlobalVar:
 				checkName(decl, decl.NameN.Range(), names, &diagnostics)
 			case *ast.Func:
@@ -52,8 +54,11 @@ func checkName(decl ast.Decl, nameRange lexer.Range, names map[string]any, diagn
 func (m *Module) GetTypeDecl(name string) ast.Decl {
 	for _, file := range m.files {
 		for _, decl := range file.ast.Decls {
-			if s, ok := decl.(*ast.Struct); ok && s.Name() == name {
-				return s
+			switch decl.(type) {
+			case *ast.Struct, *ast.Enum:
+				if decl.Name() == name {
+					return decl
+				}
 			}
 		}
 	}

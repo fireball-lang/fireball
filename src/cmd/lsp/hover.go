@@ -4,6 +4,7 @@ import (
 	"context"
 	"fireball/ast"
 	"fireball/lexer"
+	"fmt"
 	"github.com/MineGame159/protocol"
 	"slices"
 )
@@ -66,6 +67,15 @@ func getHover(leaf *ast.Leaf) string {
 		}
 
 		return ""
+
+	case *ast.EnumCase:
+		t := node.Parent().(*ast.Enum).ActualType
+
+		if ast.IsValid(t) {
+			return fmt.Sprintf("(%s) %s", t, node.ActualValue)
+		}
+
+		return node.ActualValue.String()
 
 	case *ast.Param:
 		return node.Type.String()

@@ -2,6 +2,7 @@ package llvm
 
 import (
 	"bufio"
+	"fireball/utils"
 	"fmt"
 	"io"
 	"math"
@@ -335,6 +336,60 @@ func (m *Module) NewStructType(name string, fields []Field, size uint32, align u
 	}
 
 	m.debugIndex += 1 + uint32(len(fields))
+	return t
+}
+
+type EnumCase struct {
+	Name  string
+	Value utils.Integer
+}
+
+func (m *Module) NewEnumType(name string, backing Type, cases []EnumCase) Type {
+	var backingType *integerType
+
+	if i, ok := backing.(*integerType); ok {
+		backingType = i
+	} else {
+		panic("llvm.Module.NewEnumType() - Backing type needs to be integer")
+	}
+
+	t := &integerType{
+		baseType: baseType{
+			size_:  backingType.size_,
+			align_: backingType.align_,
+			dbg:    m.debugIndex,
+		},
+		signed:   backingType.signed,
+		bitCount: backingType.bitCount,
+	}
+
+	// Metadata
+	_, _ = fmt.Fprintf(
+		&m.footer,
+		"!%d = distinct !DICompositeType(tag: DW_TAG_enumeration_type, name: \"%s\", size: %d, align: %d, elements: !{",
+		m.debugIndex, name, t.size_, t.align_,
+	)
+
+	for i := range cases {
+		if i > 0 {
+			m.footer.WriteString(", ")
+		}
+
+		m.footer.WriteRune('!')
+		_, _ = fmt.Fprint(&m.footer, m.debugIndex+1+uint32(i))
+	}
+
+	m.footer.WriteString("})\n")
+
+	for i, c := range cases {
+		_, _ = fmt.Fprintf(
+			&m.footer,
+			"!%d = !DIEnumerator(name: \"%s\", value: %s)\n",
+			m.debugIndex+1+uint32(i), c.Name, c.Value.String(),
+		)
+	}
+
+	m.debugIndex += 1 + uint32(len(cases))
 	return t
 }
 

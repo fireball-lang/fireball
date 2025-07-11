@@ -101,6 +101,27 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 	for _, file := range files {
 		for _, decl := range file.Ast().Decls {
 			switch decl := decl.(type) {
+			case *ast.Enum:
+				id := symbols.add(symbol{
+					file:           file,
+					kind:           protocol.SymbolKindEnum,
+					name:           getText(decl.NameN),
+					detail:         getTypeString(decl.ActualType),
+					range_:         getRange(decl),
+					selectionRange: getRange(decl.NameN),
+				})
+
+				for _, c := range decl.Cases {
+					symbols.addChild(id, symbol{
+						file:           file,
+						kind:           protocol.SymbolKindEnumMember,
+						name:           getText(c.Name),
+						detail:         c.ActualValue.String(),
+						range_:         getRange(c),
+						selectionRange: getRange(c.Name),
+					})
+				}
+
 			case *ast.Impl:
 				if decl.Struct == nil {
 					continue

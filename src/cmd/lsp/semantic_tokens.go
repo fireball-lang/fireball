@@ -77,6 +77,15 @@ func (h *highlighter) VisitStruct(f *ast.Struct) {
 	}
 }
 
+func (h *highlighter) VisitEnum(e *ast.Enum) {
+	h.add(e.NameN, enumKind)
+	h.visit(e.Type)
+
+	for _, c := range e.Cases {
+		h.add(c.Name, enumMemberKind)
+	}
+}
+
 func (h *highlighter) VisitImpl(i *ast.Impl) {
 	h.add(i.NameN, classKind)
 
@@ -166,6 +175,8 @@ func (h *highlighter) VisitIdentifier(i *ast.Identifier) {
 	var kind semanticKind
 
 	switch i.Resolved.(type) {
+	case *ast.Enum:
+		kind = enumKind
 	case *ast.Func:
 		kind = functionKind
 	case *ast.Impl:
@@ -195,6 +206,12 @@ func (h *highlighter) VisitMember(m *ast.Member) {
 	h.visit(m.Value)
 
 	kind := propertyKind
+
+	if i, ok := m.Value.(*ast.Identifier); ok {
+		if _, ok := i.Resolved.(*ast.Enum); ok {
+			kind = enumMemberKind
+		}
+	}
 
 	if _, ok := m.Result().Type.(ast.FuncType); ok {
 		kind = functionKind

@@ -114,6 +114,19 @@ func (t *TypeCache) createDeclType(type_ *ast.DeclType) llvm.Type {
 		size, align := layout.Info()
 		return t.Module.NewStructType(name.String(), fields, size, align)
 
+	case *ast.Enum:
+		cases := make([]llvm.EnumCase, len(decl.Cases))
+
+		for i, c := range decl.Cases {
+			cases[i] = llvm.EnumCase{
+				Name:  c.Name.Token.Text,
+				Value: c.ActualValue,
+			}
+		}
+
+		backingType := t.Get(decl.ActualType)
+		return t.Module.NewEnumType(decl.Name(), backingType, cases)
+
 	default:
 		panic("codegen.TypeCache.createDeclType() - Invalid declaration")
 	}

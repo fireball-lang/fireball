@@ -70,6 +70,20 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 	}
 }
 
+func (a *analyzer) VisitEnum(e *ast.Enum) {
+	caseNameMap := make(map[string]any)
+
+	for _, c := range e.Cases {
+		if c.Name != nil {
+			if _, ok := caseNameMap[c.Name.Token.Text]; ok {
+				a.error(c.Name, fmt.Sprintf("Enum case with the name '%s' already exists.", c.Name.Token.Text))
+			} else {
+				caseNameMap[c.Name.Token.Text] = nil
+			}
+		}
+	}
+}
+
 func (a *analyzer) VisitImpl(i *ast.Impl) {
 	a.acceptChildren(i)
 
@@ -397,6 +411,21 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
 		}
 	}
 
+	// Enum case
+	if _, ok := i.Parent().(*ast.Member); ok {
+		lookup := getSymbolLookup(a.ctx, a.scope, i.Path)
+
+		if !utils.IsNil(lookup) {
+			decl := lookup.GetTypeDecl(name)
+
+			if ast.IsValid(decl) {
+				type_ = &ast.DeclType{Path: getDeclPath(decl), Decl: decl}
+				node = decl
+			}
+		}
+	}
+
+	// Result
 	if !ast.IsValid(type_) {
 		a.error(i.Path, "Symbol with the path '"+ast.PathString(i.Path)+"' doesn't exist in the current scope.")
 
@@ -471,8 +500,41 @@ func (a *analyzer) VisitIndex(i *ast.Index) {
 
 func (a *analyzer) VisitMember(m *ast.Member) {
 	a.acceptChildren(m)
-	m.Result().SetInvalid()
 
+	m.Result().SetInvalid()
+	m.Resolved = nil
+
+	// Enum case
+	if ast.IsValid(m.Value) && m.Value.Result().Kind != ast.Invalid {
+		if i, ok := m.Value.(*ast.Identifier); ok {
+			if decl, ok := i.Resolved.(*ast.Enum); ok {
+				m.Result().Set(ast.Value, m.Value.Result().Type)
+
+				if m.Name == nil {
+					return
+				}
+
+				var enumCase *ast.EnumCase
+
+				for _, c := range decl.Cases {
+					if c.Name != nil && c.Name.Token.Text == m.Name.Token.Text {
+						enumCase = c
+						break
+					}
+				}
+
+				if enumCase == nil {
+					a.error(m.Name, "Enum case '"+decl.Name()+"."+m.Name.Token.Text+"' doesn't exist.")
+				}
+
+				m.Resolved = enumCase
+
+				return
+			}
+		}
+	}
+
+	// Member
 	var decl *ast.Struct
 
 	if ast.IsValid(m.Value) && m.Value.Result().Kind != ast.Invalid {
@@ -653,7 +715,9 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 
 		if _, ok := b.Left.Result().Type.(*ast.PrimitiveType); !ok {
 			if _, ok := b.Left.Result().Type.(*ast.PointerType); !ok {
-				a.error(b.Left, "Can only check equality for primitive and pointer types, not '"+b.Left.Result().Type.String()+"'.")
+				if _, ok := GetDeclFromDeclType[*ast.Enum](b.Left.Result().Type); !ok {
+					a.error(b.Left, "Can only check equality for primitive and pointer types, not '"+b.Left.Result().Type.String()+"'.")
+				}
 			}
 		}
 
