@@ -10,7 +10,7 @@ impl Vec2 {
 		if (this.x > this.y) return this.x;
 		return this.y;
 	}
-}
+}c
 
 #[test]
 func memberValueStruct() bool {

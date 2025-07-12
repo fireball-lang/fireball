@@ -56,6 +56,14 @@ func (a *analyzer) VisitImport(i *ast.Import) {
 func (a *analyzer) VisitStruct(s *ast.Struct) {
 	a.acceptChildren(s)
 
+	if len(s.Fields) == 0 {
+		a.error(firstNonNil(s.NameN, s), "Struct needs to have at least one field.")
+	}
+
+	if structContainsType(s, s) {
+		a.error(firstNonNil(s.NameN, s), "Struct cannot be recursive.")
+	}
+
 	names := make(map[string]bool)
 
 	for _, field := range s.Fields {
@@ -67,7 +75,7 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 			name := field.Name.Token.Text
 
 			if _, ok := names[name]; ok {
-				a.error(field.Name, "Field with the name '"+name+"' already exists.")
+				a.error(firstNonNil(field.Name, field), "Field with the name '"+name+"' already exists.")
 			}
 
 			names[name] = true

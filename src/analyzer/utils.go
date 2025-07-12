@@ -108,3 +108,21 @@ func GetDeclFromDeclType[T ast.Decl](type_ ast.Type) (T, bool) {
 	var empty T
 	return empty, false
 }
+
+func structContainsType(decl *ast.Struct, lookingFor *ast.Struct) bool {
+	for _, field := range decl.Fields {
+		if d, ok := field.Type.(*ast.DeclType); ok {
+			if s, ok := d.Decl.(*ast.Struct); ok {
+				if s == lookingFor {
+					return true
+				}
+
+				if structContainsType(s, lookingFor) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
