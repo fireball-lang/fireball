@@ -7,10 +7,10 @@ type VariableTracker[T any] struct {
 }
 
 type variableScope[T any] struct {
-	variables []variable[T]
+	variables []scopeVariable[T]
 }
 
-type variable[T any] struct {
+type scopeVariable[T any] struct {
 	name  string
 	type_ ast.Type
 	data  T
@@ -38,7 +38,7 @@ func (v *VariableTracker[T]) Add(name string, type_ ast.Type, data T) bool {
 		}
 	}
 
-	scope.variables = append(scope.variables, variable[T]{
+	scope.variables = append(scope.variables, scopeVariable[T]{
 		name:  name,
 		type_: type_,
 		data:  data,

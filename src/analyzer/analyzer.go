@@ -11,12 +11,17 @@ import (
 	"strings"
 )
 
+type variable struct {
+	node     ast.Node
+	readonly bool
+}
+
 type analyzer struct {
 	ctx   Context
 	scope Scope
 
 	fun       *ast.Func
-	variables VariableTracker[ast.Node]
+	variables VariableTracker[variable]
 
 	isLoopBody bool
 
@@ -110,14 +115,18 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 
 	if impl, ok := f.Parent().(*ast.Impl); ok && impl.Struct != nil {
 		type_ := ast.GetStructPointerType(impl.Struct)
-		a.variables.Add("this", type_, impl)
+
+		a.variables.Add("this", type_, variable{
+			node:     impl,
+			readonly: true,
+		})
 	}
 
 	for _, param := range f.Params {
 		if param.Name != nil && ast.IsValid(param.Type) {
 			name := param.Name.Token.Text
 
-			if !a.variables.Add(name, param.Type, param) {
+			if !a.variables.Add(name, param.Type, variable{node: param}) {
 				a.error(param.Name, "Parameter with the name '"+name+"' already exists in this scope.")
 			}
 		}
@@ -198,7 +207,7 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 
 				a.error(node, "Type 'void' cannot be used for variables.")
 			} else {
-				if !a.variables.Add(v.Name.Token.Text, t, v) {
+				if !a.variables.Add(v.Name.Token.Text, t, variable{node: v}) {
 					a.error(v.Name, "Variable with the name '"+v.Name.Token.Text+"' already exists in this scope.")
 				}
 			}
@@ -386,7 +395,20 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
 	// Variables
 	if i.Path.SegmentCount() == 1 {
 		// Local
-		type_, node = a.variables.Find(name)
+		t, v := a.variables.Find(name)
+
+		type_ = t
+		node = v.node
+
+		if ast.IsValid(t) && v.readonly {
+			if b, ok := i.Parent().(*ast.Binary); ok {
+				//goland:noinspection GoSwitchMissingCasesForIotaConsts
+				switch b.Op {
+				case lexer.Equal, lexer.PlusEqual, lexer.MinusEqual, lexer.StarEqual, lexer.SlashEqual, lexer.PercentageEqual, lexer.PipeEqual, lexer.XorEqual, lexer.AmpersandEqual:
+					a.error(b, "Variable '"+name+"' is readonly.")
+				}
+			}
+		}
 
 		// Global
 		if !ast.IsValid(type_) {
