@@ -157,7 +157,7 @@ func (t *TypeCache) createFuncType(type_ ast.FuncType) llvm.Type {
 	}
 
 	if impl, ok := type_.Parent().(*ast.Impl); ok {
-		type_ := t.Get(ast.GetStructPointerType(impl.Struct))
+		type_ := t.Get(ast.GetDeclPointerType(impl.Decl))
 
 		params = append(params, type_)
 		debugParams = append(debugParams, type_)

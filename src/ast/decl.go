@@ -254,8 +254,8 @@ type Impl struct {
 	baseRangeNode
 	attributeHolder
 
-	NameN  *Leaf
-	Struct *Struct
+	NameN *Leaf
+	Decl  Decl
 
 	Methods []*Func
 }

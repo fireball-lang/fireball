@@ -152,7 +152,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 	if impl, ok := f.Parent().(*ast.Impl); ok {
 		c.setSourceLocation(f.NameN)
 
-		astType := ast.GetStructPointerType(impl.Struct)
+		astType := ast.GetDeclPointerType(impl.Decl)
 		llvmType := c.types.Get(astType)
 		_, align := abi.TypeInfo(c.arch, astType)
 
@@ -531,14 +531,14 @@ func (c *codegen) VisitMember(m *ast.Member) {
 	}
 
 	// Member
-	var decl *ast.Struct
+	var decl ast.Decl
 	isPtr := false
 
 	if p, ok := m.Value.Result().Type.(*ast.PointerType); ok {
-		decl = p.Pointee.(*ast.DeclType).Decl.(*ast.Struct)
+		decl = p.Pointee.(*ast.DeclType).Decl
 		isPtr = true
 	} else {
-		decl = m.Value.Result().Type.(*ast.DeclType).Decl.(*ast.Struct)
+		decl = m.Value.Result().Type.(*ast.DeclType).Decl
 	}
 
 	// Method
@@ -548,7 +548,7 @@ func (c *codegen) VisitMember(m *ast.Member) {
 	}
 
 	// Field
-	_, i := decl.GetField(m.Name.Token.Text)
+	_, i := decl.(*ast.Struct).GetField(m.Name.Token.Text)
 
 	if m.Value.Result().Kind == ast.Value {
 		if _, ok := m.Value.Result().Type.(*ast.PointerType); ok {
@@ -716,12 +716,22 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 			}
 
 		case *ast.PointerType:
-			c.exprValue = llvm.CmpI(c.fun, llvm.IEQ, left, right, "")
+			op := llvm.IEQ
+			if b.Op == lexer.BangEqual {
+				op = llvm.INQ
+			}
+
+			c.exprValue = llvm.CmpI(c.fun, op, left, right, "")
 
 		case *ast.DeclType:
 			switch type_.Decl.(type) {
 			case *ast.Enum:
-				c.exprValue = llvm.CmpI(c.fun, llvm.IEQ, left, right, "")
+				op := llvm.IEQ
+				if b.Op == lexer.BangEqual {
+					op = llvm.INQ
+				}
+
+				c.exprValue = llvm.CmpI(c.fun, op, left, right, "")
 
 			default:
 				panic("codegen.codegen.VisitBinary() - Equality - Invalid DeclType declaration")

@@ -8,6 +8,12 @@ enum Animal {
 	Rat
 }
 
+impl Animal {
+	func is_valid() bool {
+		return *this != Animal.None;
+	}
+}
+
 #[test]
 func enumCastToInt() bool {
 	return Animal.Rat as i32 == -1;
@@ -16,4 +22,9 @@ func enumCastToInt() bool {
 #[test]
 func intCastToEnum() bool {
 	return 7 as Animal == Animal.Dog;
+}
+
+#[test]
+func enumMethod() bool {
+	return Animal.Cat.is_valid();
 }

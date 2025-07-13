@@ -353,6 +353,19 @@ func (s *SimpleFuncType) ReturnType() Type {
 
 func funcTypeEquals(f FuncType, other Type) bool {
 	if other, ok := other.(FuncType); ok {
+		// Impl
+		aImpl, aImplOk := f.Parent().(*Impl)
+		bImpl, bImplOk := other.Parent().(*Impl)
+
+		if (aImplOk && !bImplOk) || (!aImplOk && bImplOk) {
+			return false
+		}
+
+		if aImplOk && aImpl.Decl != bImpl.Decl {
+			return false
+		}
+
+		// Signature
 		aNext, aStop := iter.Pull(f.ParamTypes())
 		bNext, bStop := iter.Pull(other.ParamTypes())
 

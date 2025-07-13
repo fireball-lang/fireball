@@ -24,8 +24,8 @@ func (f *fileScope) GetFuncDecl(name string) *ast.Func {
 	return f.mod.GetFuncDecl(name)
 }
 
-func (f *fileScope) GetStructMethod(s *ast.Struct, name string) *ast.Func {
-	return f.mod.GetStructMethod(s, name)
+func (f *fileScope) GetDeclMethod(decl ast.Decl, name string) *ast.Func {
+	return f.mod.GetDeclMethod(decl, name)
 }
 
 // analyzer.Scope

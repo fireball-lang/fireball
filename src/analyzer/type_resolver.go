@@ -118,14 +118,16 @@ func (t *typeResolver) visit(node ast.Node) {
 
 	case *ast.Impl:
 		if node.NameN == nil {
-			node.Struct = nil
+			node.Decl = nil
 		} else {
 			decl := t.scope.GetTypeDecl(node.Name())
 
-			if s, ok := decl.(*ast.Struct); ok {
-				node.Struct = s
-			} else {
-				addError(t, node.NameN, "Type with the name '"+node.Name()+"' is not a struct.")
+			switch decl.(type) {
+			case *ast.Struct, *ast.Enum:
+				node.Decl = decl
+
+			default:
+				addError(t, node.NameN, "Type with the name '"+node.Name()+"' is not a struct or an enum.")
 			}
 		}
 

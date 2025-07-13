@@ -69,11 +69,12 @@ func (s *server) Symbols(_ context.Context, params *protocol.WorkspaceSymbolPara
 }
 
 func getSymbols(symbols symbolConsumer, files []*project.File) {
-	structs := make(map[*ast.Struct]int)
+	decls := make(map[ast.Decl]int)
 
 	for _, file := range files {
 		for _, decl := range file.Ast().Decls {
-			if decl, ok := decl.(*ast.Struct); ok {
+			switch decl := decl.(type) {
+			case *ast.Struct:
 				id := symbols.add(symbol{
 					file:           file,
 					kind:           protocol.SymbolKindStruct,
@@ -93,14 +94,8 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 					})
 				}
 
-				structs[decl] = id
-			}
-		}
-	}
+				decls[decl] = id
 
-	for _, file := range files {
-		for _, decl := range file.Ast().Decls {
-			switch decl := decl.(type) {
 			case *ast.Enum:
 				id := symbols.add(symbol{
 					file:           file,
@@ -122,21 +117,29 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 					})
 				}
 
+				decls[decl] = id
+			}
+		}
+	}
+
+	for _, file := range files {
+		for _, decl := range file.Ast().Decls {
+			switch decl := decl.(type) {
 			case *ast.Impl:
-				if decl.Struct == nil {
+				if !ast.IsValid(decl.Decl) {
 					continue
 				}
 
-				id, ok := structs[decl.Struct]
+				id, ok := decls[decl.Decl]
 
 				if !ok {
 					id = symbols.add(symbol{
 						file: file,
 						kind: protocol.SymbolKindStruct,
-						name: getText(decl.Struct.NameN),
+						name: decl.Decl.Name(),
 					})
 
-					structs[decl.Struct] = id
+					decls[decl.Decl] = id
 				}
 
 				for _, method := range decl.Methods {

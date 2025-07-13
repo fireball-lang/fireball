@@ -126,14 +126,14 @@ func (f *fileScope) GetFuncDecl(name string) *ast.Func {
 	return f.parent.GetFuncDecl(name)
 }
 
-func (f *fileScope) GetStructMethod(s *ast.Struct, name string) *ast.Func {
+func (f *fileScope) GetDeclMethod(decl ast.Decl, name string) *ast.Func {
 	for _, lookup := range f.lookups {
-		if method := lookup.GetStructMethod(s, name); ast.IsValid(method) {
+		if method := lookup.GetDeclMethod(decl, name); ast.IsValid(method) {
 			return method
 		}
 	}
 
-	return f.parent.GetStructMethod(s, name)
+	return f.parent.GetDeclMethod(decl, name)
 }
 
 // analyzer.Scope

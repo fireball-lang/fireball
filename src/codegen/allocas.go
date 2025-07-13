@@ -43,7 +43,7 @@ func (c *codegen) collectAllocasCall(call *ast.Call) {
 
 	if (len(regs) == 1 && regs[0].Class == abi.Memory) || isAggregateType(f.ReturnType()) {
 		t := c.types.Get(f.ReturnType())
-		c.allocas[call] = llvm.Alloca(c.fun, t, 1, t.Align()/8, "abi.call")
+		c.allocas[call] = llvm.Alloca(c.fun, t, 1, t.Align()/8, c.getNamedIdentifierString("abi.call"))
 	}
 
 	if _, ok := f.Parent().(*ast.Impl); ok {
@@ -51,7 +51,7 @@ func (c *codegen) collectAllocasCall(call *ast.Call) {
 
 		if expr.Result().Kind == ast.Value {
 			t := c.types.Get(expr.Result().Type)
-			c.allocas2[call] = llvm.Alloca(c.fun, t, 1, t.Align()/8, "call.this")
+			c.allocas2[call] = llvm.Alloca(c.fun, t, 1, t.Align()/8, c.getNamedIdentifierString("call.this"))
 		}
 	}
 

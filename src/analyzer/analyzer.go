@@ -100,8 +100,8 @@ func (a *analyzer) VisitEnum(e *ast.Enum) {
 func (a *analyzer) VisitImpl(i *ast.Impl) {
 	a.acceptChildren(i)
 
-	if i.Struct != nil {
-		structModulePath := ast.Root(i.Struct).ModulePath()
+	if ast.IsValid(i.Decl) {
+		structModulePath := ast.Root(i.Decl).ModulePath()
 		implModulePath := ast.Root(i).ModulePath()
 
 		if !ast.PathEquals(structModulePath, implModulePath) {
@@ -121,8 +121,8 @@ func (a *analyzer) VisitGlobalVar(g *ast.GlobalVar) {
 func (a *analyzer) VisitFunc(f *ast.Func) {
 	a.variables.PushScope()
 
-	if impl, ok := f.Parent().(*ast.Impl); ok && impl.Struct != nil {
-		type_ := ast.GetStructPointerType(impl.Struct)
+	if impl, ok := f.Parent().(*ast.Impl); ok && ast.IsValid(impl.Decl) {
+		type_ := ast.GetDeclPointerType(impl.Decl)
 
 		a.variables.Add("this", type_, variable{
 			node:     impl,
@@ -565,7 +565,7 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 	}
 
 	// Member
-	var decl *ast.Struct
+	var decl ast.Decl
 
 	if ast.IsValid(m.Value) && m.Value.Result().Kind != ast.Invalid {
 		t := m.Value.Result().Type
@@ -577,27 +577,31 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 
 		if d, ok := t.(*ast.DeclType); ok {
 			if ast.IsValid(d.Decl) {
-				if s, ok := d.Decl.(*ast.Struct); ok {
-					decl = s
-				}
+				decl = d.Decl
 			} else {
 				skipError = true
 			}
 		}
 
 		if !ast.IsValid(decl) && !skipError {
-			a.error(m.Value, "Only struct types can have members, not '"+m.Value.Result().Type.String()+"'.")
+			a.error(m.Value, "Type '"+m.Value.Result().Type.String()+"' cannot have members.")
 		}
 	}
 
 	if decl != nil && m.Name != nil {
-		field, _ := decl.GetField(m.Name.Token.Text)
+		// Field
+		var field *ast.Field
+
+		if s, ok := decl.(*ast.Struct); ok {
+			field, _ = s.GetField(m.Name.Token.Text)
+		}
 
 		if field == nil {
-			method := a.scope.GetStructMethod(decl, m.Name.Token.Text)
+			// Method
+			method := a.scope.GetDeclMethod(decl, m.Name.Token.Text)
 
 			if method == nil {
-				a.error(m.Name, "Struct '"+decl.Name()+"' doesn't have a member with the name '"+m.Name.Token.Text+"'.")
+				a.error(m.Name, "Type '"+decl.Name()+"' doesn't have a member with the name '"+m.Name.Token.Text+"'.")
 			} else {
 				m.Result().Set(ast.Address, method)
 				m.Resolved = method

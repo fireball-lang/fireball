@@ -90,10 +90,10 @@ func (m *Module) GetFuncDecl(name string) *ast.Func {
 	return nil
 }
 
-func (m *Module) GetStructMethod(s *ast.Struct, name string) *ast.Func {
+func (m *Module) GetDeclMethod(decl ast.Decl, name string) *ast.Func {
 	for _, file := range m.files {
-		for _, decl := range file.ast.Decls {
-			if i, ok := decl.(*ast.Impl); ok && i.Struct == s {
+		for _, d := range file.ast.Decls {
+			if i, ok := d.(*ast.Impl); ok && i.Decl == decl {
 				for _, method := range i.Methods {
 					if method.Name() == name {
 						return method

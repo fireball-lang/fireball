@@ -36,7 +36,7 @@ func (c *codegen) collectAllocasArg(arg ast.Expr) {
 
 		if (len(regs) == 1 && regs[0].Class == abi.Memory) || isAggregateType(arg.Result().Type) {
 			type_ := getClassifiedLlvmType(&c.types, arg.Result().Type, true)
-			name := c.getNamedIdentifierString("abi.arg")
+			name := c.getNamedIdentifierString(c.getNamedIdentifierString("abi.arg"))
 
 			c.allocas[arg] = llvm.Alloca(c.fun, type_, 1, type_.Align()/8, name)
 		}
@@ -49,7 +49,7 @@ func (c *codegen) collectAllocasReturn(r *ast.Return) {
 
 		if len(regs) != 1 || regs[0].Class != abi.Memory {
 			type_ := getClassifiedLlvmType(&c.types, r.Value.Result().Type, true)
-			name := c.getNamedIdentifierString("abi.return")
+			name := c.getNamedIdentifierString(c.getNamedIdentifierString("abi.return"))
 
 			c.allocas[r.Value] = llvm.Alloca(c.fun, type_, 1, type_.Align()/8, name)
 		}

@@ -103,8 +103,8 @@ func (h *highlighter) VisitFunc(f *ast.Func) {
 
 	h.add(f.NameN, functionKind)
 
-	if impl, ok := f.Parent().(*ast.Impl); ok && impl.Struct != nil {
-		type_ := ast.GetStructPointerType(impl.Struct)
+	if impl, ok := f.Parent().(*ast.Impl); ok && ast.IsValid(impl.Decl) {
+		type_ := ast.GetDeclPointerType(impl.Decl)
 		h.variables.Add("this", type_, keywordKind)
 	}
 
