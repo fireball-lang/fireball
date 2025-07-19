@@ -1,16 +1,18 @@
 package llvm
 
 import (
-	"bufio"
 	"fireball/ir"
 	"fireball/utils"
 	"io"
 	"strconv"
+	"unicode/utf8"
 )
 
 type writer struct {
 	module *ir.Module
-	out    *bufio.Writer
+
+	out    io.Writer
+	buffer []byte
 
 	blockNameMap map[*ir.Block]string
 	valueNameMap map[ir.Value]string
@@ -19,14 +21,13 @@ type writer struct {
 	instructionIds   map[ir.Instruction]uint32
 
 	metaHasField bool
-
-	err error
 }
 
 func Write(module *ir.Module, out io.Writer) error {
 	w := &writer{
 		module: module,
-		out:    bufio.NewWriter(out),
+		out:    out,
+		buffer: make([]byte, 0, 9*1024),
 	}
 
 	w.string("source_filename = \"")
@@ -41,35 +42,30 @@ func Write(module *ir.Module, out io.Writer) error {
 	w.string(module.Triple)
 	w.string("\"\n\n")
 
-	w.namedStructs()
-	if w.err != nil {
-		return w.err
+	if err := w.namedStructs(); err != nil {
+		return err
 	}
 
-	w.globalVars()
-	if w.err != nil {
-		return w.err
+	if err := w.globalVars(); err != nil {
+		return err
 	}
 
-	w.functions()
-	if w.err != nil {
-		return w.err
+	if err := w.functions(); err != nil {
+		return err
 	}
 
-	w.namedMetaNodes()
-	if w.err != nil {
-		return w.err
+	if err := w.namedMetaNodes(); err != nil {
+		return err
 	}
 
-	w.metaNodes()
-	if w.err != nil {
-		return w.err
+	if err := w.metaNodes(); err != nil {
+		return err
 	}
 
-	return w.out.Flush()
+	return w.flush()
 }
 
-func (w *writer) namedStructs() {
+func (w *writer) namedStructs() error {
 	hasSome := false
 
 	for name, st := range w.module.NamedStructs() {
@@ -79,21 +75,32 @@ func (w *writer) namedStructs() {
 		w.typ(&st)
 		w.rune('\n')
 
+		if w.needsFlush() {
+			if err := w.flush(); err != nil {
+				return err
+			}
+		}
+
 		hasSome = true
 	}
 
 	if hasSome {
 		w.rune('\n')
 	}
+
+	return nil
 }
 
-func (w *writer) globalVars() {
+func (w *writer) globalVars() error {
 	seen := make(map[*ir.GlobalVar]any)
 	hasSome := false
 
 	for gVar := range w.module.GlobalVars() {
 		if _, ok := seen[gVar]; !ok && gVar.Flags&ir.Constant != 0 {
-			w.globalVar(gVar)
+			if err := w.globalVar(gVar); err != nil {
+				return err
+			}
+
 			seen[gVar] = nil
 			hasSome = true
 		}
@@ -106,7 +113,10 @@ func (w *writer) globalVars() {
 
 	for gVar := range w.module.GlobalVars() {
 		if _, ok := seen[gVar]; !ok && gVar.Flags&ir.External == 0 {
-			w.globalVar(gVar)
+			if err := w.globalVar(gVar); err != nil {
+				return err
+			}
+
 			seen[gVar] = nil
 			hasSome = true
 		}
@@ -119,7 +129,10 @@ func (w *writer) globalVars() {
 
 	for gVar := range w.module.GlobalVars() {
 		if _, ok := seen[gVar]; !ok {
-			w.globalVar(gVar)
+			if err := w.globalVar(gVar); err != nil {
+				return err
+			}
+
 			seen[gVar] = nil
 			hasSome = true
 		}
@@ -129,9 +142,11 @@ func (w *writer) globalVars() {
 		w.rune('\n')
 	}
 	hasSome = false
+
+	return nil
 }
 
-func (w *writer) globalVar(gVar *ir.GlobalVar) {
+func (w *writer) globalVar(gVar *ir.GlobalVar) error {
 	w.rune('@')
 	w.identifier(gVar.Name)
 	w.string(" = ")
@@ -165,25 +180,41 @@ func (w *writer) globalVar(gVar *ir.GlobalVar) {
 	}
 
 	w.rune('\n')
+
+	if w.needsFlush() {
+		if err := w.flush(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func (w *writer) functions() {
+func (w *writer) functions() error {
 	for fun := range w.module.Functions() {
 		if fun.Flags&ir.Declare == 0 {
-			w.function(fun)
+			if err := w.function(fun); err != nil {
+				return err
+			}
+
 			w.rune('\n')
 		}
 	}
 
 	for fun := range w.module.Functions() {
 		if fun.Flags&ir.Declare != 0 {
-			w.function(fun)
+			if err := w.function(fun); err != nil {
+				return err
+			}
+
 			w.rune('\n')
 		}
 	}
+
+	return nil
 }
 
-func (w *writer) function(fun *ir.Function) {
+func (w *writer) function(fun *ir.Function) error {
 	// Header
 	if fun.Flags&ir.Declare != 0 {
 		w.string("declare ")
@@ -301,9 +332,17 @@ func (w *writer) function(fun *ir.Function) {
 	} else {
 		w.rune('\n')
 	}
+
+	if w.needsFlush() {
+		if err := w.flush(); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func (w *writer) namedMetaNodes() {
+func (w *writer) namedMetaNodes() error {
 	hasSome := false
 
 	for name, refs := range w.module.NamedMetaRefs() {
@@ -321,15 +360,23 @@ func (w *writer) namedMetaNodes() {
 
 		w.string("}\n")
 
+		if w.needsFlush() {
+			if err := w.flush(); err != nil {
+				return err
+			}
+		}
+
 		hasSome = true
 	}
 
 	if hasSome {
 		w.rune('\n')
 	}
+
+	return nil
 }
 
-func (w *writer) metaNodes() {
+func (w *writer) metaNodes() error {
 	i := uint64(0)
 
 	for node := range w.module.MetaNodes() {
@@ -339,22 +386,39 @@ func (w *writer) metaNodes() {
 		w.meta(node)
 		w.rune('\n')
 
+		if w.needsFlush() {
+			if err := w.flush(); err != nil {
+				return err
+			}
+		}
+
 		i++
 	}
+
+	return nil
 }
 
 // Utils
 
 func (w *writer) rune(r rune) {
-	_, w.err = w.out.WriteRune(r)
+	w.buffer = utf8.AppendRune(w.buffer, r)
 }
 
 func (w *writer) string(str string) {
-	_, w.err = w.out.WriteString(str)
+	w.buffer = append(w.buffer, str...)
 }
 
 func (w *writer) uint(value uint64, base int) {
-	var buffer [16]byte
-	bytes := strconv.AppendUint(buffer[0:0], value, base)
-	_, w.err = w.out.Write(bytes)
+	w.buffer = strconv.AppendUint(w.buffer, value, base)
+}
+
+func (w *writer) needsFlush() bool {
+	return len(w.buffer) >= 8*1024
+}
+
+func (w *writer) flush() error {
+	_, err := w.out.Write(w.buffer)
+	w.buffer = w.buffer[0:0]
+
+	return err
 }
