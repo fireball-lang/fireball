@@ -3,7 +3,6 @@ package codegen
 import (
 	"fireball/abi"
 	"fireball/ast"
-	"fireball/llvm"
 )
 
 func (c *codegen) collectAllocas(expr ast.Expr) {
@@ -30,11 +29,12 @@ func (c *codegen) collectAllocasVar(v *ast.Var) {
 		type_ = v.Value.Result().Type
 	}
 
-	c.setSourceLocation(v)
-	name := c.getNamedIdentifierString("var." + v.Name.Token.Text)
+	c.emitter.SetDebugLocation(v.Range().Start)
 
-	_, align := abi.TypeInfo(c.arch, type_)
-	c.allocas[v] = llvm.Alloca(c.fun, c.types.Get(type_), 1, align, name)
+	alloca := c.emitter.Alloca(c.types.Get(type_), 1)
+	alloca.SetName("var." + v.Name.Token.Text)
+
+	c.allocas[v] = alloca
 }
 
 func (c *codegen) collectAllocasCall(call *ast.Call) {
@@ -43,7 +43,11 @@ func (c *codegen) collectAllocasCall(call *ast.Call) {
 
 	if (len(regs) == 1 && regs[0].Class == abi.Memory) || isAggregateType(f.ReturnType()) {
 		t := c.types.Get(f.ReturnType())
-		c.allocas[call] = llvm.Alloca(c.fun, t, 1, t.Align()/8, c.getNamedIdentifierString("abi.call"))
+
+		alloca := c.emitter.Alloca(t, 1)
+		alloca.SetName("abi.call")
+
+		c.allocas[call] = alloca
 	}
 
 	if _, ok := f.Parent().(*ast.Impl); ok {
@@ -51,7 +55,11 @@ func (c *codegen) collectAllocasCall(call *ast.Call) {
 
 		if expr.Result().Kind == ast.Value {
 			t := c.types.Get(expr.Result().Type)
-			c.allocas2[call] = llvm.Alloca(c.fun, t, 1, t.Align()/8, c.getNamedIdentifierString("call.this"))
+
+			alloca := c.emitter.Alloca(t, 1)
+			alloca.SetName("abi.this")
+
+			c.allocas2[call] = alloca
 		}
 	}
 

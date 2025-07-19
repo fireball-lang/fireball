@@ -3,7 +3,8 @@ package main
 import (
 	"fireball/abi"
 	"fireball/codegen"
-	"fireball/llvm"
+	"fireball/ir"
+	"fireball/ir/llvm"
 	"fireball/project"
 	"fireball/utils"
 	"fmt"
@@ -16,7 +17,7 @@ import (
 	"time"
 )
 
-func build(path string, suffix string, opt uint8, entrypointCb func(proj *project.Project) *llvm.Module) (string, error) {
+func build(path string, suffix string, opt uint8, entrypointCb func(proj *project.Project) *ir.Module) (string, error) {
 	start := time.Now()
 
 	defer func() {
@@ -107,7 +108,7 @@ func reportDiagnostics(proj *project.Project) bool {
 	return hasError
 }
 
-func compile(proj *project.Project, suffix string, opt uint8, entrypointCb func(proj *project.Project) *llvm.Module) (string, error) {
+func compile(proj *project.Project, suffix string, opt uint8, entrypointCb func(proj *project.Project) *ir.Module) (string, error) {
 	// Codegen
 	err := os.MkdirAll(filepath.Join(proj.AbsolutePath, "out"), 0750)
 	if err != nil {
@@ -126,7 +127,7 @@ func compile(proj *project.Project, suffix string, opt uint8, entrypointCb func(
 		}
 
 		m := codegen.Emit(file.Ast(), file.AbsolutePath(), abi.AMD64, abi.SystemV)
-		err = m.Write(f)
+		err = llvm.Write(m, f)
 
 		_ = f.Close()
 
@@ -156,7 +157,7 @@ func compile(proj *project.Project, suffix string, opt uint8, entrypointCb func(
 			return "", err
 		}
 
-		err = entrypoint.Write(f)
+		err = llvm.Write(entrypoint, f)
 
 		_ = f.Close()
 
@@ -166,7 +167,7 @@ func compile(proj *project.Project, suffix string, opt uint8, entrypointCb func(
 	}
 
 	// Compile
-	cmd := exec.Command("clang", fmt.Sprintf("-O%d", opt), "-o", exeName)
+	cmd := exec.Command("clang", "-g", fmt.Sprintf("-O%d", opt), "-o", exeName)
 	cmd.Dir = filepath.Join(proj.AbsolutePath, "out")
 	cmd.Stderr = os.Stderr
 

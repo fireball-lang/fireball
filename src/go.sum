@@ -1,3 +1,5 @@
+atomicgo.dev/cursor v0.2.0 h1:H6XN5alUJ52FZZUkI7AlJbUc1aW38GWZalpYRPpoPOw=
+atomicgo.dev/cursor v0.2.0/go.mod h1:Lr4ZJB3U7DfPPOkbH7/6TOtJ4vFGHlgj1nc+n900IpU=
 github.com/MineGame159/protocol v0.0.0-20250529084016-20d968018c10 h1:VEanmRcmLdM2po+GtL898O6NZa0eSA6mRXEPYpEzZmg=
 github.com/MineGame159/protocol v0.0.0-20250529084016-20d968018c10/go.mod h1:lTmuBrytkyqvjAIbtzz+Xp4+xoi/YZJ6dEydZYw0GFg=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=

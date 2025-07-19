@@ -49,10 +49,23 @@ func GetFuncLinkName(f *ast.Func) string {
 	return sb.String()
 }
 
+func GetDeclLinkName(decl ast.Decl) string {
+	modPath := ast.Root(decl).ModulePath()
+	var sb strings.Builder
+
+	for i := 0; i < modPath.SegmentCount(); i++ {
+		sb.WriteString(modPath.SegmentAt(i))
+		sb.WriteRune(':')
+	}
+
+	sb.WriteString(decl.Name())
+	return sb.String()
+}
+
 func writePath(sb *strings.Builder, path *ast.Path) {
 	for i := 0; i < path.SegmentCount(); i++ {
 		sb.WriteString(path.SegmentAt(i))
-		sb.WriteRune('.') // TODO: replace with :
+		sb.WriteRune(':')
 	}
 }
 
@@ -65,6 +78,11 @@ type stringBuilder struct {
 
 func (s *stringBuilder) WriteRune(r rune) {
 	s.builder.WriteRune(r)
+	s.length++
+}
+
+func (s *stringBuilder) WriteEscapeBackslash() {
+	s.builder.WriteString("\\\\")
 	s.length++
 }
 

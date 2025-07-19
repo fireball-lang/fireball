@@ -3,8 +3,8 @@ package codegen
 import (
 	"fireball/abi"
 	"fireball/ast"
+	"fireball/ir"
 	"fireball/lexer"
-	"fireball/llvm"
 	"strconv"
 	"strings"
 )
@@ -35,10 +35,12 @@ func (c *codegen) collectAllocasArg(arg ast.Expr) {
 		regs := c.callConv.Classify(arg.Result().Type)
 
 		if (len(regs) == 1 && regs[0].Class == abi.Memory) || isAggregateType(arg.Result().Type) {
-			type_ := getClassifiedLlvmType(&c.types, arg.Result().Type, true)
-			name := c.getNamedIdentifierString(c.getNamedIdentifierString("abi.arg"))
+			type_ := getClassifiedIrType(&c.types, arg.Result().Type, true)
 
-			c.allocas[arg] = llvm.Alloca(c.fun, type_, 1, type_.Align()/8, name)
+			alloca := c.emitter.Alloca(type_, 1)
+			alloca.SetName("abi.arg")
+
+			c.allocas[arg] = alloca
 		}
 	}
 }
@@ -48,22 +50,24 @@ func (c *codegen) collectAllocasReturn(r *ast.Return) {
 		regs := c.callConv.Classify(r.Value.Result().Type)
 
 		if len(regs) != 1 || regs[0].Class != abi.Memory {
-			type_ := getClassifiedLlvmType(&c.types, r.Value.Result().Type, true)
-			name := c.getNamedIdentifierString(c.getNamedIdentifierString("abi.return"))
+			type_ := getClassifiedIrType(&c.types, r.Value.Result().Type, true)
 
-			c.allocas[r.Value] = llvm.Alloca(c.fun, type_, 1, type_.Align()/8, name)
+			alloca := c.emitter.Alloca(type_, 1)
+			alloca.SetName("abi.return")
+
+			c.allocas[r.Value] = alloca
 		}
 	}
 }
 
-func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtrGetter func() llvm.Value, alwaysStoreToPtr bool) llvm.Value {
+func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtrGetter func() ir.Value, alwaysStoreToPtr bool) ir.Value {
 	value := c.visit(expr)
 	type_ := expr.Result().Type
 
 	if ast.IsValid(to) {
 		if kind, ok := ast.GetImplicitCastKind(expr.Result().Type, to); ok && kind != ast.Nop {
 			value = c.load(expr, value)
-			value = c.cast(value, to, kind)
+			value = c.cast(value, expr.Result().Type, to, kind)
 
 			type_ = to
 		}
@@ -74,11 +78,11 @@ func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtr
 	if len(regs) == 1 && regs[0].Class == abi.Memory {
 		if alwaysStoreToPtr || expr.Result().Kind == ast.Value {
 			if expr.Result().Kind == ast.Address {
-				value = llvm.Load(c.fun, value, "")
+				value = c.emitter.Load(c.types.Get(expr.Result().Type), value)
 			}
 
 			ptr := memoryClassPtrGetter()
-			llvm.Store(c.fun, value, ptr)
+			c.emitter.Store(value, ptr)
 
 			value = ptr
 		}
@@ -87,22 +91,22 @@ func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtr
 	}
 
 	astType := getClassifiedAstType(c.callConv, type_)
-	llvmType := getClassifiedLlvmType(&c.types, type_, false)
+	typ := getClassifiedIrType(&c.types, type_, false)
 
 	if isPointerType(type_) {
 		value = c.load(expr, value)
-		return llvm.PtrToInt(c.fun, value, llvmType, "")
+		return c.emitter.PtrToInt(value, typ)
 	}
 
 	if isAggregateType(type_) {
 		if expr.Result().Kind == ast.Value {
 			ptr := c.allocas[expr]
-			llvm.Store(c.fun, value, ptr)
+			c.emitter.Store(value, ptr)
 
 			value = ptr
 		}
 
-		return llvm.LoadAs(c.fun, value, llvmType, "")
+		return c.emitter.Load(typ, value)
 	}
 
 	value = c.load(expr, value)
@@ -112,25 +116,25 @@ func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtr
 		panic("codegen.codegen.visitLoadClassified() - Invalid cast kind")
 	}
 
-	return c.cast(value, astType, kind)
+	return c.cast(value, type_, astType, kind)
 }
 
-func (c *codegen) declassify(call *ast.Call, type_ ast.Type, value llvm.Value) llvm.Value {
+func (c *codegen) declassify(call *ast.Call, type_ ast.Type, value ir.Value) ir.Value {
 	regs := c.callConv.Classify(type_)
 
 	if len(regs) == 1 && regs[0].Class == abi.Memory {
-		return llvm.LoadAs(c.fun, value, c.types.Get(type_), "")
+		return c.emitter.Load(c.types.Get(type_), value)
 	}
 
 	if isPointerType(type_) {
-		return llvm.IntToPtr(c.fun, value, c.types.Get(type_), "")
+		return c.emitter.IntToPtr(value, c.types.Get(type_))
 	}
 
 	if isAggregateType(type_) {
 		ptr := c.allocas[call]
-		llvm.Store(c.fun, value, ptr)
+		c.emitter.Store(value, ptr)
 
-		return llvm.LoadAs(c.fun, ptr, c.types.Get(type_), "")
+		return c.emitter.Load(c.types.Get(type_), ptr)
 	}
 
 	astType := getClassifiedAstType(c.callConv, type_)
@@ -140,7 +144,7 @@ func (c *codegen) declassify(call *ast.Call, type_ ast.Type, value llvm.Value) l
 		panic("codegen.codegen.declassify() - Invalid cast kind")
 	}
 
-	return c.cast(value, type_, kind)
+	return c.cast(value, astType, type_, kind)
 }
 
 func getClassifiedAstType(callConv abi.CallConv, type_ ast.Type) ast.Type {
@@ -184,9 +188,9 @@ func getClassifiedAstType(callConv abi.CallConv, type_ ast.Type) ast.Type {
 	}
 }
 
-func getClassifiedLlvmType(types *TypeCache, type_ ast.Type, skipPointer bool) llvm.Type {
+func getClassifiedIrType(types *TypeCache, type_ ast.Type, skipPointer bool) ir.Type {
 	if p, ok := type_.(*ast.PrimitiveType); ok && p.Kind == ast.Void {
-		return llvm.NewVoidType()
+		return ir.Void
 	}
 
 	regs := types.CallConv.Classify(type_)
@@ -197,14 +201,14 @@ func getClassifiedLlvmType(types *TypeCache, type_ ast.Type, skipPointer bool) l
 				return types.Get(type_)
 			}
 
-			return llvm.NewPointerTypeRaw(types.Arch.WordSize, types.Arch.WordSize, types.Get(type_))
+			return ir.Pointer
 		}
 
 		_, t := getTypeFromReg(regs[0])
 		return t
 	}
 
-	var fields []llvm.Type
+	var fields []ir.Type
 	size := uint32(0)
 	align := uint32(0)
 
@@ -216,28 +220,31 @@ func getClassifiedLlvmType(types *TypeCache, type_ ast.Type, skipPointer bool) l
 		align = max(align, reg.Size)
 	}
 
-	return llvm.NewAnonymouseStructType(fields, size, align)
+	return &ir.StructType{
+		Packed: false,
+		Fields: fields,
+	}
 }
 
-func getTypeFromReg(reg abi.Reg) (ast.Type, llvm.Type) {
+func getTypeFromReg(reg abi.Reg) (ast.Type, ir.Type) {
 	switch reg.Class {
 	case abi.Integer:
 		if reg.Size <= 1 {
-			return ast.I8Type, llvm.I8
+			return ast.I8Type, ir.I8
 		}
 		if reg.Size <= 2 {
-			return ast.I16Type, llvm.I16
+			return ast.I16Type, ir.I16
 		}
 		if reg.Size <= 4 {
-			return ast.I32Type, llvm.I32
+			return ast.I32Type, ir.I32
 		}
-		return ast.I64Type, llvm.I64
+		return ast.I64Type, ir.I64
 
 	case abi.SSE:
 		if reg.Size <= 4 {
-			return ast.F32Type, llvm.F32
+			return ast.F32Type, ir.Float
 		}
-		return ast.F64Type, llvm.F64
+		return ast.F64Type, ir.Double
 
 	default:
 		panic("codegen.getTypeFromReg() - Invalid register class")

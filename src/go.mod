@@ -3,6 +3,7 @@ module fireball
 go 1.24
 
 require (
+	atomicgo.dev/cursor v0.2.0
 	github.com/MineGame159/protocol v0.0.0-20250529084016-20d968018c10
 	github.com/fatih/color v1.18.0
 	github.com/fsnotify/fsnotify v1.9.0

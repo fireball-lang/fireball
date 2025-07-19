@@ -1,11 +1,10 @@
 package main
 
 import (
-	"fireball/abi"
 	"fireball/ast"
 	"fireball/cmd/lsp"
 	"fireball/codegen"
-	"fireball/llvm"
+	"fireball/ir"
 	"fireball/project"
 	"github.com/spf13/cobra"
 	"log"
@@ -77,22 +76,21 @@ func runCommand() *cobra.Command {
 }
 
 func buildExe(opt uint8) (string, error) {
-	return build(".", "", opt, func(proj *project.Project) *llvm.Module {
-		m := llvm.NewModule("", "", "")
-		types := codegen.TypeCache{Arch: abi.AMD64, CallConv: abi.SystemV, Module: m}
+	return build(".", "", opt, func(proj *project.Project) *ir.Module {
+		m := ir.NewModule()
 
-		mainFuncType := &ast.SimpleFuncType{Returns: &ast.PrimitiveType{Kind: ast.I32}}
-		mainFunc := getMainFunc(proj, mainFuncType)
+		mainType := &ast.SimpleFuncType{Returns: &ast.PrimitiveType{Kind: ast.I32}}
+		mainTyp := &ir.FunctionType{Returns: ir.I32}
 
-		mainType := types.Get(mainFuncType)
-		fbMain := m.NewExternFunction(codegen.GetFuncLinkName(mainFunc), mainType)
+		fbMainFunc := getMainFunc(proj, mainType)
+		fbMain := m.NewFunction(codegen.GetFuncLinkName(fbMainFunc), mainTyp, nil)
+		fbMain.Flags = ir.Declare | ir.DsoLocal
 
-		main := m.NewFunction("main", "main", mainType, nil)
-		main.Block(llvm.NamedIdentifier("entry"))
+		main := m.NewFunction("main", mainTyp, nil)
 
-		ret := llvm.Call(main, fbMain, "").End()
-		llvm.RetValue(main, ret)
-		main.End()
+		emitter := ir.Emitter{Module: m}
+		emitter.Begin(main.NewBlock("func.entry"))
+		emitter.Ret(emitter.Call(mainTyp, fbMain, nil))
 
 		return m
 	})

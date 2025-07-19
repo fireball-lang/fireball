@@ -9,6 +9,7 @@ import (
 
 type StringBuilder interface {
 	WriteRune(r rune)
+	WriteEscapeBackslash()
 	WriteEscapeSequence(esc uint8)
 
 	Error(r lexer.Range, msg string)
@@ -93,7 +94,7 @@ func (s *stringParser[T]) parseEscapeSequence() {
 	case 'v':
 		s.builder.WriteEscapeSequence('\v')
 	case '\\':
-		s.builder.WriteRune('\\')
+		s.builder.WriteEscapeBackslash()
 	case '"':
 		s.builder.WriteEscapeSequence('"')
 
@@ -198,6 +199,8 @@ type stringBuilder struct {
 }
 
 func (s *stringBuilder) WriteRune(r rune) {}
+
+func (s *stringBuilder) WriteEscapeBackslash() {}
 
 func (s *stringBuilder) WriteEscapeSequence(esc uint8) {}
 

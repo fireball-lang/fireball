@@ -153,6 +153,10 @@ func (i Integer) Unsigned() uint64 {
 	return i.value
 }
 
+func (i Integer) Raw() uint64 {
+	return i.value
+}
+
 func (i Integer) String() string {
 	if i.negative {
 		return "-" + strconv.FormatUint(i.value, 10)
