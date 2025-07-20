@@ -30,8 +30,6 @@ type codegen struct {
 	funReturnPtr ir.Value
 
 	variables analyzer.VariableTracker[ir.Value]
-	allocas   map[ast.Expr]ir.Value
-	allocas2  map[ast.Expr]ir.Value
 
 	loopConditionL *ir.Block
 	loopEndL       *ir.Block
@@ -227,10 +225,6 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 
 	c.emitter.Begin(c.fun.NewBlock("func.entry"))
 
-	c.allocas = make(map[ast.Expr]ir.Value)
-	c.allocas2 = make(map[ast.Expr]ir.Value)
-	c.collectAllocas(f.Body)
-
 	paramValueI := 0
 
 	c.funReturnPtr = nil
@@ -319,21 +313,18 @@ func (c *codegen) VisitBlock(b *ast.Block) {
 }
 
 func (c *codegen) VisitVar(v *ast.Var) {
-	var type_ ast.Type
+	type_ := v.ActualType()
+	typ := c.types.Get(type_)
 
-	ptr := c.allocas[v]
+	ptr := c.emitAlloca("var."+v.Name.Token.Text, typ)
 	c.emitDbgDeclare(v.Name.Token.Text, v.ActualType(), ptr, 0, v)
 
 	var value ir.Value
 
 	if ast.IsValid(v.Value) {
-		type_ = v.Value.Result().Type
-
 		value = c.visitLoadImplicitCast(v.Value, v.Type)
 	} else {
-		type_ = v.Type
-
-		value = &ir.ZeroInitializer{Typ: c.types.Get(type_)}
+		value = &ir.ZeroInitializer{Typ: typ}
 	}
 
 	c.emitter.Store(value, ptr)
@@ -578,10 +569,11 @@ func (c *codegen) VisitCall(call *ast.Call) {
 
 	f, _ := call.Callee.Result().Type.(ast.FuncType)
 	regs := c.callConv.Classify(f.ReturnType())
+	var returnPtr ir.Value
 
 	if len(regs) == 1 && regs[0].Class == abi.Memory {
-		ptr := c.allocas[call]
-		args = append(args, ptr)
+		returnPtr = c.emitAlloca("abi.call.return", c.types.Get(f.ReturnType()))
+		args = append(args, returnPtr)
 	}
 
 	if _, ok := f.Parent().(*ast.Impl); ok {
@@ -589,7 +581,7 @@ func (c *codegen) VisitCall(call *ast.Call) {
 		value := c.visit(expr)
 
 		if expr.Result().Kind == ast.Value {
-			ptr := c.allocas2[call]
+			ptr := c.emitAlloca("abi.this", c.types.Get(expr.Result().Type))
 			c.emitter.Store(value, ptr)
 
 			value = ptr
@@ -606,7 +598,7 @@ func (c *codegen) VisitCall(call *ast.Call) {
 		}
 
 		args = append(args, c.visitLoadClassified(arg, paramType, func() ir.Value {
-			return c.allocas[arg]
+			return c.emitAlloca("abi.arg", c.types.Get(paramType))
 		}, false))
 	}
 
@@ -614,8 +606,7 @@ func (c *codegen) VisitCall(call *ast.Call) {
 
 	if len(regs) > 0 {
 		if regs[0].Class == abi.Memory {
-			ptr := c.allocas[call]
-			c.exprValue = c.declassify(call, f.ReturnType(), ptr)
+			c.exprValue = c.declassify(call, f.ReturnType(), returnPtr)
 		} else {
 			c.exprValue = c.declassify(call, f.ReturnType(), c.exprValue)
 		}
@@ -978,6 +969,19 @@ func (c *codegen) cast(value ir.Value, from, to ast.Type, kind ast.CastKind) ir.
 }
 
 // Utils
+
+func (c *codegen) emitAlloca(name string, typ ir.Type) ir.Value {
+	in := &ir.Alloca{
+		Typ:   typ,
+		Count: 1,
+	}
+
+	in.SetName(name)
+	in.SetMeta(c.emitter.GetLocMetaRef())
+
+	c.fun.Blocks[0].AddFirst(in)
+	return in
+}
 
 func (c *codegen) emitDbgDeclare(name string, type_ ast.Type, ptr ir.Value, arg uint32, node ast.Node) {
 	c.emitter.DbgDeclare(

@@ -75,7 +75,7 @@ type Block struct {
 }
 
 func (b *Block) AddFirst(in Instruction) Instruction {
-	in.setNext(in)
+	in.setNext(b.headInstruction)
 	b.headInstruction = in
 
 	if utils.IsNil(b.tailInstruction) {

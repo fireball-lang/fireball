@@ -30,36 +30,6 @@ func isAggregateType(type_ ast.Type) bool {
 	}
 }
 
-func (c *codegen) collectAllocasArg(arg ast.Expr) {
-	if arg.Result().Kind == ast.Value {
-		regs := c.callConv.Classify(arg.Result().Type)
-
-		if (len(regs) == 1 && regs[0].Class == abi.Memory) || isAggregateType(arg.Result().Type) {
-			type_ := getClassifiedIrType(&c.types, arg.Result().Type, true)
-
-			alloca := c.emitter.Alloca(type_, 1)
-			alloca.SetName("abi.arg")
-
-			c.allocas[arg] = alloca
-		}
-	}
-}
-
-func (c *codegen) collectAllocasReturn(r *ast.Return) {
-	if ast.IsValid(r.Value) && r.Value.Result().Kind == ast.Value && isAggregateType(r.Value.Result().Type) {
-		regs := c.callConv.Classify(r.Value.Result().Type)
-
-		if len(regs) != 1 || regs[0].Class != abi.Memory {
-			type_ := getClassifiedIrType(&c.types, r.Value.Result().Type, true)
-
-			alloca := c.emitter.Alloca(type_, 1)
-			alloca.SetName("abi.return")
-
-			c.allocas[r.Value] = alloca
-		}
-	}
-}
-
 func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtrGetter func() ir.Value, alwaysStoreToPtr bool) ir.Value {
 	value := c.visit(expr)
 	type_ := expr.Result().Type
@@ -100,9 +70,10 @@ func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtr
 
 	if isAggregateType(type_) {
 		if expr.Result().Kind == ast.Value {
-			ptr := c.allocas[expr]
-			c.emitter.Store(value, ptr)
+			typ := getClassifiedIrType(&c.types, expr.Result().Type, true)
+			ptr := c.emitAlloca("abi.arg", typ)
 
+			c.emitter.Store(value, ptr)
 			value = ptr
 		}
 
@@ -131,9 +102,10 @@ func (c *codegen) declassify(call *ast.Call, type_ ast.Type, value ir.Value) ir.
 	}
 
 	if isAggregateType(type_) {
-		ptr := c.allocas[call]
-		c.emitter.Store(value, ptr)
+		typ := c.types.Get(call.Callee.Result().Type.(ast.FuncType).ReturnType())
+		ptr := c.emitAlloca("abi.call.declassify", typ)
 
+		c.emitter.Store(value, ptr)
 		return c.emitter.Load(c.types.Get(type_), ptr)
 	}
 
