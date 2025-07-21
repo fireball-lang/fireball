@@ -67,3 +67,14 @@ func GetDeclPointerType(decl Decl) *PointerType {
 		Decl: decl,
 	}}
 }
+
+func GetDeclFromDeclType[T Decl](type_ Type) (T, bool) {
+	if type_, ok := type_.(*DeclType); ok {
+		if decl, ok := type_.Decl.(T); ok {
+			return decl, true
+		}
+	}
+
+	var empty T
+	return empty, false
+}

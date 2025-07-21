@@ -1,0 +1,50 @@
+mod tests;
+
+impl Object for Rectangle {
+	func get_area() i32 {
+		return this.width * this.height;
+	}
+}
+
+#[test]
+func interfacesMethodCallSquare() bool {
+	var square = Square { size: 2 };
+	var object: Object = &square;
+
+	return object.get_area() == 4;
+}
+
+#[test]
+func interfacesMethodCallRectangle() bool {
+	var rect = Rectangle { width: 2, height: 6 };
+	return callGetArea(&rect) == 13;
+}
+
+#[test]
+func interfacesIsSquare() bool {
+	var square = Square { size: 2 };
+	var object: Object = &square;
+
+	return object is *Square;
+}
+
+#[test]
+func interfacesIsNotSquare() bool {
+	var rect = Rectangle { width: 2, height: 6 };
+	var object: Object = &rect;
+
+	return !(object is *Square);
+}
+
+#[test]
+func interfacesCastToPointer() bool {
+	var square1 = Square { size: 3 };
+	var object: Object = &square1;
+	var square2 = object as *Square;
+
+	return square2.size == 3;
+}
+
+func callGetArea(object Object) i32 {
+	return object.get_area() + 1;
+}

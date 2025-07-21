@@ -125,6 +125,33 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 	for _, file := range files {
 		for _, decl := range file.Ast().Decls {
 			switch decl := decl.(type) {
+			case *ast.Interface:
+				id := symbols.add(symbol{
+					file:           file,
+					kind:           protocol.SymbolKindInterface,
+					name:           getText(decl.NameN),
+					detail:         "",
+					range_:         getRange(decl),
+					selectionRange: getRange(decl.NameN),
+				})
+
+				for _, method := range decl.Methods {
+					detail := ""
+
+					if symbols.supportsDetail() {
+						detail = method.StringWithParamNames()
+					}
+
+					symbols.addChild(id, symbol{
+						file:           file,
+						kind:           protocol.SymbolKindMethod,
+						name:           getText(method.NameN),
+						detail:         detail,
+						range_:         getRange(method),
+						selectionRange: getRange(method.NameN),
+					})
+				}
+
 			case *ast.Impl:
 				if !ast.IsValid(decl.Decl) {
 					continue

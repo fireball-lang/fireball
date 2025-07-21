@@ -55,6 +55,15 @@ func flatten(arch Arch, callConv CallConv, type_ ast.Type, offset uint32, fields
 		case *ast.Enum:
 			fields = flatten(arch, callConv, decl.ActualType, offset, fields)
 
+		case *ast.Interface:
+			layout := StructLayout{Arch: arch}
+			ptr := ast.PointerType{Pointee: ast.VoidType}
+
+			for i := 0; i < 2; i++ {
+				relativeOffset := layout.Field(&ptr)
+				fields = flatten(arch, callConv, &ptr, offset+relativeOffset, fields)
+			}
+
 		default:
 			panic("abi.flatten() - Invalid DeclType declaration")
 		}

@@ -53,6 +53,14 @@ func getDefinitionNode(l *ast.Leaf) ast.Node {
 			return p2.Resolved
 		}
 
+	case *ast.Impl:
+		if l == p1.DeclName {
+			return p1.Decl
+		}
+		if l == p1.InterfaceName {
+			return p1.Interface
+		}
+
 	case *ast.Member:
 		return p1.Resolved
 	}

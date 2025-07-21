@@ -79,6 +79,10 @@ func (p *printer) VisitEnum(e *Enum) {
 	}
 }
 
+func (p *printer) VisitInterface(i *Interface) {
+	fmt.Printf("Inteface '%s'\n", i.Name())
+}
+
 func (p *printer) VisitImpl(i *Impl) {
 	fmt.Printf("Impl '%s'\n", i.Name())
 }
@@ -172,6 +176,10 @@ func (p *printer) VisitUnary(u *Unary) {
 
 func (p *printer) VisitBinary(b *Binary) {
 	fmt.Printf("Binary '%s'\n", b.Op)
+}
+
+func (p *printer) VisitIs(i *Is) {
+	fmt.Printf("Is '%s'\n", i.Type.String())
 }
 
 func (p *printer) VisitCast(c *Cast) {

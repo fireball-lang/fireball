@@ -21,6 +21,16 @@ func TypeInfo(arch Arch, type_ ast.Type) (uint32, uint32) {
 			return getStructInfo(arch, decl)
 		case *ast.Enum:
 			return TypeInfo(arch, decl.ActualType)
+
+		case *ast.Interface:
+			layout := StructLayout{Arch: arch}
+			ptr := ast.PointerType{Pointee: ast.VoidType}
+
+			layout.Field(&ptr)
+			layout.Field(&ptr)
+
+			return layout.Info()
+
 		default:
 			panic("abi.TypeInfo() - Invalid DeclType declaration")
 		}

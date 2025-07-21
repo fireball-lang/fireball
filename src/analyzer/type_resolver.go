@@ -117,17 +117,33 @@ func (t *typeResolver) visit(node ast.Node) {
 		t.resolveEnum(node)
 
 	case *ast.Impl:
-		if node.NameN == nil {
+		// Declaration
+		if node.DeclName == nil {
 			node.Decl = nil
 		} else {
-			decl := t.scope.GetTypeDecl(node.Name())
+			decl := t.scope.GetTypeDecl(node.DeclName.Token.Text)
 
 			switch decl.(type) {
 			case *ast.Struct, *ast.Enum:
 				node.Decl = decl
 
 			default:
-				addError(t, node.NameN, "Type with the name '"+node.Name()+"' is not a struct or an enum.")
+				addError(t, node.DeclName, "Type with the name '"+node.DeclName.Token.Text+"' is not a struct or an enum.")
+			}
+		}
+
+		// Interface
+		if node.InterfaceName == nil {
+			node.Interface = nil
+		} else {
+			decl := t.scope.GetTypeDecl(node.InterfaceName.Token.Text)
+
+			switch decl := decl.(type) {
+			case *ast.Interface:
+				node.Interface = decl
+
+			default:
+				addError(t, node.InterfaceName, "Type with the name '"+node.InterfaceName.Token.Text+"' is not an interface.")
 			}
 		}
 

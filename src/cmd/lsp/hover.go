@@ -78,24 +78,24 @@ func getHover(leaf *ast.Leaf) string {
 		return node.ActualValue.String()
 
 	case *ast.Param:
-		return node.Type.String()
+		return getTypeString(node.Type)
 
 	case *ast.StructInitializerField:
-		return node.Value.Result().Type.String()
+		return getTypeString(node.Value.Result().Type)
 
 	case *ast.Var:
 		if ast.IsValid(node.ActualType()) {
-			return node.ActualType().String()
+			return getTypeString(node.ActualType())
 		}
 
 		return ""
 
 	case ast.Expr:
-		return node.Result().Type.String()
+		return getTypeString(node.Result().Type)
 
 	case *ast.Path:
 		if expr, ok := node.Parent().(ast.Expr); ok {
-			return expr.Result().Type.String()
+			return getTypeString(expr.Result().Type)
 		}
 
 		return ""

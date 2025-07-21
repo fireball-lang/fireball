@@ -4,12 +4,16 @@ import (
 	"fireball/abi"
 	"fireball/ast"
 	"fireball/ir"
+	"fireball/utils"
 )
 
 type TypeCache struct {
 	Arch     abi.Arch
 	CallConv abi.CallConv
 	Module   *ir.Module
+
+	interfaceIrType  ir.Type
+	interfaceMetaRef ir.MetaRef
 
 	types []typeMapping
 	metas []metaMapping
@@ -26,6 +30,14 @@ type metaMapping struct {
 }
 
 func (t *TypeCache) Get(type_ ast.Type) ir.Type {
+	if _, ok := ast.GetDeclFromDeclType[*ast.Interface](type_); ok {
+		if utils.IsNil(t.interfaceIrType) {
+			t.interfaceIrType = t.createDeclType(type_.(*ast.DeclType))
+		}
+
+		return t.interfaceIrType
+	}
+
 	for _, mapping := range t.types {
 		if mapping.astType.Equals(type_) {
 			return mapping.irType
@@ -59,6 +71,14 @@ func (t *TypeCache) Get(type_ ast.Type) ir.Type {
 }
 
 func (t *TypeCache) GetMeta(type_ ast.Type) ir.MetaRef {
+	if _, ok := ast.GetDeclFromDeclType[*ast.Interface](type_); ok {
+		if !t.interfaceMetaRef.Valid() {
+			t.interfaceMetaRef = t.createDeclMeta(type_.(*ast.DeclType))
+		}
+
+		return t.interfaceMetaRef
+	}
+
 	for _, mapping := range t.metas {
 		if mapping.astType.Equals(type_) {
 			return mapping.ref
@@ -170,6 +190,12 @@ func (t *TypeCache) createDeclType(type_ *ast.DeclType) ir.Type {
 	case *ast.Enum:
 		return t.Get(decl.ActualType)
 
+	case *ast.Interface:
+		return &ir.StructType{
+			Packed: false,
+			Fields: []ir.Type{ir.Pointer, ir.Pointer},
+		}
+
 	default:
 		panic("codegen.TypeCache.createDeclType() - Invalid declaration")
 	}
@@ -220,6 +246,41 @@ func (t *TypeCache) createDeclMeta(type_ *ast.DeclType) ir.MetaRef {
 			Name:     GetDeclLinkName(decl),
 			Kind:     ir.MetaEnumerationType,
 			Elements: cases,
+			File:     0,
+			Line:     type_.Range().Start.Line,
+			Size:     size * 8,
+			Align:    align * 8,
+		})
+
+	case *ast.Interface:
+		layout := abi.StructLayout{Arch: t.Arch}
+
+		voidPtrType := ast.PointerType{Pointee: ast.VoidType}
+		voidPtrTyp := t.GetMeta(&voidPtrType)
+
+		fields := []ir.MetaRef{
+			t.Module.AddMeta(&ir.DerivedTypeMeta{
+				Kind:   ir.MetaMember,
+				Base:   voidPtrTyp,
+				Offset: layout.Field(&voidPtrType),
+				Size:   t.Arch.WordSize * 8,
+				Align:  t.Arch.WordSize * 8,
+			}),
+			t.Module.AddMeta(&ir.DerivedTypeMeta{
+				Kind:   ir.MetaMember,
+				Base:   voidPtrTyp,
+				Offset: layout.Field(&voidPtrType),
+				Size:   t.Arch.WordSize * 8,
+				Align:  t.Arch.WordSize * 8,
+			}),
+		}
+
+		size, align := layout.Info()
+
+		return t.Module.AddMeta(&ir.CompositeTypeMeta{
+			Name:     "__fb_interface",
+			Kind:     ir.MetaStructureType,
+			Elements: fields,
 			File:     0,
 			Line:     type_.Range().Start.Line,
 			Size:     size * 8,

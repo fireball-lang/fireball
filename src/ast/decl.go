@@ -18,6 +18,7 @@ type DeclVisitor interface {
 	VisitImport(i *Import)
 	VisitStruct(f *Struct)
 	VisitEnum(e *Enum)
+	VisitInterface(i *Interface)
 	VisitImpl(i *Impl)
 	VisitGlobalVar(g *GlobalVar)
 	VisitFunc(f *Func)
@@ -248,14 +249,52 @@ func (e *EnumCase) Children() iter.Seq[Node] {
 	}
 }
 
+// Interface
+
+type Interface struct {
+	baseRangeNode
+	attributeHolder
+
+	NameN   *Leaf
+	Methods []*Func
+}
+
+func (i *Interface) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if i.NameN != nil && !yield(i.NameN) {
+			return
+		}
+		for _, method := range i.Methods {
+			if !yield(method) {
+				return
+			}
+		}
+	}
+}
+
+func (i *Interface) Name() string {
+	if i.NameN != nil {
+		return i.NameN.Token.Text
+	}
+
+	return ""
+}
+
+func (i *Interface) Visit(visitor DeclVisitor) {
+	visitor.VisitInterface(i)
+}
+
 // Impl
 
 type Impl struct {
 	baseRangeNode
 	attributeHolder
 
-	NameN *Leaf
-	Decl  Decl
+	DeclName *Leaf
+	Decl     Decl
+
+	InterfaceName *Leaf
+	Interface     *Interface
 
 	Methods []*Func
 }
@@ -268,7 +307,10 @@ func (i *Impl) Children() iter.Seq[Node] {
 			}
 		}
 
-		if i.NameN != nil && !yield(i.NameN) {
+		if i.DeclName != nil && !yield(i.DeclName) {
+			return
+		}
+		if i.InterfaceName != nil && !yield(i.InterfaceName) {
 			return
 		}
 
@@ -281,8 +323,8 @@ func (i *Impl) Children() iter.Seq[Node] {
 }
 
 func (i *Impl) Name() string {
-	if i.NameN != nil {
-		return i.NameN.Token.Text
+	if i.DeclName != nil {
+		return i.DeclName.Token.Text
 	}
 
 	return ""
@@ -420,11 +462,12 @@ func (f *Func) ReturnType() Type {
 }
 
 func (f *Func) IsMethod() bool {
-	if _, ok := f.Parent().(*Impl); ok {
+	switch f.Parent().(type) {
+	case *Impl, *Interface:
 		return true
+	default:
+		return false
 	}
-
-	return false
 }
 
 // Param

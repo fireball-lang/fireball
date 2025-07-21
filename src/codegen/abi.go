@@ -2,6 +2,7 @@ package codegen
 
 import (
 	"fireball/abi"
+	"fireball/analyzer"
 	"fireball/ast"
 	"fireball/ir"
 	"fireball/lexer"
@@ -20,7 +21,9 @@ func isAggregateType(type_ ast.Type) bool {
 	switch type_ := type_.(type) {
 	case *ast.DeclType:
 		_, isStruct := type_.Decl.(*ast.Struct)
-		return isStruct
+		_, isInterface := type_.Decl.(*ast.Interface)
+
+		return isStruct || isInterface
 
 	case *ast.ArrayType:
 		return true
@@ -32,22 +35,25 @@ func isAggregateType(type_ ast.Type) bool {
 
 func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtrGetter func() ir.Value, alwaysStoreToPtr bool) ir.Value {
 	value := c.visit(expr)
+
 	type_ := expr.Result().Type
+	exprKind := expr.Result().Kind
 
 	if ast.IsValid(to) {
-		if kind, ok := ast.GetImplicitCastKind(expr.Result().Type, to); ok && kind != ast.Nop {
+		if kind, ok := analyzer.GetImplicitCastKind(nil, expr.Result().Type, to); ok && kind != analyzer.Nop {
 			value = c.load(expr, value)
 			value = c.cast(value, expr.Result().Type, to, kind)
 
 			type_ = to
+			exprKind = ast.Value
 		}
 	}
 
 	regs := c.callConv.Classify(type_)
 
 	if len(regs) == 1 && regs[0].Class == abi.Memory {
-		if alwaysStoreToPtr || expr.Result().Kind == ast.Value {
-			if expr.Result().Kind == ast.Address {
+		if alwaysStoreToPtr || exprKind == ast.Value {
+			if exprKind == ast.Address {
 				value = c.emitter.Load(c.types.Get(expr.Result().Type), value)
 			}
 
@@ -69,8 +75,8 @@ func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtr
 	}
 
 	if isAggregateType(type_) {
-		if expr.Result().Kind == ast.Value {
-			typ := getClassifiedIrType(&c.types, expr.Result().Type, true)
+		if exprKind == ast.Value {
+			typ := getClassifiedIrType(&c.types, type_, true)
 			ptr := c.emitAlloca("abi.arg", typ)
 
 			c.emitter.Store(value, ptr)
@@ -82,7 +88,7 @@ func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtr
 
 	value = c.load(expr, value)
 
-	kind, ok := ast.GetCastKind(type_, astType, true)
+	kind, ok := analyzer.GetCastKind(nil, type_, astType, true)
 	if !ok {
 		panic("codegen.codegen.visitLoadClassified() - Invalid cast kind")
 	}
@@ -111,7 +117,7 @@ func (c *codegen) declassify(call *ast.Call, type_ ast.Type, value ir.Value) ir.
 
 	astType := getClassifiedAstType(c.callConv, type_)
 
-	kind, ok := ast.GetCastKind(astType, type_, true)
+	kind, ok := analyzer.GetCastKind(nil, astType, type_, true)
 	if !ok {
 		panic("codegen.codegen.declassify() - Invalid cast kind")
 	}

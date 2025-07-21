@@ -366,37 +366,41 @@ func funcTypeEquals(f FuncType, other Type) bool {
 		}
 
 		// Signature
-		aNext, aStop := iter.Pull(f.ParamTypes())
-		bNext, bStop := iter.Pull(other.ParamTypes())
-
-		defer aStop()
-		defer bStop()
-
-		for {
-			aType, aValid := aNext()
-			bType, bValid := bNext()
-
-			if !aValid && !bValid {
-				break
-			}
-
-			if !aValid || !bValid {
-				return false
-			}
-
-			if !aType.Equals(bType) {
-				return false
-			}
-		}
-
-		if !f.ReturnType().Equals(other.ReturnType()) {
-			return false
-		}
-
-		return f.VarArgs() == other.VarArgs()
+		return FuncSignatureEquals(f, other)
 	}
 
 	return false
+}
+
+func FuncSignatureEquals[T1, T2 FuncType](f T1, other T2) bool {
+	aNext, aStop := iter.Pull(f.ParamTypes())
+	bNext, bStop := iter.Pull(other.ParamTypes())
+
+	defer aStop()
+	defer bStop()
+
+	for {
+		aType, aValid := aNext()
+		bType, bValid := bNext()
+
+		if !aValid && !bValid {
+			break
+		}
+
+		if !aValid || !bValid {
+			return false
+		}
+
+		if !aType.Equals(bType) {
+			return false
+		}
+	}
+
+	if !f.ReturnType().Equals(other.ReturnType()) {
+		return false
+	}
+
+	return f.VarArgs() == other.VarArgs()
 }
 
 func funcTypeString(f FuncType, paramNames bool) string {

@@ -15,6 +15,8 @@ func (c *converter) convertDecl(node *cst.Node) Decl {
 		return c.convertStruct(node)
 	case cst.Enum:
 		return c.convertEnum(node)
+	case cst.Interface:
+		return c.convertInterface(node)
 	case cst.Impl:
 		return c.convertImpl(node)
 	case cst.GlobalVar:
@@ -182,6 +184,25 @@ func (c *converter) convertEnumCase(node *cst.Node) *EnumCase {
 	return e
 }
 
+func (c *converter) convertInterface(node *cst.Node) *Interface {
+	i := &Interface{}
+	i.range_ = node.Range
+
+	for index := range node.Children {
+		child := &node.Children[index]
+
+		if child.Kind == cst.Attributes {
+			i.Attributes = c.convertAttributes(child)
+		} else if child.Kind == cst.Leaf && child.Token.Kind == lexer.Identifier {
+			i.NameN = c.convertLeaf(child)
+		} else if child.Kind == cst.Func {
+			i.Methods = append(i.Methods, c.convertFunc(child))
+		}
+	}
+
+	return i
+}
+
 func (c *converter) convertImpl(node *cst.Node) *Impl {
 	i := &Impl{}
 	i.range_ = node.Range
@@ -194,8 +215,14 @@ func (c *converter) convertImpl(node *cst.Node) *Impl {
 		case cst.Attributes:
 			i.Attributes = c.convertAttributes(child)
 		case cst.Leaf:
-			if child.Token.Kind == lexer.Identifier {
-				i.NameN = c.convertLeaf(child)
+			// TODO
+			if child.Token.Kind == lexer.Identifier && child.Token.Text != "impl" && child.Token.Text != "for" {
+				if i.DeclName == nil {
+					i.DeclName = c.convertLeaf(child)
+				} else {
+					i.InterfaceName = i.DeclName
+					i.DeclName = c.convertLeaf(child)
+				}
 			}
 		case cst.Func:
 			i.Methods = append(i.Methods, c.convertFunc(child))

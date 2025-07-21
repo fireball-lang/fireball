@@ -86,8 +86,17 @@ func (h *highlighter) VisitEnum(e *ast.Enum) {
 	}
 }
 
+func (h *highlighter) VisitInterface(i *ast.Interface) {
+	h.add(i.NameN, interfaceKind)
+
+	for _, method := range i.Methods {
+		h.visit(method)
+	}
+}
+
 func (h *highlighter) VisitImpl(i *ast.Impl) {
-	h.add(i.NameN, classKind)
+	h.add(i.DeclName, classKind)
+	h.add(i.InterfaceName, interfaceKind)
 
 	h.visitChildren(i)
 }
@@ -226,6 +235,10 @@ func (h *highlighter) VisitUnary(u *ast.Unary) {
 
 func (h *highlighter) VisitBinary(b *ast.Binary) {
 	h.visitChildren(b)
+}
+
+func (h *highlighter) VisitIs(i *ast.Is) {
+	h.visitChildren(i)
 }
 
 func (h *highlighter) VisitCast(c *ast.Cast) {

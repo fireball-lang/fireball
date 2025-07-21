@@ -97,6 +97,20 @@ func (a *analyzer) VisitEnum(e *ast.Enum) {
 	}
 }
 
+func (a *analyzer) VisitInterface(i *ast.Interface) {
+	methodNameMap := make(map[string]any)
+
+	for _, method := range i.Methods {
+		if method.Name() != "" {
+			if _, ok := methodNameMap[method.Name()]; ok {
+				a.error(method.NameN, "Method with the name '"+method.Name()+"' already exists.")
+			} else {
+				methodNameMap[method.Name()] = nil
+			}
+		}
+	}
+}
+
 func (a *analyzer) VisitImpl(i *ast.Impl) {
 	a.acceptChildren(i)
 
@@ -105,7 +119,25 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		implModulePath := ast.Root(i).ModulePath()
 
 		if !ast.PathEquals(structModulePath, implModulePath) {
-			a.error(firstNonNil(i.NameN, i), "Can only implement methods for structs in the same module.")
+			a.error(firstNonNil(i.DeclName, i), "Can only implement methods for types in the same module.")
+		}
+	}
+
+	if ast.IsValid(i.Interface) {
+		for _, interfaceMethod := range i.Interface.Methods {
+			contains := false
+
+			for _, implMethod := range i.Methods {
+				if implMethod.Name() == interfaceMethod.Name() && ast.FuncSignatureEquals(implMethod, interfaceMethod) {
+					contains = true
+					break
+				}
+			}
+
+			if !contains {
+				a.error(firstNonNil(i.DeclName, i), "Implementation is missing method '"+strings.Replace(interfaceMethod.String(), "fn ", interfaceMethod.Name(), 1)+"' from interface '"+i.Interface.Name()+"'.")
+				break
+			}
 		}
 	}
 }
@@ -603,7 +635,7 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 			if method == nil {
 				a.error(m.Name, "Type '"+decl.Name()+"' doesn't have a member with the name '"+m.Name.Token.Text+"'.")
 			} else {
-				m.Result().Set(ast.Address, method)
+				m.Result().Set(ast.Value, method)
 				m.Resolved = method
 			}
 		} else if ast.IsValid(field.Type) {
@@ -749,7 +781,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 
 		if _, ok := b.Left.Result().Type.(*ast.PrimitiveType); !ok {
 			if _, ok := b.Left.Result().Type.(*ast.PointerType); !ok {
-				if _, ok := GetDeclFromDeclType[*ast.Enum](b.Left.Result().Type); !ok {
+				if _, ok := ast.GetDeclFromDeclType[*ast.Enum](b.Left.Result().Type); !ok {
 					a.error(b.Left, "Can only check equality for primitive and pointer types, not '"+b.Left.Result().Type.String()+"'.")
 				}
 			}
@@ -813,6 +845,33 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 	}
 }
 
+func (a *analyzer) VisitIs(i *ast.Is) {
+	a.acceptChildren(i)
+	i.Result().Set(ast.Value, ast.BoolType)
+
+	if ast.IsValid(i.Value) && i.Value.Result().Kind != ast.Invalid {
+		if _, ok := ast.GetDeclFromDeclType[*ast.Interface](i.Value.Result().Type); !ok {
+			a.error(i.Value, "Value needs be an interface, not '"+i.Value.Result().Type.String()+"'.")
+		}
+	}
+
+	if ast.IsValid(i.Type) {
+		var pointee ast.Type
+
+		if p, ok := i.Type.(*ast.PointerType); ok {
+			pointee = p.Pointee
+		} else {
+			a.error(i.Type, "Type needs to be a pointer to a declaration, not '"+i.Type.String()+"'.")
+		}
+
+		if ast.IsValid(pointee) {
+			if _, ok := pointee.(*ast.DeclType); !ok {
+				a.error(i.Type, "Type needs to be a pointer to a declaration, not '"+i.Type.String()+"'.")
+			}
+		}
+	}
+}
+
 func (a *analyzer) VisitCast(c *ast.Cast) {
 	a.acceptChildren(c)
 	c.Result().SetInvalid()
@@ -821,7 +880,7 @@ func (a *analyzer) VisitCast(c *ast.Cast) {
 		return
 	}
 
-	if _, ok := ast.GetCastKind(c.Value.Result().Type, c.Type, false); !ok {
+	if _, ok := GetCastKind(a.ctx, c.Value.Result().Type, c.Type, false); !ok {
 		a.error(c, "Cannot cast from '"+c.Value.Result().Type.String()+"' to '"+c.Type.String()+"'.")
 		return
 	}
@@ -862,7 +921,7 @@ func (a *analyzer) checkType(expr ast.Expr, expected ast.Type) bool {
 		return true
 	}
 
-	if _, ok := ast.GetImplicitCastKind(expr.Result().Type, expected); ok {
+	if _, ok := GetImplicitCastKind(a.ctx, expr.Result().Type, expected); ok {
 		return true
 	}
 

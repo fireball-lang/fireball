@@ -7,6 +7,7 @@ import (
 	"fireball/ir"
 	"fireball/lexer"
 	"fireball/utils"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -125,16 +126,29 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ir
 
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
+		case *ast.Struct, *ast.Enum:
+			c.newTypeInfo(decl)
+
 		case *ast.Impl:
 			for _, method := range decl.Methods {
 				c.newFunction(method)
 			}
 
 		case *ast.GlobalVar:
-			c.collectGlobalVar(decl)
+			c.newGlobalVar(decl)
 
 		case *ast.Func:
 			c.newFunction(decl)
+		}
+	}
+
+	// Create vtables
+
+	for _, decl := range file.Decls {
+		if decl, ok := decl.(*ast.Impl); ok {
+			if ast.IsValid(decl.Interface) {
+				c.newVTable(decl)
+			}
 		}
 	}
 
@@ -157,7 +171,36 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ir
 
 // Declarations
 
-func (c *codegen) collectGlobalVar(g *ast.GlobalVar) {
+func (c *codegen) newTypeInfo(decl ast.Decl) {
+	gVar := c.module.NewGlobalVar(GetTypeInfoLinkName(decl), ir.I8)
+	gVar.Flags = ir.Constant
+	gVar.Initializer = &ir.ZeroInitializer{Typ: ir.I8}
+}
+
+func (c *codegen) newVTable(impl *ast.Impl) {
+	typ := &ir.ArrayType{
+		Length:  1 + uint32(len(impl.Interface.Methods)),
+		Element: ir.Pointer,
+	}
+
+	pointers := make([]ir.Value, 0, typ.Length)
+	pointers = append(pointers, c.getTypeInfoPointer(impl.Decl))
+
+	for _, method := range impl.Interface.Methods {
+		for _, function := range impl.Methods {
+			if method.Name() == function.Name() && ast.FuncSignatureEquals(method, function) {
+				pointers = append(pointers, c.functions[function])
+				break
+			}
+		}
+	}
+
+	gVar := c.module.NewGlobalVar(GetVTableLinkName(impl.Decl, impl.Interface), typ)
+	gVar.Flags = ir.Constant
+	gVar.Initializer = &ir.Array{Elements: pointers}
+}
+
+func (c *codegen) newGlobalVar(g *ast.GlobalVar) {
 	typ := c.types.Get(g.Type)
 
 	gVar := c.module.NewGlobalVar(GetGlobalVarLinkName(g), typ)
@@ -576,7 +619,8 @@ func (c *codegen) VisitCall(call *ast.Call) {
 		args = append(args, returnPtr)
 	}
 
-	if _, ok := f.Parent().(*ast.Impl); ok {
+	switch f.Parent().(type) {
+	case *ast.Impl:
 		expr := call.Callee.(*ast.Member).Value
 		value := c.visit(expr)
 
@@ -588,6 +632,12 @@ func (c *codegen) VisitCall(call *ast.Call) {
 		}
 
 		args = append(args, value)
+
+	case *ast.Interface:
+		value := callee.(*ir.Load).Pointer.(*ir.GetElementPtrConst).Pointer.(*ir.ExtractValue).Value
+		dataPtr := c.emitter.ExtractValue(value, 0)
+
+		args = append(args, dataPtr)
 	}
 
 	for i, arg := range call.Args {
@@ -654,7 +704,25 @@ func (c *codegen) VisitMember(m *ast.Member) {
 
 	// Method
 	if f, ok := m.Result().Type.(*ast.Func); ok {
-		c.exprValue = c.getValueForFunc(f)
+		if in, ok := f.Parent().(*ast.Interface); ok {
+			// Dynamic dispatch
+			v := c.visitLoad(m.Value)
+
+			typ := &ir.ArrayType{
+				Length:  1 + uint32(len(in.Methods)),
+				Element: ir.Pointer,
+			}
+
+			index := uint32(slices.Index(in.Methods, f))
+
+			vtablePtr := c.emitter.ExtractValue(v, 1)
+			funPtrOffset := c.emitter.GetElementPtrConst(typ, vtablePtr, 0, 1+index)
+			c.exprValue = c.emitter.Load(ir.Pointer, funPtrOffset)
+		} else {
+			// Static dispatch
+			c.exprValue = c.getValueForFunc(f)
+		}
+
 		return
 	}
 
@@ -911,13 +979,24 @@ func (c *codegen) binarySimple(op lexer.TokenKind, left, right ir.Value, type_ a
 	}
 }
 
+func (c *codegen) VisitIs(i *ast.Is) {
+	value := c.visitLoad(i.Value)
+
+	valueVTable := c.emitter.ExtractValue(value, 1)
+	valueTypeInfo := c.emitter.Load(ir.Pointer, valueVTable)
+
+	typeTypeInfo := c.getTypeInfoPointer(i.Type.(*ast.PointerType).Pointee.(*ast.DeclType).Decl)
+
+	c.exprValue = c.emitter.ICmp(ir.Eq, false, valueTypeInfo, typeTypeInfo)
+}
+
 func (c *codegen) VisitCast(cast *ast.Cast) {
 	value := c.visitLoad(cast.Value)
 
 	from := cast.Value.Result().Type
 	to := cast.Type
 
-	kind, ok := ast.GetCastKind(from, to, false)
+	kind, ok := analyzer.GetCastKind(nil, from, to, false)
 	if !ok {
 		panic("codegen.codegen.VisitCast() - Invalid cast kind")
 	}
@@ -938,7 +1017,7 @@ func getIrDivKind(type_ ast.Type) ir.DivKind {
 	return ir.Unsigned
 }
 
-func (c *codegen) cast(value ir.Value, from, to ast.Type, kind ast.CastKind) ir.Value {
+func (c *codegen) cast(value ir.Value, from, to ast.Type, kind analyzer.CastKind) ir.Value {
 	typ := c.types.Get(to)
 
 	if declType, ok := from.(*ast.DeclType); ok {
@@ -948,20 +1027,37 @@ func (c *codegen) cast(value ir.Value, from, to ast.Type, kind ast.CastKind) ir.
 	}
 
 	switch kind {
-	case ast.Nop:
+	case analyzer.Nop:
 		return value
-	case ast.Extend:
+	case analyzer.Extend:
 		return c.emitter.Ext(getIrDivKind(from), value, typ)
-	case ast.Truncate:
+	case analyzer.Truncate:
 		return c.emitter.Trunc(value, typ)
-	case ast.IntegerToFloating:
+	case analyzer.IntegerToFloating:
 		return c.emitter.IntToFp(from.(*ast.PrimitiveType).Kind.IsSignedInteger(), value, typ)
-	case ast.FloatingToInteger:
+	case analyzer.FloatingToInteger:
 		return c.emitter.FpToInt(to.(*ast.PrimitiveType).Kind.IsSignedInteger(), value, typ)
-	case ast.IntegerToPointer:
+	case analyzer.IntegerToPointer:
 		return c.emitter.IntToPtr(value, typ)
-	case ast.PointerToInteger:
+	case analyzer.PointerToInteger:
 		return c.emitter.PtrToInt(value, typ)
+
+	case analyzer.PointerToInterface:
+		decl := from.(*ast.PointerType).Pointee.(*ast.DeclType).Decl
+		in := to.(*ast.DeclType).Decl.(*ast.Interface)
+
+		v := &ir.Struct{
+			Typ: typ,
+			Fields: []ir.Value{
+				&ir.Null{},
+				c.getVTablePointer(decl, in),
+			},
+		}
+
+		return c.emitter.InsertValue(v, value, 0)
+
+	case analyzer.InterfaceToPointer:
+		return c.emitter.ExtractValue(value, 0)
 
 	default:
 		panic("codegen.codegen.cast() - Invalid cast kind")
@@ -981,6 +1077,41 @@ func (c *codegen) emitAlloca(name string, typ ir.Type) ir.Value {
 
 	c.fun.Blocks[0].AddFirst(in)
 	return in
+}
+
+func (c *codegen) getTypeInfoPointer(decl ast.Decl) ir.Value {
+	typeInfoName := GetTypeInfoLinkName(decl)
+
+	for gVar := range c.module.GlobalVars() {
+		if gVar.Name == typeInfoName {
+			return gVar
+		}
+	}
+
+	gVar := c.module.NewGlobalVar(typeInfoName, ir.I8)
+	gVar.Flags = ir.External | ir.Constant
+
+	return gVar
+}
+
+func (c *codegen) getVTablePointer(decl ast.Decl, in *ast.Interface) ir.Value {
+	vtableName := GetVTableLinkName(decl, in)
+
+	for gVar := range c.module.GlobalVars() {
+		if gVar.Name == vtableName {
+			return gVar
+		}
+	}
+
+	typ := &ir.ArrayType{
+		Length:  1 + uint32(len(in.Methods)),
+		Element: ir.Pointer,
+	}
+
+	gVar := c.module.NewGlobalVar(vtableName, typ)
+	gVar.Flags = ir.External | ir.Constant
+
+	return gVar
 }
 
 func (c *codegen) emitDbgDeclare(name string, type_ ast.Type, ptr ir.Value, arg uint32, node ast.Node) {
@@ -1049,7 +1180,7 @@ func (c *codegen) load(expr ast.Expr, value ir.Value) ir.Value {
 
 func (c *codegen) implicitCast(value ir.Value, from, to ast.Type) ir.Value {
 	if ast.IsValid(from) && ast.IsValid(to) {
-		if kind, ok := ast.GetImplicitCastKind(from, to); ok {
+		if kind, ok := analyzer.GetImplicitCastKind(nil, from, to); ok {
 			value = c.cast(value, from, to, kind)
 		}
 	}

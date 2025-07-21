@@ -23,12 +23,14 @@ func (p *parser) declNode(invalidKeyword *bool) (Node, bool) {
 		return p.structNode(attributes)
 	case "enum":
 		return p.enumNode(attributes)
+	case "interface":
+		return p.interfaceNode(attributes)
 	case "impl":
 		return p.implNode(attributes)
 	case "var":
 		return p.globalVarNode(attributes)
 	case "func":
-		return p.funcNode(attributes)
+		return p.funcNode(attributes, true)
 
 	default:
 		*invalidKeyword = true
@@ -350,6 +352,52 @@ func (p *parser) enumCaseNode() (Node, bool) {
 	return node, false
 }
 
+func (p *parser) interfaceNode(attributes Node) (Node, bool) {
+	node := Node{Kind: Interface}
+	node.append(attributes)
+
+	// Keyword
+	node.append(p.advance())
+
+	// Name
+	if p.appendAdvance(&node, lexer.Identifier, "Expected interface name.") {
+		return node, true
+	}
+
+	// {
+	if p.appendAdvance(&node, lexer.LeftBrace, "Expected '{' before interface methods.") {
+		return node, true
+	}
+
+	// Methods
+	for p.current.Kind != lexer.RightBrace {
+		var attributes Node
+
+		if p.current.Kind == lexer.Hashtag {
+			attrs, err := p.attributesNode()
+			if err {
+				return node, true
+			}
+
+			attributes = attrs
+		}
+
+		child, err := p.funcNode(attributes, false)
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+	}
+
+	// }
+	if p.appendAdvance(&node, lexer.RightBrace, "Expected '}' after interface methods.") {
+		return node, true
+	}
+
+	return node, false
+}
+
 func (p *parser) implNode(attributes Node) (Node, bool) {
 	node := Node{Kind: Impl}
 	node.append(attributes)
@@ -358,8 +406,19 @@ func (p *parser) implNode(attributes Node) (Node, bool) {
 	node.append(p.advance())
 
 	// Name
-	if p.appendAdvance(&node, lexer.Identifier, "Expected struct name.") {
+	if p.appendAdvance(&node, lexer.Identifier, "Expected struct or interface name.") {
 		return node, true
+	}
+
+	// for <name>
+	if p.current.Text == "for" {
+		// for
+		node.append(p.advance())
+
+		// Interface
+		if p.appendAdvance(&node, lexer.Identifier, "Expected struct name.") {
+			return node, true
+		}
 	}
 
 	// {
@@ -380,7 +439,7 @@ func (p *parser) implNode(attributes Node) (Node, bool) {
 			attributes = attrs
 		}
 
-		child, err := p.funcNode(attributes)
+		child, err := p.funcNode(attributes, true)
 		node.append(child)
 
 		if err {
@@ -441,7 +500,7 @@ func (p *parser) globalVarNode(attributes Node) (Node, bool) {
 	return node, false
 }
 
-func (p *parser) funcNode(attributes Node) (Node, bool) {
+func (p *parser) funcNode(attributes Node, allowBody bool) (Node, bool) {
 	node := Node{Kind: Func}
 	node.append(attributes)
 
@@ -489,7 +548,7 @@ func (p *parser) funcNode(attributes Node) (Node, bool) {
 	}
 
 	// Return type
-	if p.current.Kind != lexer.LeftBrace {
+	if !allowBody || p.current.Kind != lexer.LeftBrace {
 		child, err := p.typeNode()
 		node.append(child)
 
@@ -499,7 +558,7 @@ func (p *parser) funcNode(attributes Node) (Node, bool) {
 	}
 
 	// Body
-	if p.current.Kind == lexer.LeftBrace {
+	if allowBody && p.current.Kind == lexer.LeftBrace {
 		child, err := p.blockNode()
 		node.append(child)
 

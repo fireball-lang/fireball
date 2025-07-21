@@ -42,6 +42,8 @@ func (c *converter) convertExpr(node *cst.Node) Expr {
 		return c.convertUnary(node)
 	case cst.Binary:
 		return c.convertBinary(node)
+	case cst.Is:
+		return c.convertIs(node)
 	case cst.Cast:
 		return c.convertCast(node)
 
@@ -418,6 +420,23 @@ func (c *converter) convertBinary(node *cst.Node) *Binary {
 	}
 
 	return b
+}
+
+func (c *converter) convertIs(node *cst.Node) *Is {
+	is := &Is{}
+	is.range_ = node.Range
+
+	for i := range node.Children {
+		child := &node.Children[i]
+
+		if child.Kind.IsExpr() {
+			is.Value = c.convertExpr(child)
+		} else if child.Kind.IsType() {
+			is.Type = c.convertType(child)
+		}
+	}
+
+	return is
 }
 
 func (c *converter) convertCast(node *cst.Node) *Cast {

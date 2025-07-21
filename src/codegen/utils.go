@@ -50,15 +50,27 @@ func GetFuncLinkName(f *ast.Func) string {
 }
 
 func GetDeclLinkName(decl ast.Decl) string {
-	modPath := ast.Root(decl).ModulePath()
 	var sb strings.Builder
 
-	for i := 0; i < modPath.SegmentCount(); i++ {
-		sb.WriteString(modPath.SegmentAt(i))
-		sb.WriteRune(':')
-	}
+	modPath := ast.Root(decl).ModulePath()
+	writePath(&sb, modPath)
 
 	sb.WriteString(decl.Name())
+	return sb.String()
+}
+
+func GetTypeInfoLinkName(decl ast.Decl) string {
+	return "type_info - " + GetDeclLinkName(decl)
+}
+
+func GetVTableLinkName(decl ast.Decl, in *ast.Interface) string {
+	var sb strings.Builder
+
+	sb.WriteString("vtable - ")
+	sb.WriteString(GetDeclLinkName(in))
+	sb.WriteString(" for ")
+	sb.WriteString(GetDeclLinkName(decl))
+
 	return sb.String()
 }
 

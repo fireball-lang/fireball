@@ -98,17 +98,6 @@ func parseUint(str string, base int, errorMsg string) (utils.Integer, string) {
 	return utils.Unsigned(false, v), ""
 }
 
-func GetDeclFromDeclType[T ast.Decl](type_ ast.Type) (T, bool) {
-	if type_, ok := type_.(*ast.DeclType); ok {
-		if decl, ok := type_.Decl.(T); ok {
-			return decl, true
-		}
-	}
-
-	var empty T
-	return empty, false
-}
-
 func structContainsType(decl *ast.Struct, lookingFor *ast.Struct) bool {
 	for _, field := range decl.Fields {
 		if d, ok := field.Type.(*ast.DeclType); ok {

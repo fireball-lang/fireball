@@ -19,6 +19,7 @@ const (
 	Field
 	Enum
 	EnumCase
+	Interface
 	Impl
 	GlobalVar
 	Func
@@ -45,6 +46,7 @@ const (
 	Member
 	Unary
 	Binary
+	Is
 	Cast
 )
 
@@ -53,7 +55,7 @@ func (n NodeKind) IsType() bool {
 }
 
 func (n NodeKind) IsDecl() bool {
-	return n == Mod || n == Import || n == Struct || n == Enum || n == Impl || n == GlobalVar || n == Func
+	return n == Mod || n == Import || n == Struct || n == Enum || n == Interface || n == Impl || n == GlobalVar || n == Func
 }
 
 func (n NodeKind) IsExpr() bool {
@@ -91,6 +93,8 @@ func (n NodeKind) String() string {
 		return "Enum"
 	case EnumCase:
 		return "EnumCase"
+	case Interface:
+		return "Interface"
 	case Impl:
 		return "Impl"
 	case GlobalVar:
@@ -141,6 +145,8 @@ func (n NodeKind) String() string {
 		return "Unary"
 	case Binary:
 		return "Binary"
+	case Is:
+		return "Is"
 	case Cast:
 		return "Cast"
 

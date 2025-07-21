@@ -1,0 +1,20 @@
+mod tests;
+
+struct Square {
+	size i32;
+}
+
+struct Rectangle {
+	width i32;
+	height i32;
+}
+
+interface Object {
+	func get_area() i32
+}
+
+impl Object for Square {
+	func get_area() i32 {
+		return this.size * this.size;
+	}
+}

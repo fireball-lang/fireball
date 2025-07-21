@@ -20,6 +20,7 @@ type Module interface {
 	SymbolLookup
 
 	AbsolutePath() ast.PathLike
+	DeclImplementsInterface(decl ast.Decl, in *ast.Interface) bool
 }
 
 type Scope interface {

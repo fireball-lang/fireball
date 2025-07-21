@@ -23,6 +23,8 @@ func (m *Module) checkNameCollisions() {
 				checkName(decl, decl.NameN.Range(), names, &diagnostics)
 			case *ast.Enum:
 				checkName(decl, decl.NameN.Range(), names, &diagnostics)
+			case *ast.Interface:
+				checkName(decl, decl.NameN.Range(), names, &diagnostics)
 			case *ast.GlobalVar:
 				checkName(decl, decl.NameN.Range(), names, &diagnostics)
 			case *ast.Func:
@@ -55,7 +57,7 @@ func (m *Module) GetTypeDecl(name string) ast.Decl {
 	for _, file := range m.files {
 		for _, decl := range file.ast.Decls {
 			switch decl.(type) {
-			case *ast.Struct, *ast.Enum:
+			case *ast.Struct, *ast.Enum, *ast.Interface:
 				if decl.Name() == name {
 					return decl
 				}
@@ -110,4 +112,16 @@ func (m *Module) GetDeclMethod(decl ast.Decl, name string) *ast.Func {
 
 func (m *Module) AbsolutePath() ast.PathLike {
 	return m.path
+}
+
+func (m *Module) DeclImplementsInterface(decl ast.Decl, in *ast.Interface) bool {
+	for _, file := range m.files {
+		for _, d := range file.ast.Decls {
+			if impl, ok := d.(*ast.Impl); ok && impl.Decl == decl && impl.Interface == in {
+				return true
+			}
+		}
+	}
+
+	return false
 }

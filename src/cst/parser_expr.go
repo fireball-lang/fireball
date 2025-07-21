@@ -496,7 +496,14 @@ func (p *parser) infixExprNode(token lexer.Token, lhs Node, rightPower int) (Nod
 	case lexer.Dot:
 		return p.memberNode(lhs)
 	case lexer.Identifier:
-		return p.castNode(lhs)
+		switch token.Text {
+		case "is":
+			return p.isNode(lhs)
+		case "as":
+			return p.castNode(lhs)
+		default:
+			panic("cst.parser.infixExprNode() - Invalid identifier text")
+		}
 	default:
 		return p.binaryNode(lhs, rightPower)
 	}
@@ -531,6 +538,28 @@ func (p *parser) binaryNode(lhs Node, rightPower int) (Node, bool) {
 	// Right
 	{
 		child, err := p.exprNode(rightPower)
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+	}
+
+	return node, false
+}
+
+func (p *parser) isNode(lhs Node) (Node, bool) {
+	node := Node{Kind: Is}
+
+	// left
+	node.append(lhs)
+
+	// is
+	node.append(p.advance())
+
+	// Type
+	{
+		child, err := p.typeNode()
 		node.append(child)
 
 		if err {
@@ -717,8 +746,8 @@ func init() {
 	infix(false, nil, lexer.Ampersand)
 	// ==, !=
 	infix(false, nil, lexer.EqualEqual, lexer.BangEqual)
-	// >, <=, >, >=, as
-	infix(false, []string{"as"}, lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual)
+	// >, <=, >, >=, is, as
+	infix(false, []string{"is", "as"}, lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual)
 	// +, -
 	infix(false, nil, lexer.Plus, lexer.Minus)
 	// *, /, %

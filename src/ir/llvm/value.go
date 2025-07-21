@@ -93,8 +93,7 @@ func (w *writer) arrayLikeValue(start, stop string, elements []ir.Value) {
 			w.string(", ")
 		}
 
-		w.typ(field.Type())
-		w.value(field)
+		w.typValue(field)
 	}
 
 	w.string(stop)

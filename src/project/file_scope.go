@@ -25,6 +25,14 @@ func (f *fileScope) GetFuncDecl(name string) *ast.Func {
 }
 
 func (f *fileScope) GetDeclMethod(decl ast.Decl, name string) *ast.Func {
+	if in, ok := decl.(*ast.Interface); ok {
+		for _, method := range in.Methods {
+			if method.Name() == name {
+				return method
+			}
+		}
+	}
+
 	return f.mod.GetDeclMethod(decl, name)
 }
 
