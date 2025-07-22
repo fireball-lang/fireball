@@ -2,6 +2,7 @@ package main
 
 import (
 	"fireball/ast"
+	"fireball/cmd/build"
 	"fireball/cmd/lsp"
 	"fireball/codegen"
 	"fireball/ir"
@@ -32,30 +33,34 @@ func main() {
 }
 
 func buildCommand() *cobra.Command {
-	opt := uint8(0)
+	release := false
 
 	cmd := &cobra.Command{
 		Use:   "build",
 		Short: "Build the project.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := buildExe(opt)
+			profile := getProfile(release)
+			_, err := buildPath(".", profile, buildExecutableEntrypoint)
+
 			return err
 		},
 	}
 
-	cmd.Flags().Uint8VarP(&opt, "opt", "O", 0, "Optimization level. [-O0, -O1, -O2, or -O3] (default = '-O0')")
+	cmd.Flags().BoolVarP(&release, "release", "r", false, "Build project using using the release profile.")
 
 	return cmd
 }
 
 func runCommand() *cobra.Command {
-	opt := uint8(0)
+	release := false
 
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run the project.",
 		RunE: func(_ *cobra.Command, args []string) error {
-			path, err := buildExe(opt)
+			profile := getProfile(release)
+			path, err := buildPath(".", profile, buildExecutableEntrypoint)
+
 			if err != nil {
 				return err
 			}
@@ -70,30 +75,38 @@ func runCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().Uint8VarP(&opt, "opt", "O", 0, "Optimization level. [-O0, -O1, -O2, or -O3] (default = '-O0')")
+	cmd.Flags().BoolVarP(&release, "release", "r", false, "Build project using using the release profile.")
 
 	return cmd
 }
 
-func buildExe(opt uint8) (string, error) {
-	return build(".", "", opt, func(proj *project.Project) *ir.Module {
-		m := ir.NewModule()
+func getProfile(release bool) build.Profile {
+	if release {
+		return build.Profile{
+			Name: "release",
+			Opt:  2,
+		}
+	}
 
-		mainType := &ast.SimpleFuncType{Returns: &ast.PrimitiveType{Kind: ast.I32}}
-		mainTyp := &ir.FunctionType{Returns: ir.I32}
+	return build.Profile{
+		Name: "debug",
+		Opt:  0,
+	}
+}
 
-		fbMainFunc := getMainFunc(proj, mainType)
-		fbMain := m.NewFunction(codegen.GetFuncLinkName(fbMainFunc), mainTyp, nil)
-		fbMain.Flags = ir.Declare | ir.DsoLocal
+func buildExecutableEntrypoint(proj *project.Project, m *ir.Module, main *ir.Function) string {
+	mainType := &ast.SimpleFuncType{Returns: &ast.PrimitiveType{Kind: ast.I32}}
+	mainTyp := &ir.FunctionType{Returns: ir.I32}
 
-		main := m.NewFunction("main", mainTyp, nil)
+	fbMainFunc := getMainFunc(proj, mainType)
+	fbMain := m.NewFunction(codegen.GetFuncLinkName(fbMainFunc), mainTyp, nil)
+	fbMain.Flags = ir.Declare | ir.DsoLocal
 
-		emitter := ir.Emitter{Module: m}
-		emitter.Begin(main.NewBlock("func.entry"))
-		emitter.Ret(emitter.Call(mainTyp, fbMain, nil))
+	emitter := ir.Emitter{Module: m}
+	emitter.Begin(main.NewBlock("func.entry"))
+	emitter.Ret(emitter.Call(mainTyp, fbMain, nil))
 
-		return m
-	})
+	return ""
 }
 
 func getMainFunc(proj *project.Project, type_ ast.FuncType) *ast.Func {

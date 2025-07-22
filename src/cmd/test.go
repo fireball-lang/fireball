@@ -114,7 +114,9 @@ func testCommand() *cobra.Command {
 		Use:   "test",
 		Short: "Runs tests in the projects.",
 		RunE: func(_ *cobra.Command, args []string) error {
-			path, err := build(".", "test", 0, createTestModule)
+			profile := getProfile(false)
+			path, err := buildPath(".", profile, buildTestEntrypoint)
+
 			if err != nil {
 				return err
 			}
@@ -143,9 +145,7 @@ func testCommand() *cobra.Command {
 	return cmd
 }
 
-func createTestModule(proj *project.Project) *ir.Module {
-	m := ir.NewModule()
-
+func buildTestEntrypoint(proj *project.Project, m *ir.Module, main *ir.Function) string {
 	testTyp := &ir.FunctionType{Returns: ir.I8}
 	var tests []*ir.Function
 
@@ -173,9 +173,6 @@ func createTestModule(proj *project.Project) *ir.Module {
 	flush := m.NewFunction("fflush", flushTyp, []string{"file"})
 	flush.Flags = ir.Declare
 
-	mainTyp := &ir.FunctionType{Returns: ir.I32}
-	main := m.NewFunction("main", mainTyp, nil)
-
 	emitter := ir.Emitter{Module: m}
 	emitter.Begin(main.NewBlock("func.entry"))
 
@@ -196,7 +193,7 @@ func createTestModule(proj *project.Project) *ir.Module {
 
 	emitter.Ret(counter)
 
-	return m
+	return "test"
 }
 
 func i32Value(value int64) ir.Value {

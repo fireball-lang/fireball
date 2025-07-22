@@ -1,23 +1,19 @@
 package main
 
 import (
-	"fireball/abi"
-	"fireball/codegen"
-	"fireball/ir"
-	"fireball/ir/llvm"
+	"fireball/cmd/build"
 	"fireball/project"
 	"fireball/utils"
 	"fmt"
 	"github.com/fatih/color"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 )
 
-func build(path string, suffix string, opt uint8, entrypointCb func(proj *project.Project) *ir.Module) (string, error) {
+func buildPath(path string, profile build.Profile, entrypointFunc build.EntrypointFunc) (string, error) {
 	start := time.Now()
 
 	defer func() {
@@ -35,14 +31,14 @@ func build(path string, suffix string, opt uint8, entrypointCb func(proj *projec
 	// Report diagnostics
 	hasError := reportDiagnostics(proj)
 
-	// Compile
+	// Build
 	if !hasError {
-		path, err := compile(proj, suffix, opt, entrypointCb)
+		binaryPath, err := build.Build(proj, profile, entrypointFunc)
 
 		fmt.Println()
 		color.Green("Build successful")
 
-		return path, err
+		return binaryPath, err
 	}
 
 	// Build failed
@@ -106,87 +102,6 @@ func reportDiagnostics(proj *project.Project) bool {
 	}
 
 	return hasError
-}
-
-func compile(proj *project.Project, suffix string, opt uint8, entrypointCb func(proj *project.Project) *ir.Module) (string, error) {
-	// Codegen
-	err := os.MkdirAll(filepath.Join(proj.AbsolutePath, "out"), 0750)
-	if err != nil {
-		return "", err
-	}
-
-	for file := range proj.Files() {
-		path := file.SrcRelativePath()
-		path = strings.ReplaceAll(path, "/", "-")
-		path = strings.TrimSuffix(path, ".fb") + ".ll"
-		path = filepath.Join(proj.AbsolutePath, "out", path)
-
-		f, err := os.Create(path)
-		if err != nil {
-			return "", err
-		}
-
-		m := codegen.Emit(file.Ast(), file.AbsolutePath(), abi.AMD64, abi.SystemV)
-		err = llvm.Write(m, f)
-
-		_ = f.Close()
-
-		if err != nil {
-			return "", err
-		}
-	}
-
-	exeName := proj.Config.Name
-	if suffix != "" {
-		exeName += "_" + suffix
-	}
-
-	entrypoint := entrypointCb(proj)
-
-	entrypointName := "_"
-	if suffix != "" {
-		entrypointName += "_" + suffix
-	}
-	entrypointName += "_entrypoint.ll"
-
-	{
-		path := filepath.Join(proj.AbsolutePath, "out", entrypointName)
-
-		f, err := os.Create(path)
-		if err != nil {
-			return "", err
-		}
-
-		err = llvm.Write(entrypoint, f)
-
-		_ = f.Close()
-
-		if err != nil {
-			return "", err
-		}
-	}
-
-	// Compile
-	cmd := exec.Command("clang", "-g", fmt.Sprintf("-O%d", opt), "-o", exeName)
-	cmd.Dir = filepath.Join(proj.AbsolutePath, "out")
-	cmd.Stderr = os.Stderr
-
-	for file := range proj.Files() {
-		path := file.SrcRelativePath()
-		path = strings.ReplaceAll(path, "/", "-")
-		path = strings.TrimSuffix(path, ".fb") + ".ll"
-
-		cmd.Args = append(cmd.Args, path)
-	}
-
-	cmd.Args = append(cmd.Args, entrypointName)
-
-	err = cmd.Run()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(proj.AbsolutePath, "out", exeName), nil
 }
 
 type simpleFileContentsProvider struct {
