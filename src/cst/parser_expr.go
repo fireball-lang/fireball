@@ -76,6 +76,10 @@ func (p *parser) prefixExprNode() (Node, bool) {
 				return p.structInitializerNode(identifier)
 			}
 
+			if p.current.Kind == lexer.LeftParen && (identifier.Token.Text == "sizeof" || identifier.Token.Text == "alignof") {
+				return p.typeCallNode(identifier)
+			}
+
 			return p.identifierNode(identifier)
 		}
 
@@ -152,6 +156,35 @@ func (p *parser) structInitializerFieldNode() (Node, bool) {
 		if err {
 			return node, true
 		}
+	}
+
+	return node, false
+}
+
+func (p *parser) typeCallNode(identifier Node) (Node, bool) {
+	node := Node{Kind: TypeCall}
+
+	// Identifier
+	node.append(identifier)
+
+	// (
+	if p.appendAdvance(&node, lexer.LeftParen, "Expected '(' before type.") {
+		return node, true
+	}
+
+	// <type>
+	{
+		child, err := p.typeNode()
+		node.append(child)
+
+		if err {
+			return node, true
+		}
+	}
+
+	// )
+	if p.appendAdvance(&node, lexer.RightParen, "Expected ')' after type.") {
+		return node, true
 	}
 
 	return node, false

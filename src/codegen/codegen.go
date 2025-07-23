@@ -663,6 +663,20 @@ func (c *codegen) VisitCall(call *ast.Call) {
 	}
 }
 
+func (c *codegen) VisitTypeCall(t *ast.TypeCall) {
+	size, align := abi.TypeInfo(c.arch, t.Arg)
+
+	value := size
+	if t.Kind == ast.Alignof {
+		value = align
+	}
+
+	c.exprValue = &ir.Integer{
+		Typ:   ir.I32,
+		Value: utils.Unsigned(false, uint64(value)),
+	}
+}
+
 func (c *codegen) VisitIndex(i *ast.Index) {
 	ptr := c.visit(i.Value)
 	index := c.visitLoad(i.Index)

@@ -532,6 +532,11 @@ func (a *analyzer) VisitCall(c *ast.Call) {
 	}
 }
 
+func (a *analyzer) VisitTypeCall(t *ast.TypeCall) {
+	a.acceptChildren(t)
+	t.Result().Set(ast.Value, ast.U32Type)
+}
+
 func (a *analyzer) VisitIndex(i *ast.Index) {
 	a.acceptChildren(i)
 	i.Result().SetInvalid()

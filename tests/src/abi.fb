@@ -8,6 +8,11 @@ struct SmallStruct {
 }
 
 #[test]
+func smallStructSize() bool {
+	return sizeof(SmallStruct) == 8u;
+}
+
+#[test]
 func smallStructParamValue() bool {
 	return getSmallY(SmallStruct { x: 2, y: 9 }) == 9;
 }
@@ -45,6 +50,11 @@ struct MediumStruct {
 }
 
 #[test]
+func mediumStructSize() bool {
+	return sizeof(MediumStruct) == 12u;
+}
+
+#[test]
 func mediumStructParamValue() bool {
 	return getMediumY(MediumStruct { x: 8, y: 3, z: 62 }) == 3;
 }
@@ -78,6 +88,16 @@ func getMediumStructAddress() MediumStruct {
 struct BigStruct {
 	array [8]i32;
 	number i32;
+}
+
+#[test]
+func bigStructSize() bool {
+	return sizeof(BigStruct) == 36u;
+}
+
+#[test]
+func bigStructAlign() bool {
+	return alignof(BigStruct) == 4u;
 }
 
 #[test]

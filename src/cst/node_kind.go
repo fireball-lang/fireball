@@ -42,6 +42,7 @@ const (
 	Paren
 	Identifier
 	Call
+	TypeCall
 	Index
 	Member
 	Unary
@@ -137,6 +138,8 @@ func (n NodeKind) String() string {
 		return "Identifier"
 	case Call:
 		return "Call"
+	case TypeCall:
+		return "TypeCall"
 	case Index:
 		return "Index"
 	case Member:

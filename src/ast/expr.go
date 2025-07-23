@@ -27,6 +27,7 @@ type ExprVisitor interface {
 	VisitParen(p *Paren)
 	VisitIdentifier(i *Identifier)
 	VisitCall(c *Call)
+	VisitTypeCall(t *TypeCall)
 	VisitIndex(i *Index)
 	VisitMember(m *Member)
 	VisitUnary(u *Unary)
@@ -363,6 +364,34 @@ func (c *Call) Children() iter.Seq[Node] {
 
 func (c *Call) Visit(visitor ExprVisitor) {
 	visitor.VisitCall(c)
+}
+
+// TypeCall
+
+type TypeCallKind uint8
+
+const (
+	Sizeof TypeCallKind = iota
+	Alignof
+)
+
+type TypeCall struct {
+	baseExpr
+
+	Kind TypeCallKind
+	Arg  Type
+}
+
+func (t *TypeCall) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if IsValid(t.Arg) && !yield(t.Arg) {
+			return
+		}
+	}
+}
+
+func (t *TypeCall) Visit(visitor ExprVisitor) {
+	visitor.VisitTypeCall(t)
 }
 
 // Index

@@ -152,6 +152,10 @@ func (p *printer) VisitCall(c *Call) {
 	fmt.Println("Call")
 }
 
+func (p *printer) VisitTypeCall(t *TypeCall) {
+	fmt.Println("TypeCall")
+}
+
 func (p *printer) VisitIndex(i *Index) {
 	fmt.Println("Index")
 }

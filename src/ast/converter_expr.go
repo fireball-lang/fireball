@@ -34,6 +34,8 @@ func (c *converter) convertExpr(node *cst.Node) Expr {
 		return c.convertIdentifier(node)
 	case cst.Call:
 		return c.convertCall(node)
+	case cst.TypeCall:
+		return c.convertTypeCall(node)
 	case cst.Index:
 		return c.convertIndex(node)
 	case cst.Member:
@@ -341,6 +343,27 @@ func (c *converter) convertCall(node *cst.Node) *Call {
 			} else {
 				call.Args = append(call.Args, c.convertExpr(child))
 			}
+		}
+	}
+
+	return call
+}
+
+func (c *converter) convertTypeCall(node *cst.Node) *TypeCall {
+	call := &TypeCall{}
+	call.range_ = node.Range
+
+	call.Kind = Sizeof
+
+	for i := range node.Children {
+		child := &node.Children[i]
+
+		if child.Kind == cst.Leaf && child.Token.Kind == lexer.Identifier {
+			if child.Token.Text == "alignof" {
+				call.Kind = Alignof
+			}
+		} else if child.Kind.IsType() {
+			call.Arg = c.convertType(child)
 		}
 	}
 

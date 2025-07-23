@@ -207,6 +207,10 @@ func (h *highlighter) VisitCall(c *ast.Call) {
 	h.visitChildren(c)
 }
 
+func (h *highlighter) VisitTypeCall(t *ast.TypeCall) {
+	h.visitChildren(t)
+}
+
 func (h *highlighter) VisitIndex(i *ast.Index) {
 	h.visitChildren(i)
 }
