@@ -16,7 +16,11 @@ func compileToBitcode(irPath string) (string, error) {
 	cmd.Stderr = &output
 
 	if err := cmd.Run(); err != nil {
-		return "", err
+		if output.Len() > 0 {
+			return "", fmt.Errorf("failed to compile IR to BC: %w - %s", err, output.String())
+		}
+
+		return "", fmt.Errorf("failed to compile IR to BC: %w", err)
 	}
 
 	if output.Len() > 0 {

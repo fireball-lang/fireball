@@ -63,7 +63,11 @@ func linkBinary(profile Profile, workingPath string, inputs []string, binaryName
 	cmd.Args = append(cmd.Args, filepath.Join(libcFolder, "crtn.o"))
 
 	if err := cmd.Run(); err != nil {
-		return "", err
+		if output.Len() > 0 {
+			return "", fmt.Errorf("failed to link binary: %w - %s", err, output.String())
+		}
+
+		return "", fmt.Errorf("failed to link binary: %w", err)
 	}
 
 	if output.Len() > 0 {
