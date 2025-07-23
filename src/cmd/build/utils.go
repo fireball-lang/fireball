@@ -1,6 +1,6 @@
 package build
 
-func runForEach[I, R any](inputs []I, fun func(I) (R, error)) ([]R, error) {
+func runForEach[U, I, R any](uniform U, inputs []I, fun func(U, I) (R, error)) ([]R, error) {
 	var items []R
 	var err error
 
@@ -11,7 +11,7 @@ func runForEach[I, R any](inputs []I, fun func(I) (R, error)) ([]R, error) {
 
 	for _, input := range inputs {
 		go func() {
-			item, err := fun(input)
+			item, err := fun(uniform, input)
 
 			channel <- struct {
 				item R

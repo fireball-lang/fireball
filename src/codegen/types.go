@@ -10,7 +10,9 @@ import (
 type TypeCache struct {
 	Arch     abi.Arch
 	CallConv abi.CallConv
-	Module   *ir.Module
+
+	Module  *ir.Module
+	FileRef ir.MetaRef
 
 	interfaceIrType  ir.Type
 	interfaceMetaRef ir.MetaRef
@@ -225,7 +227,7 @@ func (t *TypeCache) createDeclMeta(type_ *ast.DeclType) ir.MetaRef {
 			Name:     GetDeclLinkName(decl),
 			Kind:     ir.MetaStructureType,
 			Elements: fields,
-			File:     0,
+			File:     t.FileRef,
 			Line:     type_.Range().Start.Line,
 			Size:     size * 8,
 			Align:    align * 8,
@@ -246,7 +248,7 @@ func (t *TypeCache) createDeclMeta(type_ *ast.DeclType) ir.MetaRef {
 			Name:     GetDeclLinkName(decl),
 			Kind:     ir.MetaEnumerationType,
 			Elements: cases,
-			File:     0,
+			File:     t.FileRef,
 			Line:     type_.Range().Start.Line,
 			Size:     size * 8,
 			Align:    align * 8,
@@ -281,7 +283,7 @@ func (t *TypeCache) createDeclMeta(type_ *ast.DeclType) ir.MetaRef {
 			Name:     "__fb_interface",
 			Kind:     ir.MetaStructureType,
 			Elements: fields,
-			File:     0,
+			File:     t.FileRef,
 			Line:     type_.Range().Start.Line,
 			Size:     size * 8,
 			Align:    align * 8,
@@ -313,7 +315,7 @@ func (t *TypeCache) createArrayMeta(type_ *ast.ArrayType) ir.MetaRef {
 		Kind:     ir.MetaArrayType,
 		BaseType: t.GetMeta(type_.Element),
 		Elements: []ir.MetaRef{subrange},
-		File:     0,
+		File:     t.FileRef,
 		Line:     type_.Range().Start.Line,
 		Size:     size * 8,
 		Align:    align * 8,

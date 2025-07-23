@@ -61,6 +61,8 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ir
 	})
 	c.emitter.PushScope(c.fileRef)
 
+	c.types.FileRef = c.fileRef
+
 	c.unitRef = module.AddMeta(&ir.CompileUnitMeta{
 		File:          c.fileRef,
 		Producer:      "fireball",
@@ -253,7 +255,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 		Scope:    c.emitter.PeekScope(),
 		Unit:     c.unitRef,
 		File:     c.fileRef,
-		Line:     f.Range().Start.Line,
+		Line:     getClosestValidRange(f).Start.Line,
 	})
 
 	c.emitter.PushScope(ref)
@@ -262,6 +264,8 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 	// Body
 
 	c.fun = c.functions[f]
+	c.fun.SetMeta(ref)
+
 	returnTypeRegs := c.callConv.Classify(f.ReturnType())
 
 	c.variables.PushScope()
@@ -279,7 +283,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 	argI := uint32(1)
 
 	if impl, ok := f.Parent().(*ast.Impl); ok {
-		c.emitter.SetDebugLocation(f.NameN.Range().Start)
+		c.emitter.SetDebugLocation(getClosestValidRange(f.NameN).Start)
 
 		astType := ast.GetDeclPointerType(impl.Decl)
 		typ := c.types.Get(astType)
@@ -299,7 +303,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 	}
 
 	for _, param := range f.Params {
-		c.emitter.SetDebugLocation(param.Range().Start)
+		c.emitter.SetDebugLocation(getClosestValidRange(param).Start)
 
 		typ := c.types.Get(param.Type)
 
@@ -339,11 +343,13 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 // Expressions
 
 func (c *codegen) VisitBlock(b *ast.Block) {
+	range_ := getClosestValidRange(b)
+
 	c.emitter.PushScope(c.module.AddMeta(&ir.LexicalBlockMeta{
 		Scope:  c.emitter.PeekScope(),
 		File:   c.fileRef,
-		Line:   b.Range().Start.Line,
-		Column: b.Range().Start.Column,
+		Line:   range_.Start.Line,
+		Column: range_.Start.Column,
 	}))
 	c.variables.PushScope()
 
@@ -957,10 +963,6 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 	// Logical, Math
 	default:
-		if b.Range().Start.Line == 9 {
-			println()
-		}
-
 		c.exprValue = c.binarySimple(b.Op, c.visitLoad(b.Left), c.visitLoad(b.Right), b.Result().Type)
 	}
 }
@@ -1137,7 +1139,7 @@ func (c *codegen) emitDbgDeclare(name string, type_ ast.Type, ptr ir.Value, arg 
 			Arg:   arg,
 			Scope: c.emitter.PeekScope(),
 			File:  c.fileRef,
-			Line:  node.Range().Start.Line,
+			Line:  getClosestValidRange(node).Start.Line,
 		}),
 		c.emitter.GetLocMetaRef(),
 	)
@@ -1215,7 +1217,7 @@ func (c *codegen) visitLoad(expr ast.Expr) ir.Value {
 }
 
 func (c *codegen) visit(expr ast.Expr) ir.Value {
-	c.emitter.SetDebugLocation(expr.Range().Start)
+	c.emitter.SetDebugLocation(getClosestValidRange(expr).Start)
 
 	if expr.Result().Kind == ast.Invalid {
 		panic("codegen.codegen.Visit() - Expression result is invalid.")

@@ -177,6 +177,8 @@ func (w *writer) meta(node ir.MetaNode) {
 		w.fieldString("name", node.Name)
 		w.fieldString("linkageName", node.LinkName)
 		w.fieldMetaRef("type", node.Type)
+		w.fieldRaw("flags", "DIFlagPrototyped")
+		w.fieldRaw("spFlags", "DISPFlagDefinition")
 		w.fieldMetaRef("scope", node.Scope)
 		w.fieldMetaRef("unit", node.Unit)
 		w.fieldMetaRef("file", node.File)
@@ -187,13 +189,13 @@ func (w *writer) meta(node ir.MetaNode) {
 		w.fieldMetaRef("scope", node.Scope)
 		w.fieldMetaRef("file", node.File)
 		w.fieldUint("line", node.Line)
-		w.fieldUint("column", node.Column)
+		w.fieldUint("column", node.Column+1)
 
 	case *ir.LocationMeta:
 		w.beginMeta(false, "DILocation")
 		w.fieldMetaRef("scope", node.Scope)
 		w.fieldUint("line", node.Line)
-		w.fieldUint("column", node.Column)
+		w.fieldUint("column", node.Column+1)
 
 	case *ir.LocalVariableMeta:
 		w.beginMeta(false, "DILocalVariable")

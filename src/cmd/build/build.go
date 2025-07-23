@@ -43,8 +43,8 @@ func Build(proj *project.Project, profile Profile, entrypointFunc EntrypointFunc
 
 	irPaths = append(irPaths, entrypointIrPath)
 
-	// Compile IR to BC
-	bcPaths, err := runForEach(irPaths, compileToBitcode)
+	// Compile IR to OBJ
+	objPaths, err := runForEach(profile, irPaths, compile)
 	if err != nil {
 		return "", err
 	}
@@ -55,5 +55,5 @@ func Build(proj *project.Project, profile Profile, entrypointFunc EntrypointFunc
 		binaryName += "_" + entrypointName
 	}
 
-	return linkBinary(profile, outPath, bcPaths, binaryName)
+	return linkBinary(profile, outPath, objPaths, binaryName)
 }

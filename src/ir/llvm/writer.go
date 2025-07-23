@@ -255,7 +255,7 @@ func (w *writer) function(fun *ir.Function) error {
 	w.rune(')')
 
 	if fun.Meta().Valid() {
-		w.string(", !dbg ")
+		w.string(" !dbg ")
 		w.metaRef(fun.Meta())
 	}
 

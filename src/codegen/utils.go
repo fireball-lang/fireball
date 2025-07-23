@@ -81,6 +81,18 @@ func writePath(sb *strings.Builder, path *ast.Path) {
 	}
 }
 
+func getClosestValidRange(node ast.Node) lexer.Range {
+	for node.Range().IsZero() {
+		node = node.Parent()
+
+		if !ast.IsValid(node) {
+			panic("codegen.getClosestValidRange() - Failed to find valid range")
+		}
+	}
+
+	return node.Range()
+}
+
 // stringBuilder
 
 type stringBuilder struct {

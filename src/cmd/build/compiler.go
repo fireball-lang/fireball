@@ -6,10 +6,10 @@ import (
 	"strings"
 )
 
-func compileToBitcode(irPath string) (string, error) {
-	bcPath := strings.TrimSuffix(irPath, ".ll") + ".bc"
+func compile(profile Profile, irPath string) (string, error) {
+	objPath := strings.TrimSuffix(irPath, ".ll") + ".o"
 
-	cmd := exec.Command("llvm-as", irPath, "-o", bcPath)
+	cmd := exec.Command("llc", fmt.Sprintf("-O%d", profile.Opt), "--filetype=obj", "-o", objPath, irPath)
 
 	var output strings.Builder
 	cmd.Stdout = &output
@@ -17,15 +17,15 @@ func compileToBitcode(irPath string) (string, error) {
 
 	if err := cmd.Run(); err != nil {
 		if output.Len() > 0 {
-			return "", fmt.Errorf("failed to compile IR to BC: %w - %s", err, output.String())
+			return "", fmt.Errorf("failed to compile IR: %w - %s", err, output.String())
 		}
 
-		return "", fmt.Errorf("failed to compile IR to BC: %w", err)
+		return "", fmt.Errorf("failed to compile IR: %w", err)
 	}
 
 	if output.Len() > 0 {
-		return "", fmt.Errorf("failed to compile IR to BC: %s", output.String())
+		return "", fmt.Errorf("failed to compile IR: %s", output.String())
 	}
 
-	return bcPath, nil
+	return objPath, nil
 }
