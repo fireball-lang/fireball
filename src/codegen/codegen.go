@@ -697,12 +697,14 @@ func (c *codegen) VisitIndex(i *ast.Index) {
 	ptr := c.visit(i.Value)
 	index := c.visitLoad(i.Index)
 
-	typ := c.types.Get(i.Value.Result().Type)
+	if p, ok := i.Value.Result().Type.(*ast.PointerType); ok {
+		typ := c.types.Get(p.Pointee)
 
-	if _, ok := i.Value.Result().Type.(*ast.PointerType); ok {
 		ptr = c.load(i.Value, ptr)
 		c.exprValue = c.emitter.GetElementPtrDyn(typ, ptr, index, nil)
 	} else {
+		typ := c.types.Get(i.Value.Result().Type)
+
 		zero := &ir.Integer{Typ: ir.I32, Value: utils.Signed(0)}
 		c.exprValue = c.emitter.GetElementPtrDyn(typ, ptr, zero, index)
 	}

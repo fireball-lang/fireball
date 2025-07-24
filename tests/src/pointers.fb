@@ -42,7 +42,9 @@ func modifyStructMember() bool {
 
 #[test]
 func indexPointer() bool {
-	var num = 3;
-	var ptr = &num;
-	return ptr[0] == 3;
+	var array: [4]i32;
+	array[2] = 3;
+
+	var ptr = &array[0];
+	return ptr[2] == 3;
 }
