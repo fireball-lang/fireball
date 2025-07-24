@@ -296,7 +296,8 @@ type Impl struct {
 	InterfaceName *Leaf
 	Interface     *Interface
 
-	Methods []*Func
+	StaticMethods []*Func
+	Methods       []*Func
 }
 
 func (i *Impl) Children() iter.Seq[Node] {
@@ -312,6 +313,12 @@ func (i *Impl) Children() iter.Seq[Node] {
 		}
 		if i.InterfaceName != nil && !yield(i.InterfaceName) {
 			return
+		}
+
+		for _, method := range i.StaticMethods {
+			if !yield(method) {
+				return
+			}
 		}
 
 		for _, method := range i.Methods {

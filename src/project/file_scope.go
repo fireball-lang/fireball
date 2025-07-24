@@ -24,7 +24,7 @@ func (f *fileScope) GetFuncDecl(name string) *ast.Func {
 	return f.mod.GetFuncDecl(name)
 }
 
-func (f *fileScope) GetDeclMethod(decl ast.Decl, name string) *ast.Func {
+func (f *fileScope) GetDeclMethod(decl ast.Decl, name string, static bool) *ast.Func {
 	if in, ok := decl.(*ast.Interface); ok {
 		for _, method := range in.Methods {
 			if method.Name() == name {
@@ -33,7 +33,7 @@ func (f *fileScope) GetDeclMethod(decl ast.Decl, name string) *ast.Func {
 		}
 	}
 
-	return f.mod.GetDeclMethod(decl, name)
+	return f.mod.GetDeclMethod(decl, name, static)
 }
 
 // analyzer.Scope

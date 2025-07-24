@@ -13,7 +13,8 @@ type SymbolLookup interface {
 	GetTypeDecl(name string) ast.Decl
 	GetGlobalVar(name string) *ast.GlobalVar
 	GetFuncDecl(name string) *ast.Func
-	GetDeclMethod(decl ast.Decl, name string) *ast.Func
+
+	GetDeclMethod(decl ast.Decl, name string, static bool) *ast.Func
 }
 
 type Module interface {
@@ -71,9 +72,9 @@ func (c *combinedScope) GetFuncDecl(name string) *ast.Func {
 	return nil
 }
 
-func (c *combinedScope) GetDeclMethod(decl ast.Decl, name string) *ast.Func {
+func (c *combinedScope) GetDeclMethod(decl ast.Decl, name string, static bool) *ast.Func {
 	for _, scope := range c.scopes {
-		if m := scope.GetDeclMethod(decl, name); m != nil {
+		if m := scope.GetDeclMethod(decl, name, static); m != nil {
 			return m
 		}
 	}

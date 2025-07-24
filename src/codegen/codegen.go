@@ -132,6 +132,10 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ir
 			c.newTypeInfo(decl)
 
 		case *ast.Impl:
+			for _, method := range decl.StaticMethods {
+				c.newFunction(method)
+			}
+
 			for _, method := range decl.Methods {
 				c.newFunction(method)
 			}
@@ -159,6 +163,10 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ir
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
 		case *ast.Impl:
+			for _, method := range decl.StaticMethods {
+				c.VisitFunc(method)
+			}
+
 			for _, method := range decl.Methods {
 				c.VisitFunc(method)
 			}
@@ -220,7 +228,7 @@ func (c *codegen) newFunction(f *ast.Func) *ir.Function {
 		paramNames = append(paramNames, "func.return_value")
 	}
 
-	if _, ok := f.Parent().(*ast.Impl); ok {
+	if impl, ok := f.Parent().(*ast.Impl); ok && slices.Contains(impl.Methods, f) {
 		paramNames = append(paramNames, "this")
 	}
 
@@ -282,7 +290,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 
 	argI := uint32(1)
 
-	if impl, ok := f.Parent().(*ast.Impl); ok {
+	if impl, ok := f.Parent().(*ast.Impl); ok && slices.Contains(impl.Methods, f) {
 		c.emitter.SetDebugLocation(getClosestValidRange(f.NameN).Start)
 
 		astType := ast.GetDeclPointerType(impl.Decl)
@@ -625,19 +633,21 @@ func (c *codegen) VisitCall(call *ast.Call) {
 		args = append(args, returnPtr)
 	}
 
-	switch f.Parent().(type) {
+	switch parent := f.Parent().(type) {
 	case *ast.Impl:
-		expr := call.Callee.(*ast.Member).Value
-		value := c.visit(expr)
+		if slices.Contains(parent.Methods, f.(*ast.Func)) {
+			expr := call.Callee.(*ast.Member).Value
+			value := c.visit(expr)
 
-		if expr.Result().Kind == ast.Value {
-			ptr := c.emitAlloca("abi.this", c.types.Get(expr.Result().Type))
-			c.emitter.Store(value, ptr)
+			if expr.Result().Kind == ast.Value {
+				ptr := c.emitAlloca("abi.this", c.types.Get(expr.Result().Type))
+				c.emitter.Store(value, ptr)
 
-			value = ptr
+				value = ptr
+			}
+
+			args = append(args, value)
 		}
-
-		args = append(args, value)
 
 	case *ast.Interface:
 		value := callee.(*ir.Load).Pointer.(*ir.GetElementPtrConst).Pointer.(*ir.ExtractValue).Value
@@ -700,26 +710,15 @@ func (c *codegen) VisitIndex(i *ast.Index) {
 
 func (c *codegen) VisitMember(m *ast.Member) {
 	// Enum case
-	if i, ok := m.Value.(*ast.Identifier); ok {
-		if decl, ok := i.Resolved.(*ast.Enum); ok {
-			c.exprValue = &ir.Integer{
-				Typ:   c.types.Get(decl.ActualType.(*ast.PrimitiveType)),
-				Value: m.Resolved.(*ast.EnumCase).ActualValue,
-			}
+	if enumCase, ok := m.Resolved.(*ast.EnumCase); ok {
+		enum := enumCase.Parent().(*ast.Enum)
 
-			return
+		c.exprValue = &ir.Integer{
+			Typ:   c.types.Get(enum.ActualType.(*ast.PrimitiveType)),
+			Value: enumCase.ActualValue,
 		}
-	}
 
-	// Member
-	var type_ *ast.DeclType
-	isPtr := false
-
-	if p, ok := m.Value.Result().Type.(*ast.PointerType); ok {
-		type_ = p.Pointee.(*ast.DeclType)
-		isPtr = true
-	} else {
-		type_ = m.Value.Result().Type.(*ast.DeclType)
+		return
 	}
 
 	// Method
@@ -744,6 +743,17 @@ func (c *codegen) VisitMember(m *ast.Member) {
 		}
 
 		return
+	}
+
+	// Member
+	var type_ *ast.DeclType
+	isPtr := false
+
+	if p, ok := m.Value.Result().Type.(*ast.PointerType); ok {
+		type_ = p.Pointee.(*ast.DeclType)
+		isPtr = true
+	} else {
+		type_ = m.Value.Result().Type.(*ast.DeclType)
 	}
 
 	// Field

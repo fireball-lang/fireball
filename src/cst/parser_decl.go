@@ -30,7 +30,7 @@ func (p *parser) declNode(invalidKeyword *bool) (Node, bool) {
 	case "var":
 		return p.globalVarNode(attributes)
 	case "func":
-		return p.funcNode(attributes, true)
+		return p.funcNode(attributes, false, true)
 
 	default:
 		*invalidKeyword = true
@@ -382,7 +382,7 @@ func (p *parser) interfaceNode(attributes Node) (Node, bool) {
 			attributes = attrs
 		}
 
-		child, err := p.funcNode(attributes, false)
+		child, err := p.funcNode(attributes, false, false)
 		node.append(child)
 
 		if err {
@@ -439,7 +439,7 @@ func (p *parser) implNode(attributes Node) (Node, bool) {
 			attributes = attrs
 		}
 
-		child, err := p.funcNode(attributes, true)
+		child, err := p.funcNode(attributes, true, true)
 		node.append(child)
 
 		if err {
@@ -500,11 +500,23 @@ func (p *parser) globalVarNode(attributes Node) (Node, bool) {
 	return node, false
 }
 
-func (p *parser) funcNode(attributes Node, allowBody bool) (Node, bool) {
+func (p *parser) funcNode(attributes Node, allowStatic, allowBody bool) (Node, bool) {
 	node := Node{Kind: Func}
 	node.append(attributes)
 
+	// static
+	if allowStatic {
+		if p.current.Kind == lexer.Identifier && p.current.Text == "static" {
+			node.append(p.advance())
+		}
+	}
+
 	// Keyword
+	if p.current.Kind != lexer.Identifier || p.current.Text != "func" {
+		p.error("Expected 'func' at the start of a function.")
+		return node, true
+	}
+
 	node.append(p.advance())
 
 	// Name

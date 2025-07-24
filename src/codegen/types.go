@@ -5,6 +5,7 @@ import (
 	"fireball/ast"
 	"fireball/ir"
 	"fireball/utils"
+	"slices"
 )
 
 type TypeCache struct {
@@ -352,7 +353,7 @@ func (t *TypeCache) createFuncType(type_ ast.FuncType) ir.Type {
 		returns = ir.Void
 	}
 
-	if impl, ok := type_.Parent().(*ast.Impl); ok {
+	if impl, ok := type_.Parent().(*ast.Impl); ok && slices.Contains(impl.Methods, type_.(*ast.Func)) {
 		type_ := t.Get(ast.GetDeclPointerType(impl.Decl))
 
 		params = append(params, type_)

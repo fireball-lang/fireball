@@ -92,11 +92,17 @@ func (m *Module) GetFuncDecl(name string) *ast.Func {
 	return nil
 }
 
-func (m *Module) GetDeclMethod(decl ast.Decl, name string) *ast.Func {
+func (m *Module) GetDeclMethod(decl ast.Decl, name string, static bool) *ast.Func {
 	for _, file := range m.files {
 		for _, d := range file.ast.Decls {
 			if i, ok := d.(*ast.Impl); ok && i.Decl == decl {
-				for _, method := range i.Methods {
+				methods := i.Methods
+
+				if static {
+					methods = i.StaticMethods
+				}
+
+				for _, method := range methods {
 					if method.Name() == name {
 						return method
 					}

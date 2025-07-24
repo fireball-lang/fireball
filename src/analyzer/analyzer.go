@@ -473,16 +473,18 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
 		}
 	}
 
-	// Enum case
-	if _, ok := i.Parent().(*ast.Member); ok {
-		lookup := getSymbolLookup(a.ctx, a.scope, i.Path)
+	// Type
+	if !ast.IsValid(type_) {
+		if _, ok := i.Parent().(*ast.Member); ok {
+			lookup := getSymbolLookup(a.ctx, a.scope, i.Path)
 
-		if !utils.IsNil(lookup) {
-			decl := lookup.GetTypeDecl(name)
+			if !utils.IsNil(lookup) {
+				decl := lookup.GetTypeDecl(name)
 
-			if ast.IsValid(decl) {
-				type_ = &ast.DeclType{Path: getDeclPath(decl), Decl: decl}
-				node = decl
+				if ast.IsValid(decl) {
+					type_ = &ast.DeclType{Path: getDeclPath(decl), Decl: decl}
+					node = decl
+				}
 			}
 		}
 	}
@@ -571,16 +573,11 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 	m.Result().SetInvalid()
 	m.Resolved = nil
 
-	// Enum case
-	if ast.IsValid(m.Value) && m.Value.Result().Kind != ast.Invalid {
-		if i, ok := m.Value.(*ast.Identifier); ok {
-			if decl, ok := i.Resolved.(*ast.Enum); ok {
-				m.Result().Set(ast.Value, m.Value.Result().Type)
-
-				if m.Name == nil {
-					return
-				}
-
+	// Type
+	if ast.IsValid(m.Value) && m.Value.Result().Kind != ast.Invalid && m.Name != nil {
+		if ident, ok := m.Value.(*ast.Identifier); ok {
+			// Enum case
+			if decl, ok := ident.Resolved.(*ast.Enum); ok {
 				var enumCase *ast.EnumCase
 
 				for _, c := range decl.Cases {
@@ -590,13 +587,24 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 					}
 				}
 
-				if enumCase == nil {
-					a.error(m.Name, "Enum case '"+decl.Name()+"."+m.Name.Token.Text+"' doesn't exist.")
+				if enumCase != nil {
+					m.Result().Set(ast.Value, m.Value.Result().Type)
+					m.Resolved = enumCase
+
+					return
 				}
+			}
 
-				m.Resolved = enumCase
+			// Static method
+			if decl, ok := ident.Resolved.(ast.Decl); ok {
+				method := a.scope.GetDeclMethod(decl, m.Name.Token.Text, true)
 
-				return
+				if method != nil {
+					m.Result().Set(ast.Value, method)
+					m.Resolved = method
+
+					return
+				}
 			}
 		}
 	}
@@ -635,7 +643,7 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 
 		if field == nil {
 			// Method
-			method := a.scope.GetDeclMethod(decl, m.Name.Token.Text)
+			method := a.scope.GetDeclMethod(decl, m.Name.Token.Text, false)
 
 			if method == nil {
 				a.error(m.Name, "Type '"+decl.Name()+"' doesn't have a member with the name '"+m.Name.Token.Text+"'.")

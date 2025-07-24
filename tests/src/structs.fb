@@ -6,6 +6,10 @@ struct Vec2 {
 }
 
 impl Vec2 {
+	static func new(x i32, y i32) Vec2 {
+		return Vec2 { x: x, y: y };
+	}
+
 	func max() i32 {
 		if (this.x > this.y) return this.x;
 		return this.y;
@@ -42,4 +46,9 @@ func methodValueStruct() bool {
 func methodAddressStruct() bool {
 	var v = Vec2 { x: 3, y: 6 };
 	return v.max() == 6;
+}
+
+#[test]
+func staticMethod() bool {
+	return Vec2.new(3, 2).y == 2;
 }

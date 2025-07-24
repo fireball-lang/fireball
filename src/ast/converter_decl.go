@@ -22,7 +22,8 @@ func (c *converter) convertDecl(node *cst.Node) Decl {
 	case cst.GlobalVar:
 		return c.convertGlobalVar(node)
 	case cst.Func:
-		return c.convertFunc(node)
+		method, _ := c.convertFunc(node)
+		return method
 
 	default:
 		panic("ast.convertDecl() - Invalid node kind")
@@ -196,7 +197,8 @@ func (c *converter) convertInterface(node *cst.Node) *Interface {
 		} else if child.Kind == cst.Leaf && child.Token.Kind == lexer.Identifier {
 			i.NameN = c.convertLeaf(child)
 		} else if child.Kind == cst.Func {
-			i.Methods = append(i.Methods, c.convertFunc(child))
+			method, _ := c.convertFunc(child)
+			i.Methods = append(i.Methods, method)
 		}
 	}
 
@@ -225,7 +227,13 @@ func (c *converter) convertImpl(node *cst.Node) *Impl {
 				}
 			}
 		case cst.Func:
-			i.Methods = append(i.Methods, c.convertFunc(child))
+			method, static := c.convertFunc(child)
+
+			if static {
+				i.StaticMethods = append(i.StaticMethods, method)
+			} else {
+				i.Methods = append(i.Methods, method)
+			}
 		}
 	}
 
@@ -251,9 +259,11 @@ func (c *converter) convertGlobalVar(node *cst.Node) *GlobalVar {
 	return g
 }
 
-func (c *converter) convertFunc(node *cst.Node) *Func {
+func (c *converter) convertFunc(node *cst.Node) (*Func, bool) {
 	f := &Func{}
 	f.range_ = node.Range
+
+	static := false
 
 	for i := range node.Children {
 		child := &node.Children[i]
@@ -263,7 +273,11 @@ func (c *converter) convertFunc(node *cst.Node) *Func {
 			f.Attributes = c.convertAttributes(child)
 		case cst.Leaf:
 			if child.Token.Kind == lexer.Identifier {
-				f.NameN = c.convertLeaf(child)
+				if child.Token.Text == "static" && !static {
+					static = true
+				} else {
+					f.NameN = c.convertLeaf(child)
+				}
 			} else if child.Token.Kind == lexer.DotDotDot {
 				f.varArgs = true
 			}
@@ -278,7 +292,7 @@ func (c *converter) convertFunc(node *cst.Node) *Func {
 		}
 	}
 
-	return f
+	return f, static
 }
 
 func (c *converter) convertParam(node *cst.Node) *Param {
