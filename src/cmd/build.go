@@ -5,12 +5,13 @@ import (
 	"fireball/project"
 	"fireball/utils"
 	"fmt"
-	"github.com/fatih/color"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/fatih/color"
 )
 
 func buildPath(path string, profile build.Profile, entrypointFunc build.EntrypointFunc) (string, error) {

@@ -15,7 +15,7 @@ func runCodegenProject(proj *project.Project, target Target, outPath string) ([]
 
 	for file := range proj.Files() {
 		path := file.SrcRelativePath()
-		path = strings.ReplaceAll(path, "/", "-")
+		path = strings.ReplaceAll(path, string(filepath.Separator), "-")
 		path = strings.TrimSuffix(path, ".fb") + ".ll"
 		path = filepath.Join(outPath, path)
 

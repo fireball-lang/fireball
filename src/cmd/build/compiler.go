@@ -6,10 +6,15 @@ import (
 	"strings"
 )
 
-func compile(profile Profile, irPath string) (string, error) {
-	objPath := strings.TrimSuffix(irPath, ".ll") + ".o"
+type compileParams struct {
+	profile Profile
+	target  Target
+}
 
-	cmd := exec.Command("llc", fmt.Sprintf("-O%d", profile.Opt), "--filetype=obj", "-o", objPath, irPath)
+func compile(params compileParams, irPath string) (string, error) {
+	objPath := strings.TrimSuffix(irPath, ".ll") + params.target.ObjectFileExtension
+
+	cmd := exec.Command("llc", fmt.Sprintf("-O%d", params.profile.Opt), "--filetype=obj", "-o", objPath, irPath)
 
 	var output strings.Builder
 	cmd.Stdout = &output

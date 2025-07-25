@@ -1,7 +1,6 @@
 package main
 
 import (
-	"atomicgo.dev/cursor"
 	"errors"
 	"fireball/ast"
 	"fireball/codegen"
@@ -9,10 +8,13 @@ import (
 	"fireball/project"
 	"fireball/utils"
 	"fmt"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 	"os"
 	"os/exec"
+	"runtime"
+
+	"atomicgo.dev/cursor"
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 )
 
 var testFunctions []*ast.Func
@@ -162,21 +164,31 @@ func buildTestEntrypoint(proj *project.Project, m *ir.Module, main *ir.Function)
 		}
 	}
 
-	stdoutVar := m.NewGlobalVar("stdout", ir.Pointer)
-	stdoutVar.Flags = ir.External
-
 	putsTyp := &ir.FunctionType{Returns: ir.I32, Params: []ir.Type{ir.I32}}
 	puts := m.NewFunction("putchar", putsTyp, []string{"char"})
 	puts.Flags = ir.Declare
 
-	flushTyp := &ir.FunctionType{Returns: ir.I32, Params: []ir.Type{ir.Pointer}}
-	flush := m.NewFunction("fflush", flushTyp, []string{"file"})
-	flush.Flags = ir.Declare
+	var stdoutVar *ir.GlobalVar
+	var flush *ir.Function
+
+	if runtime.GOOS != "windows" {
+		stdoutVar = m.NewGlobalVar("stdout", ir.Pointer)
+		stdoutVar.Flags = ir.External
+
+		flushTyp := &ir.FunctionType{Returns: ir.I32, Params: []ir.Type{ir.Pointer}}
+		flush = m.NewFunction("fflush", flushTyp, []string{"file"})
+		flush.Flags = ir.Declare
+	}
 
 	emitter := ir.Emitter{Module: m}
 	emitter.Begin(main.NewBlock("func.entry"))
 
-	stdout := emitter.Load(ir.Pointer, stdoutVar)
+	var stdout ir.Value
+
+	if runtime.GOOS != "windows" {
+		stdout = emitter.Load(ir.Pointer, stdoutVar)
+	}
+
 	counter := i32Value(0)
 
 	for _, test := range tests {
@@ -185,7 +197,10 @@ func buildTestEntrypoint(proj *project.Project, m *ir.Module, main *ir.Function)
 
 		v := emitter.Select(okI1, i32Value('1'), i32Value('0'))
 		emitter.Call(putsTyp, puts, []ir.Value{v})
-		emitter.Call(flushTyp, flush, []ir.Value{stdout})
+
+		if runtime.GOOS != "windows" {
+			emitter.Call(flush.Typ, flush, []ir.Value{stdout})
+		}
 
 		okI32 := emitter.Ext(ir.Unsigned, okI1, ir.I32)
 		counter = emitter.Add(counter, okI32)

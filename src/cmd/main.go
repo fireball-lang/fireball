@@ -7,10 +7,11 @@ import (
 	"fireball/codegen"
 	"fireball/ir"
 	"fireball/project"
-	"github.com/spf13/cobra"
 	"log"
 	"os"
 	"os/exec"
+
+	"github.com/spf13/cobra"
 )
 
 func main() {

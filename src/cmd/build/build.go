@@ -44,7 +44,7 @@ func Build(proj *project.Project, profile Profile, entrypointFunc EntrypointFunc
 	irPaths = append(irPaths, entrypointIrPath)
 
 	// Compile IR to OBJ
-	objPaths, err := runForEach(profile, irPaths, compile)
+	objPaths, err := runForEach(compileParams{profile, target}, irPaths, compile)
 	if err != nil {
 		return "", err
 	}
@@ -54,6 +54,7 @@ func Build(proj *project.Project, profile Profile, entrypointFunc EntrypointFunc
 	if entrypointName != "" {
 		binaryName += "_" + entrypointName
 	}
+	binaryName += target.ExecutableFileExtension
 
-	return linkBinary(profile, outPath, objPaths, binaryName)
+	return linkBinary(profile, target, outPath, objPaths, binaryName)
 }
