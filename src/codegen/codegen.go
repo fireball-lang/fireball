@@ -650,8 +650,20 @@ func (c *codegen) VisitCall(call *ast.Call) {
 		}
 
 	case *ast.Interface:
-		value := callee.(*ir.Load).Pointer.(*ir.GetElementPtrConst).Pointer.(*ir.ExtractValue).Value
-		dataPtr := c.emitter.ExtractValue(value, 0)
+		typ := &ir.ArrayType{
+			Length:  1 + uint32(len(parent.Methods)),
+			Element: ir.Pointer,
+		}
+
+		inValue := callee
+		inType := call.Callee.(*ast.Member).Value.Result().Type
+
+		dataPtr := c.emitExtractAggregateElement(inValue, inType, 0)
+		vtablePtr := c.emitExtractAggregateElement(inValue, inType, 1)
+
+		index := uint32(slices.Index(parent.Methods, f.(*ast.Func)))
+		funPtrOffset := c.emitter.GetElementPtrConst(typ, vtablePtr, 0, 1+index)
+		callee = c.emitter.Load(ir.Pointer, funPtrOffset)
 
 		args = append(args, dataPtr)
 	}
@@ -725,20 +737,9 @@ func (c *codegen) VisitMember(m *ast.Member) {
 
 	// Method
 	if f, ok := m.Result().Type.(*ast.Func); ok {
-		if in, ok := f.Parent().(*ast.Interface); ok {
+		if _, ok := f.Parent().(*ast.Interface); ok {
 			// Dynamic dispatch
-			v := c.visitLoad(m.Value)
-
-			typ := &ir.ArrayType{
-				Length:  1 + uint32(len(in.Methods)),
-				Element: ir.Pointer,
-			}
-
-			index := uint32(slices.Index(in.Methods, f))
-
-			vtablePtr := c.emitter.ExtractValue(v, 1)
-			funPtrOffset := c.emitter.GetElementPtrConst(typ, vtablePtr, 0, 1+index)
-			c.exprValue = c.emitter.Load(ir.Pointer, funPtrOffset)
+			c.exprValue = c.visit(m.Value)
 		} else {
 			// Static dispatch
 			c.exprValue = c.getValueForFunc(f)
@@ -747,32 +748,33 @@ func (c *codegen) VisitMember(m *ast.Member) {
 		return
 	}
 
-	// Member
-	var type_ *ast.DeclType
+	// Get struct
+	var type_ ast.Type
+	var s *ast.Struct
+
 	isPtr := false
 
 	if p, ok := m.Value.Result().Type.(*ast.PointerType); ok {
 		type_ = p.Pointee.(*ast.DeclType)
+		s = p.Pointee.(*ast.DeclType).Decl.(*ast.Struct)
+
 		isPtr = true
 	} else {
 		type_ = m.Value.Result().Type.(*ast.DeclType)
+		s = m.Value.Result().Type.(*ast.DeclType).Decl.(*ast.Struct)
 	}
 
 	// Field
-	field, i := type_.Decl.(*ast.Struct).GetField(m.Name.Token.Text)
+	_, i := s.GetField(m.Name.Token.Text)
+	if i < 0 {
+		panic("codegen.VisitMember() - Field not found")
+	}
+
+	value := c.visit(m.Value)
 
 	if m.Value.Result().Kind == ast.Value {
-		value := c.visitLoad(m.Value)
-
-		if isPtr {
-			value = c.emitter.GetElementPtrConst(c.types.Get(type_), value, 0, uint32(i))
-			c.exprValue = c.emitter.Load(c.types.Get(field.Type), value)
-		} else {
-			c.exprValue = c.emitter.ExtractValue(value, uint32(i))
-		}
+		c.exprValue = c.emitExtractAggregateElement(value, m.Value.Result().Type, uint32(i))
 	} else {
-		value := c.visit(m.Value)
-
 		if isPtr {
 			value = c.emitter.Load(ir.Pointer, value)
 		}
@@ -1008,9 +1010,9 @@ func (c *codegen) binarySimple(op lexer.TokenKind, left, right ir.Value, type_ a
 }
 
 func (c *codegen) VisitIs(i *ast.Is) {
-	value := c.visitLoad(i.Value)
+	value := c.visit(i.Value)
 
-	valueVTable := c.emitter.ExtractValue(value, 1)
+	valueVTable := c.emitExtractAggregateElement(value, i.Value.Result().Type, 1)
 	valueTypeInfo := c.emitter.Load(ir.Pointer, valueVTable)
 
 	typeTypeInfo := c.getTypeInfoPointer(i.Type.(*ast.PointerType).Pointee.(*ast.DeclType).Decl)
@@ -1105,6 +1107,65 @@ func (c *codegen) emitAlloca(name string, typ ir.Type) ir.Value {
 
 	c.fun.Blocks[0].AddFirst(in)
 	return in
+}
+
+func (c *codegen) emitExtractAggregateElement(value ir.Value, type_ ast.Type, index uint32) ir.Value {
+	// Get pointer depth
+	ptrDepth := 0
+
+	if isValueImplicitPointer(value) {
+		ptrDepth++
+	}
+
+	if ptrType, ok := type_.(*ast.PointerType); ok {
+		type_ = ptrType.Pointee
+		ptrDepth++
+	}
+
+	// Load double pointer
+	if ptrDepth == 2 {
+		value = c.emitter.Load(ir.Pointer, value)
+		ptrDepth--
+	}
+
+	// Get element type
+	var elementTyp ir.Type
+
+	switch type_ := type_.(type) {
+	case *ast.ArrayType:
+		elementTyp = c.types.Get(type_.Element)
+
+	case *ast.DeclType:
+		switch decl := type_.Decl.(type) {
+		case *ast.Struct:
+			elementTyp = c.types.Get(decl.Fields[index].Type)
+		case *ast.Interface:
+			elementTyp = ir.Pointer
+		}
+	}
+
+	if elementTyp == nil {
+		panic("codegen.codegen.emitExtractAggregateElement() - Invalid aggregate type '" + type_.String() + "'")
+	}
+
+	// Access aggregate element
+	if ptrDepth == 1 {
+		typ := c.types.Get(type_)
+
+		elementPtr := c.emitter.GetElementPtrConst(typ, value, 0, index)
+		return c.emitter.Load(elementTyp, elementPtr)
+	} else {
+		return c.emitter.ExtractValue(value, index)
+	}
+}
+
+func isValueImplicitPointer(value ir.Value) bool {
+	switch value.(type) {
+	case *ir.Alloca, *ir.GlobalVar:
+		return true
+	default:
+		return false
+	}
 }
 
 func (c *codegen) getTypeInfoPointer(decl ast.Decl) ir.Value {
