@@ -45,7 +45,10 @@ func flatten(arch Arch, callConv CallConv, type_ ast.Type, offset uint32, fields
 	case *ast.DeclType:
 		switch decl := type_.Decl.(type) {
 		case *ast.Struct:
-			layout := StructLayout{Arch: arch}
+			layout := StructLayout{
+				Arch:   arch,
+				Packed: decl.GetAttribute("packed") != nil,
+			}
 
 			for _, field := range decl.Fields {
 				relativeOffset := layout.Field(field.Type)

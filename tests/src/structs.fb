@@ -52,3 +52,16 @@ func methodAddressStruct() bool {
 func staticMethod() bool {
 	return Vec2.new(3, 2).y == 2;
 }
+
+// Packed
+
+#[packed]
+struct PackedStruct {
+	a u16;
+	b u32;
+}
+
+#[test]
+func packedStruct() bool {
+	return sizeof(PackedStruct) == 6u;
+}

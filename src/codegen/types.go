@@ -186,7 +186,7 @@ func (t *TypeCache) createDeclType(type_ *ast.DeclType) ir.Type {
 		}
 
 		return t.Module.NamedStruct(GetDeclLinkName(decl), ir.StructType{
-			Packed: false,
+			Packed: decl.GetAttribute("packed") != nil,
 			Fields: fields,
 		})
 
@@ -207,7 +207,11 @@ func (t *TypeCache) createDeclType(type_ *ast.DeclType) ir.Type {
 func (t *TypeCache) createDeclMeta(type_ *ast.DeclType) ir.MetaRef {
 	switch decl := type_.Decl.(type) {
 	case *ast.Struct:
-		layout := abi.StructLayout{Arch: t.Arch}
+		layout := abi.StructLayout{
+			Arch:   t.Arch,
+			Packed: decl.GetAttribute("packed") != nil,
+		}
+
 		fields := make([]ir.MetaRef, len(decl.Fields))
 
 		for i, field := range decl.Fields {

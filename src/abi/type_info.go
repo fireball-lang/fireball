@@ -41,7 +41,10 @@ func TypeInfo(arch Arch, type_ ast.Type) (uint32, uint32) {
 }
 
 func getStructInfo(arch Arch, s *ast.Struct) (uint32, uint32) {
-	layout := StructLayout{Arch: arch}
+	layout := StructLayout{
+		Arch:   arch,
+		Packed: s.GetAttribute("packed") != nil,
+	}
 
 	for _, field := range s.Fields {
 		layout.Field(field.Type)
