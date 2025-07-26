@@ -5,8 +5,9 @@ import (
 	"context"
 	"fireball/analyzer"
 	"fireball/ast"
-	"github.com/MineGame159/protocol"
 	"slices"
+
+	"github.com/MineGame159/protocol"
 )
 
 func (s *server) SemanticTokensFull(_ context.Context, params *protocol.SemanticTokensParams) (result *protocol.SemanticTokens, err error) {
@@ -184,6 +185,8 @@ func (h *highlighter) VisitIdentifier(i *ast.Identifier) {
 	var kind semanticKind
 
 	switch i.Resolved.(type) {
+	case *ast.Struct:
+		kind = classKind
 	case *ast.Enum:
 		kind = enumKind
 	case *ast.Func:
@@ -220,10 +223,8 @@ func (h *highlighter) VisitMember(m *ast.Member) {
 
 	kind := propertyKind
 
-	if i, ok := m.Value.(*ast.Identifier); ok {
-		if _, ok := i.Resolved.(*ast.Enum); ok {
-			kind = enumMemberKind
-		}
+	if _, ok := m.Resolved.(*ast.EnumCase); ok {
+		kind = enumMemberKind
 	}
 
 	if _, ok := m.Result().Type.(ast.FuncType); ok {
