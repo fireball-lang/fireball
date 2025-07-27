@@ -103,7 +103,7 @@ func (v *Var) ActualType() Type {
 		return v.Type
 	}
 
-	if IsValid(v.Value) && v.Value.Result().Kind != Invalid {
+	if IsValid(v.Value) && !v.Value.Result().Flags.IsInvalid() {
 		return v.Value.Result().Type
 	}
 

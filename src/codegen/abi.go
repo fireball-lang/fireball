@@ -33,32 +33,30 @@ func isAggregateType(type_ ast.Type) bool {
 	}
 }
 
-func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtrGetter func() ir.Value, alwaysStoreToPtr bool) ir.Value {
+func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtrGetter func() Value, alwaysStoreToPtr bool) Value {
 	value := c.visit(expr)
 
 	type_ := expr.Result().Type
-	exprKind := expr.Result().Kind
 
 	if ast.IsValid(to) {
 		if kind, ok := analyzer.GetImplicitCastKind(nil, expr.Result().Type, to); ok && kind != analyzer.Nop {
-			value = c.load(expr, value)
+			value = value.Read(c)
 			value = c.cast(value, expr.Result().Type, to, kind)
 
 			type_ = to
-			exprKind = ast.Value
 		}
 	}
 
 	regs := c.callConv.Classify(type_)
 
 	if len(regs) == 1 && regs[0].Class == abi.Memory {
-		if alwaysStoreToPtr || exprKind == ast.Value {
-			if exprKind == ast.Address {
+		if alwaysStoreToPtr || !value.Addressable {
+			if value.Addressable {
 				value = c.emitter.Load(c.types.Get(expr.Result().Type), value)
 			}
 
 			ptr := memoryClassPtrGetter()
-			c.emitter.Store(value, ptr)
+			ptr.Write(c, value)
 
 			value = ptr
 		}
@@ -70,23 +68,23 @@ func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtr
 	typ := getClassifiedIrType(&c.types, type_, false)
 
 	if isPointerType(type_) {
-		value = c.load(expr, value)
+		value = value.Read(c)
 		return c.emitter.PtrToInt(value, typ)
 	}
 
 	if isAggregateType(type_) {
-		if exprKind == ast.Value {
+		if !value.Addressable {
 			typ := getClassifiedIrType(&c.types, type_, true)
 			ptr := c.emitAlloca("abi.arg", typ)
 
-			c.emitter.Store(value, ptr)
+			ptr.Write(c, value)
 			value = ptr
 		}
 
 		return c.emitter.Load(typ, value)
 	}
 
-	value = c.load(expr, value)
+	value = value.Read(c)
 
 	kind, ok := analyzer.GetCastKind(nil, type_, astType, true)
 	if !ok {
@@ -96,7 +94,7 @@ func (c *codegen) visitLoadClassified(expr ast.Expr, to ast.Type, memoryClassPtr
 	return c.cast(value, type_, astType, kind)
 }
 
-func (c *codegen) declassify(call *ast.Call, type_ ast.Type, value ir.Value) ir.Value {
+func (c *codegen) declassify(call *ast.Call, type_ ast.Type, value Value) Value {
 	regs := c.callConv.Classify(type_)
 
 	if len(regs) == 1 && regs[0].Class == abi.Memory {
@@ -111,7 +109,7 @@ func (c *codegen) declassify(call *ast.Call, type_ ast.Type, value ir.Value) ir.
 		typ := c.types.Get(call.Callee.Result().Type.(ast.FuncType).ReturnType())
 		ptr := c.emitAlloca("abi.call.declassify", typ)
 
-		c.emitter.Store(value, ptr)
+		ptr.Write(c, value)
 		return c.emitter.Load(c.types.Get(type_), ptr)
 	}
 

@@ -14,6 +14,10 @@ impl Vec2 {
 		if (this.x > this.y) return this.x;
 		return this.y;
 	}
+
+	func set_x(x i32) {
+		this.x = x;
+	}
 }
 
 #[test]
@@ -49,6 +53,14 @@ func methodAddressStruct() bool {
 }
 
 #[test]
+func methodModifyReceiver() bool {
+	var v = Vec2 { x: 6, y: 5 };
+	v.set_x(5);
+
+	return v.x == 5;
+}
+
+#[test]
 func staticMethod() bool {
 	return Vec2.new(3, 2).y == 2;
 }
@@ -64,4 +76,26 @@ struct PackedStruct {
 #[test]
 func packedStruct() bool {
 	return sizeof(PackedStruct) == 6u;
+}
+
+// Nested method
+
+impl Vec2 {
+	func get_x() i32 {
+		return this.x;
+	}
+
+	func get_y() i32 {
+		return this.y;
+	}
+
+	func sum() i32 {
+		return this.get_x() + this.get_y();
+	}
+}
+
+#[test]
+func nestedMethodCall() bool {
+	var v = Vec2 { x: 1, y: 3 };
+	return v.sum() == 4;
 }

@@ -19,7 +19,7 @@ type codegen struct {
 	callConv            abi.CallConv
 
 	types   TypeCache
-	emitter ir.Emitter
+	emitter Emitter
 
 	fileRef ir.MetaRef
 	unitRef ir.MetaRef
@@ -28,14 +28,14 @@ type codegen struct {
 	functions  map[*ast.Func]*ir.Function
 
 	fun          *ir.Function
-	funReturnPtr ir.Value
+	funReturnPtr Value
 
-	variables analyzer.VariableTracker[ir.Value]
+	variables analyzer.VariableTracker[Value]
 
 	loopConditionL *ir.Block
 	loopEndL       *ir.Block
 
-	exprValue ir.Value
+	exprValue Value
 }
 
 func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ir.Module {
@@ -48,7 +48,7 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ir
 		callConv: callConv,
 
 		types:   TypeCache{Arch: arch, CallConv: callConv, Module: module},
-		emitter: ir.Emitter{Module: module},
+		emitter: Emitter{Ir: ir.Emitter{Module: module}},
 
 		globalVars: make(map[*ast.GlobalVar]*ir.GlobalVar),
 		functions:  make(map[*ast.Func]*ir.Function),
@@ -194,7 +194,7 @@ func (c *codegen) newVTable(impl *ast.Impl) {
 	}
 
 	pointers := make([]ir.Value, 0, typ.Length)
-	pointers = append(pointers, c.getTypeInfoPointer(impl.Decl))
+	pointers = append(pointers, c.getTypeInfoPointer(impl.Decl).Ir)
 
 	for _, method := range impl.Interface.Methods {
 		for _, function := range impl.Methods {
@@ -282,9 +282,11 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 
 	paramValueI := 0
 
-	c.funReturnPtr = nil
+	c.funReturnPtr = Value{}
 	if len(returnTypeRegs) == 1 && returnTypeRegs[0].Class == abi.Memory {
-		c.funReturnPtr = c.fun.ParamValues[paramValueI]
+		c.funReturnPtr = toValue(c.fun.ParamValues[paramValueI])
+		c.funReturnPtr.Addressable = true
+
 		paramValueI++
 	}
 
@@ -294,18 +296,12 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 		c.emitter.SetDebugLocation(getClosestValidRange(f.NameN).Start)
 
 		astType := ast.GetDeclPointerType(impl.Decl)
-		typ := c.types.Get(astType)
 
-		ptr := c.emitter.Alloca(typ, 1)
-		ptr.SetName("param.this")
+		ptr := toValue(c.fun.ParamValues[paramValueI])
+		paramValueI++
 
 		c.emitDbgDeclare("this", astType, ptr, argI, f)
 		argI++
-
-		value := c.fun.ParamValues[paramValueI]
-		paramValueI++
-
-		c.emitter.Store(value, ptr)
 
 		c.variables.Add("this", astType, ptr)
 	}
@@ -321,7 +317,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 		c.emitDbgDeclare(param.Name.Token.Text, param.Type, ptr, argI, param)
 		argI++
 
-		value := c.fun.ParamValues[paramValueI]
+		value := toValue(c.fun.ParamValues[paramValueI])
 		paramValueI++
 
 		regs := c.callConv.Classify(param.Type)
@@ -329,7 +325,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 			value = c.emitter.Load(c.types.Get(param.Type), value)
 		}
 
-		c.emitter.Store(value, ptr)
+		ptr.Write(c, value)
 
 		c.variables.Add(param.Name.Token.Text, param.Type, ptr)
 	}
@@ -340,7 +336,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 		expr := ast.GetLastExpr(f.Body)
 
 		if _, ok := expr.(*ast.Return); !ok {
-			c.emitter.Ret(nil)
+			c.emitter.Ret(Value{})
 		}
 	}
 
@@ -376,15 +372,15 @@ func (c *codegen) VisitVar(v *ast.Var) {
 	ptr := c.emitAlloca("var."+v.Name.Token.Text, typ)
 	c.emitDbgDeclare(v.Name.Token.Text, v.ActualType(), ptr, 0, v)
 
-	var value ir.Value
+	var value Value
 
 	if ast.IsValid(v.Value) {
-		value = c.visitLoadImplicitCast(v.Value, v.Type)
+		value = c.visitReadImplicitCast(v.Value, v.Type)
 	} else {
-		value = &ir.ZeroInitializer{Typ: typ}
+		value = toValue(&ir.ZeroInitializer{Typ: typ})
 	}
 
-	c.emitter.Store(value, ptr)
+	ptr.Write(c, value)
 
 	c.variables.Add(v.Name.Token.Text, type_, ptr)
 }
@@ -399,7 +395,7 @@ func (c *codegen) VisitIf(i *ast.If) {
 	}
 
 	// Condition
-	condition := c.visitLoadImplicitCast(i.Condition, ast.BoolType)
+	condition := c.visitReadImplicitCast(i.Condition, ast.BoolType)
 	c.emitter.BrCond(condition, trueL, falseL)
 
 	// Then
@@ -430,7 +426,7 @@ func (c *codegen) VisitWhile(w *ast.While) {
 
 	// Condition
 	c.emitter.Begin(c.loopConditionL)
-	condition := c.visitLoadImplicitCast(w.Condition, ast.BoolType)
+	condition := c.visitReadImplicitCast(w.Condition, ast.BoolType)
 	c.emitter.BrCond(condition, bodyL, c.loopEndL)
 
 	// Body
@@ -454,17 +450,17 @@ func (c *codegen) VisitContinue(co *ast.Continue) {
 }
 
 func (c *codegen) VisitReturn(r *ast.Return) {
-	var value ir.Value
+	var value Value
 
 	if ast.IsValid(r.Value) {
 		f := ast.Parent[*ast.Func](r)
 
-		value = c.visitLoadClassified(r.Value, f.ReturnType(), func() ir.Value {
+		value = c.visitLoadClassified(r.Value, f.ReturnType(), func() Value {
 			return c.funReturnPtr
 		}, true)
 
-		if c.funReturnPtr != nil {
-			value = nil
+		if c.funReturnPtr.Ir != nil {
+			value = Value{}
 		}
 	}
 
@@ -477,11 +473,11 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 	switch l.Value.Token.Kind {
 	case lexer.Identifier:
 		if l.Value.Token.Text == "nil" {
-			c.exprValue = &ir.Null{}
+			c.exprValue = toValue(&ir.Null{})
 		} else if l.Value.Token.Text == "true" {
-			c.exprValue = ir.True
+			c.exprValue = toValue(ir.True)
 		} else {
-			c.exprValue = ir.False
+			c.exprValue = toValue(ir.False)
 		}
 
 	case lexer.Integer:
@@ -495,35 +491,35 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 			value = utils.Signed(v)
 		}
 
-		c.exprValue = &ir.Integer{
+		c.exprValue = toValue(&ir.Integer{
 			Typ:   c.types.Get(l.Result().Type),
 			Value: value,
-		}
+		})
 
 	case lexer.Floating:
 		if strings.ContainsAny(str, "fF") {
 			v, _ := strconv.ParseFloat(str[:len(str)-1], 32)
-			c.exprValue = &ir.FloatV{Value: float32(v)}
+			c.exprValue = toValue(&ir.FloatV{Value: float32(v)})
 		} else {
 			v, _ := strconv.ParseFloat(str, 64)
-			c.exprValue = &ir.DoubleV{Value: v}
+			c.exprValue = toValue(&ir.DoubleV{Value: v})
 		}
 
 	case lexer.Hexadecimal:
 		v, _ := strconv.ParseUint(str[2:], 16, 64)
 
-		c.exprValue = &ir.Integer{
+		c.exprValue = toValue(&ir.Integer{
 			Typ:   c.types.Get(l.Result().Type),
 			Value: utils.Unsigned(false, v),
-		}
+		})
 
 	case lexer.Binary:
 		v, _ := strconv.ParseUint(str[2:], 2, 64)
 
-		c.exprValue = &ir.Integer{
+		c.exprValue = toValue(&ir.Integer{
 			Typ:   c.types.Get(l.Result().Type),
 			Value: utils.Unsigned(false, v),
-		}
+		})
 
 	case lexer.Character:
 		char := l.Value.Token.Text[1 : len(l.Value.Token.Text)-1]
@@ -551,10 +547,10 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 			number = char[len(char)-1]
 		}
 
-		c.exprValue = &ir.Integer{
+		c.exprValue = toValue(&ir.Integer{
 			Typ:   c.types.Get(l.Result().Type),
 			Value: utils.Unsigned(false, uint64(number)),
-		}
+		})
 
 	case lexer.String:
 		c.stringConstantCount++
@@ -576,7 +572,7 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 		gVar.Flags = ir.Private | ir.UnnamedAddr | ir.Constant
 		gVar.Initializer = value
 
-		c.exprValue = gVar
+		c.exprValue = toValue(gVar)
 
 	default:
 		panic("codegen.codegen.VisitLiteral() - Invalid token kind")
@@ -584,12 +580,12 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 }
 
 func (c *codegen) VisitStructInitializer(s *ast.StructInitializer) {
-	var v ir.Value = &ir.ZeroInitializer{Typ: c.types.Get(s.Result().Type)}
+	v := toValue(&ir.ZeroInitializer{Typ: c.types.Get(s.Result().Type)})
 
 	for _, field := range s.Fields {
 		f, i := s.Struct.GetField(field.Name.Token.Text)
 
-		value := c.visitLoadImplicitCast(field.Value, f.Type)
+		value := c.visitReadImplicitCast(field.Value, f.Type)
 		v = c.emitter.InsertValue(v, value, uint32(i))
 	}
 
@@ -608,7 +604,7 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) {
 	case *ast.Var, *ast.Impl, *ast.Param:
 		_, c.exprValue = c.variables.Find(i.Path.SegmentAt(0))
 
-		if utils.IsNil(c.exprValue) {
+		if utils.IsNil(c.exprValue.Ir) {
 			panic("codegen.codegen.VisitIdentifier() - Failed to find local variable")
 		}
 
@@ -621,16 +617,16 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) {
 }
 
 func (c *codegen) VisitCall(call *ast.Call) {
-	callee := c.visitLoad(call.Callee)
+	callee := c.visit(call.Callee).Read(c)
 	args := make([]ir.Value, 0, len(call.Args))
 
 	f, _ := call.Callee.Result().Type.(ast.FuncType)
 	regs := c.callConv.Classify(f.ReturnType())
-	var returnPtr ir.Value
+	var returnPtr Value
 
 	if len(regs) == 1 && regs[0].Class == abi.Memory {
 		returnPtr = c.emitAlloca("abi.call.return", c.types.Get(f.ReturnType()))
-		args = append(args, returnPtr)
+		args = append(args, returnPtr.Ir)
 	}
 
 	switch parent := f.Parent().(type) {
@@ -639,14 +635,14 @@ func (c *codegen) VisitCall(call *ast.Call) {
 			expr := call.Callee.(*ast.Member).Value
 			value := c.visit(expr)
 
-			if expr.Result().Kind == ast.Value {
+			if !value.IsPointer() {
 				ptr := c.emitAlloca("abi.this", c.types.Get(expr.Result().Type))
 				c.emitter.Store(value, ptr)
 
 				value = ptr
 			}
 
-			args = append(args, value)
+			args = append(args, value.Ir)
 		}
 
 	case *ast.Interface:
@@ -665,7 +661,7 @@ func (c *codegen) VisitCall(call *ast.Call) {
 		funPtrOffset := c.emitter.GetElementPtrConst(typ, vtablePtr, 0, 1+index)
 		callee = c.emitter.Load(ir.Pointer, funPtrOffset)
 
-		args = append(args, dataPtr)
+		args = append(args, dataPtr.Ir)
 	}
 
 	for i, arg := range call.Args {
@@ -675,9 +671,9 @@ func (c *codegen) VisitCall(call *ast.Call) {
 			paramType = f.ParamTypeAt(i)
 		}
 
-		args = append(args, c.visitLoadClassified(arg, paramType, func() ir.Value {
+		args = append(args, c.visitLoadClassified(arg, paramType, func() Value {
 			return c.emitAlloca("abi.arg", c.types.Get(paramType))
-		}, false))
+		}, false).Ir)
 	}
 
 	c.exprValue = c.emitter.Call(c.types.Get(f), callee, args)
@@ -699,26 +695,26 @@ func (c *codegen) VisitTypeCall(t *ast.TypeCall) {
 		value = align
 	}
 
-	c.exprValue = &ir.Integer{
+	c.exprValue = toValue(&ir.Integer{
 		Typ:   ir.I32,
 		Value: utils.Unsigned(false, uint64(value)),
-	}
+	})
 }
 
 func (c *codegen) VisitIndex(i *ast.Index) {
 	ptr := c.visit(i.Value)
-	index := c.visitLoad(i.Index)
+	index := c.visit(i.Index).Read(c)
 
 	if p, ok := i.Value.Result().Type.(*ast.PointerType); ok {
 		typ := c.types.Get(p.Pointee)
 
-		ptr = c.load(i.Value, ptr)
-		c.exprValue = c.emitter.GetElementPtrDyn(typ, ptr, index, nil)
+		ptr = ptr.Read(c)
+		c.exprValue = c.emitter.GetElementPtrDyn(typ, ptr, index, Value{})
 	} else {
 		typ := c.types.Get(i.Value.Result().Type)
 
 		zero := &ir.Integer{Typ: ir.I32, Value: utils.Signed(0)}
-		c.exprValue = c.emitter.GetElementPtrDyn(typ, ptr, zero, index)
+		c.exprValue = c.emitter.GetElementPtrDyn(typ, ptr, toValue(zero), index)
 	}
 }
 
@@ -727,10 +723,10 @@ func (c *codegen) VisitMember(m *ast.Member) {
 	if enumCase, ok := m.Resolved.(*ast.EnumCase); ok {
 		enum := enumCase.Parent().(*ast.Enum)
 
-		c.exprValue = &ir.Integer{
+		c.exprValue = toValue(&ir.Integer{
 			Typ:   c.types.Get(enum.ActualType.(*ast.PrimitiveType)),
 			Value: enumCase.ActualValue,
-		}
+		})
 
 		return
 	}
@@ -772,14 +768,15 @@ func (c *codegen) VisitMember(m *ast.Member) {
 
 	value := c.visit(m.Value)
 
-	if m.Value.Result().Kind == ast.Value {
-		c.exprValue = c.emitExtractAggregateElement(value, m.Value.Result().Type, uint32(i))
-	} else {
-		if isPtr {
-			value = c.emitter.Load(ir.Pointer, value)
-		}
-
+	if isPtr {
+		value = value.Read(c)
 		c.exprValue = c.emitter.GetElementPtrConst(c.types.Get(type_), value, 0, uint32(i))
+	} else {
+		if value.Addressable {
+			c.exprValue = c.emitter.GetElementPtrConst(c.types.Get(type_), value, 0, uint32(i))
+		} else {
+			c.exprValue = c.emitter.ExtractValue(value, uint32(i))
+		}
 	}
 }
 
@@ -790,10 +787,10 @@ func (c *codegen) VisitUnary(u *ast.Unary) {
 		case lexer.PlusPlus, lexer.MinusMinus:
 			ptr := c.visit(u.Expr)
 
-			oldValue := c.emitter.Load(c.types.Get(u.Expr.Result().Type), ptr)
+			oldValue := ptr.Read(c)
 			newValue := c.binarySimple(u.Op, oldValue, c.getConstantOne(u.Expr.Result().Type), u.Result().Type)
 
-			c.emitter.Store(newValue, ptr)
+			ptr.Write(c, newValue)
 
 			c.exprValue = oldValue
 
@@ -806,36 +803,37 @@ func (c *codegen) VisitUnary(u *ast.Unary) {
 		case lexer.PlusPlus, lexer.MinusMinus:
 			ptr := c.visit(u.Expr)
 
-			oldValue := c.emitter.Load(c.types.Get(u.Expr.Result().Type), ptr)
+			oldValue := ptr.Read(c)
 			newValue := c.binarySimple(u.Op, oldValue, c.getConstantOne(u.Expr.Result().Type), u.Result().Type)
 
-			c.emitter.Store(newValue, ptr)
+			ptr.Write(c, newValue)
 
 			c.exprValue = newValue
 
 		// -
 		case lexer.Minus:
-			value := c.visitLoad(u.Expr)
+			value := c.visit(u.Expr).Read(c)
 
 			if u.Expr.Result().Type.(*ast.PrimitiveType).Kind.IsFloating() {
 				c.exprValue = c.emitter.Fneg(value)
 			} else {
 				zero := &ir.Integer{Typ: c.types.Get(u.Expr.Result().Type), Value: utils.Signed(0)}
-				c.exprValue = c.emitter.Sub(zero, value)
+				c.exprValue = c.emitter.Sub(toValue(zero), value)
 			}
 
 		// !
 		case lexer.Bang:
-			value := c.visitLoadImplicitCast(u.Expr, ast.BoolType)
-			c.exprValue = c.emitter.Xor(value, ir.True)
+			value := c.visitReadImplicitCast(u.Expr, ast.BoolType)
+			c.exprValue = c.emitter.Xor(value, toValue(ir.True))
 
 		// &
 		case lexer.Ampersand:
-			c.exprValue = c.visit(u.Expr)
+			c.exprValue = c.visit(u.Expr).IntoPointer()
 
 		// *
 		case lexer.Star:
-			c.exprValue = c.visitLoad(u.Expr)
+			typ := c.types.Get(u.Result().Type)
+			c.exprValue = c.visit(u.Expr).Read(c).IntoAddressable(typ)
 
 		default:
 			panic("codegen.codegen.VisitUnary() - Invalid prefix operator")
@@ -848,18 +846,18 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 	// Assignment
 	case lexer.Equal:
 		ptr := c.visit(b.Left)
-		value := c.visitLoad(b.Right)
+		value := c.visit(b.Right).Read(c)
 
-		c.emitter.Store(value, ptr)
+		ptr.Write(c, value)
 
 	case lexer.PlusEqual, lexer.MinusEqual, lexer.StarEqual, lexer.SlashEqual, lexer.PercentageEqual, lexer.PipeEqual, lexer.XorEqual, lexer.AmpersandEqual:
 		ptr := c.visit(b.Left)
 
-		left := c.emitter.Load(c.types.Get(b.Left.Result().Type), ptr)
-		right := c.visitLoad(b.Right)
+		left := ptr.Read(c)
+		right := c.visit(b.Right).Read(c)
 
 		value := c.binarySimple(b.Op, left, right, b.Result().Type)
-		c.emitter.Store(value, ptr)
+		ptr.Write(c, value)
 
 	// Boolean
 	case lexer.PipePipe:
@@ -871,20 +869,20 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 		// Left
 		c.emitter.Begin(leftL)
-		left := c.visitLoadImplicitCast(b.Left, ast.BoolType)
+		left := c.visitReadImplicitCast(b.Left, ast.BoolType)
 		c.emitter.BrCond(left, exitL, rightL)
 
 		// Right
 		c.emitter.Begin(rightL)
-		right := c.visitLoadImplicitCast(b.Right, ast.BoolType)
+		right := c.visitReadImplicitCast(b.Right, ast.BoolType)
 		c.emitter.Br(exitL)
 
 		// Exit
 		c.emitter.Begin(exitL)
 
 		c.exprValue = c.emitter.Phi(
-			ir.PhiPair{Block: leftL, Value: left},
-			ir.PhiPair{Block: rightL, Value: right},
+			ir.PhiPair{Block: leftL, Value: left.Ir},
+			ir.PhiPair{Block: rightL, Value: right.Ir},
 		)
 
 	case lexer.AmpersandAmpersand:
@@ -896,12 +894,12 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 		// Left
 		c.emitter.Begin(leftL)
-		left := c.visitLoadImplicitCast(b.Left, ast.BoolType)
+		left := c.visitReadImplicitCast(b.Left, ast.BoolType)
 		c.emitter.BrCond(left, rightL, exitL)
 
 		// Right
 		c.emitter.Begin(rightL)
-		right := c.visitLoadImplicitCast(b.Right, ast.BoolType)
+		right := c.visitReadImplicitCast(b.Right, ast.BoolType)
 		c.emitter.Br(exitL)
 
 		// Exit
@@ -909,13 +907,13 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 		c.exprValue = c.emitter.Phi(
 			ir.PhiPair{Block: leftL, Value: ir.False},
-			ir.PhiPair{Block: rightL, Value: right},
+			ir.PhiPair{Block: rightL, Value: right.Ir},
 		)
 
 	// Equality
 	case lexer.EqualEqual, lexer.BangEqual:
-		left := c.visitLoad(b.Left)
-		right := c.visitLoad(b.Right)
+		left := c.visit(b.Left).Read(c)
+		right := c.visit(b.Right).Read(c)
 
 		switch type_ := b.Left.Result().Type.(type) {
 		case *ast.PrimitiveType:
@@ -952,8 +950,8 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
 		kind := b.Left.Result().Type.(*ast.PrimitiveType).Kind
 
-		left := c.visitLoad(b.Left)
-		right := c.visitLoad(b.Right)
+		left := c.visit(b.Left).Read(c)
+		right := c.visit(b.Right).Read(c)
 
 		var op ir.CmpOp
 
@@ -977,11 +975,14 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 	// Logical, Math
 	default:
-		c.exprValue = c.binarySimple(b.Op, c.visitLoad(b.Left), c.visitLoad(b.Right), b.Result().Type)
+		left := c.visit(b.Left).Read(c)
+		right := c.visit(b.Right).Read(c)
+
+		c.exprValue = c.binarySimple(b.Op, left, right, b.Result().Type)
 	}
 }
 
-func (c *codegen) binarySimple(op lexer.TokenKind, left, right ir.Value, type_ ast.Type) ir.Value {
+func (c *codegen) binarySimple(op lexer.TokenKind, left, right Value, type_ ast.Type) Value {
 	switch op {
 	// Logical
 	case lexer.Pipe, lexer.PipeEqual:
@@ -1021,7 +1022,7 @@ func (c *codegen) VisitIs(i *ast.Is) {
 }
 
 func (c *codegen) VisitCast(cast *ast.Cast) {
-	value := c.visitLoad(cast.Value)
+	value := c.visit(cast.Value).Read(c)
 
 	from := cast.Value.Result().Type
 	to := cast.Type
@@ -1047,7 +1048,7 @@ func getIrDivKind(type_ ast.Type) ir.DivKind {
 	return ir.Unsigned
 }
 
-func (c *codegen) cast(value ir.Value, from, to ast.Type, kind analyzer.CastKind) ir.Value {
+func (c *codegen) cast(value Value, from, to ast.Type, kind analyzer.CastKind) Value {
 	typ := c.types.Get(to)
 
 	if declType, ok := from.(*ast.DeclType); ok {
@@ -1080,11 +1081,11 @@ func (c *codegen) cast(value ir.Value, from, to ast.Type, kind analyzer.CastKind
 			Typ: typ,
 			Fields: []ir.Value{
 				&ir.Null{},
-				c.getVTablePointer(decl, in),
+				c.getVTablePointer(decl, in).Ir,
 			},
 		}
 
-		return c.emitter.InsertValue(v, value, 0)
+		return c.emitter.InsertValue(toValue(v), value, 0)
 
 	case analyzer.InterfaceToPointer:
 		return c.emitter.ExtractValue(value, 0)
@@ -1096,24 +1097,29 @@ func (c *codegen) cast(value ir.Value, from, to ast.Type, kind analyzer.CastKind
 
 // Utils
 
-func (c *codegen) emitAlloca(name string, typ ir.Type) ir.Value {
-	in := &ir.Alloca{
+func (c *codegen) emitAlloca(name string, typ ir.Type) Value {
+	ptr := &ir.Alloca{
 		Typ:   typ,
 		Count: 1,
 	}
 
-	in.SetName(name)
-	in.SetMeta(c.emitter.GetLocMetaRef())
+	ptr.SetName(name)
+	ptr.SetMeta(c.emitter.GetLocMetaRef())
 
-	c.fun.Blocks[0].AddFirst(in)
-	return in
+	c.fun.Blocks[0].AddFirst(ptr)
+
+	return Value{
+		Ir:          ptr,
+		Typ:         typ,
+		Addressable: true,
+	}
 }
 
-func (c *codegen) emitExtractAggregateElement(value ir.Value, type_ ast.Type, index uint32) ir.Value {
+func (c *codegen) emitExtractAggregateElement(value Value, type_ ast.Type, index uint32) Value {
 	// Get pointer depth
 	ptrDepth := 0
 
-	if isValueImplicitPointer(value) {
+	if value.Addressable {
 		ptrDepth++
 	}
 
@@ -1124,7 +1130,7 @@ func (c *codegen) emitExtractAggregateElement(value ir.Value, type_ ast.Type, in
 
 	// Load double pointer
 	if ptrDepth == 2 {
-		value = c.emitter.Load(ir.Pointer, value)
+		value = value.Read(c)
 		ptrDepth--
 	}
 
@@ -1153,57 +1159,64 @@ func (c *codegen) emitExtractAggregateElement(value ir.Value, type_ ast.Type, in
 		typ := c.types.Get(type_)
 
 		elementPtr := c.emitter.GetElementPtrConst(typ, value, 0, index)
-		return c.emitter.Load(elementTyp, elementPtr)
+		return elementPtr.Read(c)
 	} else {
 		return c.emitter.ExtractValue(value, index)
 	}
 }
 
-func isValueImplicitPointer(value ir.Value) bool {
-	switch value.(type) {
-	case *ir.Alloca, *ir.GlobalVar:
-		return true
-	default:
-		return false
-	}
-}
-
-func (c *codegen) getTypeInfoPointer(decl ast.Decl) ir.Value {
+func (c *codegen) getTypeInfoPointer(decl ast.Decl) Value {
 	typeInfoName := GetTypeInfoLinkName(decl)
+	var gVar *ir.GlobalVar
 
-	for gVar := range c.module.GlobalVars() {
-		if gVar.Name == typeInfoName {
-			return gVar
+	for v := range c.module.GlobalVars() {
+		if v.Name == typeInfoName {
+			gVar = v
+			break
 		}
 	}
 
-	gVar := c.module.NewGlobalVar(typeInfoName, ir.I8)
-	gVar.Flags = ir.External | ir.Constant
+	if gVar == nil {
+		gVar = c.module.NewGlobalVar(typeInfoName, ir.I8)
+		gVar.Flags = ir.External | ir.Constant
+	}
 
-	return gVar
+	return Value{
+		Ir:          gVar,
+		Typ:         gVar.Typ,
+		Addressable: true,
+	}
 }
 
-func (c *codegen) getVTablePointer(decl ast.Decl, in *ast.Interface) ir.Value {
+func (c *codegen) getVTablePointer(decl ast.Decl, in *ast.Interface) Value {
 	vtableName := GetVTableLinkName(decl, in)
+	var gVar *ir.GlobalVar
 
-	for gVar := range c.module.GlobalVars() {
-		if gVar.Name == vtableName {
-			return gVar
+	for v := range c.module.GlobalVars() {
+		if v.Name == vtableName {
+			gVar = v
+			break
 		}
 	}
 
-	typ := &ir.ArrayType{
-		Length:  1 + uint32(len(in.Methods)),
-		Element: ir.Pointer,
+	if gVar == nil {
+		typ := &ir.ArrayType{
+			Length:  1 + uint32(len(in.Methods)),
+			Element: ir.Pointer,
+		}
+
+		gVar = c.module.NewGlobalVar(vtableName, typ)
+		gVar.Flags = ir.External | ir.Constant
 	}
 
-	gVar := c.module.NewGlobalVar(vtableName, typ)
-	gVar.Flags = ir.External | ir.Constant
-
-	return gVar
+	return Value{
+		Ir:          gVar,
+		Typ:         gVar.Typ,
+		Addressable: true,
+	}
 }
 
-func (c *codegen) emitDbgDeclare(name string, type_ ast.Type, ptr ir.Value, arg uint32, node ast.Node) {
+func (c *codegen) emitDbgDeclare(name string, type_ ast.Type, ptr Value, arg uint32, node ast.Node) {
 	c.emitter.DbgDeclare(
 		ptr,
 		c.module.AddMeta(&ir.LocalVariableMeta{
@@ -1218,56 +1231,53 @@ func (c *codegen) emitDbgDeclare(name string, type_ ast.Type, ptr ir.Value, arg 
 	)
 }
 
-func (c *codegen) getValueForGlobalVar(g *ast.GlobalVar) ir.Value {
+func (c *codegen) getValueForGlobalVar(g *ast.GlobalVar) Value {
+	var gVar *ir.GlobalVar
+
 	if v, ok := c.globalVars[g]; ok {
-		return v
+		gVar = v
 	} else {
-		gVar := c.module.NewGlobalVar(GetGlobalVarLinkName(g), c.types.Get(g.Type))
+		gVar = c.module.NewGlobalVar(GetGlobalVarLinkName(g), c.types.Get(g.Type))
 		gVar.Flags = ir.External
 
 		c.globalVars[g] = gVar
-		return gVar
+	}
+
+	return Value{
+		Ir:          gVar,
+		Typ:         gVar.Typ,
+		Addressable: true,
 	}
 }
 
-func (c *codegen) getValueForFunc(f *ast.Func) ir.Value {
+func (c *codegen) getValueForFunc(f *ast.Func) Value {
 	if v, ok := c.functions[f]; ok {
-		return v
+		return toValue(v)
 	} else {
 		fun := c.newFunction(f)
 		fun.Flags |= ir.Declare
 
-		return fun
+		return toValue(fun)
 	}
 }
 
-func (c *codegen) getConstantOne(type_ ast.Type) ir.Value {
+func (c *codegen) getConstantOne(type_ ast.Type) Value {
 	kind := type_.(*ast.PrimitiveType).Kind
 
 	if kind == ast.F32 {
-		return &ir.FloatV{Value: 1}
+		return toValue(&ir.FloatV{Value: 1})
 	}
 	if kind == ast.F64 {
-		return &ir.DoubleV{Value: 1}
+		return toValue(&ir.DoubleV{Value: 1})
 	}
 
-	return &ir.Integer{
+	return toValue(&ir.Integer{
 		Typ:   c.types.Get(type_),
 		Value: utils.Signed(1),
-	}
+	})
 }
 
-func (c *codegen) load(expr ast.Expr, value ir.Value) ir.Value {
-	if expr.Result().Kind == ast.Address {
-		if _, ok := value.(*ir.Function); !ok {
-			value = c.emitter.Load(c.types.Get(expr.Result().Type), value)
-		}
-	}
-
-	return value
-}
-
-func (c *codegen) implicitCast(value ir.Value, from, to ast.Type) ir.Value {
+func (c *codegen) implicitCast(value Value, from, to ast.Type) Value {
 	if ast.IsValid(from) && ast.IsValid(to) {
 		if kind, ok := analyzer.GetImplicitCastKind(nil, from, to); ok {
 			value = c.cast(value, from, to, kind)
@@ -1277,26 +1287,22 @@ func (c *codegen) implicitCast(value ir.Value, from, to ast.Type) ir.Value {
 	return value
 }
 
-func (c *codegen) visitLoadImplicitCast(expr ast.Expr, to ast.Type) ir.Value {
-	value := c.visitLoad(expr)
+func (c *codegen) visitReadImplicitCast(expr ast.Expr, to ast.Type) Value {
+	value := c.visit(expr)
+	value = value.Read(c)
 	value = c.implicitCast(value, expr.Result().Type, to)
 
 	return value
 }
 
-func (c *codegen) visitLoad(expr ast.Expr) ir.Value {
-	value := c.visit(expr)
-	return c.load(expr, value)
-}
-
-func (c *codegen) visit(expr ast.Expr) ir.Value {
+func (c *codegen) visit(expr ast.Expr) Value {
 	c.emitter.SetDebugLocation(getClosestValidRange(expr).Start)
 
-	if expr.Result().Kind == ast.Invalid {
+	if expr.Result().Flags.IsInvalid() {
 		panic("codegen.codegen.Visit() - Expression result is invalid.")
 	}
 
-	c.exprValue = nil
+	c.exprValue = Value{}
 	expr.Visit(c)
 
 	return c.exprValue

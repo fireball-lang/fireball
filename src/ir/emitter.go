@@ -500,6 +500,8 @@ func (e *Emitter) Call(typ Type, callee Value, args []Value) Instruction {
 	})
 }
 
+// Debug instructions
+
 func (e *Emitter) DbgDeclare(pointer Value, variableRef, locationRef MetaRef) Instruction {
 	if e.skip {
 		return dummy

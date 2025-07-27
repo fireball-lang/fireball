@@ -228,7 +228,7 @@ func (a *analyzer) VisitBlock(b *ast.Block) {
 	a.variables.PushScope()
 
 	a.acceptChildren(b)
-	b.Result().Set(ast.Value, ast.VoidType)
+	b.Result().Set(ast.None, ast.VoidType)
 
 	a.variables.PopScope()
 }
@@ -254,7 +254,7 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 		}
 	}
 
-	v.Result().Set(ast.Value, ast.VoidType)
+	v.Result().Set(ast.None, ast.VoidType)
 }
 
 func (a *analyzer) VisitIf(i *ast.If) {
@@ -262,7 +262,7 @@ func (a *analyzer) VisitIf(i *ast.If) {
 
 	a.checkType(i.Condition, ast.BoolType)
 
-	i.Result().Set(ast.Value, ast.VoidType)
+	i.Result().Set(ast.None, ast.VoidType)
 }
 
 func (a *analyzer) VisitWhile(w *ast.While) {
@@ -275,7 +275,7 @@ func (a *analyzer) VisitWhile(w *ast.While) {
 
 	a.checkType(w.Condition, ast.BoolType)
 
-	w.Result().Set(ast.Value, ast.VoidType)
+	w.Result().Set(ast.None, ast.VoidType)
 }
 
 func (a *analyzer) VisitBreak(b *ast.Break) {
@@ -283,7 +283,7 @@ func (a *analyzer) VisitBreak(b *ast.Break) {
 		a.error(b, "Break can only be inside a loop body.")
 	}
 
-	b.Result().Set(ast.Value, ast.VoidType)
+	b.Result().Set(ast.None, ast.VoidType)
 }
 
 func (a *analyzer) VisitContinue(c *ast.Continue) {
@@ -291,7 +291,7 @@ func (a *analyzer) VisitContinue(c *ast.Continue) {
 		a.error(c, "Continue can only be inside a loop body.")
 	}
 
-	c.Result().Set(ast.Value, ast.VoidType)
+	c.Result().Set(ast.None, ast.VoidType)
 }
 
 func (a *analyzer) VisitReturn(r *ast.Return) {
@@ -300,7 +300,7 @@ func (a *analyzer) VisitReturn(r *ast.Return) {
 	// TODO: allow implicit casts
 	a.checkType(r.Value, a.fun.ReturnType())
 
-	r.Result().Set(ast.Value, ast.VoidType)
+	r.Result().Set(ast.None, ast.VoidType)
 }
 
 func (a *analyzer) VisitLiteral(l *ast.Literal) {
@@ -309,9 +309,9 @@ func (a *analyzer) VisitLiteral(l *ast.Literal) {
 	switch l.Value.Token.Kind {
 	case lexer.Identifier:
 		if l.Value.Token.Text == "nil" {
-			l.Result().Set(ast.Value, &ast.PointerType{Pointee: ast.VoidType})
+			l.Result().Set(ast.None, &ast.PointerType{Pointee: ast.VoidType})
 		} else {
-			l.Result().Set(ast.Value, ast.BoolType)
+			l.Result().Set(ast.None, ast.BoolType)
 		}
 
 	case lexer.Integer:
@@ -329,7 +329,7 @@ func (a *analyzer) VisitLiteral(l *ast.Literal) {
 					type_ = ast.I32Type
 				}
 
-				l.Result().Set(ast.Value, type_)
+				l.Result().Set(ast.None, type_)
 			}
 		}
 
@@ -339,13 +339,13 @@ func (a *analyzer) VisitLiteral(l *ast.Literal) {
 				a.error(l, "Invalid 32-bit floating number.")
 			}
 
-			l.Result().Set(ast.Value, ast.F32Type)
+			l.Result().Set(ast.None, ast.F32Type)
 		} else {
 			if _, err := strconv.ParseFloat(str, 64); err != nil {
 				a.error(l, "Invalid 64-bit floating number.")
 			}
 
-			l.Result().Set(ast.Value, ast.F64Type)
+			l.Result().Set(ast.None, ast.F64Type)
 		}
 
 	case lexer.Hexadecimal:
@@ -355,7 +355,7 @@ func (a *analyzer) VisitLiteral(l *ast.Literal) {
 		a.parseUint(l, 2, "Invalid binary integer.")
 
 	case lexer.Character:
-		l.Result().Set(ast.Value, ast.U8Type)
+		l.Result().Set(ast.None, ast.U8Type)
 
 	case lexer.String:
 		s := stringBuilder{startPos: l.Range().Start}
@@ -363,7 +363,7 @@ func (a *analyzer) VisitLiteral(l *ast.Literal) {
 
 		a.diagnostics = append(a.diagnostics, s.errors...)
 
-		l.Result().Set(ast.Value, &ast.PointerType{Pointee: ast.U8Type})
+		l.Result().Set(ast.None, &ast.PointerType{Pointee: ast.U8Type})
 
 	default:
 		panic("analyzer.analyzer.VisitLiteral() - Invalid token kind")
@@ -390,7 +390,7 @@ func (a *analyzer) parseUint(l *ast.Literal, base int, errorMsg string) {
 			type_ = ast.U32Type
 		}
 
-		l.Result().Set(ast.Value, type_)
+		l.Result().Set(ast.None, type_)
 	}
 }
 
@@ -412,7 +412,7 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) {
 		a.checkType(field.Value, sField.Type)
 	}
 
-	s.Result().Set(ast.Value, &ast.DeclType{
+	s.Result().Set(ast.None, &ast.DeclType{
 		Path: getDeclPath(s.Struct),
 		Decl: s.Struct,
 	})
@@ -429,6 +429,7 @@ func (a *analyzer) VisitParen(p *ast.Paren) {
 func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
 	var type_ ast.Type
 	var node ast.Node
+	var flags ast.ExprResultFlags
 
 	name := i.Path.SegmentAt(i.Path.SegmentCount() - 1)
 
@@ -439,6 +440,11 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
 
 		type_ = t
 		node = v.node
+		flags = ast.Addressable
+
+		if !v.readonly {
+			flags |= ast.Assignable
+		}
 
 		if ast.IsValid(t) && v.readonly {
 			if b, ok := i.Parent().(*ast.Binary); ok {
@@ -457,6 +463,7 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
 			if g != nil {
 				type_ = g.Type
 				node = g
+				flags = ast.Addressable | ast.Assignable
 			}
 		}
 	}
@@ -496,7 +503,7 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
 		i.Result().SetInvalid()
 		i.Resolved = nil
 	} else {
-		i.Result().Set(ast.Address, type_)
+		i.Result().Set(flags, type_)
 		i.Resolved = node
 	}
 }
@@ -504,7 +511,7 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
 func (a *analyzer) VisitCall(c *ast.Call) {
 	a.acceptChildren(c)
 
-	if !ast.IsValid(c.Callee) || c.Callee.Result().Kind == ast.Invalid {
+	if !ast.IsValid(c.Callee) || c.Callee.Result().Flags.IsInvalid() {
 		return
 	}
 
@@ -515,7 +522,7 @@ func (a *analyzer) VisitCall(c *ast.Call) {
 		return
 	}
 
-	c.Result().Set(ast.Value, f.ReturnType())
+	c.Result().Set(ast.None, f.ReturnType())
 
 	i := 0
 	for expected := range f.ParamTypes() {
@@ -536,31 +543,31 @@ func (a *analyzer) VisitCall(c *ast.Call) {
 
 func (a *analyzer) VisitTypeCall(t *ast.TypeCall) {
 	a.acceptChildren(t)
-	t.Result().Set(ast.Value, ast.U32Type)
+	t.Result().Set(ast.None, ast.U32Type)
 }
 
 func (a *analyzer) VisitIndex(i *ast.Index) {
 	a.acceptChildren(i)
 	i.Result().SetInvalid()
 
-	if ast.IsValid(i.Value) && i.Value.Result().Kind != ast.Invalid {
+	if ast.IsValid(i.Value) && !i.Value.Result().Flags.IsInvalid() {
 		// TODO: Allow indexing into temporary values
-		if i.Value.Result().Kind == ast.Value {
+		if !i.Value.Result().Flags.IsAssignable() {
 			a.error(i.Value, "Indexing into temporary values is not allowed.")
 		}
 
 		switch type_ := i.Value.Result().Type.(type) {
 		case *ast.ArrayType:
-			i.Result().Set(i.Value.Result().Kind, type_.Element)
+			i.Result().Set(i.Value.Result().Flags, type_.Element)
 		case *ast.PointerType:
-			i.Result().Set(i.Value.Result().Kind, type_.Pointee)
+			i.Result().Set(i.Value.Result().Flags, type_.Pointee)
 
 		default:
 			a.error(i.Value, "Type '"+i.Value.Result().Type.String()+"' cannot be indexed.")
 		}
 	}
 
-	if ast.IsValid(i.Index) && i.Index.Result().Kind != ast.Invalid {
+	if ast.IsValid(i.Index) && !i.Index.Result().Flags.IsInvalid() {
 		if p, ok := i.Index.Result().Type.(*ast.PrimitiveType); !ok || !p.Kind.IsInteger() {
 			a.error(i.Index, "Only integer types can index, not '"+i.Index.Result().Type.String()+"'.")
 		}
@@ -574,7 +581,7 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 	m.Resolved = nil
 
 	// Type
-	if ast.IsValid(m.Value) && m.Value.Result().Kind != ast.Invalid && m.Name != nil {
+	if ast.IsValid(m.Value) && !m.Value.Result().Flags.IsInvalid() && m.Name != nil {
 		if ident, ok := m.Value.(*ast.Identifier); ok {
 			// Enum case
 			if decl, ok := ident.Resolved.(*ast.Enum); ok {
@@ -588,7 +595,7 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 				}
 
 				if enumCase != nil {
-					m.Result().Set(ast.Value, m.Value.Result().Type)
+					m.Result().Set(ast.None, m.Value.Result().Type)
 					m.Resolved = enumCase
 
 					return
@@ -600,7 +607,7 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 				method := a.scope.GetDeclMethod(decl, m.Name.Token.Text, true)
 
 				if method != nil {
-					m.Result().Set(ast.Value, method)
+					m.Result().Set(ast.None, method)
 					m.Resolved = method
 
 					return
@@ -612,7 +619,7 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 	// Member
 	var decl ast.Decl
 
-	if ast.IsValid(m.Value) && m.Value.Result().Kind != ast.Invalid {
+	if ast.IsValid(m.Value) && !m.Value.Result().Flags.IsInvalid() {
 		t := m.Value.Result().Type
 		skipError := false
 
@@ -648,11 +655,20 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 			if method == nil {
 				a.error(m.Name, "Type '"+decl.Name()+"' doesn't have a member with the name '"+m.Name.Token.Text+"'.")
 			} else {
-				m.Result().Set(ast.Value, method)
+				m.Result().Set(ast.None, method)
 				m.Resolved = method
 			}
 		} else if ast.IsValid(field.Type) {
-			m.Result().Set(m.Value.Result().Kind, field.Type)
+			flags := ast.None
+
+			if m.Value.Result().Flags.IsAddressable() {
+				flags = ast.Addressable
+			}
+			if _, ok := m.Value.Result().Type.(*ast.PointerType); ok || flags.IsAddressable() {
+				flags |= ast.Assignable
+			}
+
+			m.Result().Set(flags, field.Type)
 			m.Resolved = field
 		}
 	}
@@ -661,7 +677,7 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 func (a *analyzer) VisitUnary(u *ast.Unary) {
 	a.acceptChildren(u)
 
-	if !ast.IsValid(u.Expr) || u.Expr.Result().Kind == ast.Invalid {
+	if !ast.IsValid(u.Expr) || u.Expr.Result().Flags.IsInvalid() {
 		u.Result().SetInvalid()
 		return
 	}
@@ -677,11 +693,11 @@ func (a *analyzer) VisitUnary(u *ast.Unary) {
 				return
 			}
 
-			if u.Expr.Result().Kind != ast.Address {
+			if !u.Expr.Result().Flags.IsAssignable() {
 				a.error(u.Expr, "Cannot assign a value into a temporary value.")
 			}
 
-			u.Result().Set(ast.Value, u.Expr.Result().Type)
+			u.Result().Set(ast.None, u.Expr.Result().Type)
 
 		default:
 			panic("analyzer.analyzer.VisitUnary() - Invalid postfix operator")
@@ -697,11 +713,11 @@ func (a *analyzer) VisitUnary(u *ast.Unary) {
 				return
 			}
 
-			if u.Expr.Result().Kind != ast.Address {
+			if !u.Expr.Result().Flags.IsAssignable() {
 				a.error(u.Expr, "Cannot assign a value into a temporary value.")
 			}
 
-			u.Result().Set(ast.Value, u.Expr.Result().Type)
+			u.Result().Set(ast.None, u.Expr.Result().Type)
 
 		// -
 		case lexer.Minus:
@@ -712,26 +728,26 @@ func (a *analyzer) VisitUnary(u *ast.Unary) {
 				return
 			}
 
-			u.Result().Set(ast.Value, u.Expr.Result().Type)
+			u.Result().Set(ast.None, u.Expr.Result().Type)
 
 		// !
 		case lexer.Bang:
 			a.checkType(u.Expr, ast.BoolType)
 
-			u.Result().Set(ast.Value, ast.BoolType)
+			u.Result().Set(ast.None, ast.BoolType)
 
 		// &
 		case lexer.Ampersand:
-			if u.Expr.Result().Kind != ast.Address {
+			if !u.Expr.Result().Flags.IsAssignable() {
 				a.error(u.Expr, "Cannot take an address of a temporary value.")
 			}
 
-			u.Result().Set(ast.Value, &ast.PointerType{Pointee: u.Expr.Result().Type})
+			u.Result().Set(ast.None, &ast.PointerType{Pointee: u.Expr.Result().Type})
 
 		// *
 		case lexer.Star:
 			if p, ok := u.Expr.Result().Type.(*ast.PointerType); ok {
-				u.Result().Set(ast.Address, p.Pointee)
+				u.Result().Set(ast.Addressable|ast.Assignable, p.Pointee)
 				return
 			}
 
@@ -752,7 +768,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 		return
 	}
 
-	if b.Left.Result().Kind == ast.Invalid || b.Right.Result().Kind == ast.Invalid {
+	if b.Left.Result().Flags.IsInvalid() || b.Right.Result().Flags.IsInvalid() {
 		b.Result().SetInvalid()
 		return
 	}
@@ -769,7 +785,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 			}
 		}
 
-		if b.Left.Result().Kind != ast.Address {
+		if !b.Left.Result().Flags.IsAssignable() {
 			a.error(b.Left, "Cannot assign a value into a temporary value.")
 		}
 
@@ -777,14 +793,14 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 			a.error(b.Right, fmt.Sprintf("Cannot assign a value of type '%s' into type '%s'.", b.Right.Result().Type, b.Left.Result().Type))
 		}
 
-		b.Result().Set(ast.Value, b.Left.Result().Type)
+		b.Result().Set(ast.None, b.Left.Result().Type)
 
 	// Boolean
 	case lexer.PipePipe, lexer.AmpersandAmpersand:
 		a.checkType(b.Left, ast.BoolType)
 		a.checkType(b.Right, ast.BoolType)
 
-		b.Result().Set(ast.Value, ast.BoolType)
+		b.Result().Set(ast.None, ast.BoolType)
 
 	// Equality
 	case lexer.EqualEqual, lexer.BangEqual:
@@ -800,7 +816,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 			}
 		}
 
-		b.Result().Set(ast.Value, ast.BoolType)
+		b.Result().Set(ast.None, ast.BoolType)
 
 	// Comparison
 	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
@@ -815,7 +831,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 			return
 		}
 
-		b.Result().Set(ast.Value, ast.BoolType)
+		b.Result().Set(ast.None, ast.BoolType)
 
 	// Logical
 	case lexer.Pipe, lexer.Xor, lexer.Ampersand:
@@ -833,7 +849,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 			return
 		}
 
-		b.Result().Set(ast.Value, b.Left.Result().Type)
+		b.Result().Set(ast.None, b.Left.Result().Type)
 
 	// Math
 	case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percentage:
@@ -851,7 +867,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 			return
 		}
 
-		b.Result().Set(ast.Value, b.Left.Result().Type)
+		b.Result().Set(ast.None, b.Left.Result().Type)
 
 	default:
 		panic("analyzer.analyzer.VisitBinary() - Invalid operator")
@@ -860,9 +876,9 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 
 func (a *analyzer) VisitIs(i *ast.Is) {
 	a.acceptChildren(i)
-	i.Result().Set(ast.Value, ast.BoolType)
+	i.Result().Set(ast.None, ast.BoolType)
 
-	if ast.IsValid(i.Value) && i.Value.Result().Kind != ast.Invalid {
+	if ast.IsValid(i.Value) && !i.Value.Result().Flags.IsInvalid() {
 		if _, ok := ast.GetDeclFromDeclType[*ast.Interface](i.Value.Result().Type); !ok {
 			a.error(i.Value, "Value needs be an interface, not '"+i.Value.Result().Type.String()+"'.")
 		}
@@ -889,7 +905,7 @@ func (a *analyzer) VisitCast(c *ast.Cast) {
 	a.acceptChildren(c)
 	c.Result().SetInvalid()
 
-	if !ast.IsValid(c.Value) || !ast.IsValid(c.Type) || c.Value.Result().Kind == ast.Invalid {
+	if !ast.IsValid(c.Value) || !ast.IsValid(c.Type) || c.Value.Result().Flags.IsInvalid() {
 		return
 	}
 
@@ -898,7 +914,7 @@ func (a *analyzer) VisitCast(c *ast.Cast) {
 		return
 	}
 
-	c.Result().Set(ast.Value, c.Type)
+	c.Result().Set(ast.None, c.Type)
 }
 
 // Utils
@@ -930,7 +946,7 @@ func firstNonNil(first, second ast.Node) ast.Node {
 }
 
 func (a *analyzer) checkType(expr ast.Expr, expected ast.Type) bool {
-	if !ast.IsValid(expr) || !ast.IsValid(expected) || expr.Result().Kind == ast.Invalid {
+	if !ast.IsValid(expr) || !ast.IsValid(expected) || expr.Result().Flags.IsInvalid() {
 		return true
 	}
 
