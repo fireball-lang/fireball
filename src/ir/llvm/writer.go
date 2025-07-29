@@ -282,6 +282,9 @@ func (w *writer) function(fun *ir.Function) error {
 		w.blockNameMap = make(map[*ir.Block]string)
 		w.valueNameMap = make(map[ir.Value]string)
 
+		w.instructionIndex = 0
+		w.instructionIds = make(map[ir.Instruction]uint32)
+
 		for _, block := range fun.Blocks {
 			if totalNameCounts[block.Name] > 1 {
 				count := nameCounts[block.Name] + 1
@@ -292,11 +295,16 @@ func (w *writer) function(fun *ir.Function) error {
 			for in := range block.Instructions() {
 				name := in.Name()
 
-				if name != "" && !isVoid(in.Type()) {
-					if totalNameCounts[name] > 1 {
-						count := nameCounts[name] + 1
-						nameCounts[name] = count
-						w.valueNameMap[in] = name + "." + strconv.Itoa(count)
+				if !isVoid(in.Type()) {
+					if name == "" {
+						w.instructionIds[in] = w.instructionIndex
+						w.instructionIndex++
+					} else {
+						if totalNameCounts[name] > 1 {
+							count := nameCounts[name] + 1
+							nameCounts[name] = count
+							w.valueNameMap[in] = name + "." + strconv.Itoa(count)
+						}
 					}
 				}
 			}
@@ -304,9 +312,6 @@ func (w *writer) function(fun *ir.Function) error {
 
 		// Instructions
 		w.string(" {\n")
-
-		w.instructionIndex = 0
-		w.instructionIds = make(map[ir.Instruction]uint32)
 
 		for _, block := range fun.Blocks {
 			if name, ok := w.blockNameMap[block]; ok {
@@ -318,12 +323,6 @@ func (w *writer) function(fun *ir.Function) error {
 
 			for in := range block.Instructions() {
 				w.string("  ")
-
-				if in.Name() == "" && !isVoid(in.Type()) {
-					w.instructionIds[in] = w.instructionIndex
-					w.instructionIndex++
-				}
-
 				w.instruction(in)
 			}
 		}

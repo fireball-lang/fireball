@@ -34,6 +34,10 @@ func (e *Emitter) Begin(block *ir.Block) {
 	e.Ir.Begin(block)
 }
 
+func (e *Emitter) Block() *ir.Block {
+	return e.Ir.Block()
+}
+
 // Terminator instructions
 
 func (e *Emitter) Ret(value Value) {

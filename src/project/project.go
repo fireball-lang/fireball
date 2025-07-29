@@ -5,12 +5,13 @@ import (
 	"fireball/ast"
 	"fireball/cst"
 	"fireball/utils"
-	"github.com/pelletier/go-toml/v2"
 	"iter"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/pelletier/go-toml/v2"
 )
 
 type Project struct {

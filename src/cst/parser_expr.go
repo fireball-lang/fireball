@@ -11,6 +11,10 @@ func (p *parser) exprNode(minPower int) (Node, bool) {
 		return lhs, true
 	}
 
+	if isPrefixExprNodeStatement(lhs.Kind) {
+		return lhs, false
+	}
+
 	for isIndexOrPostfix(p.current) {
 		op := p.current
 
@@ -85,6 +89,15 @@ func (p *parser) prefixExprNode() (Node, bool) {
 
 	default:
 		return p.prefixUnaryNode()
+	}
+}
+
+func isPrefixExprNodeStatement(kind NodeKind) bool {
+	switch kind {
+	case Block, Var, If, While, For, Break, Continue, Return:
+		return true
+	default:
+		return false
 	}
 }
 

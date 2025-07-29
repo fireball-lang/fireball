@@ -54,6 +54,10 @@ func (e *Emitter) Begin(block *Block) {
 	e.skip = false
 }
 
+func (e *Emitter) Block() *Block {
+	return e.block
+}
+
 func emit[T Instruction](e *Emitter, in T) T {
 	in.SetMeta(e.GetLocMetaRef())
 	e.block.AddLast(in)

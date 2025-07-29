@@ -9,11 +9,21 @@ func orShortCircuit() bool {
 }
 
 #[test]
+func nestedAnd() bool {
+	return true && true && true;
+}
+
+#[test]
 func andShortCircuit() bool {
 	var test = true;
 	false && (test = false);
 
 	return test;
+}
+
+#[test]
+func nestedOr() bool {
+	return false || false || true;
 }
 
 #[test]

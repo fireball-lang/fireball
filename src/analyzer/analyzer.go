@@ -424,6 +424,8 @@ func (a *analyzer) VisitParen(p *ast.Paren) {
 
 	if ast.IsValid(p.Expr) {
 		*p.Result() = *p.Expr.Result()
+	} else {
+		p.Result().Set(ast.None, ast.VoidType)
 	}
 }
 

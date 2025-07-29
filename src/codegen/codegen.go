@@ -863,6 +863,10 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 	// Boolean
 	case lexer.PipePipe:
+		if strings.Contains(ast.Root(b).AbsolutePath, "other.fb") {
+			print()
+		}
+
 		leftL := c.fun.NewBlock("or.left")
 		rightL := c.fun.NewBlock("or.right")
 		exitL := c.fun.NewBlock("or.exit")
@@ -872,11 +876,13 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 		// Left
 		c.emitter.Begin(leftL)
 		left := c.visitReadImplicitCast(b.Left, ast.BoolType)
+		leftL = c.emitter.Block()
 		c.emitter.BrCond(left, exitL, rightL)
 
 		// Right
 		c.emitter.Begin(rightL)
 		right := c.visitReadImplicitCast(b.Right, ast.BoolType)
+		rightL = c.emitter.Block()
 		c.emitter.Br(exitL)
 
 		// Exit
@@ -897,11 +903,13 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 		// Left
 		c.emitter.Begin(leftL)
 		left := c.visitReadImplicitCast(b.Left, ast.BoolType)
+		leftL = c.emitter.Block()
 		c.emitter.BrCond(left, rightL, exitL)
 
 		// Right
 		c.emitter.Begin(rightL)
 		right := c.visitReadImplicitCast(b.Right, ast.BoolType)
+		rightL = c.emitter.Block()
 		c.emitter.Br(exitL)
 
 		// Exit
