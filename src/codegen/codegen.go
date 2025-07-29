@@ -220,10 +220,6 @@ func (c *codegen) newGlobalVar(g *ast.GlobalVar) {
 }
 
 func (c *codegen) newFunction(f *ast.Func) *ir.Function {
-	if f.Name() == "add_splat" {
-		print()
-	}
-
 	typ := c.types.Get(f).(*ir.FunctionType)
 	paramNames := make([]string, 0, len(typ.Params))
 
@@ -856,7 +852,7 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 		ptr.Write(c, value)
 
-	case lexer.PlusEqual, lexer.MinusEqual, lexer.StarEqual, lexer.SlashEqual, lexer.PercentageEqual, lexer.PipeEqual, lexer.XorEqual, lexer.AmpersandEqual:
+	case lexer.PlusEqual, lexer.MinusEqual, lexer.StarEqual, lexer.SlashEqual, lexer.PercentageEqual, lexer.PipeEqual, lexer.XorEqual, lexer.AmpersandEqual, lexer.LessLessEqual, lexer.GreaterGreaterEqual:
 		ptr := c.visit(b.Left)
 
 		left := ptr.Read(c)
@@ -997,6 +993,11 @@ func (c *codegen) binarySimple(op lexer.TokenKind, left, right Value, type_ ast.
 		return c.emitter.Xor(left, right)
 	case lexer.Ampersand, lexer.AmpersandEqual:
 		return c.emitter.And(left, right)
+
+	case lexer.LessLess, lexer.LessLessEqual:
+		return c.emitter.Shl(left, right)
+	case lexer.GreaterGreater, lexer.GreaterGreaterEqual:
+		return c.emitter.Shr(type_.(*ast.PrimitiveType).Kind.IsSignedInteger(), left, right)
 
 	// Math
 	case lexer.Plus, lexer.PlusEqual, lexer.PlusPlus:

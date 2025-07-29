@@ -765,8 +765,8 @@ func init() {
 		}
 	}
 
-	// =, +=, -=, *=, /=, %=, |=, ^=, &=
-	infix(false, nil, lexer.Equal, lexer.PlusEqual, lexer.MinusEqual, lexer.StarEqual, lexer.SlashEqual, lexer.PercentageEqual, lexer.PipeEqual, lexer.XorEqual, lexer.AmpersandEqual)
+	// =, +=, -=, *=, /=, %=, |=, ^=, &=, <<=, >>=
+	infix(false, nil, lexer.Equal, lexer.PlusEqual, lexer.MinusEqual, lexer.StarEqual, lexer.SlashEqual, lexer.PercentageEqual, lexer.PipeEqual, lexer.XorEqual, lexer.AmpersandEqual, lexer.LessLessEqual, lexer.GreaterGreaterEqual)
 	// ||
 	infix(false, nil, lexer.PipePipe)
 	// &&
@@ -781,6 +781,8 @@ func init() {
 	infix(false, nil, lexer.EqualEqual, lexer.BangEqual)
 	// >, <=, >, >=, is, as
 	infix(false, []string{"is", "as"}, lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual)
+	// <<, >>
+	infix(false, nil, lexer.LessLess, lexer.GreaterGreater)
 	// +, -
 	infix(false, nil, lexer.Plus, lexer.Minus)
 	// *, /, %

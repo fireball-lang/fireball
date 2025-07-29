@@ -94,3 +94,23 @@ func globalVariable() bool {
 	number = 7;
 	return number == 7;
 }
+
+#[test]
+func shiftLeftSigned() bool {
+	return (-1 << 2) == -4;
+}
+
+#[test]
+func shiftLeftUnsigned() bool {
+	return (1u << 2u) == 4u;
+}
+
+#[test]
+func shiftRightSigned() bool {
+	return (-4 >> 2) == -1;
+}
+
+#[test]
+func shiftRightUnsigned() bool {
+	return (4u >> 2u) == 1u;
+}

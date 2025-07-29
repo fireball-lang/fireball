@@ -66,10 +66,10 @@ func (w *writer) instruction(in ir.Instruction) {
 	// Bitwise binary instructions
 
 	case *ir.Shl:
-		w.simpleInstruction2(" ", in.Left, in.Right)
+		w.simpleInstruction2("shl ", in.Left, in.Right)
 
 	case *ir.Shr:
-		w.simpleInstruction2(utils.Ternary(in.SignExt, "ashr ", "lshrt "), in.Left, in.Right)
+		w.simpleInstruction2(utils.Ternary(in.SignExt, "ashr ", "lshr "), in.Left, in.Right)
 
 	case *ir.And:
 		w.simpleInstruction2("and ", in.Left, in.Right)

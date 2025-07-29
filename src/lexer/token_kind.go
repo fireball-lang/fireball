@@ -32,6 +32,11 @@ const (
 	Greater
 	GreaterEqual
 
+	LessLess
+	LessLessEqual
+	GreaterGreater
+	GreaterGreaterEqual
+
 	Plus
 	PlusEqual
 	PlusPlus
@@ -120,6 +125,15 @@ func (t TokenKind) String() string {
 		return "Greater"
 	case GreaterEqual:
 		return "GreaterEqual"
+
+	case LessLess:
+		return "LessLess"
+	case LessLessEqual:
+		return "LessLessEqual"
+	case GreaterGreater:
+		return "GreaterGreater"
+	case GreaterGreaterEqual:
+		return "GreaterGreaterEqual"
 
 	case Plus:
 		return "Plus"

@@ -777,7 +777,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 
 	switch b.Op {
 	// Assignment
-	case lexer.Equal, lexer.PlusEqual, lexer.MinusEqual, lexer.StarEqual, lexer.SlashEqual, lexer.PercentageEqual, lexer.PipeEqual, lexer.XorEqual, lexer.AmpersandEqual:
+	case lexer.Equal, lexer.PlusEqual, lexer.MinusEqual, lexer.StarEqual, lexer.SlashEqual, lexer.PercentageEqual, lexer.PipeEqual, lexer.XorEqual, lexer.AmpersandEqual, lexer.LessLessEqual, lexer.GreaterGreaterEqual:
 		if b.Op != lexer.Equal {
 			if p, ok := b.Right.Result().Type.(*ast.PrimitiveType); !ok || !p.Kind.IsNumeric() {
 				a.error(b.Right, "Needs to be a numeric type, not '"+b.Right.Result().Type.String()+"'.")
@@ -836,7 +836,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 		b.Result().Set(ast.None, ast.BoolType)
 
 	// Logical
-	case lexer.Pipe, lexer.Xor, lexer.Ampersand:
+	case lexer.Pipe, lexer.Xor, lexer.Ampersand, lexer.LessLess, lexer.GreaterGreater:
 		if !b.Left.Result().Type.Equals(b.Right.Result().Type) {
 			a.error(b, "Types need to be the same for a logical operator.")
 

@@ -66,8 +66,18 @@ func (l *Lexer) Next() Token {
 		return l.tokenCond('&', Ampersand, AmpersandAmpersand)
 
 	case '<':
+		if l.peek() == '<' {
+			l.advance()
+			return l.tokenCond('=', LessLess, LessLessEqual)
+		}
+
 		return l.tokenCond('=', Less, LessEqual)
 	case '>':
+		if l.peek() == '>' {
+			l.advance()
+			return l.tokenCond('=', GreaterGreater, GreaterGreaterEqual)
+		}
+
 		return l.tokenCond('=', Greater, GreaterEqual)
 
 	case '+':
