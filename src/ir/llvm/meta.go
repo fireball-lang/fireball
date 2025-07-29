@@ -114,8 +114,10 @@ func (w *writer) meta(node ir.MetaNode) {
 		}
 
 		w.beginMeta(false, "DIDerivedType")
+		w.fieldString("name", node.Name)
 		w.fieldRaw("tag", tag)
 		w.fieldMetaRef("baseType", node.Base)
+		w.fieldUint("offset", node.Offset)
 		w.fieldUint("size", node.Size)
 		w.fieldUint("align", node.Align)
 

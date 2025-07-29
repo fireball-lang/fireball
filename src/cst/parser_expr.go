@@ -793,7 +793,6 @@ func init() {
 	postfix(nil, lexer.LeftBracket, lexer.LeftParen)
 	// x.y
 	infix(false, nil, lexer.Dot)
-
 }
 
 func getIdentifierPowers(identifier string) tokenPowers {

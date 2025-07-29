@@ -361,8 +361,17 @@ func funcTypeEquals(f FuncType, other Type) bool {
 			return false
 		}
 
-		if aImplOk && aImpl.Decl != bImpl.Decl {
-			return false
+		if aImplOk {
+			if aImpl.Decl != bImpl.Decl {
+				return false
+			}
+
+			aStatic := slices.Contains(aImpl.StaticMethods, f.(*Func))
+			bStatic := slices.Contains(bImpl.StaticMethods, other.(*Func))
+
+			if aStatic != bStatic {
+				return false
+			}
 		}
 
 		// Signature

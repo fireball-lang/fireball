@@ -114,6 +114,7 @@ const (
 type DerivedTypeMeta struct {
 	baseMetaNode
 
+	Name   string
 	Kind   MetaDerivedTypeKind
 	Base   MetaRef
 	Offset uint32

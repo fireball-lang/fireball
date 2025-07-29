@@ -220,6 +220,10 @@ func (c *codegen) newGlobalVar(g *ast.GlobalVar) {
 }
 
 func (c *codegen) newFunction(f *ast.Func) *ir.Function {
+	if f.Name() == "add_splat" {
+		print()
+	}
+
 	typ := c.types.Get(f).(*ir.FunctionType)
 	paramNames := make([]string, 0, len(typ.Params))
 
@@ -635,7 +639,9 @@ func (c *codegen) VisitCall(call *ast.Call) {
 			expr := call.Callee.(*ast.Member).Value
 			value := c.visit(expr)
 
-			if !value.IsPointer() {
+			if typ, ok := value.Typ.(*ir.SimpleType); ok && typ.Kind == ir.PointerKind && value.Addressable {
+				value = value.Read(c)
+			} else if !value.IsPointer() {
 				ptr := c.emitAlloca("abi.this", c.types.Get(expr.Result().Type))
 				c.emitter.Store(value, ptr)
 

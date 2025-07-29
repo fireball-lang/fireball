@@ -32,7 +32,7 @@ func memberAddressStruct() bool {
 }
 
 #[test]
-func memberThroughPointerStruct() bool {
+func memberAddressPointerStruct() bool {
 	var v = Vec2 { x: 1, y: 2 };
 
 	var ptr = &v;
@@ -50,6 +50,13 @@ func methodValueStruct() bool {
 func methodAddressStruct() bool {
 	var v = Vec2 { x: 3, y: 6 };
 	return v.max() == 6;
+}
+
+#[test]
+func methodAddressPointerStruct() bool {
+	var v = Vec2 { x: 3, y: 6 };
+	var ptr = &v;
+	return ptr.max() == 6;
 }
 
 #[test]

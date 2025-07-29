@@ -398,6 +398,7 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) {
 	a.acceptChildren(s)
 
 	if s.Struct == nil {
+		s.Result().SetInvalid()
 		return
 	}
 
@@ -512,6 +513,7 @@ func (a *analyzer) VisitCall(c *ast.Call) {
 	a.acceptChildren(c)
 
 	if !ast.IsValid(c.Callee) || c.Callee.Result().Flags.IsInvalid() {
+		c.Result().SetInvalid()
 		return
 	}
 

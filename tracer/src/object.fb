@@ -1,0 +1,114 @@
+mod tracer;
+
+import tracer:libc;
+import tracer:math;
+
+struct Hit {
+    point Vec3;
+    normal Vec3;
+    t f32;
+    front_face bool;
+}
+
+impl Hit {
+    func set_face_normal(ray Ray, outward_normal Vec3) {
+        this.front_face = ray.direction.dot(outward_normal) < 0f;
+
+        if (this.front_face) this.normal = outward_normal;
+        else this.normal = outward_normal.mul_splat(-1f);
+    }
+}
+
+interface Object {
+    func hit(ray Ray, ray_tmin f32, ray_tmax f32, hit *Hit) bool
+}
+
+// ObjectList
+
+struct ObjectList {
+    objects [16]Object;
+    count i32;
+}
+
+impl ObjectList {
+    static func new() *ObjectList {
+        var object = libc:malloc(sizeof(ObjectList)) as *ObjectList;
+        *object = ObjectList {};
+
+        return object;
+    }
+
+    func add(object Object) {
+        if (this.count >= 16) {
+            return;
+        }
+
+        this.objects[this.count] = object;
+        this.count++;
+    }
+}
+
+impl Object for ObjectList {
+    func hit(ray Ray, ray_tmin f32, ray_tmax f32, hit *Hit) bool {
+        var temp_hit: Hit;
+        var hit_anything = false;
+        var closest_so_far = ray_tmax;
+
+        for (var i = 0; i < this.count; i++) {
+            if (this.objects[i].hit(ray, ray_tmin, closest_so_far, &temp_hit)) {
+                hit_anything = true;
+                closest_so_far = temp_hit.t;
+                *hit = temp_hit;
+            }
+        }
+
+        return hit_anything;
+    }
+}
+
+// Sphere
+
+struct Sphere {
+    center Vec3;
+    radius f32;
+}
+
+impl Sphere {
+    static func new(center Vec3, radius f32) *Sphere {
+        var object = libc:malloc(sizeof(Sphere)) as *Sphere;
+        *object = Sphere { center: center, radius: radius };
+
+        return object;
+    }
+}
+
+impl Object for Sphere {
+    func hit(ray Ray, ray_tmin f32, ray_tmax f32, hit *Hit) bool {
+        var oc = this.center.sub(ray.origin);
+        var a = ray.direction.length_squared();
+        var h = ray.direction.dot(oc);
+        var c = oc.length_squared() - this.radius * this.radius;
+
+        var discriminant = h * h - a * c;
+        if (discriminant < 0f) return false;
+
+        var sqrtd = math:sqrtf(discriminant);
+
+        // Find the nearest root that lies in the acceptable range.
+        var root = (h - sqrtd) / a;
+
+        if (root <= ray_tmin || ray_tmax <= root) {
+            root = (h + sqrtd) / a;
+
+            if (root <= ray_tmin || ray_tmax <= root) {
+                return false;
+            }
+        }
+
+        hit.t = root;
+        hit.point = ray.at(hit.t);
+        hit.set_face_normal(ray, hit.point.sub(this.center).div_splat(this.radius));
+
+        return true;
+    }
+}

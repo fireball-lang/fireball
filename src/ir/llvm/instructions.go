@@ -202,7 +202,7 @@ func (w *writer) instruction(in ir.Instruction) {
 
 			w.value(pair.Value)
 			w.string(", %")
-			w.string(pair.Block.Name)
+			w.labelName(pair.Block)
 
 			w.string(" ]")
 		}
@@ -256,7 +256,10 @@ func (w *writer) instruction(in ir.Instruction) {
 
 func (w *writer) label(block *ir.Block) {
 	w.string("label %")
+	w.labelName(block)
+}
 
+func (w *writer) labelName(block *ir.Block) {
 	if name, ok := w.blockNameMap[block]; ok {
 		w.identifier(name)
 	} else {

@@ -218,9 +218,10 @@ func (t *TypeCache) createDeclMeta(type_ *ast.DeclType) ir.MetaRef {
 			size, align := abi.TypeInfo(t.Arch, field.Type)
 
 			fields[i] = t.Module.AddMeta(&ir.DerivedTypeMeta{
+				Name:   field.Name.Token.Text,
 				Kind:   ir.MetaMember,
 				Base:   t.GetMeta(field.Type),
-				Offset: layout.Field(field.Type),
+				Offset: layout.Field(field.Type) * 8,
 				Size:   size * 8,
 				Align:  align * 8,
 			})
@@ -267,16 +268,18 @@ func (t *TypeCache) createDeclMeta(type_ *ast.DeclType) ir.MetaRef {
 
 		fields := []ir.MetaRef{
 			t.Module.AddMeta(&ir.DerivedTypeMeta{
+				Name:   "data",
 				Kind:   ir.MetaMember,
 				Base:   voidPtrTyp,
-				Offset: layout.Field(&voidPtrType),
+				Offset: layout.Field(&voidPtrType) * 8,
 				Size:   t.Arch.WordSize * 8,
 				Align:  t.Arch.WordSize * 8,
 			}),
 			t.Module.AddMeta(&ir.DerivedTypeMeta{
+				Name:   "vtable",
 				Kind:   ir.MetaMember,
 				Base:   voidPtrTyp,
-				Offset: layout.Field(&voidPtrType),
+				Offset: layout.Field(&voidPtrType) * 8,
 				Size:   t.Arch.WordSize * 8,
 				Align:  t.Arch.WordSize * 8,
 			}),
@@ -337,6 +340,7 @@ func (t *TypeCache) createPointerMeta(type_ *ast.PointerType) ir.MetaRef {
 	size, align := abi.TypeInfo(t.Arch, type_)
 
 	return t.Module.AddMeta(&ir.DerivedTypeMeta{
+		Name:  type_.String(),
 		Kind:  ir.MetaPointerType,
 		Base:  t.GetMeta(type_.Pointee),
 		Size:  size * 8,
@@ -392,6 +396,7 @@ func (t *TypeCache) createFuncMeta(type_ ast.FuncType) ir.MetaRef {
 	// Pointer type
 
 	return t.Module.AddMeta(&ir.DerivedTypeMeta{
+		Name:  "*" + type_.String(),
 		Kind:  ir.MetaPointerType,
 		Base:  ref,
 		Size:  t.Arch.WordSize * 8,
