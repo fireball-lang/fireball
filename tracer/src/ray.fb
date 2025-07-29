@@ -1,0 +1,19 @@
+mod tracer;
+
+struct Ray {
+    origin Vec3;
+    direction Vec3;
+}
+
+impl Ray {
+    static func new(origin Vec3, direction Vec3) Ray {
+        return Ray {
+            origin: origin,
+            direction: direction.normalized()
+        };
+    }
+
+    func at(t f32) Vec3 {
+        return this.origin.add(this.direction.mul(Vec3.splat(t)));
+    }
+}

@@ -1,0 +1,37 @@
+mod tracer;
+
+import tracer:math;
+
+struct Camera {
+    origin Vec3;
+    lowerLeftCorner Vec3;
+    horizontal Vec3;
+    vertical Vec3;
+}
+
+impl Camera {
+    static func new(position Vec3, lookAt Vec3, fov f32, aspectRatio f32) Camera {
+        var theta = math:deg_to_rad(fov);
+        var h = math:tanf(theta / 2f);
+        var viewportHeight = 2f * h;
+        var viewportWidth = aspectRatio * viewportHeight;
+
+        var w = position.sub(lookAt).normalized();
+        var u = Vec3.new(0f, 1f, 0f).cross(w).normalized();
+        var v = w.cross(u);
+
+        var horizontal = u.mul_splat(viewportWidth);
+        var vertical = v.mul_splat(viewportHeight);
+        
+        return Camera {
+            origin: position,
+            horizontal: horizontal,
+            vertical: vertical,
+            lowerLeftCorner: position.sub(horizontal.div_splat(2f)).sub(vertical.div_splat(2f)).sub(w)
+        };
+    }
+
+    func get_ray(u f32, v f32) Ray {
+        return Ray.new(this.origin, this.lowerLeftCorner.add(this.horizontal.mul_splat(u)).add(this.vertical.mul_splat(v)).sub(this.origin));
+    }
+}

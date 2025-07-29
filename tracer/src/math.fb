@@ -1,0 +1,100 @@
+mod tracer:math;
+
+import tracer:{Vec3};
+
+#[extern]
+func sqrtf(x f32) f32
+
+#[extern]
+func fabsf(x f32) f32
+
+#[extern]
+func tanf(x f32) f32
+
+#[extern]
+func logf(x f32) f32
+
+#[extern]
+func sinf(x f32) f32
+
+#[extern]
+func cosf(x f32) f32
+
+#[extern]
+func powf(x f32, y f32) f32
+
+func sign(x f32) f32 {
+    if (x < 0f) return -1f;
+    if (x > 0f) return 1f;
+    return 0f;
+}
+
+func min(x f32, y f32) f32 {
+    if (x < y) return x;
+    return y;
+}
+
+func max(x f32, y f32) f32 {
+    if (x > y) return x;
+    return y;
+}
+
+func clamp(v f32, min f32, max f32) f32 {
+    if (v < min) return min;
+    if (v > max) return max;
+    return v;
+}
+
+func linear_to_gamma(linear f32) f32 {
+    if (linear > 0f) {
+        return sqrtf(linear);
+    }
+
+    return 0f;
+}
+
+func deg_to_rad(deg f32) f32 {
+    var pi = 3.1415926535897932384626433832795028841971693993751f;
+    return deg * pi / 180f;
+}
+
+func random(state *u32) f32 {
+    var s = *state * 747796405u + 2891336453u;
+    *state = s;
+
+    var result = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+    result = (result >> 22u) ^ result;
+
+    return (result as f32) / 4294967295f;
+}
+
+func random_normal_distribution(state *u32) f32 {
+    var theta = 2f * 3.1415926f * random(state);
+    var rho = sqrtf(-2f * logf(random(state)));
+    return rho * cosf(theta);
+}
+
+func random_direction(state *u32) Vec3 {
+    var x = random_normal_distribution(state);
+    var y = random_normal_distribution(state);
+    var z = random_normal_distribution(state);
+
+    var length = sqrtf(x * x + y * y + z * z);
+
+    return Vec3 {
+        x: x / length,
+        y: y / length,
+        z: z / length
+    };
+}
+
+func random_hemisphere_direction(state *u32, normal Vec3) Vec3 {
+    var dir = random_direction(state);
+    var s = sign(normal.x * dir.x + normal.y * dir.y + normal.z * dir.z);
+
+    return Vec3 {
+        x: dir.x * s,
+        y: dir.y * s,
+        z: dir.z * s
+    };
+}

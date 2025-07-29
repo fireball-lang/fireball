@@ -1,0 +1,113 @@
+mod tracer;
+
+import tracer:libc:{malloc, free, fopen, fwrite, fclose};
+import tracer:math:{linear_to_gamma, clamp};
+
+struct Rgb {
+    b u8;
+    g u8;
+    r u8;
+}
+
+struct Image {
+    width u32;
+    height u32;
+    pixels *Rgb;
+}
+
+impl Image {
+    static func new(width u32, height u32) Image {
+        return Image {
+            width: width,
+            height: height,
+            pixels: malloc(width * height * sizeof(Rgb)) as *Rgb
+        };
+    }
+
+    func set(x u32, y u32, color Vec3) {
+        var pixel = &this.pixels[y * this.width + x];
+
+        var r = linear_to_gamma(color.x);
+        var g = linear_to_gamma(color.y);
+        var b = linear_to_gamma(color.z);
+
+        pixel.r = (256f * clamp(r, 0f, 0.999f)) as u8;
+        pixel.g = (256f * clamp(g, 0f, 0.999f)) as u8;
+        pixel.b = (256f * clamp(b, 0f, 0.999f)) as u8;
+    }
+
+    func free() {
+        free(this.pixels);
+    }
+}
+
+// BMP
+
+#[packed]
+struct BitmapFileHeader {
+    header u16;
+    size u32;
+    _ u32;
+    data_offset u32;
+}
+
+#[packed]
+struct DIBHeader {
+    header_size u32;
+    width i32;
+    height i32;
+    color_plane_count u16;
+    bpp u16;
+    compression u32;
+    image_size u32;
+    width_ppm u32;
+    height_ppm u32;
+    palette_size u32;
+    important_color_count u32;
+}
+
+impl Image {
+    func write(path *u8) {
+        var file = fopen(path, "w");
+
+        var row_size = this.width * sizeof(Rgb);
+        if (row_size % 4u != 0u) row_size += row_size % 4u;
+        var pixels_size = row_size * this.height;
+
+        var file_header = BitmapFileHeader {
+            header: 0x4D42 as u16,
+            size: sizeof(BitmapFileHeader) + sizeof(DIBHeader) + pixels_size,
+            data_offset: sizeof(BitmapFileHeader) + sizeof(DIBHeader)
+        };
+
+        var dib_header = DIBHeader {
+            header_size: sizeof(DIBHeader),
+            width: this.width as i32,
+            height: this.height as i32,
+            color_plane_count: 1u as u16,
+            bpp: 24u as u16,
+            compression: 0u,
+            image_size: pixels_size,
+            width_ppm: 2834u,
+            height_ppm: 2834u,
+            palette_size: 0u,
+            important_color_count: 0u
+        };
+
+        fwrite(&file_header, sizeof(BitmapFileHeader), 1u, file);
+        fwrite(&dib_header, sizeof(DIBHeader), 1u, file);
+
+        for (var y = 0u; y < this.height; y++) {
+            var size = this.width * sizeof(Rgb);
+            fwrite(&this.pixels[y * this.width], size as u64, 1u, file);
+
+            var padding = size % 4u;
+            if (padding != 0u) {
+                var zero = 0u;
+                fwrite(&zero, padding as u64, 1u, file);
+            }
+        }
+
+        fclose(file);
+    }
+}

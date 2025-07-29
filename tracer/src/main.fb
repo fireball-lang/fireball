@@ -1,0 +1,78 @@
+mod tracer;
+
+import tracer:math;
+
+func main() i32 {
+    var timer = Timer.start();
+
+    //var image = Image.new(848u, 480u);
+    var image = Image.new(1280u, 720u);
+    //var image = Image.new(1920u, 1080u);
+    var camera = Camera.new(Vec3.new(-2f, 2f, 1f), Vec3.new(0f, 0f, -1f), 20f, (image.width as f32) / (image.height as f32));
+
+    var samples = 4;
+    var depth = 8;
+
+    var objects = ObjectList.new();
+
+    var material_ground = Lambertian.new(Vec3.new(0.8f, 0.8f, 0.0f));
+    var material_center = Lambertian.new(Vec3.new(0.1f, 0.2f, 0.5f));
+    var material_left   = Dielectric.new(1.5f);
+    var material_bubble = Dielectric.new(1.0f / 1.5f);
+    var material_right  = Metal.new(Vec3.new(0.8f, 0.6f, 0.2f), 1.0f);
+
+    objects.add(Sphere.new(Vec3.new( 0.0f, -100.5f, -1.0f), 100.0f, material_ground));
+    objects.add(Sphere.new(Vec3.new( 0.0f,    0.0f, -1.2f),   0.5f, material_center));
+    objects.add(Sphere.new(Vec3.new(-1.0f,    0.0f, -1.0f),   0.5f, material_left));
+    objects.add(Sphere.new(Vec3.new(-1.0f,    0.0f, -1.0f),   0.4f, material_bubble));
+    objects.add(Sphere.new(Vec3.new( 1.0f,    0.0f, -1.0f),   0.5f, material_right));
+
+    var rng = 564961u;
+
+    for (var y = 0u; y < image.height; y++) {
+        for (var x = 0u; x < image.width; x++) {
+            var color: Vec3;
+
+            for (var i = 0; i < samples; i++) {
+                var u = (x as f32 + math:random(&rng)) / (image.width as f32 - 1f);
+                var v = (y as f32 + math:random(&rng)) / (image.height as f32 - 1f);
+                
+                var ray = camera.get_ray(u ,v);
+                var sample_color = ray_color(&rng, ray, objects, depth);
+
+                color = color.add(sample_color);
+            }
+
+            image.set(x, y, color.div_splat(samples as f32));
+        }
+    }
+
+    image.write("image.bmp");
+    image.free();
+
+    timer.end("Rendered in ");
+
+    return 0;
+}
+
+func ray_color(rng *u32, ray Ray, object Object, depth i32) Vec3 {
+    if (depth <= 0) {
+        return Vec3.splat(0f);
+    }
+
+    var hit: Hit;
+
+    if (object.hit(ray, 0.001f, 999999f, &hit)) {
+        var attenuation: Vec3;
+        var scattered: Ray;
+
+        if (hit.material.scatter(rng, ray, hit, &attenuation, &scattered)) {
+            return attenuation.mul(ray_color(rng, scattered, object, depth - 1));
+        }
+
+        return Vec3.splat(0f);
+    }
+
+    var a = 0.5f * (ray.direction.y + 1f);
+    return Vec3.splat(1f - a).add(Vec3.new(0.5f, 0.7f, 1.0f).mul_splat(a));
+}

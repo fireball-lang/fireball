@@ -1,0 +1,45 @@
+mod tracer:libc;
+
+// Memory
+
+#[extern]
+func malloc(size u64) *void
+
+#[extern]
+func free(ptr *void) void
+
+// IO
+
+#[extern]
+func printf(format *u8, ...) void
+
+#[extern]
+func fopen(filename *u8, mode *u8) *void
+
+#[extern]
+func fclose(stream *void) i32
+
+#[extern]
+func fseek(stream *void, offset i32, origin i32) i32
+
+#[extern]
+func ftell(stream *void) i32
+
+#[extern]
+func fread(buffer *void, size u64, count u64, stream *void) u64
+
+#[extern]
+func fwrite(buffer *void, size u64, count u64, stream *void) u64
+
+#[extern]
+func fscanf(stream *void, format *u8, ...) i32
+
+// Time
+
+struct Timespec {
+    seconds i64;
+    nanoseconds i64;
+}
+
+#[extern]
+func clock_gettime(clockid u32, time *Timespec) i32

@@ -1,0 +1,137 @@
+mod tracer;
+
+import tracer:math;
+
+struct Vec3 {
+    x f32;
+    y f32;
+    z f32;
+}
+
+impl Vec3 {
+    static func splat(v f32) Vec3 {
+        return Vec3 {
+            x: v,
+            y: v,
+            z: v
+        };
+    }
+
+    static func new(x f32, y f32, z f32) Vec3 {
+        return Vec3 {
+            x: x,
+            y: y,
+            z: z
+        };
+    }
+
+    func length_squared() f32 {
+        return this.x * this.x + this.y * this.y + this.z * this.z;
+    }
+
+    func length() f32 {
+        return math:sqrtf(this.length_squared());
+    }
+
+    func normalized() Vec3 {
+        var length = this.length();
+
+        return Vec3 {
+            x: this.x / length,
+            y: this.y / length,
+            z: this.z / length
+        };
+    }
+
+    func dot(v Vec3) f32 {
+        return this.x * v.x + this.y * v.y + this.z * v.z;
+    }
+
+    func cross(v Vec3) Vec3 {
+        return Vec3 {
+            x: this.y * v.z - this.z * v.y,
+            y: this.z * v.x - this.x * v.z,
+            z: this.x * v.y - this.y * v.x
+        };
+    }
+
+    func near_zero() bool {
+        var s = 0.00000001f;
+        return (math:fabsf(this.x) < s) && (math:fabsf(this.y) < s) && (math:fabsf(this.z) < s);
+    }
+
+    func reflect(normal Vec3) Vec3 {
+        return this.sub(normal.mul_splat(2f * this.dot(normal)));
+    }
+
+    func refract(normal Vec3, etai_over_etat f32) Vec3 {
+        var cos_theta = math:min(this.mul_splat(-1f).dot(normal), 1f);
+        var r_out_perp =  this.add(normal.mul_splat(cos_theta)).mul_splat(etai_over_etat);
+        var r_out_parallel = normal.mul_splat(-math:sqrtf(math:fabsf(1f - r_out_perp.length_squared())));
+        return r_out_perp.add(r_out_parallel);
+    }
+
+    func add(v Vec3) Vec3 {
+        return Vec3 {
+            x: this.x + v.x,
+            y: this.y + v.y,
+            z: this.z + v.z
+        };
+    }
+
+    func add_splat(v f32) Vec3 {
+        return Vec3 {
+            x: this.x + v,
+            y: this.y + v,
+            z: this.z + v
+        };
+    }
+
+    func sub(v Vec3) Vec3 {
+        return Vec3 {
+            x: this.x - v.x,
+            y: this.y - v.y,
+            z: this.z - v.z
+        };
+    }
+
+    func sub_splat(v f32) Vec3 {
+        return Vec3 {
+            x: this.x - v,
+            y: this.y - v,
+            z: this.z - v
+        };
+    }
+
+    func mul(v Vec3) Vec3 {
+        return Vec3 {
+            x: this.x * v.x,
+            y: this.y * v.y,
+            z: this.z * v.z
+        };
+    }
+
+    func mul_splat(v f32) Vec3 {
+        return Vec3 {
+            x: this.x * v,
+            y: this.y * v,
+            z: this.z * v
+        };
+    }
+
+    func div(v Vec3) Vec3 {
+        return Vec3 {
+            x: this.x / v.x,
+            y: this.y / v.y,
+            z: this.z / v.z
+        };
+    }
+
+    func div_splat(v f32) Vec3 {
+        return Vec3 {
+            x: this.x / v,
+            y: this.y / v,
+            z: this.z / v
+        };
+    }
+}

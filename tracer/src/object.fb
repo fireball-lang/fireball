@@ -6,6 +6,7 @@ import tracer:math;
 struct Hit {
     point Vec3;
     normal Vec3;
+    material Material;
     t f32;
     front_face bool;
 }
@@ -71,12 +72,13 @@ impl Object for ObjectList {
 struct Sphere {
     center Vec3;
     radius f32;
+    material Material;
 }
 
 impl Sphere {
-    static func new(center Vec3, radius f32) *Sphere {
+    static func new(center Vec3, radius f32, material Material) *Sphere {
         var object = libc:malloc(sizeof(Sphere)) as *Sphere;
-        *object = Sphere { center: center, radius: radius };
+        *object = Sphere { center: center, radius: radius, material: material };
 
         return object;
     }
@@ -108,6 +110,7 @@ impl Object for Sphere {
         hit.t = root;
         hit.point = ray.at(hit.t);
         hit.set_face_normal(ray, hit.point.sub(this.center).div_splat(this.radius));
+        hit.material = this.material;
 
         return true;
     }
