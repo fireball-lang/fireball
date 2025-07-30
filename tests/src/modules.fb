@@ -24,3 +24,11 @@ func modulesStructInitializer() bool {
 	var v = tests:nested:Vec2 { x: 6 as i8 };
 	return v.x == 6 as i8;
 }
+
+#[test]
+func modulesMethodCall() bool {
+	var v: tests:nested:Vec2;
+	v.x = 8 as i8;
+
+	return v.get_x() == 8 as i8;
+}

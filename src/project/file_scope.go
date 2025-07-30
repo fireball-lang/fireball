@@ -3,6 +3,7 @@ package project
 import (
 	"fireball/analyzer"
 	"fireball/ast"
+	"fireball/utils"
 )
 
 type fileScope struct {
@@ -33,7 +34,14 @@ func (f *fileScope) GetDeclMethod(decl ast.Decl, name string, static bool) *ast.
 		}
 	}
 
-	return f.mod.GetDeclMethod(decl, name, static)
+	modPath := ast.Root(decl).ModulePath()
+	mod := f.ctx.GetAbsoluteModule(modPath)
+
+	if utils.IsNil(mod) {
+		return nil
+	}
+
+	return mod.GetDeclMethod(decl, name, static)
 }
 
 // analyzer.Scope

@@ -5,6 +5,12 @@ struct Vec2 {
 	y i64;
 }
 
+impl Vec2 {
+	func get_x() i8 {
+		return this.x;
+	}
+}
+
 func getNum() i32 {
 	return 7;
 }
