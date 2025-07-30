@@ -74,17 +74,7 @@ func (p *parser) prefixExprNode() (Node, bool) {
 			return p.returnNode()
 
 		default:
-			identifier := p.advance()
-
-			if p.current.Kind == lexer.LeftBrace {
-				return p.structInitializerNode(identifier)
-			}
-
-			if p.current.Kind == lexer.LeftParen && (identifier.Token.Text == "sizeof" || identifier.Token.Text == "alignof") {
-				return p.typeCallNode(identifier)
-			}
-
-			return p.identifierNode(identifier)
+			return p.identifierNode()
 		}
 
 	default:
@@ -109,11 +99,11 @@ func (p *parser) literalNode() (Node, bool) {
 	return node, false
 }
 
-func (p *parser) structInitializerNode(name Node) (Node, bool) {
+func (p *parser) structInitializerNode(path Node) (Node, bool) {
 	node := Node{Kind: StructInitializer}
 
-	// Name
-	node.append(name)
+	// Path
+	node.append(path)
 
 	// {
 	node.append(p.advance())
@@ -485,26 +475,37 @@ func (p *parser) returnNode() (Node, bool) {
 	return node, false
 }
 
-func (p *parser) identifierNode(identifier Node) (Node, bool) {
-	node := Node{Kind: Identifier}
+func (p *parser) identifierNode() (Node, bool) {
+	identifier := p.advance()
 
 	// Literal
 	if identifier.Token.Text == "true" || identifier.Token.Text == "false" || identifier.Token.Text == "nil" {
-		node.Kind = Literal
+		node := Node{Kind: Literal}
 		node.append(identifier)
 
 		return node, false
 	}
 
-	// Identifier
-	{
-		child, err := p.pathNodeWithFirstIdentifier(identifier)
-		node.append(child)
-
-		if err {
-			return node, true
-		}
+	// Sizeof / Alignof
+	if p.current.Kind == lexer.LeftParen && (identifier.Token.Text == "sizeof" || identifier.Token.Text == "alignof") {
+		return p.typeCallNode(identifier)
 	}
+
+	// Path
+	path, err := p.pathNodeWithFirstIdentifier(identifier)
+
+	if err {
+		return Node{}, true
+	}
+
+	// Struct initializer
+	if p.current.Kind == lexer.LeftBrace {
+		return p.structInitializerNode(path)
+	}
+
+	// Identifier
+	node := Node{Kind: Identifier}
+	node.append(path)
 
 	return node, false
 }

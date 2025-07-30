@@ -169,7 +169,7 @@ func (h *highlighter) VisitLiteral(l *ast.Literal) {
 }
 
 func (h *highlighter) VisitStructInitializer(s *ast.StructInitializer) {
-	h.add(s.Name, classKind)
+	h.add(s.Path, classKind)
 
 	for _, field := range s.Fields {
 		h.add(field.Name, propertyKind)

@@ -148,12 +148,20 @@ func (t *typeResolver) visit(node ast.Node) {
 		}
 
 	case *ast.StructInitializer:
-		decl := t.scope.GetTypeDecl(node.Name.Token.Text)
+		node.Struct = nil
 
-		if s, ok := decl.(*ast.Struct); ok {
-			node.Struct = s
-		} else {
-			addError(t, node.Name, "Type with the name '"+node.Name.Token.Text+"' is not a struct.")
+		lookup := getSymbolLookup(t.ctx, t.scope, node.Path)
+
+		if !utils.IsNil(lookup) {
+			decl := lookup.GetTypeDecl(node.Path.SegmentAt(node.Path.SegmentCount() - 1))
+
+			if decl, ok := decl.(*ast.Struct); ok {
+				node.Struct = decl
+			}
+		}
+
+		if utils.IsNil(node.Struct) {
+			addError(t, node.Path, "Type with the name '"+ast.PathString(node.Path)+"' is not a struct or doesn't exist.")
 		}
 
 	case *ast.DeclType:

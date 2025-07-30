@@ -135,7 +135,9 @@ func (p *printer) VisitLiteral(l *Literal) {
 }
 
 func (p *printer) VisitStructInitializer(s *StructInitializer) {
-	fmt.Printf("StructInitializer '%s'\n", s.Name.Token.Text)
+	fmt.Printf("StructInitializer '")
+	printPath(s.Path)
+	fmt.Println('\'')
 }
 
 func (p *printer) VisitParen(pa *Paren) {

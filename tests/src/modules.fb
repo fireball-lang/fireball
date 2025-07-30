@@ -18,3 +18,9 @@ func modulesFullyQualifiedType() bool {
 
 	return true;
 }
+
+#[test]
+func modulesStructInitializer() bool {
+	var v = tests:nested:Vec2 { x: 6 as i8 };
+	return v.x == 6 as i8;
+}

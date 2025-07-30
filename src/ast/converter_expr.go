@@ -274,8 +274,8 @@ func (c *converter) convertStructInitializer(node *cst.Node) *StructInitializer 
 	for i := range node.Children {
 		child := &node.Children[i]
 
-		if child.Kind == cst.Leaf && child.Token.Kind == lexer.Identifier {
-			s.Name = c.convertLeaf(child)
+		if child.Kind == cst.Path {
+			s.Path = c.convertPath(child)
 		} else if child.Kind == cst.StructInitializerField {
 			s.Fields = append(s.Fields, c.convertStructInitializerField(child))
 		}

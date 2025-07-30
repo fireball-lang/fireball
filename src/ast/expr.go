@@ -244,7 +244,7 @@ func (l *Literal) Visit(visitor ExprVisitor) {
 type StructInitializer struct {
 	baseExpr
 
-	Name   *Leaf
+	Path   *Path
 	Struct *Struct
 
 	Fields []*StructInitializerField
@@ -252,7 +252,7 @@ type StructInitializer struct {
 
 func (s *StructInitializer) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		if IsValid(s.Name) && !yield(s.Name) {
+		if IsValid(s.Path) && !yield(s.Path) {
 			return
 		}
 
