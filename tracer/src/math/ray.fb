@@ -1,4 +1,4 @@
-mod tracer;
+mod tracer:math;
 
 struct Ray {
     origin Vec3;

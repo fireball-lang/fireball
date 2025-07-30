@@ -1,6 +1,7 @@
 mod tracer;
 
 import tracer:libc;
+import tracer:math:{Vec3, Ray};
 import tracer:math;
 
 interface Material {

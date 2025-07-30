@@ -1,6 +1,6 @@
 mod tracer;
 
-import tracer:math;
+import tracer:math:{Vec3, Ray, deg_to_rad, tanf};
 
 struct Camera {
     origin Vec3;
@@ -11,8 +11,8 @@ struct Camera {
 
 impl Camera {
     static func new(position Vec3, lookAt Vec3, fov f32, aspectRatio f32) Camera {
-        var theta = math:deg_to_rad(fov);
-        var h = math:tanf(theta / 2f);
+        var theta = deg_to_rad(fov);
+        var h = tanf(theta / 2f);
         var viewportHeight = 2f * h;
         var viewportWidth = aspectRatio * viewportHeight;
 

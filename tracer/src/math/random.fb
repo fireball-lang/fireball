@@ -1,0 +1,36 @@
+mod tracer:math;
+
+func random(state *u32) f32 {
+    var s = *state * 747796405u + 2891336453u;
+    *state = s;
+
+    var result = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+    result = (result >> 22u) ^ result;
+
+    return (result as f32) / 4294967295f;
+}
+
+func random_normal_distribution(state *u32) f32 {
+    var theta = 2f * 3.1415926f * random(state);
+    var rho = sqrtf(-2f * logf(random(state)));
+    return rho * cosf(theta);
+}
+
+func random_direction(state *u32) Vec3 {
+    var x = random_normal_distribution(state);
+    var y = random_normal_distribution(state);
+    var z = random_normal_distribution(state);
+
+    return Vec3.new(x, y, z).normalized();
+}
+
+func random_hemisphere_direction(state *u32, normal Vec3) Vec3 {
+    var dir = random_direction(state);
+    var s = sign(normal.dot(dir));
+
+    return Vec3 {
+        x: dir.x * s,
+        y: dir.y * s,
+        z: dir.z * s
+    };
+}

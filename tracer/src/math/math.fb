@@ -1,0 +1,57 @@
+mod tracer:math;
+
+#[extern]
+func sqrtf(x f32) f32
+
+#[extern]
+func fabsf(x f32) f32
+
+#[extern]
+func tanf(x f32) f32
+
+#[extern]
+func logf(x f32) f32
+
+#[extern]
+func sinf(x f32) f32
+
+#[extern]
+func cosf(x f32) f32
+
+#[extern]
+func powf(x f32, y f32) f32
+
+func sign(x f32) f32 {
+    if (x < 0f) return -1f;
+    if (x > 0f) return 1f;
+    return 0f;
+}
+
+func min(x f32, y f32) f32 {
+    if (x < y) return x;
+    return y;
+}
+
+func max(x f32, y f32) f32 {
+    if (x > y) return x;
+    return y;
+}
+
+func clamp(v f32, min f32, max f32) f32 {
+    if (v < min) return min;
+    if (v > max) return max;
+    return v;
+}
+
+func linear_to_gamma(linear f32) f32 {
+    if (linear > 0f) {
+        return sqrtf(linear);
+    }
+
+    return 0f;
+}
+
+func deg_to_rad(deg f32) f32 {
+    var pi = 3.1415926535897932384626433832795028841971693993751f;
+    return deg * pi / 180f;
+}

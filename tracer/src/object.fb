@@ -1,7 +1,7 @@
 mod tracer;
 
 import tracer:libc;
-import tracer:math;
+import tracer:math:{Vec3, Ray, sqrtf};
 
 struct Hit {
     point Vec3;
@@ -94,7 +94,7 @@ impl Object for Sphere {
         var discriminant = h * h - a * c;
         if (discriminant < 0f) return false;
 
-        var sqrtd = math:sqrtf(discriminant);
+        var sqrtd = sqrtf(discriminant);
 
         // Find the nearest root that lies in the acceptable range.
         var root = (h - sqrtd) / a;

@@ -1,7 +1,7 @@
 mod tracer;
 
 import tracer:libc:{malloc, free, fopen, fwrite, fclose};
-import tracer:math:{linear_to_gamma, clamp};
+import tracer:math:{Vec3, linear_to_gamma, clamp};
 
 struct Rgb {
     b u8;

@@ -1,6 +1,6 @@
 mod tracer;
 
-import tracer:math;
+import tracer:math:{Vec3, Ray, random};
 
 func main() i32 {
     var timer = Timer.start();
@@ -34,8 +34,8 @@ func main() i32 {
             var color: Vec3;
 
             for (var i = 0; i < samples; i++) {
-                var u = (x as f32 + math:random(&rng)) / (image.width as f32 - 1f);
-                var v = (y as f32 + math:random(&rng)) / (image.height as f32 - 1f);
+                var u = (x as f32 + random(&rng)) / (image.width as f32 - 1f);
+                var v = (y as f32 + random(&rng)) / (image.height as f32 - 1f);
                 
                 var ray = camera.get_ray(u ,v);
                 var sample_color = ray_color(&rng, ray, objects, depth);
