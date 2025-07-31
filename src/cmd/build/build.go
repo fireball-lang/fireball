@@ -8,12 +8,20 @@ import (
 	"path/filepath"
 )
 
+type LtoKind uint8
+
+const (
+	None LtoKind = iota
+	Thin
+)
+
 type Profile struct {
 	Name string
 	Opt  uint
+	Lto  LtoKind
 }
 
-type EntrypointFunc func(proj *project.Project, m *ir.Module, main *ir.Function) string
+type EntrypointFunc func(proj *project.Project, m *ir.Module, main *ir.Function, summary bool) string
 
 func Build(proj *project.Project, profile Profile, entrypointFunc EntrypointFunc) (string, error) {
 	// Get target
@@ -30,23 +38,34 @@ func Build(proj *project.Project, profile Profile, entrypointFunc EntrypointFunc
 	}
 
 	// Run codegen for project files
-	irPaths, err := runCodegenProject(proj, target, outPath)
+	irPaths, err := runCodegenProject(proj, profile, target, outPath)
 	if err != nil {
 		return "", err
 	}
 
 	// Run codegen for entrypoint
-	entrypointIrPath, entrypointName, err := runCodegenEntrypoint(proj, target, outPath, entrypointFunc)
+	entrypointIrPath, entrypointName, err := runCodegenEntrypoint(proj, profile, target, outPath, entrypointFunc)
 	if err != nil {
 		return "", err
 	}
 
 	irPaths = append(irPaths, entrypointIrPath)
 
-	// Compile IR to OBJ
-	objPaths, err := runForEach(compileParams{profile, target}, irPaths, compile)
-	if err != nil {
-		return "", err
+	// Compile
+	var linkPaths []string
+
+	if profile.Lto == None {
+		// Compile IR to OBJ
+		linkPaths, err = runForEach(compileParams{profile, target}, irPaths, compileToObj)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		// Compile IR to BC
+		linkPaths, err = runForEach(0, irPaths, compileToBc)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	// Link binary
@@ -56,5 +75,5 @@ func Build(proj *project.Project, profile Profile, entrypointFunc EntrypointFunc
 	}
 	binaryName += target.ExecutableFileExtension
 
-	return linkBinary(profile, target, outPath, objPaths, binaryName)
+	return linkBinary(profile, target, outPath, linkPaths, binaryName)
 }

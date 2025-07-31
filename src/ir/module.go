@@ -21,6 +21,10 @@ type Module struct {
 	headMetaNode  MetaNode
 	tailMetaNode  MetaNode
 	metaNodeCount uint32
+
+	headSummary  Summary
+	tailSummary  Summary
+	summaryCount uint32
 }
 
 func NewModule() *Module {
@@ -161,6 +165,53 @@ func (m *Module) GetMeta(ref MetaRef) MetaNode {
 
 func (m *Module) MetaNodes() iter.Seq[MetaNode] {
 	return iterLinkedList(m.headMetaNode)
+}
+
+// Summaries
+
+func (m *Module) AddSummary(summary Summary) SummaryRef {
+	if utils.IsNil(m.tailSummary) {
+		m.headSummary = summary
+	} else {
+		m.tailSummary.setNext(summary)
+	}
+
+	m.tailSummary = summary
+
+	ref := SummaryRef(m.summaryCount + 1)
+	m.summaryCount++
+
+	return ref
+}
+
+func (m *Module) GetSummary(ref SummaryRef) Summary {
+	i := uint32(0)
+
+	for summary := range m.Summaries() {
+		if i == ref.Value() {
+			return summary
+		}
+
+		i++
+	}
+
+	panic("ir.Module.GetSummary() - Invalid summary reference")
+}
+
+func (m *Module) Summaries() iter.Seq2[Summary, SummaryRef] {
+	return func(yield func(Summary, SummaryRef) bool) {
+		node := m.headSummary
+		i := uint64(1)
+
+		for !utils.IsNil(node) {
+			if !yield(node, SummaryRef(i)) {
+				return
+			}
+
+			node = node.next()
+			i++
+		}
+	}
 }
 
 // Utils

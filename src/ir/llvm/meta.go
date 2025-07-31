@@ -227,11 +227,11 @@ func (w *writer) beginMeta(distinct bool, name string) {
 	w.string(name)
 	w.rune('(')
 
-	w.metaHasField = false
+	w.objectHasField = false
 }
 
 func (w *writer) fieldBool(name string, value bool) {
-	if w.metaHasField {
+	if w.objectHasField {
 		w.string(", ")
 	}
 
@@ -239,11 +239,11 @@ func (w *writer) fieldBool(name string, value bool) {
 	w.string(": ")
 	w.string(utils.Ternary(value, "true", "false"))
 
-	w.metaHasField = true
+	w.objectHasField = true
 }
 
 func (w *writer) fieldUint(name string, value uint32) {
-	if w.metaHasField {
+	if w.objectHasField {
 		w.string(", ")
 	}
 
@@ -251,11 +251,11 @@ func (w *writer) fieldUint(name string, value uint32) {
 	w.string(": ")
 	w.uint(uint64(value), 10)
 
-	w.metaHasField = true
+	w.objectHasField = true
 }
 
 func (w *writer) fieldInteger(name string, value utils.Integer) {
-	if w.metaHasField {
+	if w.objectHasField {
 		w.string(", ")
 	}
 
@@ -266,11 +266,11 @@ func (w *writer) fieldInteger(name string, value utils.Integer) {
 	}
 	w.uint(value.Raw(), 10)
 
-	w.metaHasField = true
+	w.objectHasField = true
 }
 
 func (w *writer) fieldRaw(name, value string) {
-	if w.metaHasField {
+	if w.objectHasField {
 		w.string(", ")
 	}
 
@@ -278,11 +278,11 @@ func (w *writer) fieldRaw(name, value string) {
 	w.string(": ")
 	w.string(value)
 
-	w.metaHasField = true
+	w.objectHasField = true
 }
 
 func (w *writer) fieldString(name, value string) {
-	if w.metaHasField {
+	if w.objectHasField {
 		w.string(", ")
 	}
 
@@ -291,11 +291,11 @@ func (w *writer) fieldString(name, value string) {
 	w.string(value)
 	w.rune('"')
 
-	w.metaHasField = true
+	w.objectHasField = true
 }
 
 func (w *writer) fieldMetaRef(name string, ref ir.MetaRef) {
-	if w.metaHasField {
+	if w.objectHasField {
 		w.string(", ")
 	}
 
@@ -303,11 +303,11 @@ func (w *writer) fieldMetaRef(name string, ref ir.MetaRef) {
 	w.string(": ")
 	w.metaRef(ref)
 
-	w.metaHasField = true
+	w.objectHasField = true
 }
 
 func (w *writer) fieldSliceMetaRef(name string, refs []ir.MetaRef) {
-	if w.metaHasField {
+	if w.objectHasField {
 		w.string(", ")
 	}
 
@@ -323,7 +323,7 @@ func (w *writer) fieldSliceMetaRef(name string, refs []ir.MetaRef) {
 
 	w.rune('}')
 
-	w.metaHasField = true
+	w.objectHasField = true
 }
 
 func (w *writer) metaRef(ref ir.MetaRef) {

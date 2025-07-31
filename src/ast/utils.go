@@ -23,6 +23,20 @@ func Parent[T Node](node Node) T {
 	}
 }
 
+func ParentSkipParens(node Node) Node {
+	node = node.Parent()
+
+	for {
+		if _, ok := node.(*Paren); !ok {
+			break
+		}
+
+		node = node.Parent()
+	}
+
+	return node
+}
+
 func GetLastExpr(expr Expr) Expr {
 	for {
 		if b, ok := expr.(*Block); ok {

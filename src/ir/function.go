@@ -68,7 +68,8 @@ func (f *Function) AddLast(in Instruction) Instruction {
 // Block
 
 type Block struct {
-	Name string
+	Name             string
+	InstructionCount uint32
 
 	headInstruction Instruction
 	tailInstruction Instruction
@@ -82,6 +83,8 @@ func (b *Block) AddFirst(in Instruction) Instruction {
 		b.tailInstruction = in
 	}
 
+	b.InstructionCount++
+
 	return in
 }
 
@@ -93,6 +96,8 @@ func (b *Block) AddLast(in Instruction) Instruction {
 	}
 
 	b.tailInstruction = in
+	b.InstructionCount++
+
 	return in
 }
 

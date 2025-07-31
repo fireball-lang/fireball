@@ -42,4 +42,4 @@ struct Timespec {
 }
 
 #[extern]
-func clock_gettime(clockid u32, time *Timespec) i32
+func timespec_get(ts *Timespec, base i32) i32

@@ -86,16 +86,18 @@ func getProfile(release bool) build.Profile {
 		return build.Profile{
 			Name: "release",
 			Opt:  2,
+			Lto:  build.Thin,
 		}
 	}
 
 	return build.Profile{
 		Name: "debug",
 		Opt:  0,
+		Lto:  build.None,
 	}
 }
 
-func buildExecutableEntrypoint(proj *project.Project, m *ir.Module, main *ir.Function) string {
+func buildExecutableEntrypoint(proj *project.Project, m *ir.Module, main *ir.Function, summary bool) string {
 	mainType := &ast.SimpleFuncType{Returns: &ast.PrimitiveType{Kind: ast.I32}}
 	mainTyp := &ir.FunctionType{Returns: ir.I32}
 
@@ -106,6 +108,43 @@ func buildExecutableEntrypoint(proj *project.Project, m *ir.Module, main *ir.Fun
 	emitter := ir.Emitter{Module: m}
 	emitter.Begin(main.NewBlock("func.entry"))
 	emitter.Ret(emitter.Call(mainTyp, fbMain, nil))
+
+	if summary {
+		moduleRef := m.AddSummary(&ir.ModuleSummary{
+			Path: "[Regular LTO]",
+			Hash: [5]uint32{},
+		})
+
+		fbMainRef := m.AddSummary(&ir.SymbolSummary{Name: fbMain.Name})
+
+		m.AddSummary(&ir.FunctionSummary{
+			Module: moduleRef,
+			Name:   main.Name,
+			LinkFlags: ir.LinkSummaryFlags{
+				Linkage:             ir.LinkageExternal,
+				Visibility:          ir.VisibilityDefault,
+				NotEligibleToImport: false,
+				Live:                false,
+				DsoLocal:            true,
+				CanAutoHide:         false,
+				ImportType:          ir.ImportDefinition,
+			},
+			InstructionCount: emitter.Block().InstructionCount,
+			Flags:            ir.FuncNoInline | ir.FuncNoUnwind,
+			Calls:            []ir.FunctionSummaryCall{{Callee: fbMainRef}},
+			Refs:             nil,
+		})
+
+		m.AddSummary(&ir.SimpleSummary{
+			Name:  "flags",
+			Value: 520,
+		})
+
+		m.AddSummary(&ir.SimpleSummary{
+			Name:  "blockcount",
+			Value: 0,
+		})
+	}
 
 	return ""
 }

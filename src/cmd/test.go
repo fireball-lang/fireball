@@ -34,7 +34,10 @@ type testOutputWriter struct {
 
 func (t *testOutputWriter) Begin() {
 	t.index = 0
-	writeTestState(testFunctions[0], running)
+
+	if len(testFunctions) > 0 {
+		writeTestState(testFunctions[0], running)
+	}
 }
 
 func (t *testOutputWriter) Write(p []byte) (n int, err error) {
@@ -147,9 +150,20 @@ func testCommand() *cobra.Command {
 	return cmd
 }
 
-func buildTestEntrypoint(proj *project.Project, m *ir.Module, main *ir.Function) string {
+func buildTestEntrypoint(proj *project.Project, m *ir.Module, main *ir.Function, summary bool) string {
 	testTyp := &ir.FunctionType{Returns: ir.I8}
+
 	var tests []*ir.Function
+
+	var mainCalls []ir.FunctionSummaryCall
+	var moduleRef ir.SummaryRef
+
+	if summary {
+		moduleRef = m.AddSummary(&ir.ModuleSummary{
+			Path: "[Regular LTO]",
+			Hash: [5]uint32{},
+		})
+	}
 
 	for file := range proj.Files() {
 		for _, decl := range file.Ast().Decls {
@@ -160,6 +174,11 @@ func buildTestEntrypoint(proj *project.Project, m *ir.Module, main *ir.Function)
 				test.Flags = ir.Declare | ir.DsoLocal
 
 				tests = append(tests, test)
+
+				if summary {
+					ref := m.AddSummary(&ir.SymbolSummary{Name: test.Name})
+					mainCalls = append(mainCalls, ir.FunctionSummaryCall{Callee: ref})
+				}
 			}
 		}
 	}
@@ -170,6 +189,7 @@ func buildTestEntrypoint(proj *project.Project, m *ir.Module, main *ir.Function)
 
 	var stdoutVar *ir.GlobalVar
 	var flush *ir.Function
+	var mainRefs []ir.SummaryRef
 
 	if runtime.GOOS != "windows" {
 		stdoutVar = m.NewGlobalVar("stdout", ir.Pointer)
@@ -178,6 +198,10 @@ func buildTestEntrypoint(proj *project.Project, m *ir.Module, main *ir.Function)
 		flushTyp := &ir.FunctionType{Returns: ir.I32, Params: []ir.Type{ir.Pointer}}
 		flush = m.NewFunction("fflush", flushTyp, []string{"file"})
 		flush.Flags = ir.Declare
+
+		if summary {
+			mainRefs = []ir.SummaryRef{m.AddSummary(&ir.SymbolSummary{Name: "stdout"})}
+		}
 	}
 
 	emitter := ir.Emitter{Module: m}
@@ -207,6 +231,36 @@ func buildTestEntrypoint(proj *project.Project, m *ir.Module, main *ir.Function)
 	}
 
 	emitter.Ret(counter)
+
+	if summary {
+		m.AddSummary(&ir.FunctionSummary{
+			Module: moduleRef,
+			Name:   main.Name,
+			LinkFlags: ir.LinkSummaryFlags{
+				Linkage:             ir.LinkageExternal,
+				Visibility:          ir.VisibilityDefault,
+				NotEligibleToImport: false,
+				Live:                false,
+				DsoLocal:            true,
+				CanAutoHide:         false,
+				ImportType:          ir.ImportDefinition,
+			},
+			InstructionCount: emitter.Block().InstructionCount,
+			Flags:            ir.FuncNoInline | ir.FuncNoUnwind,
+			Calls:            mainCalls,
+			Refs:             mainRefs,
+		})
+
+		m.AddSummary(&ir.SimpleSummary{
+			Name:  "flags",
+			Value: 520,
+		})
+
+		m.AddSummary(&ir.SimpleSummary{
+			Name:  "blockcount",
+			Value: 0,
+		})
+	}
 
 	return "test"
 }

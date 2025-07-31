@@ -1,6 +1,6 @@
 mod tracer;
 
-import tracer:libc:{Timespec, clock_gettime, printf};
+import tracer:libc:{Timespec, timespec_get, printf};
 
 struct Timer {
     start Timespec;
@@ -9,14 +9,14 @@ struct Timer {
 impl Timer {
     static func start() Timer {
         var timer: Timer;
-        clock_gettime(0u, &timer.start);
+        timespec_get(&timer.start, 1);
 
         return timer;
     }
 
     func end(text *u8) {
         var end: Timespec;
-        clock_gettime(0u, &end);
+        timespec_get(&end, 1);
 
         var second = 1000000000u as u64;
 

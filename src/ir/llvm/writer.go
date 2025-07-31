@@ -20,7 +20,7 @@ type writer struct {
 	instructionIndex uint32
 	instructionIds   map[ir.Instruction]uint32
 
-	metaHasField bool
+	objectHasField bool
 }
 
 func Write(module *ir.Module, out io.Writer) error {
@@ -59,6 +59,10 @@ func Write(module *ir.Module, out io.Writer) error {
 	}
 
 	if err := w.metaNodes(); err != nil {
+		return err
+	}
+
+	if err := w.summaries(); err != nil {
 		return err
 	}
 
@@ -383,6 +387,32 @@ func (w *writer) metaNodes() error {
 		w.uint(i, 10)
 		w.string(" = ")
 		w.meta(node)
+		w.rune('\n')
+
+		if w.needsFlush() {
+			if err := w.flush(); err != nil {
+				return err
+			}
+		}
+
+		i++
+	}
+
+	if i > 0 {
+		w.rune('\n')
+	}
+
+	return nil
+}
+
+func (w *writer) summaries() error {
+	i := uint64(0)
+
+	for summary := range w.module.Summaries() {
+		w.rune('^')
+		w.uint(i, 10)
+		w.string(" = ")
+		w.summary(summary)
 		w.rune('\n')
 
 		if w.needsFlush() {

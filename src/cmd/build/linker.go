@@ -19,6 +19,10 @@ func linkBinary(profile Profile, target Target, workingPath string, inputs []str
 	cmd := exec.Command(name)
 	cmd.Dir = workingPath
 
+	if profile.Lto == Thin && !windows {
+		cmd.Args = append(cmd.Args, "--lto=thin")
+	}
+
 	if windows {
 		cmd.Args = append(cmd.Args, "/out:"+binaryName)
 	} else {

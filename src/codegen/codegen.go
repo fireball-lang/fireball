@@ -24,6 +24,9 @@ type codegen struct {
 	fileRef ir.MetaRef
 	unitRef ir.MetaRef
 
+	moduleSummaryRef  ir.SummaryRef
+	functionSummaries map[*ast.Func]ir.SummaryRef
+
 	globalVars map[*ast.GlobalVar]*ir.GlobalVar
 	functions  map[*ast.Func]*ir.Function
 
@@ -35,10 +38,78 @@ type codegen struct {
 	loopConditionL *ir.Block
 	loopEndL       *ir.Block
 
+	summaryCalls []ir.FunctionSummaryCall
+	summaryRefs  []ir.SummaryRef
+
 	exprValue Value
 }
 
-func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ir.Module {
+func AddModuleMetaFlags(m *ir.Module, lto bool) {
+	flags := []ir.MetaRef{
+		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+			{Number: 7},
+			{Text: "Dwarf Version"},
+			{Number: 4},
+		}}),
+		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+			{Number: 2},
+			{Text: "Debug Info Version"},
+			{Number: 3},
+		}}),
+		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+			{Number: 1},
+			{Text: "wchar_size"},
+			{Number: 4},
+		}}),
+		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+			{Number: 8},
+			{Text: "PIC Level"},
+			{Number: 2},
+		}}),
+		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+			{Number: 7},
+			{Text: "PIE Level"},
+			{Number: 2},
+		}}),
+		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+			{Number: 7},
+			{Text: "uwtable"},
+			{Number: 2},
+		}}),
+		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+			{Number: 7},
+			{Text: "frame-pointer"},
+			{Number: 2},
+		}}),
+	}
+
+	if lto {
+		flags = append(
+			flags,
+			m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+				{Number: 1},
+				{Text: "EnableSplitLTOUnit"},
+				{Number: 1},
+			}}),
+			m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+				{Number: 1},
+				{Text: "UnifiedLTO"},
+				{Number: 1},
+			}}),
+		)
+	}
+
+	m.AddNamedMetaRefs("llvm.module.flags", flags...)
+
+	m.AddNamedMetaRefs(
+		"llvm.ident",
+		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+			{Text: "fireball"},
+		}}),
+	)
+}
+
+func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv, summaries bool) *ir.Module {
 	module := ir.NewModule()
 	module.Path = path
 
@@ -78,53 +149,20 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ir
 		c.unitRef,
 	)
 
-	c.module.AddNamedMetaRefs(
-		"llvm.module.flags",
-		c.module.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
-			{Number: 7},
-			{Text: "Dwarf Version"},
-			{Number: 4},
-		}}),
-		c.module.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
-			{Number: 2},
-			{Text: "Debug Info Version"},
-			{Number: 3},
-		}}),
-		c.module.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
-			{Number: 1},
-			{Text: "wchar_size"},
-			{Number: 4},
-		}}),
-		c.module.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
-			{Number: 8},
-			{Text: "PIC Level"},
-			{Number: 2},
-		}}),
-		c.module.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
-			{Number: 7},
-			{Text: "PIE Level"},
-			{Number: 2},
-		}}),
-		c.module.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
-			{Number: 7},
-			{Text: "uwtable"},
-			{Number: 2},
-		}}),
-		c.module.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
-			{Number: 7},
-			{Text: "frame-pointer"},
-			{Number: 2},
-		}}),
-	)
+	AddModuleMetaFlags(c.module, summaries)
 
-	c.module.AddNamedMetaRefs(
-		"llvm.ident",
-		c.module.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
-			{Text: "fireball"},
-		}}),
-	)
+	// Setup summary
+
+	if summaries {
+		c.moduleSummaryRef = c.module.AddSummary(&ir.ModuleSummary{
+			Path: "[Regular LTO]",
+			Hash: [5]uint32{},
+		})
+	}
 
 	// Collect symbols
+
+	c.functionSummaries = make(map[*ast.Func]ir.SummaryRef)
 
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
@@ -133,18 +171,18 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ir
 
 		case *ast.Impl:
 			for _, method := range decl.StaticMethods {
-				c.newFunction(method)
+				c.newFunction(method, true)
 			}
 
 			for _, method := range decl.Methods {
-				c.newFunction(method)
+				c.newFunction(method, true)
 			}
 
 		case *ast.GlobalVar:
 			c.newGlobalVar(decl)
 
 		case *ast.Func:
-			c.newFunction(decl)
+			c.newFunction(decl, true)
 		}
 	}
 
@@ -176,6 +214,20 @@ func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv) *ir
 		}
 	}
 
+	// End summary
+
+	if summaries {
+		c.module.AddSummary(&ir.SimpleSummary{
+			Name:  "flags",
+			Value: 520,
+		})
+
+		c.module.AddSummary(&ir.SimpleSummary{
+			Name:  "blockcount",
+			Value: 0,
+		})
+	}
+
 	return c.module
 }
 
@@ -185,6 +237,26 @@ func (c *codegen) newTypeInfo(decl ast.Decl) {
 	gVar := c.module.NewGlobalVar(GetTypeInfoLinkName(decl), ir.I8)
 	gVar.Flags = ir.Constant
 	gVar.Initializer = &ir.ZeroInitializer{Typ: ir.I8}
+
+	// Summary
+
+	if c.moduleSummaryRef.Valid() {
+		c.module.AddSummary(&ir.VariableSummary{
+			Module: c.moduleSummaryRef,
+			Name:   gVar.Name,
+			LinkFlags: ir.LinkSummaryFlags{
+				Linkage:             ir.LinkageExternal,
+				Visibility:          ir.VisibilityDefault,
+				NotEligibleToImport: false,
+				Live:                false,
+				DsoLocal:            false,
+				CanAutoHide:         false,
+				ImportType:          ir.ImportDefinition,
+			},
+			Flags: ir.VarReadOnly | ir.VarConstant,
+			Refs:  nil,
+		})
+	}
 }
 
 func (c *codegen) newVTable(impl *ast.Impl) {
@@ -196,10 +268,22 @@ func (c *codegen) newVTable(impl *ast.Impl) {
 	pointers := make([]ir.Value, 0, typ.Length)
 	pointers = append(pointers, c.getTypeInfoPointer(impl.Decl).Ir)
 
+	var refs []ir.SummaryRef
+
+	if c.moduleSummaryRef.Valid() {
+		refs = make([]ir.SummaryRef, 0, typ.Length)
+		refs = append(refs, c.getTypeInfoSummaryRef(impl.Decl))
+	}
+
 	for _, method := range impl.Interface.Methods {
 		for _, function := range impl.Methods {
 			if method.Name() == function.Name() && ast.FuncSignatureEquals(method, function) {
 				pointers = append(pointers, c.functions[function])
+
+				if c.moduleSummaryRef.Valid() {
+					refs = append(refs, c.getFunctionSummaryRef(function))
+				}
+
 				break
 			}
 		}
@@ -208,6 +292,26 @@ func (c *codegen) newVTable(impl *ast.Impl) {
 	gVar := c.module.NewGlobalVar(GetVTableLinkName(impl.Decl, impl.Interface), typ)
 	gVar.Flags = ir.Constant
 	gVar.Initializer = &ir.Array{Elements: pointers}
+
+	// Summary
+
+	if c.moduleSummaryRef.Valid() {
+		c.module.AddSummary(&ir.VariableSummary{
+			Module: c.moduleSummaryRef,
+			Name:   gVar.Name,
+			LinkFlags: ir.LinkSummaryFlags{
+				Linkage:             ir.LinkageLinkOnce,
+				Visibility:          ir.VisibilityDefault,
+				NotEligibleToImport: false,
+				Live:                false,
+				DsoLocal:            true,
+				CanAutoHide:         true,
+				ImportType:          ir.ImportDefinition,
+			},
+			Flags: ir.VarReadOnly | ir.VarConstant,
+			Refs:  refs,
+		})
+	}
 }
 
 func (c *codegen) newGlobalVar(g *ast.GlobalVar) {
@@ -217,9 +321,29 @@ func (c *codegen) newGlobalVar(g *ast.GlobalVar) {
 	gVar.Initializer = &ir.ZeroInitializer{Typ: typ}
 
 	c.globalVars[g] = gVar
+
+	// Summary
+
+	if c.moduleSummaryRef.Valid() {
+		c.module.AddSummary(&ir.VariableSummary{
+			Module: c.moduleSummaryRef,
+			Name:   gVar.Name,
+			LinkFlags: ir.LinkSummaryFlags{
+				Linkage:             ir.LinkageLinkOnce,
+				Visibility:          ir.VisibilityDefault,
+				NotEligibleToImport: false,
+				Live:                false,
+				DsoLocal:            true,
+				CanAutoHide:         false,
+				ImportType:          ir.ImportDefinition,
+			},
+			Flags: 0,
+			Refs:  nil,
+		})
+	}
 }
 
-func (c *codegen) newFunction(f *ast.Func) *ir.Function {
+func (c *codegen) newFunction(f *ast.Func, definition bool) *ir.Function {
 	typ := c.types.Get(f).(*ir.FunctionType)
 	paramNames := make([]string, 0, len(typ.Params))
 
@@ -238,13 +362,37 @@ func (c *codegen) newFunction(f *ast.Func) *ir.Function {
 
 	fun := c.module.NewFunction(GetFuncLinkName(f), typ, paramNames)
 
+	if !definition {
+		fun.Flags = ir.Declare
+	}
+
 	if f.Body != nil {
-		fun.Flags = ir.DsoLocal
+		fun.Flags |= ir.DsoLocal
 	} else {
-		fun.Flags = ir.Declare | ir.DsoLocal
+		fun.Flags |= ir.Declare | ir.DsoLocal
 	}
 
 	c.functions[f] = fun
+
+	// Summary
+
+	if definition && f.Body != nil && c.moduleSummaryRef.Valid() {
+		c.functionSummaries[f] = c.module.AddSummary(&ir.FunctionSummary{
+			Module: c.moduleSummaryRef,
+			Name:   fun.Name,
+			LinkFlags: ir.LinkSummaryFlags{
+				Linkage:             ir.LinkageLinkOnce,
+				Visibility:          ir.VisibilityDefault,
+				NotEligibleToImport: false,
+				Live:                false,
+				DsoLocal:            true,
+				CanAutoHide:         true,
+				ImportType:          ir.ImportDefinition,
+			},
+			Flags: ir.FuncNoUnwind,
+		})
+	}
+
 	return fun
 }
 
@@ -254,6 +402,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 	}
 
 	// Meta
+
 	typeRef := c.module.GetMeta(c.types.GetMeta(f)).(*ir.DerivedTypeMeta).Base
 
 	ref := c.module.AddMeta(&ir.SubprogramMeta{
@@ -338,6 +487,22 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 		if _, ok := expr.(*ast.Return); !ok {
 			c.emitter.Ret(Value{})
 		}
+	}
+
+	// Summary
+
+	if ref, ok := c.functionSummaries[f]; ok {
+		fun := c.module.GetSummary(ref).(*ir.FunctionSummary)
+
+		for _, block := range c.fun.Blocks {
+			fun.InstructionCount += block.InstructionCount
+		}
+
+		fun.Calls = c.summaryCalls
+		c.summaryCalls = nil
+
+		fun.Refs = c.summaryRefs
+		c.summaryRefs = nil
 	}
 
 	c.variables.PopScope()
@@ -572,6 +737,26 @@ func (c *codegen) VisitLiteral(l *ast.Literal) {
 		gVar.Flags = ir.Private | ir.UnnamedAddr | ir.Constant
 		gVar.Initializer = value
 
+		if c.moduleSummaryRef.Valid() {
+			ref := c.module.AddSummary(&ir.VariableSummary{
+				Module: c.moduleSummaryRef,
+				Name:   gVar.Name,
+				LinkFlags: ir.LinkSummaryFlags{
+					Linkage:             ir.LinkagePrivate,
+					Visibility:          ir.VisibilityDefault,
+					NotEligibleToImport: false,
+					Live:                false,
+					DsoLocal:            true,
+					CanAutoHide:         true,
+					ImportType:          ir.ImportDefinition,
+				},
+				Flags: ir.VarReadOnly | ir.VarConstant,
+				Refs:  nil,
+			})
+
+			c.summaryRefs = append(c.summaryRefs, ref)
+		}
+
 		c.exprValue = toValue(gVar)
 
 	default:
@@ -600,6 +785,7 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) {
 	switch node := i.Resolved.(type) {
 	case *ast.Func:
 		c.exprValue = c.getValueForFunc(node)
+		c.addSummaryCallee(i, node)
 
 	case *ast.Var, *ast.Impl, *ast.Param:
 		_, c.exprValue = c.variables.Find(i.Path.SegmentAt(0))
@@ -610,6 +796,11 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) {
 
 	case *ast.GlobalVar:
 		c.exprValue = c.getValueForGlobalVar(node)
+
+		if c.moduleSummaryRef.Valid() {
+			ref := c.getGlobalVarSummaryRef(node)
+			c.addSummaryRef(ref)
+		}
 
 	default:
 		panic("codegen.codegen.VisitIdentifier() - Invalid node type")
@@ -743,6 +934,8 @@ func (c *codegen) VisitMember(m *ast.Member) {
 			c.exprValue = c.getValueForFunc(f)
 		}
 
+		c.addSummaryCallee(m, f)
+
 		return
 	}
 
@@ -863,10 +1056,6 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 	// Boolean
 	case lexer.PipePipe:
-		if strings.Contains(ast.Root(b).AbsolutePath, "other.fb") {
-			print()
-		}
-
 		leftL := c.fun.NewBlock("or.left")
 		rightL := c.fun.NewBlock("or.right")
 		exitL := c.fun.NewBlock("or.exit")
@@ -1031,9 +1220,17 @@ func (c *codegen) VisitIs(i *ast.Is) {
 	valueVTable := c.emitExtractAggregateElement(value, i.Value.Result().Type, 1)
 	valueTypeInfo := c.emitter.Load(ir.Pointer, valueVTable)
 
-	typeTypeInfo := c.getTypeInfoPointer(i.Type.(*ast.PointerType).Pointee.(*ast.DeclType).Decl)
+	decl := i.Type.(*ast.PointerType).Pointee.(*ast.DeclType).Decl
+	typeTypeInfo := c.getTypeInfoPointer(decl)
 
 	c.exprValue = c.emitter.ICmp(ir.Eq, false, valueTypeInfo, typeTypeInfo)
+
+	// Summary
+
+	if c.moduleSummaryRef.Valid() {
+		ref := c.getTypeInfoSummaryRef(decl)
+		c.addSummaryRef(ref)
+	}
 }
 
 func (c *codegen) VisitCast(cast *ast.Cast) {
@@ -1100,7 +1297,16 @@ func (c *codegen) cast(value Value, from, to ast.Type, kind analyzer.CastKind) V
 			},
 		}
 
-		return c.emitter.InsertValue(toValue(v), value, 0)
+		value = c.emitter.InsertValue(toValue(v), value, 0)
+
+		// Summary
+
+		if c.moduleSummaryRef.Valid() {
+			ref := c.getVTableSummaryRef(decl, in)
+			c.addSummaryRef(ref)
+		}
+
+		return value
 
 	case analyzer.InterfaceToPointer:
 		return c.emitter.ExtractValue(value, 0)
@@ -1269,8 +1475,7 @@ func (c *codegen) getValueForFunc(f *ast.Func) Value {
 	if v, ok := c.functions[f]; ok {
 		return toValue(v)
 	} else {
-		fun := c.newFunction(f)
-		fun.Flags |= ir.Declare
+		fun := c.newFunction(f, false)
 
 		return toValue(fun)
 	}
