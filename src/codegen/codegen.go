@@ -360,6 +360,10 @@ func (c *codegen) newFunction(f *ast.Func, definition bool) *ir.Function {
 		paramNames = append(paramNames, param.Name.Token.Text)
 	}
 
+	if f.GetAttribute("intrinsic") != nil {
+		paramNames = appendIntrinsicFuncParamNames(f, paramNames)
+	}
+
 	fun := c.module.NewFunction(GetFuncLinkName(f), typ, paramNames)
 
 	if !definition {
@@ -812,10 +816,16 @@ func (c *codegen) VisitCall(call *ast.Call) {
 	args := make([]ir.Value, 0, len(call.Args))
 
 	f, _ := call.Callee.Result().Type.(ast.FuncType)
+
+	intrinsic := false
+	if f, ok := f.(*ast.Func); ok && f.GetAttribute("intrinsic") != nil {
+		intrinsic = true
+	}
+
 	regs := c.callConv.Classify(f.ReturnType())
 	var returnPtr Value
 
-	if len(regs) == 1 && regs[0].Class == abi.Memory {
+	if !intrinsic && len(regs) == 1 && regs[0].Class == abi.Memory {
 		returnPtr = c.emitAlloca("abi.call.return", c.types.Get(f.ReturnType()))
 		args = append(args, returnPtr.Ir)
 	}
@@ -864,14 +874,22 @@ func (c *codegen) VisitCall(call *ast.Call) {
 			paramType = f.ParamTypeAt(i)
 		}
 
-		args = append(args, c.visitLoadClassified(arg, paramType, func() Value {
-			return c.emitAlloca("abi.arg", c.types.Get(paramType))
-		}, false).Ir)
+		if intrinsic {
+			args = append(args, c.visit(arg).Read(c).Ir)
+		} else {
+			args = append(args, c.visitLoadClassified(arg, paramType, func() Value {
+				return c.emitAlloca("abi.arg", c.types.Get(paramType))
+			}, false).Ir)
+		}
+	}
+
+	if intrinsic {
+		args = appendIntrinsicCallArgs(f.(*ast.Func), args)
 	}
 
 	c.exprValue = c.emitter.Call(c.types.Get(f), callee, args)
 
-	if len(regs) > 0 {
+	if !intrinsic && len(regs) > 0 {
 		if regs[0].Class == abi.Memory {
 			c.exprValue = c.declassify(call, f.ReturnType(), returnPtr)
 		} else {

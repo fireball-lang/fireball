@@ -33,6 +33,12 @@ type metaMapping struct {
 }
 
 func (t *TypeCache) Get(type_ ast.Type) ir.Type {
+	if f, ok := type_.(*ast.Func); ok && f.GetAttribute("intrinsic") != nil {
+		if override := getOverrideIntrinsicFuncTyp(t, f); override != nil {
+			return override
+		}
+	}
+
 	if _, ok := ast.GetDeclFromDeclType[*ast.Interface](type_); ok {
 		if utils.IsNil(t.interfaceIrType) {
 			t.interfaceIrType = t.createDeclType(type_.(*ast.DeclType))

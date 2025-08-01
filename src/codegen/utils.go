@@ -30,6 +30,11 @@ func GetFuncLinkName(f *ast.Func) string {
 		return f.Name()
 	}
 
+	// Intrinsic
+	if f.GetAttribute("intrinsic") != nil {
+		return getIntrinsicFuncLinkName(f)
+	}
+
 	// Normal
 	var sb strings.Builder
 	sb.WriteString("fb$")

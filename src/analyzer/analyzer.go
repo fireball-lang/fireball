@@ -191,12 +191,6 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 		}
 	} else {
 		a.acceptChildren(f)
-
-		attr := f.GetAttribute("extern")
-
-		if attr == nil {
-			a.error(errorNode, "Functions without the extern attribute need to have a body.")
-		}
 	}
 
 	for _, param := range f.Params {
@@ -205,18 +199,52 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 		}
 	}
 
-	if attr := f.GetAttribute("test"); attr != nil {
-		if f.IsMethod() {
-			a.error(errorNode, "Methods cannot be marked with the Test attribute, only global functions.")
-		} else {
+	// Attributes
+
+	extern := f.GetAttribute("extern")
+	test := f.GetAttribute("test")
+	intrinsic := f.GetAttribute("intrinsic")
+
+	count := 0
+	if extern != nil {
+		count++
+	}
+	if test != nil {
+		count++
+	}
+	if intrinsic != nil {
+		count++
+	}
+
+	if count > 2 {
+		a.error(errorNode, "Attributes extern, test and intrinsic are mutually exclusive.")
+	} else {
+		if test != nil {
+			if f.IsMethod() {
+				a.error(errorNode, "Methods cannot be marked with the test attribute, only global functions.")
+			}
 			if len(f.Params) > 0 {
 				a.error(errorNode, "Test functions cannot have any parameters.")
 			}
-
 			if !f.ReturnType().Equals(ast.BoolType) {
 				a.error(errorNode, "Test functions need to return a 'bool'.")
 			}
 		}
+
+		if intrinsic != nil {
+			if f.IsMethod() {
+				a.error(errorNode, "Methods cannot be marked with the intrinsic attribute, only global functions.")
+			}
+			if f.Body != nil {
+				a.error(errorNode, "Intrinsic functions cannot have a body.")
+			}
+
+			a.checkIntrinsic(f, errorNode, intrinsic)
+		}
+	}
+
+	if extern == nil && intrinsic == nil && f.Body == nil {
+		a.error(errorNode, "Functions without the extern or intrinsic attribute need to have a body.")
 	}
 
 	a.variables.PopScope()
@@ -477,6 +505,17 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
 
 		if !utils.IsNil(lookup) {
 			f := lookup.GetFuncDecl(name)
+
+			if f != nil && f.GetAttribute("intrinsic") != nil {
+				if call, ok := ast.ParentSkipParens(i).(*ast.Call); !ok || call.Callee != i {
+					a.error(i, "Cannot take a function pointer of an intrinsic function.")
+
+					i.Result().SetInvalid()
+					i.Resolved = nil
+
+					return
+				}
+			}
 
 			type_ = f
 			node = f
