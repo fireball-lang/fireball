@@ -28,7 +28,7 @@ impl Vec3 {
     }
 
     func length() f32 {
-        return sqrtf(this.length_squared());
+        return sqrt(this.length_squared());
     }
 
     func normalized() Vec3 {
@@ -55,7 +55,7 @@ impl Vec3 {
 
     func near_zero() bool {
         var s = 0.00000001f;
-        return (fabsf(this.x) < s) && (fabsf(this.y) < s) && (fabsf(this.z) < s);
+        return (abs(this.x) < s) && (abs(this.y) < s) && (abs(this.z) < s);
     }
 
     func reflect(normal Vec3) Vec3 {
@@ -65,7 +65,7 @@ impl Vec3 {
     func refract(normal Vec3, etai_over_etat f32) Vec3 {
         var cos_theta = min(this.mul_splat(-1f).dot(normal), 1f);
         var r_out_perp =  this.add(normal.mul_splat(cos_theta)).mul_splat(etai_over_etat);
-        var r_out_parallel = normal.mul_splat(-sqrtf(fabsf(1f - r_out_perp.length_squared())));
+        var r_out_parallel = normal.mul_splat(-sqrt(abs(1f - r_out_perp.length_squared())));
         return r_out_perp.add(r_out_parallel);
     }
 

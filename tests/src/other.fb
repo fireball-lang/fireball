@@ -124,3 +124,32 @@ func shiftRightSigned() bool {
 func shiftRightUnsigned() bool {
 	return (4u >> 2u) == 1u;
 }
+
+// Intrinsics
+
+#[intrinsic]
+func memset(ptr *void, value u8, length u32) void
+
+#[intrinsic]
+func abs(x i32) i32
+
+#[intrinsic]
+func count_trailing_zeroes(x i32) i32
+
+#[test]
+func abs_intrinsic() bool {
+	return abs(-5) == 5;
+}
+
+#[test]
+func count_trailing_zeroes_intrinsic() bool {
+	return count_trailing_zeroes(4) == 2;
+}
+
+#[test]
+func memset_intrinsic() bool {
+	var array: [3]u8;
+	memset(&array[0], 3u as u8, 3u);
+
+	return array[1] == 3u as u8;
+}

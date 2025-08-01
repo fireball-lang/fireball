@@ -88,7 +88,7 @@ impl Material for Dielectric {
 
         var unit_direction = ray.direction.normalized();
         var cos_theta = math:min(unit_direction.mul_splat(-1f).dot(hit.normal), 1f);
-        var sin_theta = math:sqrtf(1f - cos_theta * cos_theta);
+        var sin_theta = math:sqrt(1f - cos_theta * cos_theta);
 
         var cannot_refract = ri * sin_theta > 1f;
         var direction: Vec3;
@@ -107,5 +107,5 @@ func reflectance(cosine f32, refraction_index f32) f32 {
     // Use Schlick's approximation for reflectance.
     var r0 = (1f - refraction_index) / (1f + refraction_index);
     r0 = r0 * r0;
-    return r0 + (1f - r0) * math:powf(1f - cosine, 5f);
+    return r0 + (1f - r0) * math:pow(1f - cosine, 5f);
 }
