@@ -2,6 +2,7 @@ package main
 
 import (
 	"fireball/cmd/build"
+	"fireball/profiler"
 	"fireball/project"
 	"fireball/utils"
 	"fmt"
@@ -15,6 +16,8 @@ import (
 )
 
 func buildPath(path string, profile build.Profile, entrypointFunc build.EntrypointFunc) (string, error) {
+	defer profiler.Event()()
+
 	start := time.Now()
 
 	defer func() {
@@ -50,6 +53,8 @@ func buildPath(path string, profile build.Profile, entrypointFunc build.Entrypoi
 }
 
 func openAndAnalyzeProject(path string) (*project.Project, error) {
+	defer profiler.Event()()
+
 	// Open project
 	proj, err := project.OpenProject(path)
 	if err != nil {

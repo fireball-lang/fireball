@@ -6,6 +6,7 @@ import (
 	"fireball/ast"
 	"fireball/ir"
 	"fireball/lexer"
+	"fireball/profiler"
 	"fireball/utils"
 	"slices"
 	"strconv"
@@ -110,6 +111,8 @@ func AddModuleMetaFlags(m *ir.Module, lto bool) {
 }
 
 func Emit(file *ast.File, path string, arch abi.Arch, callConv abi.CallConv, summaries bool) *ir.Module {
+	defer profiler.Event()()
+
 	module := ir.NewModule()
 	module.Path = path
 

@@ -2,6 +2,7 @@ package llvm
 
 import (
 	"fireball/ir"
+	"fireball/profiler"
 	"fireball/utils"
 	"io"
 	"strconv"
@@ -24,6 +25,8 @@ type writer struct {
 }
 
 func Write(module *ir.Module, out io.Writer) error {
+	defer profiler.Event()()
+
 	w := &writer{
 		module: module,
 		out:    out,

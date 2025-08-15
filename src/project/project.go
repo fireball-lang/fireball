@@ -4,6 +4,7 @@ import (
 	"fireball/analyzer"
 	"fireball/ast"
 	"fireball/cst"
+	"fireball/profiler"
 	"fireball/utils"
 	"iter"
 	"os"
@@ -24,6 +25,8 @@ type Project struct {
 }
 
 func OpenProject(path string) (*Project, error) {
+	defer profiler.Event()()
+
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
@@ -100,84 +103,110 @@ func (p *Project) Files() iter.Seq[*File] {
 }
 
 func (p *Project) Analyze(forceWithoutParse bool) {
+	defer profiler.Event()()
+
 	// Parse
 
-	wg := sync.WaitGroup{}
-	changed := false
+	{
+		end := profiler.EventNamed("Parse")
 
-	for _, file := range p.files {
-		if contents, fileChanged := file.provider.Contents(); fileChanged {
-			wg.Add(1)
-			changed = true
+		wg := sync.WaitGroup{}
+		changed := false
 
-			go parseFile(file, &wg, contents)
+		for _, file := range p.files {
+			if contents, fileChanged := file.provider.Contents(); fileChanged {
+				wg.Add(1)
+				changed = true
+
+				go parseFile(file, &wg, contents)
+			}
 		}
-	}
 
-	if !changed && !forceWithoutParse {
-		return
-	}
+		if !changed && !forceWithoutParse {
+			return
+		}
 
-	wg.Wait()
+		wg.Wait()
+
+		end()
+	}
 
 	// Create context
 
 	ctx := &context{}
 
-	for _, file := range p.files {
-		ctx.addFile(file)
-	}
+	{
+		end := profiler.EventNamed("Create context")
 
-	for _, module := range ctx.modules {
-		module.checkNameCollisions()
+		for _, file := range p.files {
+			ctx.addFile(file)
+		}
+
+		for _, module := range ctx.modules {
+			module.checkNameCollisions()
+		}
+
+		end()
 	}
 
 	// Resolve types
 
 	fileDiagnostics := make(map[*File][]utils.Diagnostic)
 
-	for _, file := range p.files {
-		modulePath := file.Ast().ModulePath()
+	{
+		end := profiler.EventNamed("Resolve types")
 
-		if modulePath.SegmentCount() == 0 {
-			var node ast.Node = file.Ast()
+		for _, file := range p.files {
+			modulePath := file.Ast().ModulePath()
 
-			if len(file.Ast().Decls) > 0 {
-				node = file.Ast().Decls[0]
+			if modulePath.SegmentCount() == 0 {
+				var node ast.Node = file.Ast()
+
+				if len(file.Ast().Decls) > 0 {
+					node = file.Ast().Decls[0]
+				}
+
+				fileDiagnostics[file] = []utils.Diagnostic{{
+					Kind:    utils.Error,
+					Message: "Expected a module declaration at the top of the file.",
+					Range:   node.Range(),
+				}}
+
+				continue
 			}
 
-			fileDiagnostics[file] = []utils.Diagnostic{{
-				Kind:    utils.Error,
-				Message: "Expected a module declaration at the top of the file.",
-				Range:   node.Range(),
-			}}
+			module := ctx.GetAbsoluteModule(modulePath)
 
-			continue
+			if !utils.IsNil(module) {
+				scope := fileScope{ctx: ctx, mod: module}
+				fileDiagnostics[file] = analyzer.ResolveTypes(file.ast, ctx, &scope)
+			}
 		}
 
-		module := ctx.GetAbsoluteModule(modulePath)
-
-		if !utils.IsNil(module) {
-			scope := fileScope{ctx: ctx, mod: module}
-			fileDiagnostics[file] = analyzer.ResolveTypes(file.ast, ctx, &scope)
-		}
+		end()
 	}
 
 	// Analyze
 
-	for _, file := range p.files {
-		module := ctx.GetAbsoluteModule(file.Ast().ModulePath())
-		diagnostics := fileDiagnostics[file]
+	{
+		end := profiler.EventNamed("Analyze")
 
-		if !utils.IsNil(module) {
-			scope := fileScope{ctx: ctx, mod: module}
-			diagnostics = append(diagnostics, analyzer.Analyze(file.ast, ctx, &scope)...)
+		for _, file := range p.files {
+			module := ctx.GetAbsoluteModule(file.Ast().ModulePath())
+			diagnostics := fileDiagnostics[file]
+
+			if !utils.IsNil(module) {
+				scope := fileScope{ctx: ctx, mod: module}
+				diagnostics = append(diagnostics, analyzer.Analyze(file.ast, ctx, &scope)...)
+			}
+
+			if didChange(file.analyzeDiagnostics, diagnostics) {
+				file.analyzeDiagnostics = diagnostics
+				file.analyzeDiagnosticsChanged = true
+			}
 		}
 
-		if didChange(file.analyzeDiagnostics, diagnostics) {
-			file.analyzeDiagnostics = diagnostics
-			file.analyzeDiagnosticsChanged = true
-		}
+		end()
 	}
 }
 

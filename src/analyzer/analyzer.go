@@ -3,6 +3,7 @@ package analyzer
 import (
 	"fireball/ast"
 	"fireball/lexer"
+	"fireball/profiler"
 	"fireball/utils"
 	"fmt"
 	"math"
@@ -29,6 +30,8 @@ type analyzer struct {
 }
 
 func Analyze(file *ast.File, ctx Context, scope Scope) []utils.Diagnostic {
+	defer profiler.Event()()
+
 	a := analyzer{
 		ctx:   ctx,
 		scope: getFileScope(file, ctx, scope, utils.DiagnosticConsumer(nil)),

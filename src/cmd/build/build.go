@@ -2,6 +2,7 @@ package build
 
 import (
 	"fireball/ir"
+	"fireball/profiler"
 	"fireball/project"
 	"fmt"
 	"os"
@@ -24,6 +25,8 @@ type Profile struct {
 type EntrypointFunc func(proj *project.Project, m *ir.Module, main *ir.Function, summary bool) string
 
 func Build(proj *project.Project, profile Profile, entrypointFunc EntrypointFunc) (string, error) {
+	defer profiler.Event()()
+
 	// Get target
 	target, err := getTarget()
 	if err != nil {
@@ -54,18 +57,24 @@ func Build(proj *project.Project, profile Profile, entrypointFunc EntrypointFunc
 	// Compile
 	var linkPaths []string
 
-	if profile.Lto == None {
-		// Compile IR to OBJ
-		linkPaths, err = runForEach(compileParams{profile, target}, irPaths, compileToObj)
-		if err != nil {
-			return "", err
+	{
+		end := profiler.EventNamed("Compile")
+
+		if profile.Lto == None {
+			// Compile IR to OBJ
+			linkPaths, err = runForEach(compileParams{profile, target}, irPaths, compileToObj)
+			if err != nil {
+				return "", err
+			}
+		} else {
+			// Compile IR to BC
+			linkPaths, err = runForEach(0, irPaths, compileToBc)
+			if err != nil {
+				return "", err
+			}
 		}
-	} else {
-		// Compile IR to BC
-		linkPaths, err = runForEach(0, irPaths, compileToBc)
-		if err != nil {
-			return "", err
-		}
+
+		end()
 	}
 
 	// Link binary

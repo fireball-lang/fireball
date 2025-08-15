@@ -6,6 +6,7 @@ import (
 	"fireball/cmd/lsp"
 	"fireball/codegen"
 	"fireball/ir"
+	"fireball/profiler"
 	"fireball/project"
 	"log"
 	"os"
@@ -14,7 +15,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const profile = false
+
 func main() {
+	if profile {
+		file, err := os.Create("profile.json")
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+
+		//goland:noinspection GoUnhandledErrorResult
+		defer file.Close()
+
+		stop, err := profiler.Start(file)
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+
+		//goland:noinspection GoUnhandledErrorResult
+		defer stop()
+	}
+
 	root := cobra.Command{
 		Use:     "fireball",
 		Short:   "Tooling for the Fireball programming language",

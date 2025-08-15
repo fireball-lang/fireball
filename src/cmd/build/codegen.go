@@ -4,6 +4,7 @@ import (
 	"fireball/codegen"
 	"fireball/ir"
 	"fireball/ir/llvm"
+	"fireball/profiler"
 	"fireball/project"
 	"os"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 )
 
 func runCodegenProject(proj *project.Project, profile Profile, target Target, outPath string) ([]string, error) {
+	defer profiler.Event()()
+
 	var irPaths []string
 
 	for file := range proj.Files() {
@@ -35,6 +38,8 @@ func runCodegenProject(proj *project.Project, profile Profile, target Target, ou
 }
 
 func runCodegenEntrypoint(proj *project.Project, profile Profile, target Target, outPath string, entrypointFunc EntrypointFunc) (string, string, error) {
+	defer profiler.Event()()
+
 	// Create IR module
 	m := ir.NewModule()
 

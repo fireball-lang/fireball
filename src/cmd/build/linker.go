@@ -1,6 +1,7 @@
 package build
 
 import (
+	"fireball/profiler"
 	"fireball/utils"
 	"fmt"
 	"os/exec"
@@ -9,6 +10,8 @@ import (
 )
 
 func linkBinary(profile Profile, target Target, workingPath string, inputs []string, binaryName string) (string, error) {
+	defer profiler.Event()()
+
 	windows := strings.Contains(target.Name, "windows")
 	name := "ld.lld"
 

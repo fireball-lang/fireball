@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"fireball/ast"
+	"fireball/profiler"
 	"fireball/utils"
 	"math"
 )
@@ -14,6 +15,8 @@ type typeResolver struct {
 }
 
 func ResolveTypes(file *ast.File, ctx Context, scope Scope) []utils.Diagnostic {
+	defer profiler.Event()()
+
 	resolver := &typeResolver{ctx: ctx}
 	resolver.scope = getFileScope(file, ctx, scope, resolver)
 
