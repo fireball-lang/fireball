@@ -1,7 +1,7 @@
 package ast
 
 import (
-	"fireball/lexer"
+	"fireball/core"
 	"iter"
 )
 
@@ -9,21 +9,21 @@ type Node interface {
 	Parent() Node
 	Children() iter.Seq[Node]
 
-	Range() lexer.Range
+	Range() core.Range
 }
 
 // baseNode
 
 type baseNode struct {
 	Parent_ Node
-	Range_  lexer.Range
+	Range_  core.Range
 }
 
 func (b *baseNode) Parent() Node {
 	return b.Parent_
 }
 
-func (b *baseNode) Range() lexer.Range {
+func (b *baseNode) Range() core.Range {
 	return b.Range_
 }
 

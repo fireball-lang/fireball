@@ -10,9 +10,9 @@ type Lexer struct {
 	reader *bufio.Reader
 	buffer core.Ring[rune]
 
-	pos Pos
+	pos core.Pos
 
-	start     Pos
+	start     core.Pos
 	tokenText []rune
 }
 
@@ -20,7 +20,7 @@ func New(reader io.Reader) *Lexer {
 	return &Lexer{
 		reader: bufio.NewReader(reader),
 		buffer: core.NewRing[rune](4),
-		pos:    Pos{1, 1},
+		pos:    core.Pos{Line: 1, Column: 1},
 	}
 }
 
@@ -69,6 +69,11 @@ func (l *Lexer) Next() Token {
 	// Misc
 
 	case '.':
+		if l.peek(0) == '.' && l.peek(1) == '.' {
+			l.advance()
+			l.advance()
+			return l.make(DotDotDot)
+		}
 		return l.make(Dot)
 	case ',':
 		return l.make(Comma)
@@ -117,17 +122,20 @@ func (l *Lexer) Next() Token {
 	case '%':
 		return l.makeMatch('=', Percentage, PercentageEqual)
 
-	case '&':
-		if l.match('=') {
-			return l.make(AmpersandEqual)
-		}
-		return l.makeMatch('&', Ampersand, AmpersandAmpersand)
-
 	case '|':
 		if l.match('=') {
 			return l.make(PipeEqual)
 		}
 		return l.makeMatch('|', Pipe, PipePipe)
+
+	case '^':
+		return l.makeMatch('=', Caret, CaretEqual)
+
+	case '&':
+		if l.match('=') {
+			return l.make(AmpersandEqual)
+		}
+		return l.makeMatch('&', Ampersand, AmpersandAmpersand)
 
 	case '=':
 		return l.makeMatch('=', Equal, EqualEqual)
@@ -309,10 +317,19 @@ func (l *Lexer) keywordIdentifier() Token {
 		token.Kind = Var
 	case "if":
 		token.Kind = If
+	case "else":
+		token.Kind = Else
 	case "while":
 		token.Kind = While
 	case "for":
 		token.Kind = For
+
+	case "return":
+		token.Kind = Return
+	case "break":
+		token.Kind = Break
+	case "continue":
+		token.Kind = Continue
 	}
 
 	return token
@@ -402,7 +419,7 @@ func (l *Lexer) make(kind TokenKind) Token {
 	return Token{
 		Kind:  kind,
 		Text:  string(l.tokenText),
-		Range: Range{l.start, l.pos},
+		Range: core.Range{Start: l.start, End: l.pos},
 	}
 }
 
@@ -410,7 +427,7 @@ func (l *Lexer) makeError(msg string) Token {
 	return Token{
 		Kind:  Error,
 		Text:  msg,
-		Range: Range{l.start, l.pos},
+		Range: core.Range{Start: l.start, End: l.pos},
 	}
 }
 

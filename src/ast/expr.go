@@ -1,18 +1,19 @@
 package ast
 
 import (
+	"fireball/core"
 	"fireball/lexer"
 	"iter"
 )
 
 type ExprVisitor interface {
-	VisitUnary(u *Unary)
-	VisitBinary(b *Binary)
-
 	VisitBool(b *Bool)
 	VisitNumber(n *Number)
 	VisitCharacter(c *Character)
 	VisitString(s *String)
+
+	VisitPrefix(u *Prefix)
+	VisitBinary(b *Binary)
 
 	VisitIdentifier(i *Identifier)
 	VisitIndex(i *Index)
@@ -28,30 +29,94 @@ type Expr interface {
 	VisitExpr(visitor ExprVisitor)
 }
 
-// Unary
+// Bool
 
-type UnaryOp uint8
+type Bool struct {
+	baseNode
+
+	Value bool
+}
+
+func (b *Bool) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {}
+}
+
+func (b *Bool) VisitExpr(visitor ExprVisitor) {
+	visitor.VisitBool(b)
+}
+
+// Number
+
+type Number struct {
+	baseLeafNode
+
+	Token lexer.Token
+}
+
+func (n *Number) Range() core.Range {
+	return n.Token.Range
+}
+
+func (n *Number) VisitExpr(visitor ExprVisitor) {
+	visitor.VisitNumber(n)
+}
+
+// Character
+
+type Character struct {
+	baseLeafNode
+
+	Token lexer.Token
+}
+
+func (c *Character) Range() core.Range {
+	return c.Token.Range
+}
+
+func (c *Character) VisitExpr(visitor ExprVisitor) {
+	visitor.VisitCharacter(c)
+}
+
+// String
+
+type String struct {
+	baseLeafNode
+
+	Token lexer.Token
+}
+
+func (s *String) Range() core.Range {
+	return s.Token.Range
+}
+
+func (s *String) VisitExpr(visitor ExprVisitor) {
+	visitor.VisitString(s)
+}
+
+// Prefix
+
+type PrefixOp uint8
 
 const (
-	Negate UnaryOp = iota
+	Negate PrefixOp = iota
 	Not
 )
 
-type Unary struct {
+type Prefix struct {
 	baseNode
 
-	Op   UnaryOp
+	Op   PrefixOp
 	Expr Expr
 }
 
-func (u *Unary) Children() iter.Seq[Node] {
+func (u *Prefix) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
 		yield(u.Expr)
 	}
 }
 
-func (u *Unary) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitUnary(u)
+func (u *Prefix) VisitExpr(visitor ExprVisitor) {
+	visitor.VisitPrefix(u)
 }
 
 // Binary
@@ -68,11 +133,13 @@ const (
 	BoolAnd
 	BoolOr
 
-	BitAnd
 	BitOr
 	BitXor
+	BitAnd
 
 	Equal
+	NotEqual
+
 	Less
 	LessEqual
 	Greater
@@ -110,7 +177,7 @@ type Identifier struct {
 	Token lexer.Token
 }
 
-func (i *Identifier) Range() lexer.Range {
+func (i *Identifier) Range() core.Range {
 	return i.Token.Range
 }
 
@@ -186,70 +253,6 @@ func (c *Call) Children() iter.Seq[Node] {
 
 func (c *Call) VisitExpr(visitor ExprVisitor) {
 	visitor.VisitCall(c)
-}
-
-// Bool
-
-type Bool struct {
-	baseNode
-
-	Value bool
-}
-
-func (b *Bool) Children() iter.Seq[Node] {
-	return func(yield func(Node) bool) {}
-}
-
-func (b *Bool) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitBool(b)
-}
-
-// Number
-
-type Number struct {
-	baseLeafNode
-
-	Token lexer.Token
-}
-
-func (n *Number) Range() lexer.Range {
-	return n.Token.Range
-}
-
-func (n *Number) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitNumber(n)
-}
-
-// Character
-
-type Character struct {
-	baseLeafNode
-
-	Token lexer.Token
-}
-
-func (c *Character) Range() lexer.Range {
-	return c.Token.Range
-}
-
-func (c *Character) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitCharacter(c)
-}
-
-// String
-
-type String struct {
-	baseLeafNode
-
-	Token lexer.Token
-}
-
-func (s *String) Range() lexer.Range {
-	return s.Token.Range
-}
-
-func (s *String) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitString(s)
 }
 
 // Bad

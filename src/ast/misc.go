@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fireball/core"
 	"fireball/lexer"
 	"iter"
 )
@@ -31,6 +32,6 @@ type Leaf struct {
 	Token lexer.Token
 }
 
-func (l *Leaf) Range() lexer.Range {
+func (l *Leaf) Range() core.Range {
 	return l.Token.Range
 }

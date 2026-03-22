@@ -1,5 +1,7 @@
 package lexer
 
+import "fireball/core"
+
 type TokenKind uint8
 
 const (
@@ -30,14 +32,20 @@ const (
 
 	Var
 	If
+	Else
 	While
 	For
+
+	Return
+	Break
+	Continue
 
 	// Misc
 
 	Identifier
 
 	Dot
+	DotDotDot
 	Comma
 	Colon
 	Semicolon
@@ -71,13 +79,16 @@ const (
 	Percentage
 	PercentageEqual
 
-	Ampersand
-	AmpersandEqual
-	AmpersandAmpersand
-
 	Pipe
 	PipeEqual
 	PipePipe
+
+	Caret
+	CaretEqual
+
+	Ampersand
+	AmpersandEqual
+	AmpersandAmpersand
 
 	Equal
 	EqualEqual
@@ -94,19 +105,18 @@ const (
 	GreaterEqual
 	GreaterGreater
 	GreaterGreaterEqual
+
+	// Last
+
+	Last
 )
 
 type Token struct {
 	Kind  TokenKind
 	Text  string
-	Range Range
+	Range core.Range
 }
 
-type Pos struct {
-	Line   uint16
-	Column uint16
-}
-
-type Range struct {
-	Start, End Pos
+func IsInteger(kind TokenKind) bool {
+	return kind >= BinaryInteger && kind <= SignedInteger
 }
