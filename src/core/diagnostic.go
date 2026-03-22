@@ -7,6 +7,17 @@ const (
 	Error
 )
 
+func (d DiagnosticKind) String() string {
+	switch d {
+	case Warning:
+		return "Warning"
+	case Error:
+		return "Error"
+	default:
+		panic("core.DiagnosticKind.String() - Invalid kind")
+	}
+}
+
 type Diagnostic struct {
 	Kind DiagnosticKind
 
