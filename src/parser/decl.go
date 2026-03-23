@@ -4,6 +4,7 @@ import (
 	"fireball/ast"
 	"fireball/core"
 	"fireball/lexer"
+	"fireball/types"
 	"slices"
 )
 
@@ -24,7 +25,7 @@ func (p *parser) parseDecl() (ast.Decl, int) {
 func (p *parser) parseStruct() (s *ast.Struct, recoverId int) {
 	s = &ast.Struct{}
 	s.Range_.Start = p.current.Range.Start
-	s.Name = emptyLeaf
+	s.Name_ = emptyLeaf
 	defer func() {
 		s.Range_.End = p.previous.Range.End
 	}()
@@ -37,7 +38,7 @@ func (p *parser) parseStruct() (s *ast.Struct, recoverId int) {
 	}
 
 	// Name
-	if s.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+	if s.Name_, recoverId = p.parseLeaf(); recoverId >= 0 {
 		return
 	}
 
@@ -73,7 +74,7 @@ func (p *parser) parseStruct() (s *ast.Struct, recoverId int) {
 func (p *parser) parseFunc() (f *ast.Func, recoverId int) {
 	f = &ast.Func{}
 	f.Range_.Start = p.current.Range.Start
-	f.Name = emptyLeaf
+	f.Name_ = emptyLeaf
 	defer func() {
 		f.Range_.End = p.previous.Range.End
 
@@ -90,7 +91,7 @@ func (p *parser) parseFunc() (f *ast.Func, recoverId int) {
 	}
 
 	// Name
-	if f.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+	if f.Name_, recoverId = p.parseLeaf(); recoverId >= 0 {
 		return
 	}
 
@@ -158,7 +159,7 @@ func (p *parser) parseFunc() (f *ast.Func, recoverId int) {
 			}
 		}
 	} else {
-		f.Returns = &ast.PrimitiveType{Kind: ast.Void}
+		f.Returns = &ast.PrimitiveType{Kind: types.Void}
 	}
 
 	// Body

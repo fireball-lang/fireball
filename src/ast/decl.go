@@ -15,6 +15,8 @@ type DeclVisitor interface {
 type Decl interface {
 	Node
 
+	Name() string
+
 	VisitDecl(visitor DeclVisitor)
 }
 
@@ -23,13 +25,13 @@ type Decl interface {
 type Struct struct {
 	baseNode
 
-	Name   *Leaf
+	Name_  *Leaf
 	Fields []*NameType
 }
 
 func (s *Struct) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		if !yield(s.Name) {
+		if !yield(s.Name_) {
 			return
 		}
 		for _, field := range s.Fields {
@@ -38,6 +40,10 @@ func (s *Struct) Children() iter.Seq[Node] {
 			}
 		}
 	}
+}
+
+func (s *Struct) Name() string {
+	return s.Name_.Token.Text
 }
 
 func (s *Struct) VisitDecl(visitor DeclVisitor) {
@@ -49,7 +55,7 @@ func (s *Struct) VisitDecl(visitor DeclVisitor) {
 type Func struct {
 	baseNode
 
-	Name *Leaf
+	Name_ *Leaf
 
 	Returns Type
 	Params  []*NameType
@@ -60,7 +66,7 @@ type Func struct {
 
 func (f *Func) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		if !yield(f.Name) {
+		if !yield(f.Name_) {
 			return
 		}
 		if !yield(f.Returns) {
@@ -77,6 +83,10 @@ func (f *Func) Children() iter.Seq[Node] {
 	}
 }
 
+func (f *Func) Name() string {
+	return f.Name_.Token.Text
+}
+
 func (f *Func) VisitDecl(visitor DeclVisitor) {
 	visitor.VisitFunc(f)
 }
@@ -89,6 +99,10 @@ type BadDecl struct {
 
 func (b *BadDecl) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
+}
+
+func (b *BadDecl) Name() string {
+	return ""
 }
 
 func (b *BadDecl) VisitDecl(visitor DeclVisitor) {

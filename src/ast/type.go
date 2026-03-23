@@ -3,6 +3,7 @@ package ast
 import (
 	"fireball/core"
 	"fireball/lexer"
+	"fireball/types"
 	"iter"
 )
 
@@ -22,30 +23,10 @@ type Type interface {
 
 // Primitive
 
-type PrimitiveKind uint8
-
-const (
-	Void PrimitiveKind = iota
-	Boolean
-
-	U8
-	U16
-	U32
-	U64
-
-	I8
-	I16
-	I32
-	I64
-
-	F32
-	F64
-)
-
 type PrimitiveType struct {
 	baseNode
 
-	Kind PrimitiveKind
+	Kind types.PrimitiveKind
 }
 
 func (p *PrimitiveType) Children() iter.Seq[Node] {

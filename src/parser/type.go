@@ -3,6 +3,7 @@ package parser
 import (
 	"fireball/ast"
 	"fireball/lexer"
+	"fireball/types"
 )
 
 func (p *parser) parseType() (ast.Type, int) {
@@ -22,32 +23,32 @@ func (p *parser) parseType() (ast.Type, int) {
 func (p *parser) parseIdentifierType() (ast.Type, int) {
 	switch p.current.Text {
 	case "void":
-		return p.primitiveType(ast.Void)
+		return p.primitiveType(types.Void)
 	case "bool":
-		return p.primitiveType(ast.Boolean)
+		return p.primitiveType(types.Bool)
 
 	case "u8":
-		return p.primitiveType(ast.U8)
+		return p.primitiveType(types.U8)
 	case "u16":
-		return p.primitiveType(ast.U16)
+		return p.primitiveType(types.U16)
 	case "u32":
-		return p.primitiveType(ast.U32)
+		return p.primitiveType(types.U32)
 	case "u64":
-		return p.primitiveType(ast.U64)
+		return p.primitiveType(types.U64)
 
 	case "i8":
-		return p.primitiveType(ast.I8)
+		return p.primitiveType(types.I8)
 	case "i16":
-		return p.primitiveType(ast.I16)
+		return p.primitiveType(types.I16)
 	case "i32":
-		return p.primitiveType(ast.I32)
+		return p.primitiveType(types.I32)
 	case "i64":
-		return p.primitiveType(ast.I64)
+		return p.primitiveType(types.I64)
 
 	case "f32":
-		return p.primitiveType(ast.F32)
+		return p.primitiveType(types.F32)
 	case "f64":
-		return p.primitiveType(ast.F64)
+		return p.primitiveType(types.F64)
 
 	default:
 		i := &ast.IdentifierType{}
@@ -56,7 +57,7 @@ func (p *parser) parseIdentifierType() (ast.Type, int) {
 	}
 }
 
-func (p *parser) primitiveType(kind ast.PrimitiveKind) (*ast.PrimitiveType, int) {
+func (p *parser) primitiveType(kind types.PrimitiveKind) (*ast.PrimitiveType, int) {
 	t := &ast.PrimitiveType{}
 	t.Range_ = p.advance().Range
 	t.Kind = kind
