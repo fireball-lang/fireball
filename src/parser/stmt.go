@@ -10,8 +10,6 @@ func (p *parser) parseStmt() (ast.Stmt, int) {
 	switch p.current.Kind {
 	case lexer.LeftBrace:
 		return p.parseBlock()
-	default:
-		return p.parseExpression()
 
 	case lexer.Var:
 		return p.parseVar()
@@ -28,6 +26,9 @@ func (p *parser) parseStmt() (ast.Stmt, int) {
 		return p.parseBreak()
 	case lexer.Continue:
 		return p.parseContinue()
+
+	default:
+		return p.parseExpression()
 	}
 }
 

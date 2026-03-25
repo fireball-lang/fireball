@@ -4,6 +4,7 @@ import (
 	"fireball/ast"
 	"fireball/core"
 	"fireball/parser"
+	"fireball/symbols"
 	"os"
 )
 
@@ -12,6 +13,8 @@ type File struct {
 
 	Decls       []ast.Decl
 	Diagnostics []core.Diagnostic
+
+	Symbols []symbols.Symbol
 }
 
 func newFile(path string) *File {
@@ -32,4 +35,6 @@ func (f *File) parse() {
 	defer file.Close()
 
 	f.Decls, f.Diagnostics = parser.Parse(file, f.Path)
+
+	f.Symbols = symbols.Collect(f.Decls)
 }

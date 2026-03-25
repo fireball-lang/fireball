@@ -163,8 +163,10 @@ func (p *parser) parseFunc() (f *ast.Func, recoverId int) {
 	}
 
 	// Body
-	if f.Body, recoverId = p.parseStmt(); recoverId >= 0 {
-		return
+	if p.current.Kind == lexer.LeftBrace {
+		if f.Body, recoverId = p.parseStmt(); recoverId >= 0 {
+			return
+		}
 	}
 
 	return

@@ -68,7 +68,7 @@ func GetPrimitive(kind PrimitiveKind) *Primitive {
 	case I16:
 		return PrimitiveI16
 	case I32:
-		return PrimitiveU32
+		return PrimitiveI32
 	case I64:
 		return PrimitiveI64
 
