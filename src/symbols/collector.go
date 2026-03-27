@@ -5,7 +5,7 @@ import (
 	"fireball/types"
 )
 
-func Collect(decls []ast.Decl) SimpleScope {
+func Collect(decls []ast.Decl) []Symbol {
 	var symbols []Symbol
 
 	for _, decl := range decls {
@@ -13,14 +13,16 @@ func Collect(decls []ast.Decl) SimpleScope {
 		case *ast.Struct:
 			symbols = append(symbols, Symbol{
 				Kind: Struct,
-				Decl: decl,
-				Type: &types.Struct{}, // filled in type resolver
+				Name: decl.Name(),
+				Node: decl,
+				Type: &types.Struct{Name: decl.Name()}, // filled in type resolver
 			})
 
 		case *ast.Func:
 			symbols = append(symbols, Symbol{
 				Kind: Func,
-				Decl: decl,
+				Name: decl.Name(),
+				Node: decl,
 				Type: &types.Func{}, // filled in type resolver
 			})
 		}

@@ -1,5 +1,7 @@
 package types
 
+import "fmt"
+
 type Array struct {
 	Size    uint64
 	Element Type
@@ -11,4 +13,8 @@ func (a *Array) Equals(other Type) bool {
 	}
 
 	return false
+}
+
+func (a *Array) String() string {
+	return fmt.Sprintf("[%d]%s", a.Size, a.Element)
 }

@@ -11,7 +11,7 @@ func get() Point {
 	return p;
 }
 
-func main() {
+func main() i32 {
 	var p = get();
 
 	return p.y;

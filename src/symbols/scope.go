@@ -10,7 +10,7 @@ type SimpleScope []Symbol
 
 func (s SimpleScope) Get(name string) (Symbol, bool) {
 	for _, symbol := range s {
-		if symbol.Decl.Name() == name {
+		if symbol.Name == name {
 			return symbol, true
 		}
 	}
@@ -18,15 +18,15 @@ func (s SimpleScope) Get(name string) (Symbol, bool) {
 	return Symbol{}, false
 }
 
-// Composed
+// Stacked
 
-type ComposedScope struct {
+type StackedScope struct {
 	Scopes []Scope
 }
 
-func (c *ComposedScope) Get(name string) (Symbol, bool) {
-	for _, scope := range c.Scopes {
-		if symbol, ok := scope.Get(name); ok {
+func (c *StackedScope) Get(name string) (Symbol, bool) {
+	for i := len(c.Scopes) - 1; i >= 0; i-- {
+		if symbol, ok := c.Scopes[i].Get(name); ok {
 			return symbol, true
 		}
 	}

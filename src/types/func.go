@@ -1,5 +1,7 @@
 package types
 
+import "strings"
+
 type Func struct {
 	Params  []Type
 	VarArgs bool
@@ -13,4 +15,27 @@ func (f *Func) Equals(other Type) bool {
 	}
 
 	return false
+}
+
+func (f *Func) String() string {
+	var sb strings.Builder
+
+	sb.WriteString("func(")
+
+	for i, param := range f.Params {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+
+		sb.WriteString(param.String())
+	}
+
+	sb.WriteRune(')')
+
+	if !f.Returns.Equals(PrimitiveVoid) {
+		sb.WriteRune(' ')
+		sb.WriteString(f.Returns.String())
+	}
+
+	return sb.String()
 }

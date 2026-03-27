@@ -10,10 +10,14 @@ type Kind uint8
 const (
 	Struct Kind = iota
 	Func
+	Param
+	Var
 )
 
 type Symbol struct {
 	Kind Kind
-	Decl ast.Decl
+	Name string
+
+	Node ast.Node
 	Type types.Type
 }

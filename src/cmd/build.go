@@ -28,7 +28,7 @@ func getBuildCmd() *cobra.Command {
 					panic(err)
 				}
 
-				for _, diag := range file.Diagnostics {
+				for diag := range file.Diagnostics() {
 					printDiagnostic(path, diag)
 				}
 			}

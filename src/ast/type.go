@@ -10,6 +10,7 @@ import (
 type TypeVisitor interface {
 	VisitPrimitiveType(p *PrimitiveType)
 	VisitArrayType(a *ArrayType)
+	VisitPointerType(p *PointerType)
 	VisitIdentifierType(i *IdentifierType)
 
 	VisitBadType(b *BadType)
@@ -54,6 +55,24 @@ func (a *ArrayType) Children() iter.Seq[Node] {
 
 func (a *ArrayType) VisitType(visitor TypeVisitor) {
 	visitor.VisitArrayType(a)
+}
+
+// Pointer
+
+type PointerType struct {
+	baseNode
+
+	Pointee Type
+}
+
+func (p *PointerType) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		yield(p.Pointee)
+	}
+}
+
+func (p *PointerType) VisitType(visitor TypeVisitor) {
+	visitor.VisitPointerType(p)
 }
 
 // Identifier

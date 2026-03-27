@@ -12,6 +12,8 @@ func (p *parser) parseType() (ast.Type, int) {
 		return p.parseIdentifierType()
 	case lexer.LeftBracket:
 		return p.parseArrayType()
+	case lexer.Star:
+		return p.parsePointerType()
 
 	default:
 		b := &ast.BadType{}
@@ -92,6 +94,28 @@ func (p *parser) parseArrayType() (a *ast.ArrayType, recoverId int) {
 
 	// Type
 	if a.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parsePointerType() (t *ast.PointerType, recoverId int) {
+	t = &ast.PointerType{}
+	t.Range_.Start = p.current.Range.Start
+	defer func() {
+		t.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// '*'
+	if recoverId = p.expect(lexer.Star, "expected '*' before pointee type"); recoverId >= 0 {
+		return
+	}
+
+	// Pointee
+	if t.Pointee, recoverId = p.parseType(); recoverId >= 0 {
 		return
 	}
 

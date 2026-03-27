@@ -20,6 +20,65 @@ const (
 	F64
 )
 
+func IsUnsignedInteger(p PrimitiveKind) bool {
+	return p >= U8 && p <= U64
+}
+
+func IsSignedInteger(p PrimitiveKind) bool {
+	return p >= I8 && p <= I64
+}
+
+func IsInteger(p PrimitiveKind) bool {
+	return p >= U8 && p <= I64
+}
+
+func IsFloating(p PrimitiveKind) bool {
+	return p == F32 || p == F64
+}
+
+func IsSigned(p PrimitiveKind) bool {
+	return p >= I8 && p <= F64
+}
+
+func IsNumeric(p PrimitiveKind) bool {
+	return p >= U8 && p <= F64
+}
+
+func (p PrimitiveKind) String() string {
+	switch p {
+	case Void:
+		return "void"
+	case Bool:
+		return "bool"
+
+	case U8:
+		return "u8"
+	case U16:
+		return "u16"
+	case U32:
+		return "u32"
+	case U64:
+		return "u64"
+
+	case I8:
+		return "i8"
+	case I16:
+		return "i16"
+	case I32:
+		return "i32"
+	case I64:
+		return "i64"
+
+	case F32:
+		return "f32"
+	case F64:
+		return "f64"
+
+	default:
+		panic("types.PrimitiveKind.String() - Invalid kind")
+	}
+}
+
 type Primitive struct {
 	Kind PrimitiveKind
 }
@@ -30,6 +89,10 @@ func (p *Primitive) Equals(other Type) bool {
 	}
 
 	return false
+}
+
+func (p *Primitive) String() string {
+	return p.Kind.String()
 }
 
 var PrimitiveVoid = &Primitive{Void}

@@ -188,14 +188,6 @@ func (p *parser) parseBinary(left ast.Expr, rightPower int) (b *ast.Binary, reco
 
 	// Operator
 	switch p.advance().Kind {
-	case lexer.Equal:
-		b.Op = ast.Assign
-
-	case lexer.PipePipe:
-		b.Op = ast.BoolOr
-	case lexer.AmpersandAmpersand:
-		b.Op = ast.BoolAnd
-
 	case lexer.Plus:
 		b.Op = ast.Add
 	case lexer.Minus:
@@ -214,6 +206,11 @@ func (p *parser) parseBinary(left ast.Expr, rightPower int) (b *ast.Binary, reco
 	case lexer.Ampersand:
 		b.Op = ast.BitAnd
 
+	case lexer.PipePipe:
+		b.Op = ast.BoolOr
+	case lexer.AmpersandAmpersand:
+		b.Op = ast.BoolAnd
+
 	case lexer.EqualEqual:
 		b.Op = ast.Equal
 	case lexer.BangEqual:
@@ -227,6 +224,9 @@ func (p *parser) parseBinary(left ast.Expr, rightPower int) (b *ast.Binary, reco
 		b.Op = ast.Greater
 	case lexer.GreaterEqual:
 		b.Op = ast.GreaterEqual
+
+	case lexer.Equal:
+		b.Op = ast.Assign
 
 	default:
 		panic("parser.parseBinary() - Invalid operator token '" + p.previous.Text + "'")

@@ -130,12 +130,12 @@ const (
 	Divide
 	Modulo
 
-	BoolAnd
-	BoolOr
-
 	BitOr
 	BitXor
 	BitAnd
+
+	BoolAnd
+	BoolOr
 
 	Equal
 	NotEqual
@@ -147,6 +147,26 @@ const (
 
 	Assign
 )
+
+func (b BinaryOp) IsMath() bool {
+	return b <= Modulo
+}
+
+func (b BinaryOp) IsBitwise() bool {
+	return b >= BitOr && b <= BitAnd
+}
+
+func (b BinaryOp) IsBoolean() bool {
+	return b == BoolAnd || b == BoolOr
+}
+
+func (b BinaryOp) IsEquality() bool {
+	return b == Equal || b == NotEqual
+}
+
+func (b BinaryOp) IsRelational() bool {
+	return b >= Less && b <= GreaterEqual
+}
 
 type Binary struct {
 	baseNode

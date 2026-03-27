@@ -2,6 +2,7 @@ package types
 
 type Type interface {
 	Equals(other Type) bool
+	String() string
 }
 
 type Composed interface {
