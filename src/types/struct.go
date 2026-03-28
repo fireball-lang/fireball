@@ -7,6 +7,7 @@ type Field struct {
 
 type Struct struct {
 	Name   string
+	Packed bool
 	Fields []Field
 }
 

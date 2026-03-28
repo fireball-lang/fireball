@@ -9,6 +9,12 @@ type Func struct {
 	Returns Type
 }
 
+var funcType = &Pointer{Pointee: PrimitiveVoid}
+
+func (f *Func) Underlying() Type {
+	return funcType
+}
+
 func (f *Func) Equals(other Type) bool {
 	if other, ok := other.(*Func); ok {
 		return typeSliceEquals(f.Params, other.Params) && f.VarArgs == other.VarArgs && f.Returns.Equals(other.Returns)

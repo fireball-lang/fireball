@@ -44,6 +44,41 @@ func IsNumeric(p PrimitiveKind) bool {
 	return p >= U8 && p <= F64
 }
 
+func (p PrimitiveKind) Size() uint32 {
+	switch p {
+	case Void:
+		return 0
+	case Bool:
+		return 1
+
+	case U8:
+		return 1
+	case U16:
+		return 2
+	case U32:
+		return 4
+	case U64:
+		return 8
+
+	case I8:
+		return 1
+	case I16:
+		return 2
+	case I32:
+		return 4
+	case I64:
+		return 8
+
+	case F32:
+		return 4
+	case F64:
+		return 8
+
+	default:
+		panic("types.PrimitiveKind.Size() - Invalid kind")
+	}
+}
+
 func (p PrimitiveKind) String() string {
 	switch p {
 	case Void:
