@@ -3,7 +3,7 @@ package types
 import "fmt"
 
 type Array struct {
-	Size    uint64
+	Size    uint32
 	Element Type
 }
 

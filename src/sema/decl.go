@@ -11,7 +11,9 @@ import (
 
 func (a *analyzer) VisitStruct(s *ast.Struct) {
 	symbol, _ := a.scope.Get(s.Name())
+
 	typ := symbol.Type.(*types.Struct)
+	a.nodeTypes[s] = typ
 
 	names := make(map[string]any)
 
@@ -35,7 +37,9 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 
 func (a *analyzer) VisitFunc(f *ast.Func) {
 	symbol, _ := a.scope.Get(f.Name())
+
 	typ := symbol.Type.(*types.Func)
+	a.nodeTypes[f] = typ
 
 	// Body
 	a.locals.Push()

@@ -75,3 +75,15 @@ type RefStructType struct {
 }
 
 func (r RefStructType) isIrType() {}
+
+// Utils
+
+func IsAggregate(typ Type) bool {
+	switch typ.(type) {
+	case *ArrayType, *StructType, *RefStructType:
+		return true
+
+	default:
+		return false
+	}
+}

@@ -1,6 +1,9 @@
 package ir
 
-import "fireball/core"
+import (
+	"fireball/core"
+	"unicode/utf8"
+)
 
 type Value interface {
 	Type() Type
@@ -80,13 +83,40 @@ func (d *DoubleV) Type() Type {
 // String
 
 type String struct {
-	Length uint32
-	Value  string
+	Size  uint32
+	Runes []rune
+
+	NullTerminated bool
+}
+
+func NewString(runes []rune, nullTerminated bool) *String {
+	size := uint32(0)
+
+	for _, ch := range runes {
+		chSize := utf8.RuneLen(ch)
+		if chSize == -1 {
+			chSize = utf8.RuneLen(utf8.RuneError)
+		}
+
+		size += uint32(chSize)
+	}
+
+	return &String{
+		Size:           size,
+		Runes:          runes,
+		NullTerminated: nullTerminated,
+	}
 }
 
 func (s *String) Type() Type {
+	size := s.Size
+
+	if s.NullTerminated {
+		size++
+	}
+
 	return &ArrayType{
-		Length:  s.Length,
+		Length:  size,
 		Element: I8,
 	}
 }

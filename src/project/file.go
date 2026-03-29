@@ -6,6 +6,7 @@ import (
 	"fireball/parser"
 	"fireball/sema"
 	"fireball/symbols"
+	"fireball/types"
 	"iter"
 	"os"
 )
@@ -19,6 +20,7 @@ type File struct {
 	Symbols []symbols.Symbol
 
 	ExprInfos       map[ast.Expr]sema.ExprInfo
+	NodeTypes       map[ast.Node]types.Type
 	semaDiagnostics []core.Diagnostic
 }
 
@@ -40,7 +42,7 @@ func (f *File) parse() {
 
 	f.Decls, f.parseDiagnostics = parser.Parse(file, f.Path)
 	f.Symbols = symbols.Collect(f.Decls)
-	f.ExprInfos, f.semaDiagnostics = sema.Analyze(f.Decls, f.Symbols, symbols.SimpleScope(f.Symbols), f.Path)
+	f.ExprInfos, f.NodeTypes, f.semaDiagnostics = sema.Analyze(f.Decls, f.Symbols, symbols.SimpleScope(f.Symbols), f.Path)
 }
 
 func (f *File) Diagnostics() iter.Seq[core.Diagnostic] {

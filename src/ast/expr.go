@@ -64,13 +64,13 @@ func (n *Number) VisitExpr(visitor ExprVisitor) {
 // Character
 
 type Character struct {
-	baseLeafNode
+	baseNode
 
-	Token lexer.Token
+	Rune rune
 }
 
-func (c *Character) Range() core.Range {
-	return c.Token.Range
+func (c *Character) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {}
 }
 
 func (c *Character) VisitExpr(visitor ExprVisitor) {
@@ -80,13 +80,13 @@ func (c *Character) VisitExpr(visitor ExprVisitor) {
 // String
 
 type String struct {
-	baseLeafNode
+	baseNode
 
-	Token lexer.Token
+	Runes []rune
 }
 
-func (s *String) Range() core.Range {
-	return s.Token.Range
+func (s *String) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {}
 }
 
 func (s *String) VisitExpr(visitor ExprVisitor) {

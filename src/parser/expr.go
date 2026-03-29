@@ -5,6 +5,7 @@ import (
 	"fireball/core"
 	"fireball/lexer"
 	"slices"
+	"strconv"
 )
 
 func (p *parser) parseExpr() (ast.Expr, int) {
@@ -111,18 +112,140 @@ func (p *parser) parseNumber() (n *ast.Number, recoverId int) {
 
 func (p *parser) parseCharacter() (c *ast.Character, recoverId int) {
 	c = &ast.Character{}
-	c.Token = p.advance()
+	c.Range_ = p.current.Range
 
 	recoverId = -1
+
+	raw := []rune(p.advance().Text)
+	raw = raw[1 : len(raw)-1]
+
+	errRange := c.Range_
+	errRange.Start.Column++
+	errRange.End.Column--
+
+	if raw[0] == '\\' {
+		switch raw[1] {
+		case 'n':
+			c.Rune = '\n'
+		case 'r':
+			c.Rune = '\r'
+		case 't':
+			c.Rune = '\t'
+		case '\\':
+			c.Rune = '\\'
+		case '"':
+			c.Rune = '"'
+		case '\'':
+			c.Rune = '\''
+		case 'a':
+			c.Rune = '\a'
+		case 'b':
+			c.Rune = '\b'
+		case 'f':
+			c.Rune = '\f'
+		case 'v':
+			c.Rune = '\v'
+
+		case 'x', 'X':
+			if len(raw) != 4 {
+				p.reportError(errRange, "invalid hexadecimal escape sequence")
+			} else {
+				value, err := strconv.ParseUint(string(raw[2:]), 16, 32)
+
+				if err != nil {
+					p.reportError(errRange, "invalid hexadecimal escape sequence")
+				} else {
+					c.Rune = rune(value)
+				}
+			}
+
+		default:
+			p.reportError(errRange, "invalid escape sequence")
+		}
+	} else {
+		if len(raw) != 1 {
+			p.reportError(errRange, "character literal has more than one character")
+		} else {
+			c.Rune = raw[0]
+		}
+	}
 
 	return
 }
 
 func (p *parser) parseString() (s *ast.String, recoverId int) {
 	s = &ast.String{}
-	s.Token = p.advance()
+	s.Range_ = p.current.Range
 
 	recoverId = -1
+
+	raw := []rune(p.advance().Text)
+	s.Runes = make([]rune, 0, len(raw))
+
+	pos := s.Range_.Start
+	pos.Column++
+
+	for i := 1; i < len(raw)-1; i++ {
+		ch := raw[i]
+
+		if ch == '\\' {
+			i++
+			ch = raw[i]
+			pos.Column++
+
+			switch ch {
+			case 'n':
+				s.Runes = append(s.Runes, '\n')
+			case 'r':
+				s.Runes = append(s.Runes, '\r')
+			case 't':
+				s.Runes = append(s.Runes, '\t')
+			case '\\':
+				s.Runes = append(s.Runes, '\\')
+			case '"':
+				s.Runes = append(s.Runes, '"')
+			case '\'':
+				s.Runes = append(s.Runes, '\'')
+			case 'a':
+				s.Runes = append(s.Runes, '\a')
+			case 'b':
+				s.Runes = append(s.Runes, '\b')
+			case 'f':
+				s.Runes = append(s.Runes, '\f')
+			case 'v':
+				s.Runes = append(s.Runes, '\v')
+
+			case 'x', 'X':
+				if i >= len(raw)-3 {
+					p.reportError(core.Range{Start: pos.Shift(-1), End: pos}, "invalid escape sequence")
+				} else {
+					value, err := strconv.ParseUint(string(raw[i+1:i+3]), 16, 32)
+					if err != nil {
+						p.reportError(core.Range{Start: pos.Shift(-1), End: pos.Shift(2)}, "invalid hexadecimal escape sequence")
+					} else {
+						s.Runes = append(s.Runes, rune(value))
+					}
+
+					i += 2
+					pos.Column += 2
+				}
+
+			default:
+				p.reportError(core.Range{Start: pos.Shift(-1), End: pos}, "invalid escape sequence")
+			}
+
+			pos.Column++
+		} else {
+			s.Runes = append(s.Runes, ch)
+
+			if ch == '\n' {
+				pos.Line++
+				pos.Column = 1
+			} else {
+				pos.Column++
+			}
+		}
+	}
 
 	return
 }

@@ -52,6 +52,14 @@ func (e *Emitter) GetLocMetaRef() MetaRef {
 func (e *Emitter) Begin(block *Block) {
 	e.block = block
 	e.skip = false
+
+	for inst := range block.Instructions() {
+		switch inst.(type) {
+		case *Ret, *Br, *BrCond:
+			e.skip = true
+			return
+		}
+	}
 }
 
 func (e *Emitter) Block() *Block {

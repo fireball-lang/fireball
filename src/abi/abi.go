@@ -19,5 +19,5 @@ type Info struct {
 type ABI interface {
 	Info(typ types.Type) Info
 
-	Classify(typ types.Type) []Class
+	Classify(typ types.Type) ([]Class, Info)
 }

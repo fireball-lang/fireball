@@ -11,8 +11,15 @@ func get() Point {
 	return p;
 }
 
+func print(p: Point) {
+	printf("X: %d, Y: %d\n", p.x, p.y);
+}
+
 func main() i32 {
 	var p = get();
+	print(p);
 
 	return p.y;
 }
+
+func printf(format: *u8, ...) void

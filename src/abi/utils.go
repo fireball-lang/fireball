@@ -43,7 +43,7 @@ func flatten(abi ABI, typ types.Type, offset uint32, regs []register) []register
 	case *types.Array:
 		info := abi.Info(typ.Element)
 
-		for i := uint64(0); i < typ.Size; i++ {
+		for i := uint32(0); i < typ.Size; i++ {
 			regs = flatten(abi, typ.Element, offset, regs)
 			offset += info.Size
 		}

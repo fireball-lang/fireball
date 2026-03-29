@@ -89,12 +89,7 @@ func (p *parser) popRecoverPoint() {
 
 func (p *parser) error(msg string) int {
 	// Report error
-	p.diagnostics = append(p.diagnostics, core.Diagnostic{
-		Kind:    core.Error,
-		Path:    p.path,
-		Range:   p.current.Range,
-		Message: msg,
-	})
+	p.reportError(p.current.Range, msg)
 
 	// Synchronize
 	for p.current.Kind != lexer.EOF {
@@ -117,4 +112,13 @@ func (p *parser) error(msg string) int {
 	}
 
 	return 0
+}
+
+func (p *parser) reportError(range_ core.Range, msg string) {
+	p.diagnostics = append(p.diagnostics, core.Diagnostic{
+		Kind:    core.Error,
+		Path:    p.path,
+		Range:   range_,
+		Message: msg,
+	})
 }

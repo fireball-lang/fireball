@@ -24,7 +24,7 @@ func (a *amd64) Info(typ types.Type) Info {
 
 	case *types.Array:
 		elem := a.Info(typ.Element)
-		return Info{Size: elem.Size * uint32(typ.Size), Align: elem.Align}
+		return Info{Size: elem.Size * typ.Size, Align: elem.Align}
 
 	case *types.Struct:
 		layout := structLayout{abi: a, packed: typ.Packed}
@@ -40,10 +40,10 @@ func (a *amd64) Info(typ types.Type) Info {
 	}
 }
 
-func (a *amd64) Classify(typ types.Type) []Class {
+func (a *amd64) Classify(typ types.Type) ([]Class, Info) {
 	info := a.Info(typ)
 	if info.Size > 16 {
-		return []Class{Memory}
+		return []Class{Memory}, info
 	}
 
 	regs := flatten(a, typ, 0, nil)
@@ -55,10 +55,10 @@ func (a *amd64) Classify(typ types.Type) []Class {
 	}
 
 	if slices.Contains(classes, Memory) {
-		return []Class{Memory}
+		return []Class{Memory}, info
 	}
 
-	return classes
+	return classes, info
 }
 
 func (*amd64) merge(a, b Class) Class {

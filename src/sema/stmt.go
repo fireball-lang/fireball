@@ -50,6 +50,8 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 		typ = types.Invalid
 	}
 
+	a.nodeTypes[v] = typ
+
 	symbol := symbols.Symbol{
 		Kind: symbols.Var,
 		Name: v.Name.Token.Text,

@@ -429,6 +429,8 @@ func (w *writer) summaries() error {
 
 // Utils
 
+const hexChars = "0123456789ABCDEF"
+
 func (w *writer) rune(r rune) {
 	w.buffer = utf8.AppendRune(w.buffer, r)
 }
@@ -439,6 +441,12 @@ func (w *writer) string(str string) {
 
 func (w *writer) uint(value uint64, base int) {
 	w.buffer = strconv.AppendUint(w.buffer, value, base)
+}
+
+func (w *writer) hex(value uint64, length int) {
+	for i := length - 1; i >= 0; i-- {
+		w.buffer = append(w.buffer, hexChars[(value>>(i*4))&0x0F])
+	}
 }
 
 func (w *writer) needsFlush() bool {

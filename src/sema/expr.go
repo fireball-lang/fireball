@@ -142,6 +142,14 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 			return
 		}
 
+		switch left.Type.(type) {
+		case *types.Primitive, *types.Pointer:
+		default:
+			a.Error(b, "equality operators only work on primitive types or pointers, not %s", left.Type)
+			a.typ = types.Invalid
+			return
+		}
+
 		a.typ = types.PrimitiveBool
 		return
 	}
@@ -267,8 +275,6 @@ func (a *analyzer) VisitCall(c *ast.Call) {
 	}
 
 	if f, ok := expr.Type.(*types.Func); ok {
-		a.typ = f.Returns
-
 		if len(c.Args) != len(f.Params) && (!f.VarArgs || len(c.Args) < len(f.Params)) {
 			a.Error(c.Callee, "expected %d arguments, got %d", len(f.Params), len(c.Args))
 		}
@@ -286,6 +292,7 @@ func (a *analyzer) VisitCall(c *ast.Call) {
 			a.AnalyzeExpr(c.Args[i])
 		}
 
+		a.typ = f.Returns
 		return
 	}
 

@@ -3,6 +3,7 @@ package llvm
 import (
 	"fireball/ir"
 	"math"
+	"unicode/utf8"
 )
 
 func (w *writer) typValue(value ir.Value) {
@@ -39,7 +40,26 @@ func (w *writer) value(value ir.Value) {
 
 	case *ir.String:
 		w.string("c\"")
-		w.string(value.Value)
+
+		var buf [4]byte
+
+		for _, ch := range value.Runes {
+			if ch >= 0x20 && ch <= 0x7E && ch != '"' && ch != '\\' {
+				w.rune(ch)
+			} else {
+				size := utf8.EncodeRune(buf[:], ch)
+
+				for i := 0; i < size; i++ {
+					w.rune('\\')
+					w.hex(uint64(buf[i]), 2)
+				}
+			}
+		}
+
+		if value.NullTerminated {
+			w.string("\\00")
+		}
+
 		w.rune('"')
 
 	case *ir.Vector:

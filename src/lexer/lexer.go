@@ -261,7 +261,12 @@ func (l *Lexer) character() Token {
 	}
 
 	if l.match('\\') {
-		l.advance()
+		ch := l.advance()
+
+		if ch == 'x' || ch == 'X' {
+			l.advance()
+			l.advance()
+		}
 	} else {
 		l.advance()
 	}

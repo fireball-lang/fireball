@@ -5,6 +5,7 @@ import (
 	"fireball/lexer"
 	"fireball/symbols"
 	"fireball/types"
+	"math"
 )
 
 // Visitor
@@ -33,8 +34,14 @@ func (a *analyzer) VisitArrayType(t *ast.ArrayType) {
 		return
 	}
 
+	if size > math.MaxUint32 {
+		a.Error(t, "array size cannot be bigger than an unsigned 32-bit integer")
+		a.typ = types.Invalid
+		return
+	}
+
 	a.typ = &types.Array{
-		Size:    size,
+		Size:    uint32(size),
 		Element: element,
 	}
 }

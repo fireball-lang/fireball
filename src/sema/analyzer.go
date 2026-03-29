@@ -24,6 +24,7 @@ type analyzer struct {
 	path string
 
 	exprInfos   map[ast.Expr]ExprInfo
+	nodeTypes   map[ast.Node]types.Type
 	diagnostics []core.Diagnostic
 
 	funcType *types.Func
@@ -33,7 +34,7 @@ type analyzer struct {
 	address bool
 }
 
-func Analyze(decls []ast.Decl, sym []symbols.Symbol, scope symbols.Scope, path string) (map[ast.Expr]ExprInfo, []core.Diagnostic) {
+func Analyze(decls []ast.Decl, sym []symbols.Symbol, scope symbols.Scope, path string) (map[ast.Expr]ExprInfo, map[ast.Node]types.Type, []core.Diagnostic) {
 	locals := &symbols.BlockScope{}
 
 	r := analyzer{
@@ -41,6 +42,7 @@ func Analyze(decls []ast.Decl, sym []symbols.Symbol, scope symbols.Scope, path s
 		locals:    locals,
 		path:      path,
 		exprInfos: make(map[ast.Expr]ExprInfo),
+		nodeTypes: make(map[ast.Node]types.Type),
 	}
 
 	// Symbols
@@ -55,7 +57,7 @@ func Analyze(decls []ast.Decl, sym []symbols.Symbol, scope symbols.Scope, path s
 		decl.VisitDecl(&r)
 	}
 
-	return r.exprInfos, r.diagnostics
+	return r.exprInfos, r.nodeTypes, r.diagnostics
 }
 
 // Utils
