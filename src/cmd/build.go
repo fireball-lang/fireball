@@ -1,22 +1,21 @@
 package main
 
 import (
-	"fireball/abi"
-	"fireball/codegen"
+	"fireball/build"
 	"fireball/core"
-	"fireball/ir/llvm"
 	"fireball/project"
+	"fireball/toolchain"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
 func getBuildCmd() *cobra.Command {
-	return &cobra.Command{
+	var profileName string
+
+	cmd := &cobra.Command{
 		Use:   "build",
 		Short: "Builds a project",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -49,42 +48,30 @@ func getBuildCmd() *cobra.Command {
 				return nil
 			}
 
-			// Compile
-			if err := os.MkdirAll(filepath.Join(proj.Path, "build"), 0750); err != nil {
+			// Build
+			if err := toolchain.Validate(); err != nil {
 				return err
 			}
 
-			for _, file := range proj.Files {
-				module := codegen.Generate(file.Decls, abi.AMD64, file.ExprInfos, file.NodeTypes)
-
-				file, err := os.Create(filepath.Join(proj.Path, "build", getBuildFileName(file)+".ll"))
-				if err != nil {
-					return err
-				}
-
-				if err := llvm.Write(module, file); err != nil {
-					_ = file.Close()
-					return err
-				}
-
-				_ = file.Close()
+			target, err := toolchain.GetTarget()
+			if err != nil {
+				return err
 			}
 
-			return nil
+			profile, ok := proj.Config.Profiles[profileName]
+			if !ok {
+				return fmt.Errorf("unknown profile: '%s'", profileName)
+			}
+
+			_, err = build.Build(proj, target, profile)
+
+			return err
 		},
 	}
-}
 
-var nameReplacer = strings.NewReplacer(" ", "_", "-", "_")
+	cmd.Flags().StringVarP(&profileName, "profile", "p", "debug", "profile to build the project with")
 
-func getBuildFileName(file *project.File) string {
-	name := filepath.Base(file.Path)
-
-	if index := strings.IndexRune(name, '.'); index != -1 {
-		name = name[:index]
-	}
-
-	return nameReplacer.Replace(name)
+	return cmd
 }
 
 func printDiagnostic(filePath string, diag core.Diagnostic) {

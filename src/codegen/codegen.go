@@ -11,7 +11,8 @@ import (
 type codegen struct {
 	module *ir.Module
 
-	abi       abi.ABI
+	arch      abi.Arch
+	callConv  abi.CallConv
 	exprInfos map[ast.Expr]sema.ExprInfo
 	nodeTypes map[ast.Node]types.Type
 
@@ -31,13 +32,14 @@ type codegen struct {
 	value ir.Value
 }
 
-func Generate(decls []ast.Decl, abi abi.ABI, exprInfos map[ast.Expr]sema.ExprInfo, nodeTypes map[ast.Node]types.Type) *ir.Module {
+func Generate(decls []ast.Decl, arch abi.Arch, callConv abi.CallConv, exprInfos map[ast.Expr]sema.ExprInfo, nodeTypes map[ast.Node]types.Type) *ir.Module {
 	module := ir.NewModule()
 
 	c := codegen{
 		module: module,
 
-		abi:       abi,
+		arch:      arch,
+		callConv:  callConv,
 		exprInfos: exprInfos,
 		nodeTypes: nodeTypes,
 

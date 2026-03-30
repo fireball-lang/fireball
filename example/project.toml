@@ -1,1 +1,6 @@
-Name = "example"
+name = "example"
+lib-c = true
+
+[profile.debug]
+debug = true
+output-ir = true

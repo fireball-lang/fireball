@@ -21,7 +21,7 @@ type register struct {
 	class  Class
 }
 
-func flatten(abi ABI, typ types.Type, offset uint32, regs []register) []register {
+func flatten(arch Arch, typ types.Type, offset uint32, regs []register) []register {
 	if t, ok := typ.(types.Composed); ok {
 		typ = t.Underlying()
 	}
@@ -41,18 +41,18 @@ func flatten(abi ABI, typ types.Type, offset uint32, regs []register) []register
 		regs = append(regs, register{offset, Integer})
 
 	case *types.Array:
-		info := abi.Info(typ.Element)
+		info := arch.Info(typ.Element)
 
 		for i := uint32(0); i < typ.Size; i++ {
-			regs = flatten(abi, typ.Element, offset, regs)
+			regs = flatten(arch, typ.Element, offset, regs)
 			offset += info.Size
 		}
 
 	case *types.Struct:
-		info := abi.Info(typ)
+		info := arch.Info(typ)
 
 		for i, field := range typ.Fields {
-			regs = flatten(abi, field.Type, offset+info.Offsets[i], regs)
+			regs = flatten(arch, field.Type, offset+info.Offsets[i], regs)
 		}
 
 	default:

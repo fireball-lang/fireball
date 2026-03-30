@@ -3,7 +3,7 @@ package abi
 import "fireball/types"
 
 type structLayout struct {
-	abi    ABI
+	arch   Arch
 	packed bool
 
 	biggestAlign uint32
@@ -13,7 +13,7 @@ type structLayout struct {
 }
 
 func (s *structLayout) Field(typ types.Type) uint32 {
-	info := s.abi.Info(typ)
+	info := s.arch.Info(typ)
 
 	// Packed
 	if s.packed {

@@ -1,0 +1,24 @@
+package toolchain
+
+import (
+	"errors"
+	"runtime"
+)
+
+type LibC struct {
+	LibPaths []string
+	Libs     []string
+
+	PreObjectPaths  []string
+	PostObjectPaths []string
+
+	AdditionalLinkArgs []string
+}
+
+func FindLibC() (LibC, error) {
+	if runtime.GOOS == "linux" {
+		return findLibcLinux()
+	}
+
+	return LibC{}, errors.New("fireball doesn't support this platform / architecture")
+}

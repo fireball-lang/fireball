@@ -32,7 +32,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 
 	// Return value
 	{
-		classes, _ := c.abi.Classify(typ.Returns)
+		classes, _ := c.callConv.Classify(c.arch, typ.Returns)
 
 		if len(classes) == 1 && classes[0] == abi.Memory {
 			c.returnPtr = fun.ParamValues[paramI]
@@ -49,7 +49,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 		ptr := c.emitter.Alloca(typ, 1)
 		ptr.SetName("param." + name)
 
-		classes, _ := c.abi.Classify(param)
+		classes, _ := c.callConv.Classify(c.arch, param)
 
 		if len(classes) == 1 && classes[0] == abi.Memory {
 			value = c.emitter.Load(typ, value)
@@ -94,7 +94,7 @@ func (c *codegen) CreateFunction(f *ast.Func) *ir.Function {
 	paramNames := make([]string, 0, len(f.Params)+1)
 
 	for i, param := range f.Params {
-		classes, info := c.abi.Classify(typ.Params[i])
+		classes, info := c.callConv.Classify(c.arch, typ.Params[i])
 
 		if len(classes) == 1 && classes[0] == abi.Memory {
 			sig.Params = append(sig.Params, ir.Pointer)
@@ -107,7 +107,7 @@ func (c *codegen) CreateFunction(f *ast.Func) *ir.Function {
 
 	// Returns
 	{
-		classes, info := c.abi.Classify(typ.Returns)
+		classes, info := c.callConv.Classify(c.arch, typ.Returns)
 
 		if len(classes) == 1 && classes[0] == abi.Memory {
 			sig.Returns = ir.Void

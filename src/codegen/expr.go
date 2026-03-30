@@ -267,7 +267,7 @@ func (c *codegen) VisitCall(e *ast.Call) {
 
 	// Arguments
 	for _, arg := range e.Args {
-		classes, info := c.abi.Classify(c.UnderlyingExprType(arg))
+		classes, info := c.callConv.Classify(c.arch, c.UnderlyingExprType(arg))
 		value := c.Load(arg)
 
 		// Pointer
@@ -288,7 +288,7 @@ func (c *codegen) VisitCall(e *ast.Call) {
 
 	// Return value
 	returnTyp := c.UnderlyingExprType(e)
-	returnClasses, _ := c.abi.Classify(returnTyp)
+	returnClasses, _ := c.callConv.Classify(c.arch, returnTyp)
 
 	var returnPtr ir.Value
 

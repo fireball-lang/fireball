@@ -46,4 +46,8 @@ func (p *Project) Parse() {
 	for _, file := range p.Files {
 		file.parse()
 	}
+
+	for _, file := range p.Files {
+		file.analyze()
+	}
 }

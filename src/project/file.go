@@ -42,6 +42,9 @@ func (f *File) parse() {
 
 	f.Decls, f.parseDiagnostics = parser.Parse(file, f.Path)
 	f.Symbols = symbols.Collect(f.Decls)
+}
+
+func (f *File) analyze() {
 	f.ExprInfos, f.NodeTypes, f.semaDiagnostics = sema.Analyze(f.Decls, f.Symbols, symbols.SimpleScope(f.Symbols), f.Path)
 }
 

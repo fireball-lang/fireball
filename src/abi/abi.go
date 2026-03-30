@@ -16,8 +16,10 @@ type Info struct {
 	Offsets []uint32
 }
 
-type ABI interface {
+type Arch interface {
 	Info(typ types.Type) Info
+}
 
-	Classify(typ types.Type) ([]Class, Info)
+type CallConv interface {
+	Classify(arch Arch, typ types.Type) ([]Class, Info)
 }
