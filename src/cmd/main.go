@@ -13,6 +13,7 @@ func main() {
 	}
 
 	root.AddCommand(getBuildCmd())
+	root.AddCommand(getRunCmd())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)

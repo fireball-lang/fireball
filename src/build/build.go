@@ -3,6 +3,7 @@ package build
 import (
 	"bytes"
 	"fireball/codegen"
+	"fireball/ir"
 	"fireball/ir/llvm"
 	"fireball/project"
 	"fireball/toolchain"
@@ -11,9 +12,11 @@ import (
 	"path/filepath"
 )
 
-func Build(proj *project.Project, target toolchain.Target, profile project.Profile) (string, error) {
+type EntrypointFn func(module *ir.Module, fun *ir.Function)
+
+func Build(proj *project.Project, target toolchain.Target, profile project.Profile, entrypointFn EntrypointFn) (string, error) {
 	// Get paths
-	buildPath := filepath.Join(proj.Path, "build", target.Name)
+	buildPath := filepath.Join(proj.Path, "build", target.Name, profile.Name)
 	if err := os.MkdirAll(buildPath, 0750); err != nil {
 		return "", err
 	}
@@ -35,7 +38,35 @@ func Build(proj *project.Project, target toolchain.Target, profile project.Profi
 	var objFilePaths []string
 
 	for _, file := range proj.Files {
-		objFilePath, err := compileFile(target, profile, objPath, irPath, file)
+		name := getBuildFileName(file)
+		module := codegen.Generate(file.Decls, target.Arch, target.CallConv, file.ExprInfos, file.NodeTypes)
+		module.Path = file.Path
+
+		objFilePath, err := compileModule(target, profile, objPath, irPath, name, module)
+		if err != nil {
+			return "", err
+		}
+
+		objFilePaths = append(objFilePaths, objFilePath)
+	}
+
+	// Entrypoint
+	{
+		// Create module
+		module := ir.NewModule()
+
+		name := "_start"
+		if proj.Config.LibC {
+			name = "main"
+		}
+
+		fun := module.NewFunction(name, &ir.Signature{Returns: ir.I32}, nil)
+		fun.Flags = ir.DsoLocal
+
+		entrypointFn(module, fun)
+
+		// Compile
+		objFilePath, err := compileModule(target, profile, objPath, irPath, "__entrypoint", module)
 		if err != nil {
 			return "", err
 		}
@@ -64,11 +95,7 @@ func Build(proj *project.Project, target toolchain.Target, profile project.Profi
 	return exeFilePath, nil
 }
 
-func compileFile(target toolchain.Target, profile project.Profile, objPath, irPath string, file *project.File) (string, error) {
-	name := getBuildFileName(file)
-	module := codegen.Generate(file.Decls, target.Arch, target.CallConv, file.ExprInfos, file.NodeTypes)
-
-	module.Path = file.Path
+func compileModule(target toolchain.Target, profile project.Profile, objPath, irPath string, name string, module *ir.Module) (string, error) {
 	module.DataLayout = target.DataLayout
 	module.Triple = target.Triple
 

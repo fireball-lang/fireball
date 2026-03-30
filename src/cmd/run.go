@@ -1,17 +1,19 @@
 package main
 
 import (
+	"os"
+	"os/exec"
 	"time"
 
 	"github.com/spf13/cobra"
 )
 
-func getBuildCmd() *cobra.Command {
+func getRunCmd() *cobra.Command {
 	var profileName string
 
 	cmd := &cobra.Command{
-		Use:   "build",
-		Short: "Builds a project",
+		Use:   "run",
+		Short: "Builds and runs a project",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			start := time.Now()
 
@@ -25,7 +27,24 @@ func getBuildCmd() *cobra.Command {
 			}
 
 			// Build
-			_, err = buildProject(proj, profileName, start)
+			exePath, err := buildProject(proj, profileName, start)
+			if err != nil {
+				return err
+			}
+
+			// Run
+			exeCmd := exec.Command(exePath)
+
+			exeCmd.Stdin = os.Stdin
+			exeCmd.Stdout = os.Stdout
+			exeCmd.Stderr = os.Stderr
+
+			err = exeCmd.Run()
+
+			if exeCmd.ProcessState.ExitCode() != 0 {
+				return nil
+			}
+
 			return err
 		},
 	}

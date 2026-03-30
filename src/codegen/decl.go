@@ -119,7 +119,7 @@ func (c *codegen) CreateFunction(f *ast.Func) *ir.Function {
 	}
 
 	// Function
-	fun := c.module.NewFunction(f.Name(), sig, paramNames)
+	fun := c.module.NewFunction(FuncLinkName(f), sig, paramNames)
 
 	if core.IsNil(f.Body) {
 		fun.Flags = ir.Declare

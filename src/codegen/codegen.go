@@ -3,6 +3,7 @@ package codegen
 import (
 	"fireball/abi"
 	"fireball/ast"
+	"fireball/core"
 	"fireball/ir"
 	"fireball/sema"
 	"fireball/types"
@@ -64,6 +65,14 @@ func Generate(decls []ast.Decl, arch abi.Arch, callConv abi.CallConv, exprInfos 
 	c.scope.Pop()
 
 	return c.module
+}
+
+func FuncLinkName(f *ast.Func) string {
+	if core.IsNil(f.Body) {
+		return f.Name()
+	}
+
+	return "fb$" + f.Name()
 }
 
 // Utils
