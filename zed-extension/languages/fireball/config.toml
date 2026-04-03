@@ -1,0 +1,22 @@
+name = "Fireball"
+grammar = "fireball"
+path_suffixes = ["fb"]
+line_comments = ["// "]
+
+[[brackets]]
+start = "("
+end = ")"
+close = true
+newline = false
+
+[[brackets]]
+start = "{"
+end = "}"
+close = true
+newline = true
+
+[[brackets]]
+start = "["
+end = "]"
+close = true
+newline = false

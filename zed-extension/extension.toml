@@ -1,0 +1,11 @@
+id = "fireball"
+name = "Fireball"
+version = "0.1.0"
+schema_version = 1
+authors = ["MineGame159 <petulko08@gmail.com>"]
+description = "Fireball language support"
+repository = "https://github.com/MineGame159/fireball"
+
+[grammars.fireball]
+repository = "https://github.com/MineGame159/tree-sitter-fireball"
+rev = "4b6d5802356e65a9d8c3da9d333cd31c98b15082"

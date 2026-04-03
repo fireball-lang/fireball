@@ -17,7 +17,9 @@ func testArrayReadWrite() bool {
 func testArrayLoop() bool {
     var arr: [5]i32;
     for (var i = 0; i < 5; i = i + 1) { arr[i] = i; }
+
     var sum = 0;
     for (var i = 0; i < 5; i = i + 1) { sum = sum + arr[i]; }
+
     return sum == 10;
 }

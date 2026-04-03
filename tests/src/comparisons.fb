@@ -1,22 +1,22 @@
 #[test("equal")]
 func testEq() bool {
 	return 5 == 5;
-	}
+}
 
 #[test("not equal")]
 func testNe() bool {
 	return 4 != 5;
-	}
+}
 
 #[test("less than")]
 func testLt() bool {
 	return 3 < 5;
-	}
+}
 
 #[test("greater equal")]
 func testGe() bool {
 	return 5 >= 5;
-	}
+}
 
 #[test("bool equality")]
 func testBoolEq() bool {
