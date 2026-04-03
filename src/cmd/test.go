@@ -9,6 +9,7 @@ import (
 	"fireball/ir"
 	"fireball/project"
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
@@ -88,6 +89,10 @@ func getTestCmd() *cobra.Command {
 
 			_, _ = color.New(fg, color.Bold).Printf("%d / %d %s succeeded\n", tw.successful, len(testFuncs), word)
 			color.White("  took %s", duration)
+
+			if tw.successful != len(testFuncs) {
+				os.Exit(1)
+			}
 
 			return nil
 		},

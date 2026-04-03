@@ -15,6 +15,7 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: "src/go.mod"
+          cache-dependency-path: "src/go.mod"
 
       - name: Build
         run: |
