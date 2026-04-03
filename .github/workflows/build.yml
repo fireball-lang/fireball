@@ -24,10 +24,8 @@ jobs:
       - name: Cache fireball
         uses: actions/cache/save@v4
         with:
-          path: |
-            fireball
-            fireball.exe
-          key: ${{ runner.os }}-${{ hashFiles('fireball') }}
+          path: fireball
+          key: ${{ runner.os }}-${{ github.sha }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v6
@@ -57,7 +55,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: fireball
-          key: ${{ runner.os }}-${{ hashFiles('fireball') }}
+          key: ${{ runner.os }}-${{ github.sha }}
 
       - name: Run tests
         run: |
