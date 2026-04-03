@@ -10,11 +10,34 @@ import (
 // Visitor
 
 func (a *analyzer) VisitStruct(s *ast.Struct) {
+	// Attributes
+	attributes := make(map[string]any)
+
+	for _, attribute := range s.Attributes {
+		name := attribute.Name.Token.Text
+		if name == "" {
+			continue
+		}
+
+		if _, ok := attributes[name]; ok {
+			a.Error(attribute.Name, "attribute with the name '%s' already exists", name)
+			continue
+		}
+		attributes[name] = nil
+
+		switch name {
+		default:
+			a.Error(attribute.Name, "unknown struct attribute '%s'", name)
+		}
+	}
+
+	// Type
 	symbol, _ := a.scope.Get(s.Name())
 
 	typ := symbol.Type.(*types.Struct)
 	a.nodeTypes[s] = typ
 
+	// Fields
 	names := make(map[string]any)
 
 	for i, field := range s.Fields {
@@ -36,10 +59,71 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 }
 
 func (a *analyzer) VisitFunc(f *ast.Func) {
+	// Attributes
+	attributes := make(map[string]any)
+
+	test := false
+
+	for _, attribute := range f.Attributes {
+		name := attribute.Name.Token.Text
+		if name == "" {
+			continue
+		}
+
+		if _, ok := attributes[name]; ok {
+			a.Error(attribute.Name, "attribute with the name '%s' already exists", name)
+			continue
+		}
+		attributes[name] = nil
+
+		switch name {
+		case "test":
+			test = true
+
+			if len(attribute.Arguments) > 1 {
+				a.Error(attribute.Name, "too many attribute arguments")
+			}
+
+			if len(attribute.Arguments) == 1 {
+				arg := attribute.Arguments[0]
+
+				if _, ok := arg.(*ast.String); !ok {
+					if _, ok := arg.(*ast.BadExpr); !ok {
+						a.Error(arg, "expected a string")
+					}
+				}
+			}
+
+		default:
+			a.Error(attribute.Name, "unknown function attribute '%s'", name)
+		}
+	}
+
+	// Type
 	symbol, _ := a.scope.Get(f.Name())
 
 	typ := symbol.Type.(*types.Func)
 	a.nodeTypes[f] = typ
+
+	// Test
+	if test {
+		if len(f.Params) != 0 || f.VarArgs {
+			a.Error(f.Name_, "test functions cannot have any parameters")
+		}
+
+		if typ.Returns != types.PrimitiveBool {
+			var node ast.Node = f.Returns
+			if node.Range().Start == node.Range().End {
+				node = f.Name_
+			}
+
+			a.Error(node, "test functions need to return a boolean")
+		}
+
+		if core.IsNil(f.Body) {
+			a.Error(f.Name_, "test functions need to have a body")
+		}
+	}
 
 	// Body
 	a.locals.Push()

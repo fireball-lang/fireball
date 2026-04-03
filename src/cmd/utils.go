@@ -17,9 +17,9 @@ import (
 	"github.com/fatih/color"
 )
 
-func buildProject(proj *project.Project, profileName string, start time.Time) (string, error) {
+func buildProject(proj *project.Project, profileName string, start time.Time, entrypointFnProvider func(project2 *project.Project) (build.EntrypointFn, error)) (string, error) {
 	// Build
-	entrypointFn, err := normalEntrypoint(proj)
+	entrypointFn, err := entrypointFnProvider(proj)
 	if err != nil {
 		return "", err
 	}
@@ -48,7 +48,6 @@ func buildProject(proj *project.Project, profileName string, start time.Time) (s
 
 	_, _ = color.New(color.FgGreen, color.Bold).Print("Build succeeded\n")
 	color.White("  took %s", duration)
-	fmt.Println()
 
 	return exePath, nil
 }
@@ -84,8 +83,7 @@ func parseProject(start time.Time) (*project.Project, error) {
 
 		fmt.Println()
 		_, _ = color.New(color.FgRed, color.Bold).Print("Build failed\n")
-		color.White("    took %s", duration)
-		fmt.Println()
+		color.White("  took %s", duration)
 
 		return nil, nil
 	}
@@ -93,7 +91,7 @@ func parseProject(start time.Time) (*project.Project, error) {
 	return proj, nil
 }
 
-func normalEntrypoint(proj *project.Project) (build.EntrypointFn, error) {
+func normalEntrypointProvider(proj *project.Project) (build.EntrypointFn, error) {
 	var mainFunc *ast.Func
 	var mainFuncTyp *types.Func
 

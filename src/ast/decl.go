@@ -20,10 +20,32 @@ type Decl interface {
 	VisitDecl(visitor DeclVisitor)
 }
 
+type Attribute struct {
+	baseNode
+
+	Name      *Leaf
+	Arguments []Expr
+}
+
+func (a *Attribute) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(a.Name) {
+			return
+		}
+		for _, argument := range a.Arguments {
+			if !yield(argument) {
+				return
+			}
+		}
+	}
+}
+
 // Struct
 
 type Struct struct {
 	baseNode
+
+	Attributes []*Attribute
 
 	Name_  *Leaf
 	Fields []*NameType
@@ -31,6 +53,11 @@ type Struct struct {
 
 func (s *Struct) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
+		for _, attribute := range s.Attributes {
+			if !yield(attribute) {
+				return
+			}
+		}
 		if !yield(s.Name_) {
 			return
 		}
@@ -55,6 +82,8 @@ func (s *Struct) VisitDecl(visitor DeclVisitor) {
 type Func struct {
 	baseNode
 
+	Attributes []*Attribute
+
 	Name_ *Leaf
 
 	Returns Type
@@ -66,6 +95,11 @@ type Func struct {
 
 func (f *Func) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
+		for _, attribute := range f.Attributes {
+			if !yield(attribute) {
+				return
+			}
+		}
 		if !yield(f.Name_) {
 			return
 		}
@@ -89,6 +123,28 @@ func (f *Func) Name() string {
 
 func (f *Func) VisitDecl(visitor DeclVisitor) {
 	visitor.VisitFunc(f)
+}
+
+func (f *Func) GetTestName() string {
+	for _, attribute := range f.Attributes {
+		if attribute.Name.Token.Text == "test" {
+			name := ""
+
+			if len(attribute.Arguments) > 0 {
+				if s, ok := attribute.Arguments[0].(*String); ok {
+					name = string(s.Runes)
+				}
+			}
+
+			if name == "" {
+				name = f.Name()
+			}
+
+			return name
+		}
+	}
+
+	return ""
 }
 
 // Bad

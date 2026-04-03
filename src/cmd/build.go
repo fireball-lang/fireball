@@ -25,7 +25,8 @@ func getBuildCmd() *cobra.Command {
 			}
 
 			// Build
-			_, err = buildProject(proj, profileName, start)
+			_, err = buildProject(proj, profileName, start, normalEntrypointProvider)
+
 			return err
 		},
 	}

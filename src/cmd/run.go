@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"time"
@@ -27,7 +28,9 @@ func getRunCmd() *cobra.Command {
 			}
 
 			// Build
-			exePath, err := buildProject(proj, profileName, start)
+			exePath, err := buildProject(proj, profileName, start, normalEntrypointProvider)
+			fmt.Println()
+
 			if err != nil {
 				return err
 			}

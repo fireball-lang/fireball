@@ -82,6 +82,20 @@ func (c *codegen) BitCast(value ir.Value, typ ir.Type) ir.Value {
 		return value
 	}
 
+	// Bool (I1) -> I8
+	if value.Type() == ir.I1 {
+		if t, ok := typ.(*ir.IntegerType); ok && t.Bits == 8 {
+			return c.emitter.Ext(ir.Unsigned, value, t)
+		}
+	}
+
+	// I8 -> Bool (I1)
+	if value.Type() == ir.I8 {
+		if t, ok := typ.(*ir.IntegerType); ok && t.Bits == 1 {
+			return c.emitter.Trunc(value, t)
+		}
+	}
+
 	// Ptr -> Int
 	if value.Type() == ir.Pointer {
 		if _, ok := typ.(*ir.IntegerType); ok {

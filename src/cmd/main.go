@@ -14,6 +14,7 @@ func main() {
 
 	root.AddCommand(getBuildCmd())
 	root.AddCommand(getRunCmd())
+	root.AddCommand(getTestCmd())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)

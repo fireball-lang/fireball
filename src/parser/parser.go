@@ -32,7 +32,7 @@ func Parse(reader io.Reader, path string) ([]ast.Decl, []core.Diagnostic) {
 
 	var decls []ast.Decl
 
-	p.pushRecoverPoint(lexer.Struct, lexer.Func)
+	p.pushRecoverPoint(lexer.Hashtag, lexer.Struct, lexer.Func)
 
 	for p.current.Kind != lexer.EOF {
 		decl, _ := p.parseDecl()

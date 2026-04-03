@@ -9,11 +9,22 @@ import (
 )
 
 func (p *parser) parseDecl() (ast.Decl, int) {
+	var attributes []*ast.Attribute
+
+	for p.current.Kind == lexer.Hashtag {
+		attrs, recoverId := p.parseAttributeGroup()
+		attributes = append(attributes, attrs...)
+
+		if recoverId >= 0 {
+			break
+		}
+	}
+
 	switch p.current.Kind {
 	case lexer.Struct:
-		return p.parseStruct()
+		return p.parseStruct(attributes)
 	case lexer.Func:
-		return p.parseFunc()
+		return p.parseFunc(attributes)
 
 	default:
 		b := &ast.BadDecl{}
@@ -22,9 +33,87 @@ func (p *parser) parseDecl() (ast.Decl, int) {
 	}
 }
 
-func (p *parser) parseStruct() (s *ast.Struct, recoverId int) {
+func (p *parser) parseAttributeGroup() (attributes []*ast.Attribute, recoverId int) {
+	recoverId = -1
+
+	// '#'
+	if recoverId = p.expect(lexer.Hashtag, "expected '#' before attribute group"); recoverId >= 0 {
+		return
+	}
+
+	// '['
+	if recoverId = p.expect(lexer.LeftBracket, "expected '[' before attributes"); recoverId >= 0 {
+		return
+	}
+
+	// Attributes
+	myRecoverId := p.pushRecoverPoint(lexer.RightBracket)
+	attributes, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightBracket, p.parseAttribute)
+	p.popRecoverPoint()
+
+	if recoverId >= 0 {
+		if recoverId == myRecoverId {
+			recoverId = -1
+		} else {
+			return
+		}
+	}
+
+	// ']'
+	if recoverId = p.expect(lexer.RightBracket, "expected ']' after attributes"); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseAttribute() (a *ast.Attribute, recoverId int) {
+	a = &ast.Attribute{}
+	a.Range_.Start = p.current.Range.Start
+	defer func() {
+		a.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// Name
+	if a.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// '(' Arguments ')'
+	if p.current.Kind == lexer.LeftParen {
+		// '('
+		if recoverId = p.expect(lexer.LeftParen, "expected '(' before attribute arguments"); recoverId >= 0 {
+			return
+		}
+
+		// Arguments
+		myRecoverId := p.pushRecoverPoint(lexer.RightParen)
+		a.Arguments, recoverId = parseCommaList(p, lexer.Comma, lexer.RightParen, p.parseExpr)
+		p.popRecoverPoint()
+
+		if recoverId >= 0 {
+			if recoverId == myRecoverId {
+				recoverId = -1
+			} else {
+				return
+			}
+		}
+
+		// ')'
+		if recoverId = p.expect(lexer.RightParen, "expected ')' after attribute arguments"); recoverId >= 0 {
+			return
+		}
+	}
+
+	return
+}
+
+func (p *parser) parseStruct(attributes []*ast.Attribute) (s *ast.Struct, recoverId int) {
 	s = &ast.Struct{}
 	s.Range_.Start = p.current.Range.Start
+	s.Attributes = attributes
 	s.Name_ = emptyLeaf
 	defer func() {
 		s.Range_.End = p.previous.Range.End
@@ -71,9 +160,10 @@ func (p *parser) parseStruct() (s *ast.Struct, recoverId int) {
 	return
 }
 
-func (p *parser) parseFunc() (f *ast.Func, recoverId int) {
+func (p *parser) parseFunc(attributes []*ast.Attribute) (f *ast.Func, recoverId int) {
 	f = &ast.Func{}
 	f.Range_.Start = p.current.Range.Start
+	f.Attributes = attributes
 	f.Name_ = emptyLeaf
 	defer func() {
 		f.Range_.End = p.previous.Range.End
