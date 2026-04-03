@@ -35,3 +35,31 @@ jobs:
           path: |
             fireball
             fireball.exe
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install build-essential libc6-dev
+
+      - name: Install LLVM
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "21.1.8"
+
+      - name: Get fireball from cache
+        uses: actions/cache/restore@v4
+        with:
+          path: fireball
+          key: ${{ runner.os }}-${{ hashFiles('fireball') }}
+
+      - name: Run tests
+        run: |
+          cd tests
+          ../fireball test

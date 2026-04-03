@@ -1,0 +1,27 @@
+#[test("and true")]
+func testAndTrue() bool {
+	return true && true;
+}
+
+#[test("and false")]
+func testAndFalse() bool {
+	return !(false && true);
+}
+
+#[test("or")]
+func testOr() bool {
+	return false || true;
+}
+
+#[test("not")]
+func testNot() bool {
+	return !false;
+}
+
+#[test("short circuit and")]
+func testShortCircuitAnd() bool {
+    var x = 0;
+    // right side must NOT run
+    var _ = false && (x = 1) == 0;  // Note: assignment expr is allowed
+    return x == 0;
+}

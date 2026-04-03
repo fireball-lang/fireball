@@ -1,0 +1,24 @@
+#[test("add")]
+func testAdd() bool {
+	return 2 + 3 == 5;
+}
+
+#[test("subtract")]
+func testSub() bool {
+	return 10 - 4 == 6;
+}
+
+#[test("multiply")]
+func testMul() bool {
+	return 3 * 4 == 12;
+}
+
+#[test("divide signed")]
+func testDivSigned() bool {
+	return -10 / 2 == -5;
+}
+
+#[test("modulo")]
+func testMod() bool {
+	return 10 % 3 == 1;
+}

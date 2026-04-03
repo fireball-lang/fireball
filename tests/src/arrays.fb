@@ -1,0 +1,23 @@
+#[test("array zero init")]
+func testArrayZero() bool {
+    var arr: [5]i32;
+    return arr[0] == 0 && arr[4] == 0;
+}
+
+#[test("array write read")]
+func testArrayReadWrite() bool {
+    var arr: [3]i32;
+    arr[0] = 10;
+    arr[1] = 20;
+    arr[2] = 30;
+    return arr[0] + arr[1] + arr[2] == 60;
+}
+
+#[test("array loop sum")]
+func testArrayLoop() bool {
+    var arr: [5]i32;
+    for (var i = 0; i < 5; i = i + 1) { arr[i] = i; }
+    var sum = 0;
+    for (var i = 0; i < 5; i = i + 1) { sum = sum + arr[i]; }
+    return sum == 10;
+}

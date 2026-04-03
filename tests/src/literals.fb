@@ -1,0 +1,19 @@
+#[test("binary literal")]
+func testBinLit() bool {
+	return 0b1010 == 10u;
+}
+
+#[test("hex literal")]
+func testHexLit() bool {
+	return 0xFF == 255u;
+}
+
+#[test("char literal")]
+func testCharLit() bool {
+	return 'A' == 65u;
+}
+
+#[test("f32 literal")]
+func testF32Lit() bool {
+	return 1.0f == 1.0f;
+}

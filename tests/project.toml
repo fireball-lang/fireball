@@ -1,0 +1,6 @@
+name = "tests"
+lib-c = true
+
+[profile.debug]
+debug = true
+output-ir = true

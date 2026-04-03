@@ -1,0 +1,14 @@
+#[test("bitwise or")]
+func testBitOr() bool {
+	return (0b1010 | 0b0101) == 0b1111;
+}
+
+#[test("bitwise and")]
+func testBitAnd() bool {
+	return (0xFF & 0x0F) == 0x0F;
+}
+
+#[test("bitwise xor")]
+func testBitXor() bool {
+	return (0b1111 ^ 0b1010) == 0b0101;
+}

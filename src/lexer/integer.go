@@ -18,10 +18,17 @@ func ParseInteger(token Token) uint64 {
 		}
 		return val
 
-	case UnsignedInteger, SignedInteger:
+	case UnsignedInteger:
+		val, err := strconv.ParseUint(token.Text[:len(token.Text)-1], 10, 64)
+		if err != nil {
+			panic("lexer.ParseInteger() - Failed to parse unsigned integer")
+		}
+		return val
+
+	case SignedInteger:
 		val, err := strconv.ParseUint(token.Text, 10, 64)
 		if err != nil {
-			panic("lexer.ParseInteger() - Failed to parse integer")
+			panic("lexer.ParseInteger() - Failed to parse signed integer")
 		}
 		return val
 

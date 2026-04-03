@@ -1,0 +1,14 @@
+#[test("f64 add")]
+func testF64Add() bool {
+	return 1.0 + 2.0 == 3.0;
+}
+
+#[test("f32 add")]
+func testF32Add() bool {
+	return 1.0f + 2.0f == 3.0f;
+}
+
+#[test("f64 compare")]
+func testF64Cmp() bool {
+	return 0.5 < 1.0;
+}

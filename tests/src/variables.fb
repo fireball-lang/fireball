@@ -1,0 +1,18 @@
+#[test("var zero init")]
+func testVarZeroInit() bool {
+    var x: i32;
+    return x == 0;
+}
+
+#[test("var infer type")]
+func testVarInfer() bool {
+    var x = 42;
+    return x == 42;
+}
+
+#[test("var reassign")]
+func testVarReassign() bool {
+    var x = 1;
+    x = 2;
+    return x == 2;
+}

@@ -1,0 +1,23 @@
+struct Vec2 {
+    x: i32,
+    y: i32,
+}
+
+func makeVec(x: i32, y: i32) Vec2 {
+    var v: Vec2;
+    v.x = x;
+    v.y = y;
+    return v;
+}
+
+#[test("struct field access")]
+func testStructField() bool {
+    var v = makeVec(3, 4);
+    return v.x == 3 && v.y == 4;
+}
+
+#[test("struct zero init")]
+func testStructZero() bool {
+    var v: Vec2;
+    return v.x == 0 && v.y == 0;
+}

@@ -1,0 +1,47 @@
+#[test("if true branch")]
+func testIfTrue() bool {
+    var result = false;
+    if (true) { result = true; }
+    return result;
+}
+
+#[test("if else")]
+func testIfElse() bool {
+    var result = 0;
+    if (false) { result = 1; } else { result = 2; }
+    return result == 2;
+}
+
+#[test("while loop")]
+func testWhile() bool {
+    var i = 0;
+    while (i < 5) { i = i + 1; }
+    return i == 5;
+}
+
+#[test("for loop")]
+func testFor() bool {
+    var sum = 0;
+    for (var i = 0; i < 5; i = i + 1) { sum = sum + i; }
+    return sum == 10;
+}
+
+#[test("break")]
+func testBreak() bool {
+    var i = 0;
+    while (true) {
+        if (i == 3) { break; }
+        i = i + 1;
+    }
+    return i == 3;
+}
+
+#[test("continue")]
+func testContinue() bool {
+    var sum = 0;
+    for (var i = 0; i < 5; i = i + 1) {
+        if (i == 2) { continue; }
+        sum = sum + 1;
+    }
+    return sum == 4;  // skipped i=2
+}

@@ -1,0 +1,18 @@
+func add(a: i32, b: i32) i32 {
+    return a + b;
+}
+
+func factorial(n: i32) i32 {
+    if (n <= 1) { return 1; }
+    return n * factorial(n - 1);
+}
+
+#[test("call with args")]
+func testCall() bool {
+	return add(3, 4) == 7;
+}
+
+#[test("recursion")]
+func testRecursion() bool {
+	return factorial(5) == 120;
+}
