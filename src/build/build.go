@@ -3,6 +3,7 @@ package build
 import (
 	"bytes"
 	"fireball/codegen"
+	"fireball/core"
 	"fireball/ir"
 	"fireball/ir/llvm"
 	"fireball/project"
@@ -10,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type EntrypointFn func(module *ir.Module, fun *ir.Function)
@@ -54,6 +56,11 @@ func Build(proj *project.Project, target toolchain.Target, profile project.Profi
 	{
 		// Create module
 		module := ir.NewModule()
+
+		if strings.Contains(target.Name, "windows") {
+			fltused := module.NewGlobalVar("_fltused", ir.I32)
+			fltused.Initializer = &ir.Integer{Typ: ir.I32, Value: core.Signed(1)}
+		}
 
 		name := "_start"
 		if proj.Config.LibC {

@@ -20,6 +20,9 @@ type Target struct {
 }
 
 func GetTarget() (Target, error) {
+	if runtime.GOOS == "windows" && runtime.GOARCH == "amd64" {
+		return getTargetWindowsAmd64(), nil
+	}
 	if runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
 		return getTargetLinuxAmd64(), nil
 	}

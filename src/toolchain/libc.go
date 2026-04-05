@@ -16,6 +16,9 @@ type LibC struct {
 }
 
 func FindLibC() (LibC, error) {
+	if runtime.GOOS == "windows" {
+		return findLibcWindows()
+	}
 	if runtime.GOOS == "linux" {
 		return findLibcLinux()
 	}

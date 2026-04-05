@@ -167,9 +167,6 @@ func testEntrypoint(module *ir.Module, fun *ir.Function, testFuncs []*ast.Func) 
 	fflush := module.NewFunction("fflush", &ir.Signature{Returns: ir.I32, Params: []ir.Type{ir.Pointer}}, []string{"file"})
 	fflush.Flags = ir.Declare
 
-	stdoutPtr := module.NewGlobalVar("stdout", ir.Pointer)
-	stdoutPtr.Flags = ir.External
-
 	// Entrypoint
 	emitter := ir.Emitter{Module: module}
 	emitter.Begin(fun.NewBlock("fun.entry"))
@@ -212,8 +209,7 @@ func testEntrypoint(module *ir.Module, fun *ir.Function, testFuncs []*ast.Func) 
 		char := emitter.Select(success, irCharOne, irCharZero)
 		emitter.Call(putchar.Signature, putchar, []ir.Value{char})
 
-		stdout := emitter.Load(ir.Pointer, stdoutPtr)
-		emitter.Call(fflush.Signature, fflush, []ir.Value{stdout})
+		emitter.Call(fflush.Signature, fflush, []ir.Value{&ir.Null{}})
 
 		failed := emitter.Load(ir.I32, failedPtr)
 		value := emitter.Select(success, irZero, irOne)

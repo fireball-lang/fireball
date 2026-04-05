@@ -6,7 +6,14 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            ext: ".exe"
+          - os: ubuntu-latest
+            ext: ""
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v6
@@ -15,27 +22,57 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: "src/go.mod"
-          cache-dependency-path: "src/go.mod"
+          cache-dependency-path: "src/go.sum"
 
       - name: Build
         run: |
           cd src
-          go build -o ../fireball ./cmd
+          go build -o ../fireball${{ matrix.ext }} ./cmd
 
       - name: Cache fireball
         uses: actions/cache/save@v4
         with:
-          path: fireball
+          path: fireball${{ matrix.ext }}
           key: ${{ runner.os }}-${{ github.sha }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v6
         with:
-          path: |
-            fireball
-            fireball.exe
+          path: fireball${{ matrix.ext }}
 
-  test:
+  test-windows:
+    runs-on: windows-latest
+    needs: build
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Download LLVM
+        uses: robinraju/release-downloader@v1
+        with:
+          repository: "c3lang/win-llvm"
+          tag: "llvm_21_1_8"
+          fileName: "llvm-21.1.8-windows-amd64-msvc17-libcmt.7z"
+
+      - name: Extract LLVM
+        run: 7z x llvm-21.1.8-windows-amd64-msvc17-libcmt.7z
+
+      - name: Add LLVM to path
+        shell: bash
+        run: echo "${{ github.workspace }}/llvm-21.1.8-windows-amd64-msvc17-libcmt/bin" >> $GITHUB_PATH
+
+      - name: Get fireball from cache
+        uses: actions/cache/restore@v4
+        with:
+          path: fireball.exe
+          key: ${{ runner.os }}-${{ github.sha }}
+
+      - name: Run tests
+        run: |
+          cd tests
+          ../fireball.exe test
+
+  test-linux:
     runs-on: ubuntu-latest
     needs: build
     steps:
