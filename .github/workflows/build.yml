@@ -38,6 +38,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v6
         with:
+          name: ${{ runner.os }}
           path: fireball${{ matrix.ext }}
 
   test-windows:
