@@ -21,7 +21,7 @@ type parser struct {
 	recoverFrames     []int
 }
 
-func Parse(reader io.Reader, path string) ([]ast.Decl, []core.Diagnostic) {
+func Parse(reader io.Reader, path string) (*ast.File, []core.Diagnostic) {
 	p := parser{
 		lexer: lexer.New(reader),
 		path:  path,
@@ -30,16 +30,17 @@ func Parse(reader io.Reader, path string) ([]ast.Decl, []core.Diagnostic) {
 	p.advance()
 	p.advance()
 
-	var decls []ast.Decl
+	file := p.parseFile()
+	setParent(file)
 
-	p.pushRecoverPoint(lexer.Hashtag, lexer.Struct, lexer.Func)
+	return file, p.diagnostics
+}
 
-	for p.current.Kind != lexer.EOF {
-		decl, _ := p.parseDecl()
-		decls = append(decls, decl)
+func setParent(node ast.Node) {
+	for child := range node.Children() {
+		child.SetParent(node)
+		setParent(child)
 	}
-
-	return decls, p.diagnostics
 }
 
 // Utils

@@ -27,6 +27,9 @@ const (
 	True
 	False
 
+	Mod
+	Import
+
 	Struct
 	Func
 
@@ -40,6 +43,8 @@ const (
 	Break
 	Continue
 
+	As
+
 	// Misc
 
 	Identifier
@@ -48,6 +53,7 @@ const (
 	DotDotDot
 	Comma
 	Colon
+	ColonColon
 	Semicolon
 	Hashtag
 

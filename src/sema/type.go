@@ -59,9 +59,8 @@ func (a *analyzer) VisitPointerType(p *ast.PointerType) {
 }
 
 func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) {
-	symbol, ok := a.scope.Get(i.Token.Text)
+	symbol, ok := a.GetSymbol(i.Path)
 	if !ok {
-		a.Error(i, "unknown type '%s'", i.Token.Text)
 		a.typ = types.Invalid
 		return
 	}
@@ -71,7 +70,7 @@ func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) {
 		a.typ = symbol.Type
 
 	case symbols.Func, symbols.Param, symbols.Var:
-		a.Error(i, "'%s' cannot be used as a type", i.Token.Text)
+		a.Error(i, "'%s' cannot be used as a type", i.Path.LastName())
 		a.typ = types.Invalid
 
 	default:

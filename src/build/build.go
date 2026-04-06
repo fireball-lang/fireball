@@ -41,7 +41,7 @@ func Build(proj *project.Project, target toolchain.Target, profile project.Profi
 
 	for _, file := range proj.Files {
 		name := getBuildFileName(file)
-		module := codegen.Generate(file.Decls, target.Arch, target.CallConv, file.ExprInfos, file.NodeTypes)
+		module := codegen.Generate(file.Ast, target.Arch, target.CallConv, file.ExprInfos, file.NodeTypes)
 		module.Path = file.Path
 
 		objFilePath, err := compileModule(target, profile, objPath, irPath, name, module)

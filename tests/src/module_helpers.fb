@@ -1,0 +1,21 @@
+mod tests::module_helpers;
+
+struct Vec2 {
+    x: i32,
+    y: i32,
+}
+
+func makeVec(x: i32, y: i32) Vec2 {
+    var v: Vec2;
+    v.x = x;
+    v.y = y;
+    return v;
+}
+
+func add(a: i32, b: i32) i32 {
+    return a + b;
+}
+
+func identity(v: Vec2) Vec2 {
+    return v;
+}

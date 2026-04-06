@@ -6,10 +6,12 @@ import (
 	"fireball/symbols"
 	"fireball/types"
 	"fmt"
+	"strings"
 )
 
 type ExprInfo struct {
 	Type    types.Type
+	Node    ast.Node
 	Address bool
 }
 
@@ -18,10 +20,11 @@ func (e ExprInfo) Invalid() bool {
 }
 
 type analyzer struct {
-	scope  *symbols.StackedScope
+	scope  *symbols.CombinedScope
 	locals *symbols.BlockScope
 
-	path string
+	topLevelModule string
+	path           string
 
 	exprInfos   map[ast.Expr]ExprInfo
 	nodeTypes   map[ast.Node]types.Type
@@ -31,36 +34,137 @@ type analyzer struct {
 	loop     int
 
 	typ     types.Type
+	node    ast.Node
 	address bool
 }
 
-func Analyze(decls []ast.Decl, sym []symbols.Symbol, scope symbols.Scope, path string) (map[ast.Expr]ExprInfo, map[ast.Node]types.Type, []core.Diagnostic) {
+func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, topLevelModule, path string) (map[ast.Expr]ExprInfo, map[ast.Node]types.Type, []core.Diagnostic) {
 	locals := &symbols.BlockScope{}
 
-	r := analyzer{
-		scope:     &symbols.StackedScope{Scopes: []symbols.Scope{scope, locals}},
-		locals:    locals,
-		path:      path,
-		exprInfos: make(map[ast.Expr]ExprInfo),
-		nodeTypes: make(map[ast.Node]types.Type),
+	a := analyzer{
+		scope:          nil,
+		locals:         locals,
+		topLevelModule: topLevelModule,
+		path:           path,
+		exprInfos:      make(map[ast.Expr]ExprInfo),
+		nodeTypes:      make(map[ast.Node]types.Type),
 	}
 
-	// Symbols
+	a.scope = &symbols.CombinedScope{Scopes: []symbols.Scope{
+		root,
+		a.GetImportsScope(root, file),
+		symbols.SymbolScope(fileSymbols),
+		locals,
+	}}
 
-	for i := 0; i < len(sym); i++ {
-		r.ResolveSymbol(&sym[i])
+	// Module
+
+	if len(file.Mod.Path.Entries) > 0 && file.Mod.Path.Entries[0].Token.Text != a.topLevelModule {
+		a.Error(file.Mod.Path.Entries[0], "top level module needs to match the project name")
 	}
 
 	// Declarations
 
-	for _, decl := range decls {
-		decl.VisitDecl(&r)
+	for _, decl := range file.Decls {
+		decl.VisitDecl(&a)
 	}
 
-	return r.exprInfos, r.nodeTypes, r.diagnostics
+	return a.exprInfos, a.nodeTypes, a.diagnostics
 }
 
 // Utils
+
+func (a *analyzer) GetImportsScope(root symbols.Scope, file *ast.File) symbols.Scope {
+	scope := symbols.NewBasicScope()
+
+	for _, i := range file.Imports {
+		// Get import scope
+		importScope, ok := getScope(root, i.Path.Entries)
+		if !ok {
+			a.Error(i.Path, "module '%s' cannot be found", i.Path)
+			continue
+		}
+
+		// Scope import
+		if len(i.Symbols) == 0 {
+			var name string
+			var errNode ast.Node
+
+			if i.Alias == nil {
+				name = i.Path.LastName()
+				errNode = i.Path.Entries[len(i.Path.Entries)-1]
+			} else {
+				name = i.Alias.Token.Text
+				errNode = i.Alias
+			}
+
+			if !scope.AddScope(name, importScope) {
+				a.Error(errNode, "module alias with the name '%s' already exists", name)
+			}
+
+			continue
+		}
+
+		// Symbols import
+		for _, name := range i.Symbols {
+			symbol, ok := importScope.GetSymbol(name.Token.Text)
+			if !ok {
+				a.Error(name, "symbol '%s' cannot be found", name.Token.Text)
+				continue
+			}
+
+			scope.AddSymbol(symbol)
+		}
+	}
+
+	return scope
+}
+
+func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
+	if len(path.Entries) == 0 {
+		return symbols.Symbol{}, false
+	}
+
+	// Get module scope
+	modulePath := path.Entries[:len(path.Entries)-1]
+	scope, ok := getScope(a.scope, modulePath)
+
+	if !ok {
+		sb := strings.Builder{}
+
+		for i, leaf := range modulePath {
+			if i > 0 {
+				sb.WriteString("::")
+			}
+			sb.WriteString(leaf.Token.Text)
+		}
+
+		a.Error(path, "module '%s' cannot be found", &sb)
+		return symbols.Symbol{}, false
+	}
+
+	// Get symbol
+	symbol, ok := scope.GetSymbol(path.Entries[len(path.Entries)-1].Token.Text)
+	if !ok {
+		entry := path.Entries[len(path.Entries)-1]
+		a.Error(entry, "symbol '%s' cannot be found", entry.Token.Text)
+	}
+
+	return symbol, ok
+}
+
+func getScope(scope symbols.Scope, path []*ast.Leaf) (symbols.Scope, bool) {
+	for _, entry := range path {
+		var ok bool
+		scope, ok = scope.GetScope(entry.Token.Text)
+
+		if !ok {
+			return nil, false
+		}
+	}
+
+	return scope, true
+}
 
 func (a *analyzer) ExpectPrimitiveClass(predicate func(kind types.PrimitiveKind) bool, className string, expr ExprInfo, node ast.Node) types.Type {
 	if expr.Invalid() {

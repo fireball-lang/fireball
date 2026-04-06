@@ -1,3 +1,5 @@
+mod tests::literals;
+
 #[test("binary literal")]
 func testBinLit() bool {
 	return 0b1010 == 10u;

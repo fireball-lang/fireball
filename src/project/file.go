@@ -12,22 +12,26 @@ import (
 )
 
 type File struct {
+	Proj *Project
 	Path string
 
-	Decls            []ast.Decl
+	Ast              *ast.File
 	parseDiagnostics []core.Diagnostic
 
 	Symbols []symbols.Symbol
+
+	resolveDiagnostics []core.Diagnostic
 
 	ExprInfos       map[ast.Expr]sema.ExprInfo
 	NodeTypes       map[ast.Node]types.Type
 	semaDiagnostics []core.Diagnostic
 }
 
-func newFile(path string) *File {
+func newFile(proj *Project, path string) *File {
 	return &File{
-		Path:  path,
-		Decls: nil,
+		Proj: proj,
+		Path: path,
+		Ast:  nil,
 	}
 }
 
@@ -40,17 +44,28 @@ func (f *File) parse() {
 	//goland:noinspection GoUnhandledErrorResult
 	defer file.Close()
 
-	f.Decls, f.parseDiagnostics = parser.Parse(file, f.Path)
-	f.Symbols = symbols.Collect(f.Decls)
+	f.Ast, f.parseDiagnostics = parser.Parse(file, f.Path)
+	f.Symbols = symbols.Collect(f.Ast)
+}
+
+func (f *File) resolve() {
+	root := rootScope{f.Proj.Module}
+	f.resolveDiagnostics = sema.ResolveSymbols(f.Ast, f.Symbols, &root, f.Path)
 }
 
 func (f *File) analyze() {
-	f.ExprInfos, f.NodeTypes, f.semaDiagnostics = sema.Analyze(f.Decls, f.Symbols, symbols.SimpleScope(f.Symbols), f.Path)
+	root := rootScope{f.Proj.Module}
+	f.ExprInfos, f.NodeTypes, f.semaDiagnostics = sema.Analyze(f.Ast, f.Symbols, &root, f.Proj.Config.Name, f.Path)
 }
 
 func (f *File) Diagnostics() iter.Seq[core.Diagnostic] {
 	return func(yield func(core.Diagnostic) bool) {
 		for _, diagnostic := range f.parseDiagnostics {
+			if !yield(diagnostic) {
+				return
+			}
+		}
+		for _, diagnostic := range f.resolveDiagnostics {
 			if !yield(diagnostic) {
 				return
 			}
@@ -61,4 +76,22 @@ func (f *File) Diagnostics() iter.Seq[core.Diagnostic] {
 			}
 		}
 	}
+}
+
+// rootScope
+
+type rootScope struct {
+	module *Module
+}
+
+func (r *rootScope) GetScope(name string) (symbols.Scope, bool) {
+	if r.module.Name == name {
+		return r.module, true
+	}
+
+	return nil, false
+}
+
+func (r *rootScope) GetSymbol(_ string) (symbols.Symbol, bool) {
+	return symbols.Symbol{}, false
 }

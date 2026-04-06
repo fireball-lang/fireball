@@ -37,6 +37,40 @@ func (p *parser) parseNameType() (n *ast.NameType, recoverId int) {
 	return
 }
 
+func (p *parser) parseIdentifierPath(stopAtLeftBrace bool) (i *ast.IdentifierPath, recoverId int) {
+	i = &ast.IdentifierPath{}
+	i.Range_.Start = p.current.Range.Start
+	defer func() {
+		i.Range_.End = p.previous.Range.End
+	}()
+
+	var entry *ast.Leaf
+
+	// First entry
+	entry, recoverId = p.parseLeaf()
+	i.Entries = append(i.Entries, entry)
+	if recoverId >= 0 {
+		return
+	}
+
+	// ('::' entry)*
+	for p.current.Kind == lexer.ColonColon && (!stopAtLeftBrace || p.next.Kind != lexer.LeftBrace) {
+		// '::'
+		if recoverId = p.expect(lexer.ColonColon, "expected '::' before identifier"); recoverId >= 0 {
+			return
+		}
+
+		// Entry
+		entry, recoverId = p.parseLeaf()
+		i.Entries = append(i.Entries, entry)
+		if recoverId >= 0 {
+			return
+		}
+	}
+
+	return
+}
+
 func (p *parser) parseLeaf() (l *ast.Leaf, recoverId int) {
 	l = &ast.Leaf{}
 

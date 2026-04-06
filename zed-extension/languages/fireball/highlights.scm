@@ -1,5 +1,8 @@
 ; Keywords
 
+"mod" @keyword
+"import" @keyword
+
 "struct" @keyword
 "func" @keyword.function
 
@@ -13,7 +16,17 @@
 "break" @keyword.control
 "continue" @keyword.control
 
+"as" @keyword
+
 ; Attributes
+
+(mod path: (identifier_path (identifier) @namespace))
+
+(import path: (identifier) @namespace)
+(import name: (identifier) @namespace)
+
+(import symbol: (identifier) @variable)
+((import symbol: (identifier) @type) (#match? @type "^[A-Z]"))
 
 (attribute_group "#" @punctuation.special)
 (attribute name: (identifier) @attribute)
@@ -28,7 +41,7 @@
 
 ; Expressions
 
-(call_expr callee: (identifier) @function.call)
+(call_expr callee: (identifier_path) @function.call)
 (call_expr callee: (member_expr name: (identifier) @function.method.call))
 
 (member_expr name: (identifier) @property)
@@ -50,6 +63,8 @@
 
 "..." @punctuation.special
 
+"::" @punctuation.delimiter
+
 ; Types
 
 (primitive_type) @type.builtin
@@ -58,7 +73,8 @@
 
 (pointer_type "*" @punctuation.special)
 
-(identifier_type (identifier) @type)
+(identifier_type (identifier_path (identifier) @type))
+(identifier_path (identifier) @namespace . "::")
 
 ; Literals
 

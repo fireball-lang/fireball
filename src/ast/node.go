@@ -7,6 +7,8 @@ import (
 
 type Node interface {
 	Parent() Node
+	SetParent(parent Node)
+
 	Children() iter.Seq[Node]
 
 	Range() core.Range
@@ -15,12 +17,16 @@ type Node interface {
 // baseNode
 
 type baseNode struct {
-	Parent_ Node
-	Range_  core.Range
+	parent Node
+	Range_ core.Range
 }
 
 func (b *baseNode) Parent() Node {
-	return b.Parent_
+	return b.parent
+}
+
+func (b *baseNode) SetParent(parent Node) {
+	b.parent = parent
 }
 
 func (b *baseNode) Range() core.Range {
@@ -30,11 +36,15 @@ func (b *baseNode) Range() core.Range {
 // baseLeafNode
 
 type baseLeafNode struct {
-	Parent_ Node
+	parent Node
 }
 
 func (b *baseLeafNode) Parent() Node {
-	return b.Parent_
+	return b.parent
+}
+
+func (b *baseLeafNode) SetParent(parent Node) {
+	b.parent = parent
 }
 
 func (b *baseLeafNode) Children() iter.Seq[Node] {

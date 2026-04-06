@@ -1,3 +1,5 @@
+mod tests::booleans;
+
 #[test("and true")]
 func testAndTrue() bool {
 	return true && true;

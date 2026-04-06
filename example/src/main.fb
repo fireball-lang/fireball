@@ -1,25 +1,17 @@
-struct Point {
-	x: i32,
-	y: i32,
-}
+mod example;
 
-func get() Point {
-	var p: Point;
-	p.x = 5;
-	p.y = 5 * 3;
-
-	return p;
-}
-
-func print(p: Point) {
-	printf("X: %d, Y: %d\n", p.x, p.y);
-}
+import example::math::{get};
+import example::math;
 
 func main() i32 {
 	var p = get();
 	print(p);
 
 	return p.y;
+}
+
+func print(p: math::Point) {
+	printf("X: %d, Y: %d\n", p.x, p.y);
 }
 
 func printf(format: *u8, ...) void

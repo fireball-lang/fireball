@@ -1,3 +1,5 @@
+mod tests::arrays;
+
 #[test("array zero init")]
 func testArrayZero() bool {
     var arr: [5]i32;

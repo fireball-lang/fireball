@@ -1,7 +1,6 @@
 package ast
 
 import (
-	"fireball/core"
 	"fireball/lexer"
 	"fireball/types"
 	"iter"
@@ -78,13 +77,17 @@ func (p *PointerType) VisitType(visitor TypeVisitor) {
 // Identifier
 
 type IdentifierType struct {
-	baseLeafNode
+	baseNode
 
-	Token lexer.Token
+	Path *IdentifierPath
 }
 
-func (i *IdentifierType) Range() core.Range {
-	return i.Token.Range
+func (i *IdentifierType) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(i.Path) {
+			return
+		}
+	}
 }
 
 func (i *IdentifierType) VisitType(visitor TypeVisitor) {

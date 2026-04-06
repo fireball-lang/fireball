@@ -78,7 +78,7 @@ func (l *Lexer) Next() Token {
 	case ',':
 		return l.make(Comma)
 	case ':':
-		return l.make(Colon)
+		return l.makeMatch(':', Colon, ColonColon)
 	case ';':
 		return l.make(Semicolon)
 	case '#':
@@ -313,6 +313,11 @@ func (l *Lexer) keywordIdentifier() Token {
 	case "false":
 		token.Kind = False
 
+	case "mod":
+		token.Kind = Mod
+	case "import":
+		token.Kind = Import
+
 	case "struct":
 		token.Kind = Struct
 	case "func":
@@ -335,6 +340,9 @@ func (l *Lexer) keywordIdentifier() Token {
 		token.Kind = Break
 	case "continue":
 		token.Kind = Continue
+
+	case "as":
+		token.Kind = As
 	}
 
 	return token

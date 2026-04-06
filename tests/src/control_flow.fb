@@ -1,3 +1,5 @@
+mod tests::control_flow;
+
 #[test("if true branch")]
 func testIfTrue() bool {
     var result = false;

@@ -220,7 +220,19 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 }
 
 func (c *codegen) VisitIdentifier(i *ast.Identifier) {
-	c.value = c.scope.Get(i.Token.Text)
+	switch node := c.exprInfos[i].Node.(type) {
+	case *ast.Func:
+		c.value = c.GetFunction(node)
+
+	case *ast.NameType:
+		c.value = c.scope.Get(node.Name.Token.Text)
+
+	case *ast.Var:
+		c.value = c.scope.Get(node.Name.Token.Text)
+
+	default:
+		panic("codegen.codegen.VisitIdentifier() - Invalid node")
+	}
 }
 
 func (c *codegen) VisitIndex(i *ast.Index) {

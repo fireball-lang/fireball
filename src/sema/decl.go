@@ -32,7 +32,7 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 	}
 
 	// Type
-	symbol, _ := a.scope.Get(s.Name())
+	symbol, _ := a.scope.GetSymbol(s.Name())
 
 	typ := symbol.Type.(*types.Struct)
 	a.nodeTypes[s] = typ
@@ -100,7 +100,7 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	}
 
 	// Type
-	symbol, _ := a.scope.Get(f.Name())
+	symbol, _ := a.scope.GetSymbol(f.Name())
 
 	typ := symbol.Type.(*types.Func)
 	a.nodeTypes[f] = typ

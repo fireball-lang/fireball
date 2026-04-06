@@ -1,3 +1,5 @@
+mod tests::variables;
+
 #[test("var zero init")]
 func testVarZeroInit() bool {
     var x: i32;

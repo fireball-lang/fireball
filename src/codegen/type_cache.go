@@ -111,5 +111,5 @@ func (t *TypeCache) createStructType(typ *types.Struct) ir.Type {
 		Fields: fields,
 	}
 
-	return t.Module.NamedStruct("struct."+typ.Name, irTyp)
+	return t.Module.NamedStruct(typ.Name, irTyp)
 }

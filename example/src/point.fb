@@ -1,0 +1,14 @@
+mod example::math;
+
+struct Point {
+	x: i32,
+	y: i32,
+}
+
+func get() Point {
+	var p: Point;
+	p.x = 5;
+	p.y = 5 * 3;
+
+	return p;
+}

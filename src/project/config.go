@@ -23,7 +23,7 @@ type Config struct {
 	Profiles map[string]Profile `toml:"profile"`
 }
 
-var nameRegex = regexp.MustCompile("^[a-zA-Z0-9_-]+$")
+var nameRegex = regexp.MustCompile("^[a-zA-Z_-][a-zA-Z0-9_-]*$")
 
 func readConfig(path string) (Config, error) {
 	file, err := os.Open(path)

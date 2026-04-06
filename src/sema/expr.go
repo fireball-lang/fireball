@@ -197,12 +197,14 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 }
 
 func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
-	symbol, ok := a.scope.Get(i.Token.Text)
+	symbol, ok := a.GetSymbol(i.Path)
 	if !ok {
-		a.Error(i, "symbol '%s' not found", i.Token.Text)
 		a.typ = types.Invalid
 		return
 	}
+
+	a.nodeTypes[symbol.Node] = symbol.Type
+	a.node = symbol.Node
 
 	switch symbol.Kind {
 	case symbols.Param, symbols.Var:
@@ -213,7 +215,7 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
 		a.typ = symbol.Type
 
 	case symbols.Struct:
-		a.Error(i, "symbol '%s' is a type and cannot be used as an expression", i.Token.Text)
+		a.Error(i, "symbol '%s' is a type and cannot be used as an expression", i.Path.LastName())
 		a.typ = types.Invalid
 
 	default:
@@ -317,10 +319,11 @@ func (a *analyzer) AnalyzeExpr(expr ast.Expr) ExprInfo {
 		panic("sema.analyzer.AnalyzeExpr() - Expression type is nil")
 	}
 
-	info := ExprInfo{a.typ, a.address}
+	info := ExprInfo{a.typ, a.node, a.address}
 	a.exprInfos[expr] = info
 
 	a.typ = nil
+	a.node = nil
 	a.address = false
 
 	return info

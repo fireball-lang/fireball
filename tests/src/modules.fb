@@ -1,0 +1,62 @@
+mod tests::modules;
+
+// symbol import: bring `add` and `Vec2` directly into scope
+import tests::module_helpers::{add, Vec2};
+
+// scope import: use helpers::makeVec / helpers::identity
+import tests::module_helpers;
+
+// alias import: same module under a shorter name
+import tests::module_helpers as h;
+
+// --- symbol import tests ---
+
+#[test("cross-module symbol import: function")]
+func testImportFunc() bool {
+    return add(3, 4) == 7;
+}
+
+#[test("cross-module symbol import: type")]
+func testImportType() bool {
+    var v: Vec2;
+    v.x = 10;
+    v.y = 20;
+    return v.x == 10 && v.y == 20;
+}
+
+// --- scope import tests ---
+
+#[test("cross-module scope import: function call")]
+func testScopeFunc() bool {
+    var v = module_helpers::makeVec(5, 6);
+    return v.x == 5 && v.y == 6;
+}
+
+#[test("cross-module scope import: type usage")]
+func testScopeType() bool {
+    var v: module_helpers::Vec2;
+    v.x = 99;
+    return v.x == 99;
+}
+
+#[test("cross-module scope import: pass struct across modules")]
+func testPassStruct() bool {
+    var v = module_helpers::makeVec(3, 7);
+    var r = module_helpers::identity(v);
+    return r.x == 3 && r.y == 7;
+}
+
+// --- alias import tests ---
+
+#[test("cross-module alias import: function call")]
+func testAliasFunc() bool {
+    var v = h::makeVec(1, 2);
+    return v.x == 1 && v.y == 2;
+}
+
+#[test("cross-module alias import: type usage")]
+func testAliasType() bool {
+    var v: h::Vec2;
+    v.x = 42;
+    return v.x == 42;
+}

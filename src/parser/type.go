@@ -54,8 +54,13 @@ func (p *parser) parseIdentifierType() (ast.Type, int) {
 
 	default:
 		i := &ast.IdentifierType{}
-		i.Token = p.advance()
-		return i, -1
+		recoverId := -1
+
+		if i.Path, recoverId = p.parseIdentifierPath(false); recoverId >= 0 {
+			return i, recoverId
+		}
+
+		return i, recoverId
 	}
 }
 

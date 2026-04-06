@@ -280,9 +280,13 @@ func (p *parser) parsePrefix(rightPower int) (u *ast.Prefix, recoverId int) {
 
 func (p *parser) parseIdentifier() (i *ast.Identifier, recoverId int) {
 	i = &ast.Identifier{}
-	i.Token = p.advance()
 
 	recoverId = -1
+
+	// Path
+	if i.Path, recoverId = p.parseIdentifierPath(false); recoverId >= 0 {
+		return
+	}
 
 	return
 }

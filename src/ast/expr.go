@@ -192,13 +192,17 @@ func (b *Binary) VisitExpr(visitor ExprVisitor) {
 // Identifier
 
 type Identifier struct {
-	baseLeafNode
+	baseNode
 
-	Token lexer.Token
+	Path *IdentifierPath
 }
 
-func (i *Identifier) Range() core.Range {
-	return i.Token.Range
+func (i *Identifier) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(i.Path) {
+			return
+		}
+	}
 }
 
 func (i *Identifier) VisitExpr(visitor ExprVisitor) {

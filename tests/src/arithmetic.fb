@@ -1,3 +1,5 @@
+mod tests::arithmetic;
+
 #[test("add")]
 func testAdd() bool {
 	return 2 + 3 == 5;

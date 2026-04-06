@@ -1,3 +1,5 @@
+mod tests::bitwise;
+
 #[test("bitwise or")]
 func testBitOr() bool {
 	return (0b1010 | 0b0101) == 0b1111;

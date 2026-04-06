@@ -116,7 +116,15 @@ func (w *testWriter) Write(p []byte) (n int, err error) {
 			w.successful++
 		} else {
 			_, _ = color.New(color.FgRed, color.Bold).Print("FAILED ")
-			_, _ = color.New(color.FgWhite, color.Bold).Println(f.GetTestName())
+
+			file := ast.GetFile(f)
+
+			for _, entry := range file.Mod.Path.Entries {
+				_, _ = color.New(color.FgWhite).Print(entry.Token.Text)
+				_, _ = color.New(color.FgWhite).Print("::")
+			}
+
+			_, _ = color.New(color.Bold).Println(f.GetTestName())
 		}
 	}
 
@@ -127,7 +135,7 @@ func getTestFuncs(proj *project.Project) []*ast.Func {
 	var tests []*ast.Func
 
 	for _, file := range proj.Files {
-		for _, decl := range file.Decls {
+		for _, decl := range file.Ast.Decls {
 			if f, ok := decl.(*ast.Func); ok && f.GetTestName() != "" {
 				tests = append(tests, f)
 			}

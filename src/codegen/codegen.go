@@ -7,6 +7,7 @@ import (
 	"fireball/ir"
 	"fireball/sema"
 	"fireball/types"
+	"strings"
 )
 
 type codegen struct {
@@ -33,7 +34,7 @@ type codegen struct {
 	value ir.Value
 }
 
-func Generate(decls []ast.Decl, arch abi.Arch, callConv abi.CallConv, exprInfos map[ast.Expr]sema.ExprInfo, nodeTypes map[ast.Node]types.Type) *ir.Module {
+func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos map[ast.Expr]sema.ExprInfo, nodeTypes map[ast.Node]types.Type) *ir.Module {
 	module := ir.NewModule()
 
 	c := codegen{
@@ -50,13 +51,13 @@ func Generate(decls []ast.Decl, arch abi.Arch, callConv abi.CallConv, exprInfos 
 
 	c.scope.Push()
 
-	for _, decl := range decls {
+	for _, decl := range file.Decls {
 		if f, ok := decl.(*ast.Func); ok {
 			c.scope.Add(decl.Name(), c.CreateFunction(f))
 		}
 	}
 
-	for _, decl := range decls {
+	for _, decl := range file.Decls {
 		if f, ok := decl.(*ast.Func); ok {
 			c.VisitFunc(f)
 		}
@@ -72,10 +73,39 @@ func FuncLinkName(f *ast.Func) string {
 		return f.Name()
 	}
 
-	return "fb$" + f.Name()
+	file := ast.GetFile(f)
+
+	sb := strings.Builder{}
+	sb.WriteString("fb$")
+
+	for _, entry := range file.Mod.Path.Entries {
+		sb.WriteString(entry.Token.Text)
+		sb.WriteString("::")
+	}
+
+	sb.WriteString(f.Name())
+
+	return sb.String()
 }
 
 // Utils
+
+func (c *codegen) GetFunction(f *ast.Func) *ir.Function {
+	// Check already existing functions
+	name := FuncLinkName(f)
+
+	for fun := range c.module.Functions() {
+		if fun.Name == name {
+			return fun
+		}
+	}
+
+	// Create extern function
+	fun := c.CreateFunction(f)
+	fun.Flags = ir.Declare
+
+	return fun
+}
 
 func (c *codegen) BitCast(value ir.Value, typ ir.Type) ir.Value {
 	if value.Type() == typ {
