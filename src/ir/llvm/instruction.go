@@ -234,7 +234,7 @@ func (w *writer) instruction(in ir.Instruction) {
 		w.string("call ")
 		w.typ(in.Signature.Returns)
 
-		if _, direct := in.Callee.(*ir.Function); !direct {
+		if _, direct := in.Callee.(*ir.Function); !direct || in.Signature.VarArgs {
 			w.string(" (")
 
 			for i, param := range in.Signature.Params {
@@ -264,7 +264,17 @@ func (w *writer) instruction(in ir.Instruction) {
 				w.string(", ")
 			}
 
-			w.typValue(arg)
+			w.typ(arg.Type())
+
+			if i == 0 && !core.IsNil(in.Signature.SRet) {
+				w.string(" sret(")
+				w.typ(in.Signature.SRet)
+				w.string(") ")
+			} else {
+				w.rune(' ')
+			}
+
+			w.value(arg)
 		}
 
 		w.rune(')')

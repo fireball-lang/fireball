@@ -242,6 +242,12 @@ func (w *writer) function(fun *ir.Function) error {
 
 		w.typ(param)
 
+		if i == 0 && !core.IsNil(fun.Signature.SRet) {
+			w.string(" sret(")
+			w.typ(fun.Signature.SRet)
+			w.rune(')')
+		}
+
 		if len(fun.ParamNames) > 0 {
 			w.string(" %")
 			w.string(fun.ParamNames[i])

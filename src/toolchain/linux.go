@@ -24,7 +24,7 @@ var linuxLibcFiles = []string{
 	"libm.a",
 }
 
-func getTargetLinuxAmd64() Target {
+func getTargetLinuxAmd64() (Target, error) {
 	return Target{
 		Name:                    "linux-amd64",
 		DataLayout:              "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
@@ -33,7 +33,8 @@ func getTargetLinuxAmd64() Target {
 		CallConv:                abi.SystemV,
 		ObjectFileExtension:     ".o",
 		ExecutableFileExtension: "",
-	}
+		AdditionalLinkArgs:      nil,
+	}, nil
 }
 
 func findLibcLinux() (LibC, error) {

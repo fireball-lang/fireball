@@ -16,6 +16,8 @@ const (
 
 type Signature struct {
 	Returns Type
+	SRet    Type
+
 	Params  []Type
 	VarArgs bool
 }

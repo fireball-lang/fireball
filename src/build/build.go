@@ -95,7 +95,7 @@ func Build(proj *project.Project, target toolchain.Target, profile project.Profi
 		libc = new(lib)
 	}
 
-	if err := toolchain.Link(objFilePaths, exeFilePath, profile.Opt, libc); err != nil {
+	if err := toolchain.Link(objFilePaths, exeFilePath, profile.Opt, target, libc); err != nil {
 		return "", err
 	}
 

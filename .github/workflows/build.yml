@@ -13,6 +13,8 @@ jobs:
             ext: ".exe"
           - os: ubuntu-latest
             ext: ""
+          - os: macos-latest
+            ext: ""
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repo
@@ -89,6 +91,32 @@ jobs:
         uses: KyleMayes/install-llvm-action@v2
         with:
           version: "21.1.8"
+
+      - name: Get fireball from cache
+        uses: actions/cache/restore@v4
+        with:
+          path: fireball
+          key: ${{ runner.os }}-${{ github.sha }}
+
+      - name: Run tests
+        run: |
+          cd tests
+          ../fireball test
+
+  test-macos:
+    runs-on: macos-latest
+    needs: build
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Install LLVM
+        run: |
+          brew update
+          brew install llvm lld
+
+      - name: Add LLVM to PATH
+        run: echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
 
       - name: Get fireball from cache
         uses: actions/cache/restore@v4

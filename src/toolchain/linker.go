@@ -4,14 +4,22 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"strings"
 )
 
-func Link(inputs []string, output string, opt uint8, libc *LibC) error {
-	cmd := exec.Command("ld.lld", "-o", output)
+func Link(inputs []string, output string, opt uint8, target Target, libc *LibC) error {
+	lld := "ld.lld"
+	if strings.Contains(target.Name, "darwin") {
+		lld = "ld64.lld"
+	}
+
+	cmd := exec.Command(lld, "-o", output)
 
 	//cmd.Args = append(cmd.Args, "--lto=thin")
 	cmd.Args = append(cmd.Args, fmt.Sprintf("--lto-O%d", opt))
 	cmd.Args = append(cmd.Args, fmt.Sprintf("--lto-CGO%d", opt))
+
+	cmd.Args = append(cmd.Args, target.AdditionalLinkArgs...)
 
 	if libc != nil {
 		cmd.Args = append(cmd.Args, libc.AdditionalLinkArgs...)

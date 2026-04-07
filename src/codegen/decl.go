@@ -111,6 +111,8 @@ func (c *codegen) CreateFunction(f *ast.Func) *ir.Function {
 
 		if len(classes) == 1 && classes[0] == abi.Memory {
 			sig.Returns = ir.Void
+			sig.SRet = c.types.Get(typ.Returns)
+
 			sig.Params = slices.Insert(sig.Params, 0, ir.Type(ir.Pointer))
 			paramNames = slices.Insert(paramNames, 0, "sret")
 		} else {
