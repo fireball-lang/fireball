@@ -11,7 +11,8 @@ func main() i32 {
 }
 
 func print(p: math::Point) {
-	printf("X: %d, Y: %d\n", p.x, p.y);
+	print_format("X: %d, Y: %d\n", p.x, p.y);
 }
 
-func printf(format: *u8, ...) void
+#[extern, link_name("printf")]
+func print_format(format: *u8, ...) void

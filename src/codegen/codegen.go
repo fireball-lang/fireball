@@ -3,7 +3,6 @@ package codegen
 import (
 	"fireball/abi"
 	"fireball/ast"
-	"fireball/core"
 	"fireball/ir"
 	"fireball/sema"
 	"fireball/types"
@@ -69,10 +68,23 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 }
 
 func FuncLinkName(f *ast.Func) string {
-	if core.IsNil(f.Body) {
+	linkName := f.GetLinkName()
+
+	// Extern
+	if f.IsExtern() {
+		if linkName != "" {
+			return linkName
+		}
+
 		return f.Name()
 	}
 
+	// Custom link name
+	if linkName != "" {
+		return linkName
+	}
+
+	// Normal
 	file := ast.GetFile(f)
 
 	sb := strings.Builder{}

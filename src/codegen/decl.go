@@ -121,7 +121,7 @@ func (c *codegen) CreateFunction(f *ast.Func) *ir.Function {
 	// Function
 	fun := c.module.NewFunction(FuncLinkName(f), sig, paramNames)
 
-	if core.IsNil(f.Body) {
+	if f.IsExtern() {
 		fun.Flags = ir.Declare
 	} else {
 		fun.Flags = ir.DsoLocal

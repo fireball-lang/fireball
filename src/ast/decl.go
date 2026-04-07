@@ -147,6 +147,34 @@ func (f *Func) GetTestName() string {
 	return ""
 }
 
+func (f *Func) IsExtern() bool {
+	for _, attribute := range f.Attributes {
+		if attribute.Name.Token.Text == "extern" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (f *Func) GetLinkName() string {
+	for _, attribute := range f.Attributes {
+		if attribute.Name.Token.Text == "link_name" {
+			name := ""
+
+			if len(attribute.Arguments) > 0 {
+				if s, ok := attribute.Arguments[0].(*String); ok {
+					name = string(s.Runes)
+				}
+			}
+
+			return name
+		}
+	}
+
+	return ""
+}
+
 // Bad
 
 type BadDecl struct {

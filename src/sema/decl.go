@@ -63,6 +63,7 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	attributes := make(map[string]any)
 
 	test := false
+	extern := false
 
 	for _, attribute := range f.Attributes {
 		name := attribute.Name.Token.Text
@@ -81,7 +82,29 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 			test = true
 
 			if len(attribute.Arguments) > 1 {
-				a.Error(attribute.Name, "too many attribute arguments")
+				a.Error(attribute.Name, "too many attribute arguments for 'test' attribute")
+			}
+
+			if len(attribute.Arguments) == 1 {
+				arg := attribute.Arguments[0]
+
+				if _, ok := arg.(*ast.String); !ok {
+					if _, ok := arg.(*ast.BadExpr); !ok {
+						a.Error(arg, "expected a string")
+					}
+				}
+			}
+
+		case "extern":
+			extern = true
+
+			if len(attribute.Arguments) > 0 {
+				a.Error(attribute.Name, "too many attribute arguments for 'extern' attribute")
+			}
+
+		case "link_name":
+			if len(attribute.Arguments) != 1 {
+				a.Error(attribute.Name, "'link_name' attribute needs 1 argument, got %d", len(attribute.Arguments))
 			}
 
 			if len(attribute.Arguments) == 1 {
@@ -126,6 +149,16 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	}
 
 	// Body
+	if extern {
+		if !core.IsNil(f.Body) {
+			a.Error(f.Body, "extern functions cannot have a body")
+		}
+	} else {
+		if core.IsNil(f.Body) {
+			a.Error(f.Name_, "non-extern functions need to have a body")
+		}
+	}
+
 	a.locals.Push()
 
 	for i, param := range f.Params {
