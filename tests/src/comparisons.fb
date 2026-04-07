@@ -24,3 +24,23 @@ func testGe() bool {
 func testBoolEq() bool {
 	return true == true && false == false;
 }
+
+#[test("mixed size less than")]
+func testMixedLt() bool {
+	return 5 < 300;
+}
+
+#[test("mixed size greater than")]
+func testMixedGt() bool {
+	return 300 > 5;
+}
+
+#[test("mixed size equal")]
+func testMixedEq() bool {
+	return 300 == 300;
+}
+
+#[test("mixed size not equal")]
+func testMixedNe() bool {
+	return 5 != 300;
+}

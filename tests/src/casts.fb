@@ -1,0 +1,228 @@
+mod tests::casts;
+
+// Helper functions to test implicit casts in argument / return contexts
+
+func takeI32(x: i32) i32 { return x; }
+func takeI64(x: i64) i64 { return x; }
+func takeU64(x: u64) u64 { return x; }
+func takeF32(x: f32) f32 { return x; }
+func takeF64(x: f64) f64 { return x; }
+
+func retI32() i32 { return 5; }
+func retI64() i64 { return 5; }
+func retF64() f64 { return 1.0f; }
+
+// --- Implicit casts: var initializer ---
+
+#[test("implicit: i8 -> i32 (var)")]
+func testImplicitI8ToI32Var() bool {
+    var x: i32 = 5;
+    return x == 5;
+}
+
+#[test("implicit: i8 -> i64 (var)")]
+func testImplicitI8ToI64Var() bool {
+    var x: i64 = 5;
+    return x == 5;
+}
+
+#[test("implicit: u8 -> u64 (var)")]
+func testImplicitU8ToU64Var() bool {
+    var x: u64 = 5u;
+    return x == 5u;
+}
+
+#[test("implicit: i8 -> f32 (var)")]
+func testImplicitI8ToF32Var() bool {
+    var x: f32 = 5;
+    return x == 5.0f;
+}
+
+#[test("implicit: i8 -> f64 (var)")]
+func testImplicitI8ToF64Var() bool {
+    var x: f64 = 5;
+    return x == 5.0;
+}
+
+#[test("implicit: f32 -> f64 (var)")]
+func testImplicitF32ToF64Var() bool {
+    var x: f64 = 1.0f;
+    return x == 1.0;
+}
+
+// --- Implicit casts: assignment ---
+
+#[test("implicit: i8 -> i32 (assign)")]
+func testImplicitI8ToI32Assign() bool {
+    var x: i32 = 0;
+    x = 5;
+    return x == 5;
+}
+
+#[test("implicit: f32 -> f64 (assign)")]
+func testImplicitF32ToF64Assign() bool {
+    var x: f64 = 0.0;
+    x = 1.0f;
+    return x == 1.0;
+}
+
+// --- Implicit casts: function arguments ---
+
+#[test("implicit: i8 -> i64 (arg)")]
+func testImplicitI8ToI64Arg() bool {
+    return takeI64(5) == 5;
+}
+
+#[test("implicit: i16 -> i64 (arg)")]
+func testImplicitI16ToI64Arg() bool {
+    return takeI64(1000) == 1000;
+}
+
+#[test("implicit: u8 -> u64 (arg)")]
+func testImplicitU8ToU64Arg() bool {
+    return takeU64(200u) == 200u;
+}
+
+#[test("implicit: i8 -> f64 (arg)")]
+func testImplicitI8ToF64Arg() bool {
+    return takeF64(5) == 5.0;
+}
+
+#[test("implicit: f32 -> f64 (arg)")]
+func testImplicitF32ToF64Arg() bool {
+    return takeF64(1.0f) == 1.0;
+}
+
+// --- Implicit casts: return values ---
+
+#[test("implicit: i8 -> i32 (return)")]
+func testImplicitI8ToI32Ret() bool {
+    return retI32() == 5;
+}
+
+#[test("implicit: i8 -> i64 (return)")]
+func testImplicitI8ToI64Ret() bool {
+    return retI64() == 5;
+}
+
+#[test("implicit: f32 -> f64 (return)")]
+func testImplicitF32ToF64Ret() bool {
+    return retF64() == 1.0;
+}
+
+// --- Implicit casts: i16 -> f32 ---
+
+#[test("implicit: i16 -> f32 (var)")]
+func testImplicitI16ToF32Var() bool {
+    var x: f32 = 1000;
+    return x == 1000.0f;
+}
+
+#[test("implicit: i16 -> f32 (assign)")]
+func testImplicitI16ToF32Assign() bool {
+    var x: f32 = 0.0f;
+    x = 1000;
+    return x == 1000.0f;
+}
+
+#[test("implicit: i16 -> f32 (arg)")]
+func testImplicitI16ToF32Arg() bool {
+    return takeF32(1000) == 1000.0f;
+}
+
+// --- Implicit casts: i32 -> f64 ---
+
+#[test("implicit: i32 -> f64 (var)")]
+func testImplicitI32ToF64Var() bool {
+    var x: f64 = 100000;
+    return x == 100000.0;
+}
+
+#[test("implicit: i32 -> f64 (assign)")]
+func testImplicitI32ToF64Assign() bool {
+    var x: f64 = 0.0;
+    x = 100000;
+    return x == 100000.0;
+}
+
+#[test("implicit: i32 -> f64 (arg)")]
+func testImplicitI32ToF64Arg() bool {
+    return takeF64(100000) == 100000.0;
+}
+
+// --- Implicit casts: u32 -> f64 ---
+
+#[test("implicit: u32 -> f64 (var)")]
+func testImplicitU32ToF64Var() bool {
+    var x: f64 = 100000u;
+    return x == 100000.0;
+}
+
+#[test("implicit: u32 -> f64 (arg)")]
+func testImplicitU32ToF64Arg() bool {
+    return takeF64(100000u) == 100000.0;
+}
+
+// --- Explicit casts ---
+
+#[test("explicit: widen i8 -> i64")]
+func testExplicitWiden() bool {
+    return 5 as i64 == 5;
+}
+
+#[test("explicit: truncate i16 -> i8")]
+func testExplicitTruncate() bool {
+    return 300 as i8 == 44;
+}
+
+#[test("explicit: reinterpret i8 -> u8")]
+func testExplicitReinterpret() bool {
+    return -1 as u8 == 255u;
+}
+
+#[test("explicit: int -> f32")]
+func testExplicitIntToF32() bool {
+    return 5 as f32 == 5.0f;
+}
+
+#[test("explicit: int -> f64")]
+func testExplicitIntToF64() bool {
+    return 3 as f64 == 3.0;
+}
+
+#[test("explicit: f64 -> i32 (truncate toward zero)")]
+func testExplicitF64ToI32() bool {
+    return 3.7 as i32 == 3;
+}
+
+#[test("explicit: f64 -> i32 (negative)")]
+func testExplicitF64ToI32Neg() bool {
+    return -3.7 as i32 == -3;
+}
+
+#[test("explicit: f32 -> f64")]
+func testExplicitF32ToF64() bool {
+    return 1.0f as f64 == 1.0;
+}
+
+#[test("explicit: f64 -> f32")]
+func testExplicitF64ToF32() bool {
+    return 3.0 as f32 == 3.0f;
+}
+
+// --- Explicit casts: cases that require 'as' (same-size, would lose precision) ---
+
+#[test("explicit: i32 -> f32 (same size, requires as)")]
+func testExplicitI32ToF32() bool {
+    return 100000 as f32 == 100000.0f;
+}
+
+#[test("explicit: i32 -> f32 (arg, requires as)")]
+func testExplicitI32ToF32Arg() bool {
+    return takeF32(100000 as f32) == 100000.0f;
+}
+
+#[test("explicit: i64 -> f64 (same size, requires as)")]
+func testExplicitI64ToF64() bool {
+    return 5000000000 as f64 == 5000000000.0;
+}

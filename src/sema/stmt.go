@@ -34,9 +34,13 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 		init := a.AnalyzeExpr(v.Initializer)
 
 		if core.IsNil(typ) {
-			typ = init.Type
-		} else if typ != types.Invalid && !init.Invalid() && !typ.Equals(init.Type) {
-			a.Error(v.Initializer, "expected '%s', got '%s'", typ, init.Type)
+			if isLiteralExpr(v.Initializer) {
+				typ = defaultType(init.Type)
+			} else {
+				typ = init.Type
+			}
+		} else {
+			a.ExpectType(typ, init, v.Initializer)
 		}
 	}
 

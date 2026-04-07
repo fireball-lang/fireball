@@ -280,6 +280,10 @@ func (p *parser) parsePrefix(rightPower int) (u *ast.Prefix, recoverId int) {
 
 func (p *parser) parseIdentifier() (i *ast.Identifier, recoverId int) {
 	i = &ast.Identifier{}
+	i.Range_.Start = p.current.Range.Start
+	defer func() {
+		i.Range_.End = p.previous.Range.End
+	}()
 
 	recoverId = -1
 
@@ -297,6 +301,8 @@ func (p *parser) parseInfixExpr(left ast.Expr, rightPower int) (ast.Expr, int) {
 	switch p.current.Kind {
 	case lexer.Dot:
 		return p.parseMember(left, rightPower)
+	case lexer.As:
+		return p.parseCast(left, rightPower)
 
 	default:
 		return p.parseBinary(left, rightPower)
@@ -385,6 +391,29 @@ func (p *parser) parseMember(left ast.Expr, _ int) (m *ast.Member, recoverId int
 
 	// Name
 	if m.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseCast(left ast.Expr, _ int) (c *ast.Cast, recoverId int) {
+	c = &ast.Cast{}
+	c.Range_.Start = left.Range().Start
+	c.Expr = left
+	defer func() {
+		c.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'as'
+	if recoverId = p.expect(lexer.As, "expected 'as' before target type"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if c.Type, recoverId = p.parseType(); recoverId >= 0 {
 		return
 	}
 
@@ -529,6 +558,8 @@ func init() {
 	infix(false, lexer.EqualEqual, lexer.BangEqual)
 	// >, <=, >, >=
 	infix(false, lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual)
+	// as
+	infix(false, lexer.As)
 	// +, -
 	infix(false, lexer.Plus, lexer.Minus)
 	// *, /, %

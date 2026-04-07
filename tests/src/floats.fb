@@ -14,3 +14,13 @@ func testF32Add() bool {
 func testF64Cmp() bool {
 	return 0.5 < 1.0;
 }
+
+#[test("f32 + f64 promotion")]
+func testF32F64Add() bool {
+	return 1.0f + 2.0 == 3.0;
+}
+
+#[test("f32 < f64 promotion")]
+func testF32F64Cmp() bool {
+	return 1.0f < 2.0;
+}

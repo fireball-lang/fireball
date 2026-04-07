@@ -6,6 +6,7 @@ import (
 	"fireball/core"
 	"fireball/ir"
 	"fireball/lexer"
+	"fireball/sema"
 	"fireball/types"
 	"fmt"
 	"slices"
@@ -81,10 +82,10 @@ func (c *codegen) VisitString(s *ast.String) {
 }
 
 func (c *codegen) VisitPrefix(u *ast.Prefix) {
-	value := c.Load(u.Expr)
-
 	switch u.Op {
 	case ast.Negate:
+		value := c.Load(u.Expr)
+
 		// Floating
 		if typ := c.UnderlyingExprType(u.Expr); typ == types.PrimitiveF32 || typ == types.PrimitiveF64 {
 			c.value = c.emitter.Fneg(value)
@@ -96,6 +97,7 @@ func (c *codegen) VisitPrefix(u *ast.Prefix) {
 		c.value = c.emitter.Sub(zero, value)
 
 	case ast.Not:
+		value := c.LoadImplicitCast(u.Expr, types.PrimitiveBool)
 		c.value = c.emitter.Xor(value, ir.True)
 
 	default:
@@ -108,32 +110,40 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 	// Math
 
 	case ast.Add:
-		c.value = c.emitter.Add(c.Load(b.Left), c.Load(b.Right))
+		typ := c.exprInfos[b].Type
+		c.value = c.emitter.Add(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	case ast.Subtract:
-		c.value = c.emitter.Sub(c.Load(b.Left), c.Load(b.Right))
+		typ := c.exprInfos[b].Type
+		c.value = c.emitter.Sub(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	case ast.Multiply:
-		c.value = c.emitter.Mul(c.Load(b.Left), c.Load(b.Right))
+		typ := c.exprInfos[b].Type
+		c.value = c.emitter.Mul(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	case ast.Divide:
+		typ := c.exprInfos[b].Type
 		kind := c.GetDivKind(b.Left)
-		c.value = c.emitter.Div(kind, c.Load(b.Left), c.Load(b.Right))
+		c.value = c.emitter.Div(kind, c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	case ast.Modulo:
+		typ := c.exprInfos[b].Type
 		kind := c.GetDivKind(b.Left)
-		c.value = c.emitter.Rem(kind, c.Load(b.Left), c.Load(b.Right))
+		c.value = c.emitter.Rem(kind, c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	// Bitwise
 
 	case ast.BitOr:
-		c.value = c.emitter.Or(c.Load(b.Left), c.Load(b.Right))
+		typ := c.exprInfos[b].Type
+		c.value = c.emitter.Or(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	case ast.BitXor:
-		c.value = c.emitter.Xor(c.Load(b.Left), c.Load(b.Right))
+		typ := c.exprInfos[b].Type
+		c.value = c.emitter.Xor(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	case ast.BitAnd:
-		c.value = c.emitter.And(c.Load(b.Left), c.Load(b.Right))
+		typ := c.exprInfos[b].Type
+		c.value = c.emitter.And(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	// Boolean
 
@@ -142,13 +152,13 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 		bExit := c.fun.NewBlock("and.exit")
 
 		// Left
-		left := c.Load(b.Left)
+		left := c.LoadImplicitCast(b.Left, types.PrimitiveBool)
 		bLeft := c.emitter.Block()
 		c.emitter.BrCond(left, bRight, bExit)
 
 		// Right
 		c.emitter.Begin(bRight)
-		right := c.Load(b.Right)
+		right := c.LoadImplicitCast(b.Right, types.PrimitiveBool)
 		bRight = c.emitter.Block()
 		c.emitter.Br(bExit)
 
@@ -165,13 +175,13 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 		bExit := c.fun.NewBlock("or.exit")
 
 		// Left
-		left := c.Load(b.Left)
+		left := c.LoadImplicitCast(b.Left, types.PrimitiveBool)
 		bLeft := c.emitter.Block()
 		c.emitter.BrCond(left, bExit, bRight)
 
 		// Right
 		c.emitter.Begin(bRight)
-		right := c.Load(b.Right)
+		right := c.LoadImplicitCast(b.Right, types.PrimitiveBool)
 		bRight = c.emitter.Block()
 		c.emitter.Br(bExit)
 
@@ -209,7 +219,7 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 
 	case ast.Assign:
 		ptr := c.GenerateExpr(b.Left)
-		value := c.Load(b.Right)
+		value := c.LoadImplicitCast(b.Right, c.exprInfos[b.Left].Type)
 
 		c.emitter.Store(value, ptr)
 		c.value = value
@@ -274,13 +284,24 @@ func (c *codegen) VisitMember(m *ast.Member) {
 }
 
 func (c *codegen) VisitCall(e *ast.Call) {
+	f := c.exprInfos[e.Callee].Type.(*types.Func)
 	callee := c.Load(e.Callee).(*ir.Function)
 	args := make([]ir.Value, 0, len(e.Args))
 
 	// Arguments
-	for _, arg := range e.Args {
-		classes, info := c.callConv.Classify(c.arch, c.UnderlyingExprType(arg))
-		value := c.Load(arg)
+	for i, arg := range e.Args {
+		var valueType types.Type
+		var value ir.Value
+
+		if i < len(f.Params) {
+			valueType = f.Params[i]
+			value = c.LoadImplicitCast(arg, valueType)
+		} else {
+			valueType = c.UnderlyingExprType(arg)
+			value = c.Load(arg)
+		}
+
+		classes, info := c.callConv.Classify(c.arch, valueType)
 
 		// Pointer
 		if len(classes) == 1 && classes[0] == abi.Memory {
@@ -322,23 +343,150 @@ func (c *codegen) VisitCall(e *ast.Call) {
 	}
 }
 
+func (c *codegen) VisitCast(e *ast.Cast) {
+	value := c.Load(e.Expr)
+
+	from := c.exprInfos[e.Expr].Type
+	to := c.exprInfos[e].Type
+
+	kind, _ := sema.GetExplicitCast(from, to)
+
+	c.value = c.Cast(value, kind, from, to)
+}
+
 func (c *codegen) VisitBadExpr(_ *ast.BadExpr) {}
 
 // Utils
 
-func (c *codegen) EmitCmp(op ir.CmpOp, left, right ast.Expr) ir.Value {
-	typ := c.UnderlyingExprType(left)
+func (c *codegen) LoadImplicitCast(expr ast.Expr, typ types.Type) ir.Value {
+	value := c.Load(expr)
+	return c.ImplicitCast(value, c.exprInfos[expr].Type, typ)
+}
 
-	leftV := c.Load(left)
-	rightV := c.Load(right)
+func (c *codegen) ImplicitCast(value ir.Value, from, to types.Type) ir.Value {
+	if kind, ok := sema.GetImplicitCast(from, to); ok {
+		value = c.Cast(value, kind, from, to)
+	}
+
+	return value
+}
+
+func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) ir.Value {
+	if kind == sema.Noop {
+		return value
+	}
+
+	toTyp := c.types.Get(to)
+
+	// Compile time conversion
+	switch value := value.(type) {
+	case *ir.Integer:
+		switch kind {
+		case sema.ZeroExtend, sema.SignExtend, sema.Truncate:
+			return &ir.Integer{Typ: toTyp, Value: value.Value}
+
+		case sema.IntToFloat:
+			var floatValue float64
+			if types.IsSigned(from.(*types.Primitive).Kind) {
+				floatValue = float64(value.Value.Signed())
+			} else {
+				floatValue = float64(value.Value.Raw())
+			}
+
+			if toTyp == ir.Float {
+				return &ir.FloatV{Value: float32(floatValue)}
+			}
+			return &ir.DoubleV{Value: floatValue}
+
+		case sema.IntToPointer:
+			// fall through
+
+		default:
+			panic("codegen.codegen.Cast() - Invalid cast kind for integer literal")
+		}
+
+	case *ir.FloatV:
+		switch kind {
+		case sema.FloatToInt:
+			return &ir.Integer{Typ: toTyp, Value: core.Signed(int64(value.Value))}
+		case sema.FloatExtend:
+			return &ir.DoubleV{Value: float64(value.Value)}
+		default:
+			panic("codegen.codegen.Cast() - Invalid cast kind for float literal")
+		}
+
+	case *ir.DoubleV:
+		switch kind {
+		case sema.FloatToInt:
+			return &ir.Integer{Typ: toTyp, Value: core.Signed(int64(value.Value))}
+		case sema.FloatTruncate:
+			return &ir.FloatV{Value: float32(value.Value)}
+		default:
+			panic("codegen.codegen.Cast() - Invalid cast kind for double literal")
+		}
+	}
+
+	// Runtime conversion
+	switch kind {
+	case sema.ZeroExtend:
+		value = c.emitter.Ext(ir.Unsigned, value, toTyp)
+
+	case sema.SignExtend:
+		value = c.emitter.Ext(ir.Signed, value, toTyp)
+
+	case sema.Truncate:
+		value = c.emitter.Trunc(value, toTyp)
+
+	case sema.IntToFloat:
+		signed := types.IsSigned(from.(*types.Primitive).Kind)
+		value = c.emitter.IntToFp(signed, value, toTyp)
+
+	case sema.FloatToInt:
+		signed := types.IsSigned(to.(*types.Primitive).Kind)
+		value = c.emitter.FpToInt(signed, value, toTyp)
+
+	case sema.FloatExtend:
+		value = c.emitter.Ext(ir.Floating, value, toTyp)
+
+	case sema.FloatTruncate:
+		value = c.emitter.Trunc(value, toTyp)
+
+	case sema.IntToPointer:
+		value = c.emitter.IntToPtr(value, toTyp)
+
+	case sema.PointerToInt:
+		value = c.emitter.PtrToInt(value, toTyp)
+
+	default:
+		panic("codegen.codegen.Cast() - Invalid cast kind")
+	}
+
+	return value
+}
+
+func (c *codegen) EmitCmp(op ir.CmpOp, left, right ast.Expr) ir.Value {
+	leftType := c.exprInfos[left].Type
+	rightType := c.exprInfos[right].Type
+
+	common := sema.CommonType(leftType, rightType)
+	if common == nil {
+		common = leftType
+	}
+
+	leftV := c.LoadImplicitCast(left, common)
+	rightV := c.LoadImplicitCast(right, common)
+
+	if c, ok := common.(types.Composed); ok {
+		common = c
+	}
 
 	// Pointer
-	if _, ok := typ.(*types.Pointer); ok {
+	if _, ok := common.(*types.Pointer); ok {
 		return c.emitter.ICmp(op, false, leftV, rightV)
 	}
 
 	// Primitive
-	prim := typ.(*types.Primitive).Kind
+	prim := common.(*types.Primitive).Kind
 
 	if types.IsFloating(prim) {
 		return c.emitter.FCmp(op, false, leftV, rightV)

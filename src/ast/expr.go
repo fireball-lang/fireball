@@ -19,6 +19,7 @@ type ExprVisitor interface {
 	VisitIndex(i *Index)
 	VisitMember(m *Member)
 	VisitCall(c *Call)
+	VisitCast(c *Cast)
 
 	VisitBadExpr(p *BadExpr)
 }
@@ -277,6 +278,30 @@ func (c *Call) Children() iter.Seq[Node] {
 
 func (c *Call) VisitExpr(visitor ExprVisitor) {
 	visitor.VisitCall(c)
+}
+
+// Cast
+
+type Cast struct {
+	baseNode
+
+	Expr Expr
+	Type Type
+}
+
+func (c *Cast) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(c.Expr) {
+			return
+		}
+		if !yield(c.Type) {
+			return
+		}
+	}
+}
+
+func (c *Cast) VisitExpr(visitor ExprVisitor) {
+	visitor.VisitCast(c)
 }
 
 // Bad

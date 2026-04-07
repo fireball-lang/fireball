@@ -20,7 +20,11 @@ func (a *analyzer) VisitNumber(n *ast.Number) {
 	case lexer.BinaryInteger, lexer.HexInteger, lexer.UnsignedInteger:
 		value := lexer.ParseInteger(n.Token)
 
-		if value <= math.MaxUint32 {
+		if value <= math.MaxUint8 {
+			a.typ = types.PrimitiveU8
+		} else if value <= math.MaxUint16 {
+			a.typ = types.PrimitiveU16
+		} else if value <= math.MaxUint32 {
 			a.typ = types.PrimitiveU32
 		} else {
 			a.typ = types.PrimitiveU64
@@ -29,7 +33,11 @@ func (a *analyzer) VisitNumber(n *ast.Number) {
 	case lexer.SignedInteger:
 		value := lexer.ParseInteger(n.Token)
 
-		if value <= math.MaxInt32 {
+		if value <= math.MaxInt8 {
+			a.typ = types.PrimitiveI8
+		} else if value <= math.MaxInt16 {
+			a.typ = types.PrimitiveI16
+		} else if value <= math.MaxInt32 {
 			a.typ = types.PrimitiveI32
 		} else {
 			a.typ = types.PrimitiveI64
@@ -95,13 +103,13 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 			return
 		}
 
-		if !left.Equals(right) {
-			a.Error(b, "binary operator needs to have the same types, got '%s' and '%s'", left, right)
+		a.typ = CommonType(left, right)
+		if a.typ == nil {
+			a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left, right)
 			a.typ = types.Invalid
 			return
 		}
 
-		a.typ = left
 		return
 	}
 
@@ -115,13 +123,13 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 			return
 		}
 
-		if !left.Equals(right) {
-			a.Error(b, "binary operator needs to have the same types, got '%s' and '%s'", left, right)
+		a.typ = CommonType(left, right)
+		if a.typ == nil {
+			a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left, right)
 			a.typ = types.Invalid
 			return
 		}
 
-		a.typ = left
 		return
 	}
 
@@ -136,8 +144,8 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 
 	// Equality
 	if b.Op.IsEquality() {
-		if !left.Type.Equals(right.Type) {
-			a.Error(b, "binary operator needs to have the same types, got '%s' and '%s'", left.Type, right.Type)
+		if common := CommonType(left.Type, right.Type); common == nil && !left.Type.Equals(right.Type) {
+			a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left.Type, right.Type)
 			a.typ = types.Invalid
 			return
 		}
@@ -164,8 +172,8 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 			return
 		}
 
-		if !left.Equals(right) {
-			a.Error(b, "binary operator needs to have the same types, got '%s' and '%s'", left, right)
+		if common := CommonType(left, right); common == nil {
+			a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left, right)
 			a.typ = types.Invalid
 			return
 		}
@@ -182,11 +190,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 			return
 		}
 
-		if !left.Type.Equals(right.Type) {
-			a.Error(b, "binary operator needs to have the same types, got '%s' and '%s'", left.Type, right.Type)
-			a.typ = types.Invalid
-			return
-		}
+		a.ExpectType(left.Type, right, b.Right)
 
 		a.typ = left.Type
 		return
@@ -299,6 +303,28 @@ func (a *analyzer) VisitCall(c *ast.Call) {
 	}
 
 	a.Error(c.Callee, "expected a function, got '%s'", expr.Type)
+	a.typ = types.Invalid
+}
+
+func (a *analyzer) VisitCast(c *ast.Cast) {
+	expr := a.AnalyzeExpr(c.Expr)
+	if expr.Invalid() {
+		a.typ = types.Invalid
+		return
+	}
+
+	to := a.AnalyzeType(c.Type)
+	if to == types.Invalid {
+		a.typ = types.Invalid
+		return
+	}
+
+	if _, ok := GetExplicitCast(expr.Type, to); ok {
+		a.typ = to
+		return
+	}
+
+	a.Error(c, "'%s' cannot be cast to '%s'", expr.Type, to)
 	a.typ = types.Invalid
 }
 

@@ -24,3 +24,23 @@ func testDivSigned() bool {
 func testMod() bool {
 	return 10 % 3 == 1;
 }
+
+#[test("mixed size add")]
+func testMixedAdd() bool {
+	return 5 + 300 == 305;
+}
+
+#[test("mixed size subtract")]
+func testMixedSub() bool {
+	return 300 - 5 == 295;
+}
+
+#[test("mixed size multiply")]
+func testMixedMul() bool {
+	return 5 * 200 == 1000;
+}
+
+#[test("mixed size divide")]
+func testMixedDiv() bool {
+	return 1000 / 10 == 100;
+}

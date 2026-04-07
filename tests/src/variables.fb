@@ -18,3 +18,18 @@ func testVarReassign() bool {
     x = 2;
     return x == 2;
 }
+
+#[test("var infer defaults to i32")]
+func testVarInferDefaultsI32() bool {
+    // If x were inferred as i8, reassigning 100000 (i32) would fail sema
+    // since there is no implicit narrowing cast. This only compiles if x is i32.
+    var x = 5;
+    x = 100000;
+    return x == 100000;
+}
+
+#[test("var infer large literal")]
+func testVarInferLarge() bool {
+    var x = 100000;
+    return x == 100000;
+}

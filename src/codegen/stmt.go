@@ -4,6 +4,7 @@ import (
 	"fireball/ast"
 	"fireball/core"
 	"fireball/ir"
+	"fireball/types"
 )
 
 // Visitor
@@ -35,7 +36,7 @@ func (c *codegen) VisitVar(v *ast.Var) {
 	if core.IsNil(v.Initializer) {
 		value = &ir.ZeroInitializer{Typ: typ}
 	} else {
-		value = c.Load(v.Initializer)
+		value = c.LoadImplicitCast(v.Initializer, c.nodeTypes[v])
 	}
 
 	// Variable
@@ -57,7 +58,7 @@ func (c *codegen) VisitIf(i *ast.If) {
 	}
 
 	// Condition
-	condition := c.Load(i.Condition)
+	condition := c.LoadImplicitCast(i.Condition, types.PrimitiveBool)
 	c.emitter.BrCond(condition, bThen, bElse)
 
 	// Then
@@ -91,7 +92,7 @@ func (c *codegen) VisitWhile(w *ast.While) {
 	c.emitter.Br(bCondition)
 	c.emitter.Begin(bCondition)
 
-	condition := c.Load(w.Condition)
+	condition := c.LoadImplicitCast(w.Condition, types.PrimitiveBool)
 	c.emitter.BrCond(condition, bBody, bExit)
 
 	// Body
@@ -145,7 +146,7 @@ func (c *codegen) VisitFor(f *ast.For) {
 		c.emitter.Br(bCondition)
 		c.emitter.Begin(bCondition)
 
-		condition := c.Load(f.Condition)
+		condition := c.LoadImplicitCast(f.Condition, types.PrimitiveBool)
 		c.emitter.BrCond(condition, bBody, bExit)
 	} else {
 		c.emitter.Br(bBody)
@@ -182,7 +183,8 @@ func (c *codegen) VisitReturn(r *ast.Return) {
 	var value ir.Value
 
 	if !core.IsNil(r.Value) {
-		value = c.Load(r.Value)
+		f := c.nodeTypes[ast.GetClosestParent[*ast.Func](r)].(*types.Func)
+		value = c.LoadImplicitCast(r.Value, f.Returns)
 
 		if core.IsNil(c.returnPtr) {
 			value = c.BitCast(value, c.fun.Signature.Returns)

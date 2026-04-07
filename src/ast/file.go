@@ -1,7 +1,6 @@
 package ast
 
 import (
-	"fireball/core"
 	"iter"
 )
 
@@ -29,19 +28,6 @@ func (f *File) Children() iter.Seq[Node] {
 			}
 		}
 	}
-}
-
-func GetFile(node Node) *File {
-	for {
-		parent := node.Parent()
-		if core.IsNil(parent) {
-			break
-		}
-
-		node = parent
-	}
-
-	return node.(*File)
 }
 
 // Mod
