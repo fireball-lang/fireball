@@ -41,7 +41,7 @@ func Build(proj *project.Project, target toolchain.Target, profile project.Profi
 
 	for _, file := range proj.Files {
 		name := getBuildFileName(file)
-		module := codegen.Generate(file.Ast, target.Arch, target.CallConv, file.ExprInfos, file.NodeTypes, file.Path)
+		module := codegen.Generate(file.Ast, target.Arch, target.CallConv, file.ExprInfos, file.NodeTypes, file.Path, profile.Lto)
 
 		objFilePath, err := compileModule(target, profile, objPath, irPath, name, module)
 		if err != nil {
@@ -55,6 +55,7 @@ func Build(proj *project.Project, target toolchain.Target, profile project.Profi
 	{
 		// Create module
 		module := ir.NewModule()
+		module.Path = "__entrypoint"
 
 		if strings.Contains(target.Name, "windows") {
 			fltused := module.NewGlobalVar("_fltused", ir.I32)

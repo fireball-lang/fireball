@@ -79,6 +79,28 @@ func (c *codegen) VisitString(s *ast.String) {
 	global.Initializer = value
 
 	c.value = global
+
+	// Summary
+
+	if c.moduleSummaryRef.Valid() {
+		ref := c.module.AddSummary(&ir.VariableSummary{
+			Module: c.moduleSummaryRef,
+			Name:   global.Name,
+			LinkFlags: ir.LinkSummaryFlags{
+				Linkage:             ir.LinkagePrivate,
+				Visibility:          ir.VisibilityDefault,
+				NotEligibleToImport: true,
+				Live:                false,
+				DsoLocal:            true,
+				CanAutoHide:         true,
+				ImportType:          ir.ImportDefinition,
+			},
+			Flags: ir.VarReadOnly | ir.VarConstant,
+			Refs:  nil,
+		})
+
+		c.summaryRefs = append(c.summaryRefs, ref)
+	}
 }
 
 func (c *codegen) VisitPrefix(u *ast.Prefix) {
@@ -232,6 +254,7 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 func (c *codegen) VisitIdentifier(i *ast.Identifier) {
 	switch node := c.exprInfos[i].Node.(type) {
 	case *ast.Func:
+		c.AddSummaryCallee(i, node)
 		c.value = c.GetFunction(node)
 
 	case *ast.NameType:

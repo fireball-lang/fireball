@@ -4,3 +4,8 @@ lib-c = true
 [profile.debug]
 debug = true
 output-ir = true
+
+[profile.release]
+opt = 2
+lto = true
+output-ir = true

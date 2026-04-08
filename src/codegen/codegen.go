@@ -26,6 +26,9 @@ type codegen struct {
 	fileRef ir.MetaRef
 	unitRef ir.MetaRef
 
+	moduleSummaryRef  ir.SummaryRef
+	functionSummaries map[*ast.Func]ir.SummaryRef
+
 	fun        *ir.Function
 	returnPtr  ir.Value
 	bVariables *ir.Block
@@ -33,10 +36,13 @@ type codegen struct {
 	bLoopBreak    *ir.Block
 	bLoopContinue *ir.Block
 
+	summaryCalls []ir.FunctionSummaryCall
+	summaryRefs  []ir.SummaryRef
+
 	value ir.Value
 }
 
-func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos map[ast.Expr]sema.ExprInfo, nodeTypes map[ast.Node]types.Type, path string) *ir.Module {
+func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos map[ast.Expr]sema.ExprInfo, nodeTypes map[ast.Node]types.Type, path string, summary bool) *ir.Module {
 	module := ir.NewModule()
 	module.Path = path
 
@@ -90,13 +96,24 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 		c.unitRef,
 	)
 
-	// Codegen
+	// Setup summary
+
+	if summary {
+		c.moduleSummaryRef = c.module.AddSummary(&ir.ModuleSummary{
+			Path: path,
+			Hash: [5]uint32{},
+		})
+
+		c.functionSummaries = make(map[*ast.Func]ir.SummaryRef)
+	}
+
+	// Emit functions
 
 	c.scope.Push()
 
 	for _, decl := range file.Decls {
 		if f, ok := decl.(*ast.Func); ok {
-			c.scope.Add(decl.Name(), c.CreateFunction(f))
+			c.scope.Add(decl.Name(), c.CreateFunction(f, false))
 		}
 	}
 
@@ -107,6 +124,20 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 	}
 
 	c.scope.Pop()
+
+	// End summary
+
+	if summary {
+		c.module.AddSummary(&ir.SimpleSummary{
+			Name:  "flags",
+			Value: 520,
+		})
+
+		c.module.AddSummary(&ir.SimpleSummary{
+			Name:  "blockcount",
+			Value: 0,
+		})
+	}
 
 	return c.module
 }
@@ -157,10 +188,7 @@ func (c *codegen) GetFunction(f *ast.Func) *ir.Function {
 	}
 
 	// Create extern function
-	fun := c.CreateFunction(f)
-	fun.Flags = ir.Declare
-
-	return fun
+	return c.CreateFunction(f, true)
 }
 
 func (c *codegen) BitCast(value ir.Value, typ ir.Type) ir.Value {

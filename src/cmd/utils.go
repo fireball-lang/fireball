@@ -145,6 +145,43 @@ outer:
 		}
 
 		emitter.Ret(value)
+
+		// Summary
+
+		moduleRef := module.AddSummary(&ir.ModuleSummary{
+			Path: module.Path,
+			Hash: [5]uint32{},
+		})
+
+		fbMainRef := module.AddSummary(&ir.SymbolSummary{Name: mainFun.Name})
+
+		module.AddSummary(&ir.FunctionSummary{
+			Module: moduleRef,
+			Name:   fun.Name,
+			LinkFlags: ir.LinkSummaryFlags{
+				Linkage:             ir.LinkageExternal,
+				Visibility:          ir.VisibilityDefault,
+				NotEligibleToImport: false,
+				Live:                false,
+				DsoLocal:            true,
+				CanAutoHide:         false,
+				ImportType:          ir.ImportDefinition,
+			},
+			InstructionCount: emitter.Block().InstructionCount,
+			Flags:            ir.FuncNoInline | ir.FuncNoUnwind,
+			Calls:            []ir.FunctionSummaryCall{{Callee: fbMainRef}},
+			Refs:             nil,
+		})
+
+		module.AddSummary(&ir.SimpleSummary{
+			Name:  "flags",
+			Value: 520,
+		})
+
+		module.AddSummary(&ir.SimpleSummary{
+			Name:  "blockcount",
+			Value: 0,
+		})
 	}, nil
 }
 

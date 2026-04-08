@@ -99,11 +99,26 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 	c.bVariables = nil
 
 	c.scope.Pop()
+
+	// Summary
+	if ref, ok := c.functionSummaries[f]; ok {
+		funSum := c.module.GetSummary(ref).(*ir.FunctionSummary)
+
+		for _, block := range fun.Blocks {
+			funSum.InstructionCount += block.InstructionCount
+		}
+
+		funSum.Calls = c.summaryCalls
+		c.summaryCalls = nil
+
+		funSum.Refs = c.summaryRefs
+		c.summaryRefs = nil
+	}
 }
 
 // Utils
 
-func (c *codegen) CreateFunction(f *ast.Func) *ir.Function {
+func (c *codegen) CreateFunction(f *ast.Func, declare bool) *ir.Function {
 	typ := c.nodeTypes[f].(*types.Func)
 
 	sig := &ir.Signature{
@@ -144,10 +159,31 @@ func (c *codegen) CreateFunction(f *ast.Func) *ir.Function {
 	// Function
 	fun := c.module.NewFunction(FuncLinkName(f), sig, paramNames)
 
-	if f.IsExtern() {
+	if f.IsExtern() || declare {
 		fun.Flags = ir.Declare
 	} else {
 		fun.Flags = ir.DsoLocal
+	}
+
+	// Summary
+
+	if !declare && !f.IsExtern() && c.moduleSummaryRef.Valid() {
+		ref := c.module.AddSummary(&ir.FunctionSummary{
+			Module: c.moduleSummaryRef,
+			Name:   fun.Name,
+			LinkFlags: ir.LinkSummaryFlags{
+				Linkage:             ir.LinkageExternal,
+				Visibility:          ir.VisibilityDefault,
+				NotEligibleToImport: false,
+				Live:                false,
+				DsoLocal:            true,
+				CanAutoHide:         false,
+				ImportType:          ir.ImportDefinition,
+			},
+			Flags: ir.FuncNoUnwind,
+		})
+
+		c.functionSummaries[f] = ref
 	}
 
 	return fun
