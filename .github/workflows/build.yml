@@ -32,7 +32,7 @@ jobs:
           go build -o ../fireball${{ matrix.ext }} ./cmd
 
       - name: Cache fireball
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: fireball${{ matrix.ext }}
           key: ${{ runner.os }}-${{ github.sha }}
@@ -65,7 +65,7 @@ jobs:
         run: echo "${{ github.workspace }}/llvm-21.1.8-windows-amd64-msvc17-libcmt/bin" >> $GITHUB_PATH
 
       - name: Get fireball from cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: fireball.exe
           key: ${{ runner.os }}-${{ github.sha }}
@@ -82,18 +82,13 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v6
 
-      - name: Install build dependencies
+      - name: Install build dependencies and LLVM
         run: |
           sudo apt-get update
-          sudo apt-get install build-essential libc6-dev
-
-      - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@v2
-        with:
-          version: "21.1.8"
+          sudo apt-get install build-essential libc6-dev llvm lld
 
       - name: Get fireball from cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: fireball
           key: ${{ runner.os }}-${{ github.sha }}
@@ -119,7 +114,7 @@ jobs:
         run: echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
 
       - name: Get fireball from cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: fireball
           key: ${{ runner.os }}-${{ github.sha }}
