@@ -15,7 +15,7 @@ func Link(inputs []string, output string, opt uint8, target Target, libc *LibC) 
 
 	cmd := exec.Command(lld, "-o", output)
 
-	if !strings.Contains(target.Name, "linux") {
+	if strings.Contains(target.Name, "linux") {
 		cmd.Args = append(cmd.Args, "--lto=thin")
 	}
 
