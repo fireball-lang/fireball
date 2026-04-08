@@ -82,10 +82,15 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v6
 
-      - name: Install build dependencies and LLVM
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install build-essential libc6-dev llvm lld
+          sudo apt-get install build-essential libc6-dev
+
+      - name: Install LLVM
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "21.1.8"
 
       - name: Get fireball from cache
         uses: actions/cache/restore@v5
