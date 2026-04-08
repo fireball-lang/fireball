@@ -18,6 +18,9 @@ func Assemble(input io.Reader, output string) error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%w: %s", err, &stderr)
 	}
+	if stderr.Len() > 0 {
+		return fmt.Errorf("failed to compile module: %s", &stderr)
+	}
 
 	return nil
 }

@@ -22,6 +22,8 @@ func (w *writer) meta(node ir.MetaNode) {
 				w.string("!\"")
 				w.string(value.Text)
 				w.rune('"')
+			} else if value.Ref.Valid() {
+				w.metaRef(value.Ref)
 			} else {
 				w.string("i32 ")
 				w.uint(uint64(value.Number), 10)

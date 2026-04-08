@@ -10,13 +10,15 @@ import (
 // Visitor
 
 func (c *codegen) VisitBlock(b *ast.Block) {
+	c.emitter.PushScope(c.emitMetaScope(b))
 	c.scope.Push()
 
 	for _, stmt := range b.Stmts {
-		stmt.VisitStmt(c)
+		c.GenerateStmt(stmt)
 	}
 
 	c.scope.Pop()
+	c.emitter.PopScope()
 }
 
 func (c *codegen) VisitExpression(e *ast.Expression) {
@@ -29,6 +31,8 @@ func (c *codegen) VisitVar(v *ast.Var) {
 
 	// Pointer
 	ptr := c.Alloca(typ, "var."+v.Name.Token.Text)
+
+	c.emitDbgDeclare(v.Name.Token.Text, c.nodeTypes[v], ptr, 0, v.Name)
 
 	// Value
 	var value ir.Value
@@ -63,13 +67,13 @@ func (c *codegen) VisitIf(i *ast.If) {
 
 	// Then
 	c.emitter.Begin(bThen)
-	i.BranchTrue.VisitStmt(c)
+	c.GenerateStmt(i.BranchTrue)
 	c.emitter.Br(bExit)
 
 	// Else
 	if !core.IsNil(i.BranchFalse) {
 		c.emitter.Begin(bElse)
-		i.BranchFalse.VisitStmt(c)
+		c.GenerateStmt(i.BranchFalse)
 		c.emitter.Br(bExit)
 	}
 
@@ -97,7 +101,7 @@ func (c *codegen) VisitWhile(w *ast.While) {
 
 	// Body
 	c.emitter.Begin(bBody)
-	w.Body.VisitStmt(c)
+	c.GenerateStmt(w.Body)
 	c.emitter.Br(bCondition)
 
 	// Exit
@@ -134,11 +138,12 @@ func (c *codegen) VisitFor(f *ast.For) {
 		c.bLoopContinue = bIncrement
 	}
 
+	c.emitter.PushScope(c.emitMetaScope(f))
 	c.scope.Push()
 
 	// Initializer
 	if !core.IsNil(f.Initializer) {
-		f.Initializer.VisitStmt(c)
+		c.GenerateStmt(f.Initializer)
 	}
 
 	// Condition
@@ -154,7 +159,7 @@ func (c *codegen) VisitFor(f *ast.For) {
 
 	// Body
 	c.emitter.Begin(bBody)
-	f.Body.VisitStmt(c)
+	c.GenerateStmt(f.Body)
 	c.emitter.Br(c.bLoopContinue)
 
 	// Increment
@@ -174,6 +179,7 @@ func (c *codegen) VisitFor(f *ast.For) {
 	c.emitter.Begin(bExit)
 
 	c.scope.Pop()
+	c.emitter.PopScope()
 
 	c.bLoopBreak = prevBLoopBreak
 	c.bLoopContinue = prevBLoopContinue
@@ -208,3 +214,8 @@ func (c *codegen) VisitContinue(_ *ast.Continue) {
 func (c *codegen) VisitBadStmt(_ *ast.BadStmt) {}
 
 // Utils
+
+func (c *codegen) GenerateStmt(stmt ast.Stmt) {
+	c.emitter.SetDebugLocation(stmt.Range().Start)
+	stmt.VisitStmt(c)
+}

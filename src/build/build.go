@@ -41,8 +41,7 @@ func Build(proj *project.Project, target toolchain.Target, profile project.Profi
 
 	for _, file := range proj.Files {
 		name := getBuildFileName(file)
-		module := codegen.Generate(file.Ast, target.Arch, target.CallConv, file.ExprInfos, file.NodeTypes)
-		module.Path = file.Path
+		module := codegen.Generate(file.Ast, target.Arch, target.CallConv, file.ExprInfos, file.NodeTypes, file.Path)
 
 		objFilePath, err := compileModule(target, profile, objPath, irPath, name, module)
 		if err != nil {
@@ -105,6 +104,8 @@ func Build(proj *project.Project, target toolchain.Target, profile project.Profi
 func compileModule(target toolchain.Target, profile project.Profile, objPath, irPath string, name string, module *ir.Module) (string, error) {
 	module.DataLayout = target.DataLayout
 	module.Triple = target.Triple
+
+	codegen.AddModuleMetaFlags(module, profile.Lto)
 
 	// Get IR reader
 	var irReader io.Reader

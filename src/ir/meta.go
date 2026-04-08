@@ -37,6 +37,7 @@ func (b *baseMetaNode) setNext(node MetaNode) {
 
 type RawMetaValue struct {
 	Text   string
+	Ref    MetaRef
 	Number uint32
 }
 

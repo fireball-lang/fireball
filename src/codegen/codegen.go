@@ -23,6 +23,9 @@ type codegen struct {
 	types   *TypeCache
 	emitter ir.Emitter
 
+	fileRef ir.MetaRef
+	unitRef ir.MetaRef
+
 	fun        *ir.Function
 	returnPtr  ir.Value
 	bVariables *ir.Block
@@ -33,8 +36,9 @@ type codegen struct {
 	value ir.Value
 }
 
-func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos map[ast.Expr]sema.ExprInfo, nodeTypes map[ast.Node]types.Type) *ir.Module {
+func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos map[ast.Expr]sema.ExprInfo, nodeTypes map[ast.Node]types.Type, path string) *ir.Module {
 	module := ir.NewModule()
+	module.Path = path
 
 	c := codegen{
 		module: module,
@@ -44,9 +48,49 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 		exprInfos: exprInfos,
 		nodeTypes: nodeTypes,
 
-		types:   &TypeCache{Module: module},
+		types:   &TypeCache{Arch: arch, Module: module},
 		emitter: ir.Emitter{Module: module},
 	}
+
+	// Setup meta
+
+	c.fileRef = module.AddMeta(&ir.FileMeta{
+		Path: path,
+	})
+	c.emitter.PushScope(c.fileRef)
+
+	c.types.FileRef = c.fileRef
+
+	var retainedTypes ir.MetaRef
+	var retainedTypeRefs []ir.RawMetaValue
+
+	for _, decl := range file.Decls {
+		if s, ok := decl.(*ast.Struct); ok {
+			ref := c.types.GetMeta(c.nodeTypes[s])
+			retainedTypeRefs = append(retainedTypeRefs, ir.RawMetaValue{Ref: ref})
+		}
+	}
+
+	if len(retainedTypeRefs) > 0 {
+		retainedTypes = c.module.AddMeta(&ir.RawMeta{Values: retainedTypeRefs})
+	}
+
+	c.unitRef = module.AddMeta(&ir.CompileUnitMeta{
+		File:          c.fileRef,
+		Producer:      "fireball",
+		IsOptimized:   false,
+		Enums:         0,
+		RetainedTypes: retainedTypes,
+		Globals:       0,
+		Imports:       0,
+	})
+
+	c.module.AddNamedMetaRefs(
+		"llvm.dbg.cu",
+		c.unitRef,
+	)
+
+	// Codegen
 
 	c.scope.Push()
 

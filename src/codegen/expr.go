@@ -535,7 +535,7 @@ func (c *codegen) Load(expr ast.Expr) ir.Value {
 }
 
 func (c *codegen) GenerateExpr(expr ast.Expr) ir.Value {
-	//c.emitter.SetDebugLocation(expr.Range().Start)
+	c.emitter.SetDebugLocation(expr.Range().Start)
 	expr.VisitExpr(c)
 
 	value := c.value

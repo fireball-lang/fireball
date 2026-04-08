@@ -16,10 +16,27 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 		return
 	}
 
-	// Blocks
 	typ := c.nodeTypes[f].(*types.Func)
 	fun := c.scope.Get(f.Name()).(*ir.Function)
 
+	// Meta
+
+	ref := c.module.AddMeta(&ir.SubprogramMeta{
+		Name:     f.Name(),
+		LinkName: FuncLinkName(f),
+		Type:     c.types.GetMeta(typ),
+		Scope:    c.emitter.PeekScope(),
+		Unit:     c.unitRef,
+		File:     c.fileRef,
+		Line:     f.Range().Start.Line,
+	})
+
+	fun.SetMeta(ref)
+
+	c.emitter.PushScope(ref)
+	defer c.emitter.PopScope()
+
+	// Blocks
 	c.bVariables = fun.NewBlock("fun.variables")
 	bEntry := fun.NewBlock("fun.entry")
 
@@ -41,13 +58,17 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 	}
 
 	// Parameters
-	for _, param := range typ.Params {
+	for i, param := range typ.Params {
 		name := fun.ParamNames[paramI]
 		value := fun.ParamValues[paramI]
 		typ := c.types.Get(param)
 
+		c.emitter.SetDebugLocation(f.Params[i].Range().Start)
+
 		ptr := c.emitter.Alloca(typ, 1)
 		ptr.SetName("param." + name)
+
+		c.emitDbgDeclare(name, param, ptr, uint32(i+1), f.Params[i])
 
 		classes, _ := c.callConv.Classify(c.arch, param)
 
@@ -67,7 +88,7 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 
 	c.fun = fun
 
-	f.Body.VisitStmt(c)
+	c.GenerateStmt(f.Body)
 	c.emitter.Ret(nil)
 
 	c.emitter.Begin(c.bVariables)
