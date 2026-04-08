@@ -20,7 +20,7 @@ func getTargetWindowsAmd64() (Target, error) {
 		CallConv:                abi.Win64,
 		ObjectFileExtension:     ".obj",
 		ExecutableFileExtension: ".exe",
-		AdditionalLinkArgs:      nil,
+		AdditionalLinkArgs:      []string{"-m", "i386pep"},
 	}, nil
 }
 
@@ -38,7 +38,7 @@ func findLibcWindows() (LibC, error) {
 		Libs:               []string{"gcc", "gcc_eh", "kernel32", "m", "mingw32", "mingwex", "ucrt"},
 		PreObjectPaths:     []string{"crt2.o", "crtbegin.o"},
 		PostObjectPaths:    []string{"crtend.o"},
-		AdditionalLinkArgs: []string{"-m", "i386pep"},
+		AdditionalLinkArgs: nil,
 	}, nil
 }
 
