@@ -122,6 +122,12 @@ func (c *codegen) VisitPrefix(u *ast.Prefix) {
 		value := c.LoadImplicitCast(u.Expr, types.PrimitiveBool)
 		c.value = c.emitter.Xor(value, ir.True)
 
+	case ast.AddressOf:
+		c.value = c.GenerateExpr(u.Expr)
+
+	case ast.Dereference:
+		c.value = c.Load(u.Expr)
+
 	default:
 		panic("codegen.codegen.VisitPrefix() - Invalid operator")
 	}
@@ -269,7 +275,19 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) {
 }
 
 func (c *codegen) VisitIndex(i *ast.Index) {
-	typ := c.types.Get(c.UnderlyingExprType(i.Expr))
+	typ := c.UnderlyingExprType(i.Expr)
+	index := c.Load(i.Index)
+
+	// Pointer indexing
+	if p, ok := typ.(*types.Pointer); ok {
+		irTyp := c.types.Get(p.Pointee)
+		ptr := c.Load(i.Expr)
+		c.value = c.emitter.GetElementPtrDyn(irTyp, ptr, index, nil)
+		return
+	}
+
+	// Array indexing
+	irTyp := c.types.Get(typ)
 
 	var ptr ir.Value
 
@@ -279,30 +297,51 @@ func (c *codegen) VisitIndex(i *ast.Index) {
 	} else {
 		value := c.GenerateExpr(i.Expr)
 
-		ptr = c.Alloca(typ, "index")
+		ptr = c.Alloca(irTyp, "index")
 		c.emitter.Store(value, ptr)
 	}
 
-	// Index
-	index := c.Load(i.Index)
-	c.value = c.emitter.GetElementPtrDyn(typ, ptr, ir.False, index)
+	c.value = c.emitter.GetElementPtrDyn(irTyp, ptr, ir.False, index)
+
+	if !c.exprInfos[i].Address {
+		typ := c.types.Get(typ.(*types.Array).Element)
+		c.value = c.emitter.Load(typ, c.value)
+	}
 }
 
 func (c *codegen) VisitMember(m *ast.Member) {
-	s := c.UnderlyingExprType(m.Expr).(*types.Struct)
+	typ := c.UnderlyingExprType(m.Expr)
+
+	var pointer bool
+	var s *types.Struct
+
+	if p, ok := typ.(*types.Pointer); ok {
+		pointer = true
+		s = p.Pointee.(*types.Struct)
+	} else {
+		s = typ.(*types.Struct)
+	}
+
 	_, index := s.Field(m.Name.Token.Text)
+
+	// Get struct value
+	var value ir.Value
+
+	if pointer {
+		value = c.Load(m.Expr)
+	} else {
+		value = c.GenerateExpr(m.Expr)
+	}
 
 	// Pointer
 	if c.exprInfos[m].Address {
-		ptr := c.GenerateExpr(m.Expr)
 		typ := c.types.Get(s)
+		c.value = c.emitter.GetElementPtrConst(typ, value, 0, uint32(index))
 
-		c.value = c.emitter.GetElementPtrConst(typ, ptr, 0, uint32(index))
 		return
 	}
 
 	// Value
-	value := c.GenerateExpr(m.Expr)
 	c.value = c.emitter.ExtractValue(value, uint32(index))
 }
 

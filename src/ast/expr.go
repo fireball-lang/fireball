@@ -101,6 +101,9 @@ type PrefixOp uint8
 const (
 	Negate PrefixOp = iota
 	Not
+
+	AddressOf
+	Dereference
 )
 
 type Prefix struct {

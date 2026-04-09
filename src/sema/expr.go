@@ -79,6 +79,24 @@ func (a *analyzer) VisitPrefix(u *ast.Prefix) {
 		a.ExpectType(types.PrimitiveBool, expr, u.Expr)
 		a.typ = types.PrimitiveBool
 
+	case ast.AddressOf:
+		if !expr.Address {
+			a.Error(u.Expr, "cannot take address of a temporary expression")
+			a.typ = types.Invalid
+			return
+		}
+
+		a.typ = &types.Pointer{Pointee: expr.Type}
+
+	case ast.Dereference:
+		if p, ok := expr.Type.(*types.Pointer); ok {
+			a.typ = p.Pointee
+			a.address = true
+		} else {
+			a.Error(u.Expr, "can only dereference pointers, not '%s'", expr.Type)
+			a.typ = types.Invalid
+		}
+
 	default:
 		panic("sema.analyzer.VisitPrefix() - Invalid operator kind")
 	}
@@ -239,13 +257,19 @@ func (a *analyzer) VisitIndex(i *ast.Index) {
 		return
 	}
 
+	if p, ok := expr.Type.(*types.Pointer); ok {
+		a.typ = p.Pointee
+		a.address = true
+		return
+	}
+
 	if t, ok := expr.Type.(*types.Array); ok {
 		a.typ = t.Element
 		a.address = expr.Address
 		return
 	}
 
-	a.Error(i.Expr, "expected an array, got '%s'", expr.Type)
+	a.Error(i.Expr, "expected an array or a pointer, got '%s'", expr.Type)
 	a.typ = types.Invalid
 }
 
@@ -256,9 +280,15 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 		return
 	}
 
-	if t, ok := expr.Type.(*types.Struct); ok {
-		a.address = expr.Address
+	a.address = expr.Address
+	typ := expr.Type
 
+	if p, ok := typ.(*types.Pointer); ok {
+		a.address = true
+		typ = p.Pointee
+	}
+
+	if t, ok := typ.(*types.Struct); ok {
 		if field, index := t.Field(m.Name.Token.Text); index != -1 {
 			a.typ = field.Type
 		} else {
@@ -269,7 +299,7 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 		return
 	}
 
-	a.Error(m.Expr, "expected a struct, got '%s'", expr.Type)
+	a.Error(m.Expr, "expected a struct or a pointer to a struct, got '%s'", expr.Type)
 	a.typ = types.Invalid
 }
 

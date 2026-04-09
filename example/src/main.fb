@@ -4,7 +4,9 @@ import example::math::{get};
 import example::math;
 
 func main() i32 {
-	var p = get();
+	var p: math::Point;
+
+	get(&p);
 	print(p);
 
 	return p.y;

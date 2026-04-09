@@ -12,14 +12,92 @@ func makeVec(x: i32, y: i32) Vec2 {
     return v;
 }
 
-#[test("struct field access")]
-func testStructField() bool {
+// Returns its argument as a temporary *Vec2 (non-addressable call result)
+func asVecPtr(v: *Vec2) *Vec2 {
+    return v;
+}
+
+// Writes to a field through a pointer parameter
+func setVecX(v: *Vec2, x: i32) {
+    v.x = x;
+}
+
+func setVecY(v: *Vec2, y: i32) {
+    v.y = y;
+}
+
+// Reads a field through a pointer parameter
+func getVecX(v: *Vec2) i32 {
+    return v.x;
+}
+
+// ── direct struct, addressable ────────────────────────────────────────────────
+
+#[test("struct field read (direct, addressable)")]
+func testStructFieldRead() bool {
     var v = makeVec(3, 4);
     return v.x == 3 && v.y == 4;
+}
+
+#[test("struct field write (direct, addressable)")]
+func testStructFieldWrite() bool {
+    var v: Vec2;
+    v.x = 7;
+    v.y = 11;
+    return v.x == 7 && v.y == 11;
 }
 
 #[test("struct zero init")]
 func testStructZero() bool {
     var v: Vec2;
     return v.x == 0 && v.y == 0;
+}
+
+// ── direct struct, temporary (function return value) ─────────────────────────
+
+#[test("struct field read (direct, temporary)")]
+func testTempStructFieldRead() bool {
+    return makeVec(3, 4).x == 3 && makeVec(3, 4).y == 4;
+}
+
+// ── pointer to struct, addressable ptr ───────────────────────────────────────
+
+#[test("struct field read (pointer, addressable)")]
+func testPtrStructFieldRead() bool {
+    var v = makeVec(3, 4);
+    var p = &v;
+    return p.x == 3 && p.y == 4;
+}
+
+#[test("struct field write (pointer, addressable)")]
+func testPtrStructFieldWrite() bool {
+    var v: Vec2;
+    var p = &v;
+    p.x = 9;
+    p.y = 13;
+    return v.x == 9 && v.y == 13;
+}
+
+// ── pointer to struct, temporary ptr (function return value) ─────────────────
+
+#[test("struct field read (pointer, temporary)")]
+func testTempPtrStructFieldRead() bool {
+    var v = makeVec(5, 6);
+    return asVecPtr(&v).x == 5 && asVecPtr(&v).y == 6;
+}
+
+// ── through pointer parameter ─────────────────────────────────────────────────
+
+#[test("struct field write via pointer param")]
+func testPtrParamStructFieldWrite() bool {
+    var v: Vec2;
+    setVecX(&v, 42);
+    setVecY(&v, 99);
+    return v.x == 42 && v.y == 99;
+}
+
+#[test("struct field read via pointer param")]
+func testPtrParamStructFieldRead() bool {
+    var v = makeVec(7, 8);
+    return getVecX(&v) == 7;
 }

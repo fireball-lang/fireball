@@ -266,6 +266,11 @@ func (p *parser) parsePrefix(rightPower int) (u *ast.Prefix, recoverId int) {
 	case lexer.Bang:
 		u.Op = ast.Not
 
+	case lexer.Ampersand:
+		u.Op = ast.AddressOf
+	case lexer.Star:
+		u.Op = ast.Dereference
+
 	default:
 		panic("parser.parsePrefix() - Invalid operator token '" + p.previous.Text + "'")
 	}
@@ -564,8 +569,8 @@ func init() {
 	infix(false, lexer.Plus, lexer.Minus)
 	// *, /, %
 	infix(false, lexer.Star, lexer.Slash, lexer.Percentage)
-	// -x, !x
-	prefix(lexer.Minus, lexer.Bang)
+	// -x, !x, &x, *x
+	prefix(lexer.Minus, lexer.Bang, lexer.Ampersand, lexer.Star)
 	// x[], x()
 	postfix(lexer.LeftBracket, lexer.LeftParen)
 	// x.y

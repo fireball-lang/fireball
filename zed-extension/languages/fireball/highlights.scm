@@ -59,6 +59,8 @@
   "<" "<=" ">" ">="
 ] @operator
 
+(prefix_expr "*" @operator)
+
 (binary_expr "*" @operator)
 
 "..." @punctuation.special

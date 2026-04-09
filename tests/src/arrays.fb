@@ -1,12 +1,39 @@
 mod tests::arrays;
 
+func makeArr() [3]i32 {
+    var arr: [3]i32;
+    arr[0] = 10;
+    arr[1] = 20;
+    arr[2] = 30;
+    return arr;
+}
+
+// Returns its argument as a temporary *i32 (non-addressable call result)
+func asPtr(p: *i32) *i32 {
+    return p;
+}
+
+// Fills three elements through a pointer parameter
+func fillArr(p: *i32, a: i32, b: i32, c: i32) {
+    p[0] = a;
+    p[1] = b;
+    p[2] = c;
+}
+
+// Sums three elements through a pointer parameter
+func sumArr(p: *i32) i32 {
+    return p[0] + p[1] + p[2];
+}
+
+// ── direct array, addressable ─────────────────────────────────────────────────
+
 #[test("array zero init")]
 func testArrayZero() bool {
     var arr: [5]i32;
     return arr[0] == 0 && arr[4] == 0;
 }
 
-#[test("array write read")]
+#[test("array write read (direct, addressable)")]
 func testArrayReadWrite() bool {
     var arr: [3]i32;
     arr[0] = 10;
@@ -15,7 +42,7 @@ func testArrayReadWrite() bool {
     return arr[0] + arr[1] + arr[2] == 60;
 }
 
-#[test("array loop sum")]
+#[test("array loop sum (direct, addressable)")]
 func testArrayLoop() bool {
     var arr: [5]i32;
     for (var i = 0; i < 5; i = i + 1) { arr[i] = i; }
@@ -24,4 +51,62 @@ func testArrayLoop() bool {
     for (var i = 0; i < 5; i = i + 1) { sum = sum + arr[i]; }
 
     return sum == 10;
+}
+
+// ── direct array, temporary (function return value) ───────────────────────────
+
+#[test("array index read (direct, temporary)")]
+func testTempArrayRead() bool {
+    return makeArr()[0] == 10 && makeArr()[1] == 20 && makeArr()[2] == 30;
+}
+
+// ── pointer to element, addressable ptr ──────────────────────────────────────
+
+#[test("array index read (pointer, addressable)")]
+func testPtrArrayRead() bool {
+    var arr: [3]i32;
+    arr[0] = 10;
+    arr[1] = 20;
+    arr[2] = 30;
+    var p = &arr[0];
+    return p[0] == 10 && p[1] == 20 && p[2] == 30;
+}
+
+#[test("array index write (pointer, addressable)")]
+func testPtrArrayWrite() bool {
+    var arr: [3]i32;
+    var p = &arr[0];
+    p[0] = 10;
+    p[1] = 20;
+    p[2] = 30;
+    return arr[0] == 10 && arr[1] == 20 && arr[2] == 30;
+}
+
+// ── pointer to element, temporary ptr (function return value) ─────────────────
+
+#[test("array index read (pointer, temporary)")]
+func testTempPtrArrayRead() bool {
+    var arr: [3]i32;
+    arr[0] = 5;
+    arr[1] = 15;
+    arr[2] = 25;
+    return asPtr(&arr[0])[0] == 5 && asPtr(&arr[0])[1] == 15 && asPtr(&arr[0])[2] == 25;
+}
+
+// ── through pointer parameter ─────────────────────────────────────────────────
+
+#[test("array write via pointer param")]
+func testFillArrViaPtr() bool {
+    var arr: [3]i32;
+    fillArr(&arr[0], 1, 2, 3);
+    return arr[0] == 1 && arr[1] == 2 && arr[2] == 3;
+}
+
+#[test("array read via pointer param")]
+func testSumArrViaPtr() bool {
+    var arr: [3]i32;
+    arr[0] = 1;
+    arr[1] = 2;
+    arr[2] = 3;
+    return sumArr(&arr[0]) == 6;
 }
