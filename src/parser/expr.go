@@ -71,6 +71,15 @@ func (p *parser) parsePrefixExpr() (ast.Expr, int) {
 	case lexer.Identifier:
 		return p.parseIdentifier()
 
+	case lexer.Sizeof:
+		return p.parseSizeOf()
+
+	case lexer.Alignof:
+		return p.parseAlignOf()
+
+	case lexer.Offsetof:
+		return p.parseOffsetOf()
+
 	default:
 		rightPower := prefixExprPower(p.current)
 
@@ -245,6 +254,112 @@ func (p *parser) parseString() (s *ast.String, recoverId int) {
 				pos.Column++
 			}
 		}
+	}
+
+	return
+}
+
+func (p *parser) parseSizeOf() (s *ast.SizeOf, recoverId int) {
+	s = &ast.SizeOf{}
+	s.Range_.Start = p.current.Range.Start
+	defer func() {
+		s.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'sizeof'
+	if recoverId = p.expect(lexer.Sizeof, "expected 'sizeof'"); recoverId >= 0 {
+		return
+	}
+
+	// '('
+	if recoverId = p.expect(lexer.LeftParen, "expected '(' before type"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if s.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
+	}
+
+	// ')'
+	if recoverId = p.expect(lexer.RightParen, "expected ')' after type"); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseAlignOf() (a *ast.AlignOf, recoverId int) {
+	a = &ast.AlignOf{}
+	a.Range_.Start = p.current.Range.Start
+	defer func() {
+		a.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'alignof'
+	if recoverId = p.expect(lexer.Alignof, "expected 'alignof'"); recoverId >= 0 {
+		return
+	}
+
+	// '('
+	if recoverId = p.expect(lexer.LeftParen, "expected '(' before type"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if a.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
+	}
+
+	// ')'
+	if recoverId = p.expect(lexer.RightParen, "expected ')' after type"); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseOffsetOf() (o *ast.OffsetOf, recoverId int) {
+	o = &ast.OffsetOf{}
+	o.Range_.Start = p.current.Range.Start
+	defer func() {
+		o.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'offsetof'
+	if recoverId = p.expect(lexer.Offsetof, "expected 'offsetof'"); recoverId >= 0 {
+		return
+	}
+
+	// '('
+	if recoverId = p.expect(lexer.LeftParen, "expected '(' before type"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if o.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
+	}
+
+	// ','
+	if recoverId = p.expect(lexer.Comma, "expected ',' after type"); recoverId >= 0 {
+		return
+	}
+
+	// Field
+	if o.Field, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// ')'
+	if recoverId = p.expect(lexer.RightParen, "expected ')' after field"); recoverId >= 0 {
+		return
 	}
 
 	return

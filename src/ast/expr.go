@@ -12,6 +12,10 @@ type ExprVisitor interface {
 	VisitCharacter(c *Character)
 	VisitString(s *String)
 
+	VisitSizeOf(s *SizeOf)
+	VisitAlignOf(a *AlignOf)
+	VisitOffsetOf(o *OffsetOf)
+
 	VisitPrefix(u *Prefix)
 	VisitBinary(b *Binary)
 
@@ -92,6 +96,70 @@ func (s *String) Children() iter.Seq[Node] {
 
 func (s *String) VisitExpr(visitor ExprVisitor) {
 	visitor.VisitString(s)
+}
+
+// SizeOf
+
+type SizeOf struct {
+	baseNode
+
+	Type Type
+}
+
+func (s *SizeOf) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(s.Type) {
+			return
+		}
+	}
+}
+
+func (s *SizeOf) VisitExpr(visitor ExprVisitor) {
+	visitor.VisitSizeOf(s)
+}
+
+// AlignOf
+
+type AlignOf struct {
+	baseNode
+
+	Type Type
+}
+
+func (a *AlignOf) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(a.Type) {
+			return
+		}
+	}
+}
+
+func (a *AlignOf) VisitExpr(visitor ExprVisitor) {
+	visitor.VisitAlignOf(a)
+}
+
+// OffsetOf
+
+type OffsetOf struct {
+	baseNode
+
+	Type  Type
+	Field *Leaf
+}
+
+func (o *OffsetOf) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(o.Type) {
+			return
+		}
+		if !yield(o.Field) {
+			return
+		}
+	}
+}
+
+func (o *OffsetOf) VisitExpr(visitor ExprVisitor) {
+	visitor.VisitOffsetOf(o)
 }
 
 // Prefix

@@ -18,6 +18,10 @@
 
 "as" @keyword
 
+"sizeof" @keyword
+"alignof" @keyword
+"offsetof" @keyword
+
 ; Attributes
 
 (mod path: (identifier_path (identifier) @namespace))
@@ -47,6 +51,8 @@
 (member_expr name: (identifier) @property)
 
 (var name: (identifier) @variable)
+
+(offsetof field: (identifier) @property)
 
 ; Operators
 

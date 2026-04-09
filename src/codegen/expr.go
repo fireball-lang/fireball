@@ -103,6 +103,37 @@ func (c *codegen) VisitString(s *ast.String) {
 	}
 }
 
+func (c *codegen) VisitSizeOf(s *ast.SizeOf) {
+	typ := c.nodeTypes[s.Type]
+	info := c.arch.Info(typ)
+
+	c.value = &ir.Integer{
+		Typ:   ir.I32,
+		Value: core.Unsigned(false, uint64(info.Size)),
+	}
+}
+
+func (c *codegen) VisitAlignOf(e *ast.AlignOf) {
+	typ := c.nodeTypes[e.Type]
+	info := c.arch.Info(typ)
+
+	c.value = &ir.Integer{
+		Typ:   ir.I32,
+		Value: core.Unsigned(false, uint64(info.Align)),
+	}
+}
+
+func (c *codegen) VisitOffsetOf(o *ast.OffsetOf) {
+	typ := c.nodeTypes[o.Type].(*types.Struct)
+	info := c.arch.Info(typ)
+	_, index := typ.Field(o.Field.Token.Text)
+
+	c.value = &ir.Integer{
+		Typ:   ir.I32,
+		Value: core.Unsigned(false, uint64(info.Offsets[index])),
+	}
+}
+
 func (c *codegen) VisitPrefix(u *ast.Prefix) {
 	switch u.Op {
 	case ast.Negate:

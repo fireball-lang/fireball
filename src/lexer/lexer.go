@@ -343,6 +343,13 @@ func (l *Lexer) keywordIdentifier() Token {
 
 	case "as":
 		token.Kind = As
+
+	case "sizeof":
+		token.Kind = Sizeof
+	case "alignof":
+		token.Kind = Alignof
+	case "offsetof":
+		token.Kind = Offsetof
 	}
 
 	return token

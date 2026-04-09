@@ -64,6 +64,47 @@ func (a *analyzer) VisitString(_ *ast.String) {
 	a.typ = stringType
 }
 
+func (a *analyzer) VisitSizeOf(s *ast.SizeOf) {
+	typ := a.AnalyzeType(s.Type)
+	a.typ = types.PrimitiveU32
+
+	if typ == types.Invalid {
+		return
+	}
+
+	a.nodeTypes[s.Type] = typ
+}
+
+func (a *analyzer) VisitAlignOf(e *ast.AlignOf) {
+	typ := a.AnalyzeType(e.Type)
+	a.typ = types.PrimitiveU32
+
+	if typ == types.Invalid {
+		return
+	}
+
+	a.nodeTypes[e.Type] = typ
+}
+
+func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) {
+	typ := a.AnalyzeType(o.Type)
+	a.typ = types.PrimitiveU32
+
+	if typ == types.Invalid {
+		return
+	}
+
+	a.nodeTypes[o.Type] = typ
+
+	if s, ok := typ.(*types.Struct); ok {
+		if _, index := s.Field(o.Field.Token.Text); index == -1 {
+			a.Error(o.Field, "field '%s' doesn't exist on '%s'", o.Field.Token.Text, s)
+		}
+	} else {
+		a.Error(o.Type, "expected a struct type, not '%s'", typ)
+	}
+}
+
 func (a *analyzer) VisitPrefix(u *ast.Prefix) {
 	expr := a.AnalyzeExpr(u.Expr)
 	if expr.Invalid() {

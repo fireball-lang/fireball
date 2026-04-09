@@ -1,0 +1,126 @@
+mod tests::intrinsics;
+
+// Mixed: fields of ascending size, triggers multiple padding gaps
+//
+//   a: i8   @ offset  0  (size 1, align 1)
+//   b: i32  @ offset  4  (size 4, align 4 — 3 bytes of padding before)
+//   c: i16  @ offset  8  (size 2, align 2)
+//   d: i64  @ offset 16  (size 8, align 8 — 6 bytes of padding before)
+//
+// Total size: alignTo(24, 8) = 24, align = 8
+
+struct Mixed {
+    a: i8,
+    b: i32,
+    c: i16,
+    d: i64,
+}
+
+#[test("sizeof(Mixed)")]
+func testSizeofMixed() bool {
+    return sizeof(Mixed) == 24u;
+}
+
+#[test("alignof(Mixed)")]
+func testAlignofMixed() bool {
+    return alignof(Mixed) == 8u;
+}
+
+#[test("offsetof(Mixed, a)")]
+func testOffsetofMixedA() bool {
+    return offsetof(Mixed, a) == 0u;
+}
+
+#[test("offsetof(Mixed, b)")]
+func testOffsetofMixedB() bool {
+    return offsetof(Mixed, b) == 4u;
+}
+
+#[test("offsetof(Mixed, c)")]
+func testOffsetofMixedC() bool {
+    return offsetof(Mixed, c) == 8u;
+}
+
+#[test("offsetof(Mixed, d)")]
+func testOffsetofMixedD() bool {
+    return offsetof(Mixed, d) == 16u;
+}
+
+// Descending: fields in descending size order, minimal internal padding
+//
+//   x: i64  @ offset  0  (size 8, align 8)
+//   y: i32  @ offset  8  (size 4, align 4)
+//   z: i16  @ offset 12  (size 2, align 2)
+//   w: i8   @ offset 14  (size 1, align 1)
+//
+// Total size: alignTo(15, 8) = 16, align = 8
+
+struct Descending {
+    x: i64,
+    y: i32,
+    z: i16,
+    w: i8,
+}
+
+#[test("sizeof(Descending)")]
+func testSizeofDescending() bool {
+    return sizeof(Descending) == 16u;
+}
+
+#[test("alignof(Descending)")]
+func testAlignofDescending() bool {
+    return alignof(Descending) == 8u;
+}
+
+#[test("offsetof(Descending, x)")]
+func testOffsetofDescendingX() bool {
+    return offsetof(Descending, x) == 0u;
+}
+
+#[test("offsetof(Descending, y)")]
+func testOffsetofDescendingY() bool {
+    return offsetof(Descending, y) == 8u;
+}
+
+#[test("offsetof(Descending, z)")]
+func testOffsetofDescendingZ() bool {
+    return offsetof(Descending, z) == 12u;
+}
+
+#[test("offsetof(Descending, w)")]
+func testOffsetofDescendingW() bool {
+    return offsetof(Descending, w) == 14u;
+}
+
+// BoolAndI64: bool followed by i64, large alignment gap
+//
+//   flag: bool  @ offset 0  (size 1, align 1)
+//   val:  i64   @ offset 8  (size 8, align 8 — 7 bytes of padding before)
+//
+// Total size: alignTo(16, 8) = 16, align = 8
+
+struct BoolAndI64 {
+    flag: bool,
+    val: i64,
+}
+
+#[test("sizeof(BoolAndI64)")]
+func testSizeofBoolAndI64() bool {
+    return sizeof(BoolAndI64) == 16u;
+}
+
+#[test("alignof(BoolAndI64)")]
+func testAlignofBoolAndI64() bool {
+    return alignof(BoolAndI64) == 8u;
+}
+
+#[test("offsetof(BoolAndI64, flag)")]
+func testOffsetofBoolAndI64Flag() bool {
+    return offsetof(BoolAndI64, flag) == 0u;
+}
+
+#[test("offsetof(BoolAndI64, val)")]
+func testOffsetofBoolAndI64Val() bool {
+    return offsetof(BoolAndI64, val) == 8u;
+}
+

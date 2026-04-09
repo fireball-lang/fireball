@@ -45,6 +45,10 @@ const (
 
 	As
 
+	Sizeof
+	Alignof
+	Offsetof
+
 	// Misc
 
 	Identifier
