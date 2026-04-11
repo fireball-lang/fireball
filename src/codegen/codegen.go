@@ -118,8 +118,20 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 	}
 
 	for _, decl := range file.Decls {
-		if f, ok := decl.(*ast.Func); ok {
-			c.VisitFunc(f)
+		switch decl := decl.(type) {
+		case *ast.Impl:
+			for _, f := range decl.Functions {
+				typ := c.nodeTypes[f].(*types.Func)
+				fun := c.CreateFunction(f, false)
+
+				c.VisitFunc(f, typ, fun)
+			}
+
+		case *ast.Func:
+			typ := c.nodeTypes[decl].(*types.Func)
+			fun := c.scope.Get(decl.Name()).(*ir.Function)
+
+			c.VisitFunc(decl, typ, fun)
 		}
 	}
 
@@ -167,6 +179,13 @@ func FuncLinkName(f *ast.Func) string {
 
 	for _, entry := range file.Mod.Path.Entries {
 		sb.WriteString(entry.Token.Text)
+		sb.WriteString("::")
+	}
+
+	if i, ok := f.Parent().(*ast.Impl); ok {
+		t := i.Type.(*ast.IdentifierType)
+
+		sb.WriteString(t.Path.LastName())
 		sb.WriteString("::")
 	}
 

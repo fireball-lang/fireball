@@ -31,6 +31,7 @@ const (
 	Import
 
 	Struct
+	Impl
 	Func
 
 	Var

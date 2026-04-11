@@ -11,13 +11,10 @@ import (
 
 // Visitor
 
-func (c *codegen) VisitFunc(f *ast.Func) {
+func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 	if core.IsNil(f.Body) {
 		return
 	}
-
-	typ := c.nodeTypes[f].(*types.Func)
-	fun := c.scope.Get(f.Name()).(*ir.Function)
 
 	// Meta
 
@@ -57,8 +54,26 @@ func (c *codegen) VisitFunc(f *ast.Func) {
 		}
 	}
 
+	// Receiver
+	params := typ.Params
+
+	if f.Receiver != nil {
+		value := fun.ParamValues[paramI]
+		paramI++
+
+		params = params[1:]
+		c.emitter.SetDebugLocation(f.Range().Start)
+
+		ptr := c.emitter.Alloca(ir.Pointer, 1)
+		ptr.SetName("param.self")
+
+		c.emitter.Store(value, ptr)
+
+		c.scope.Add("self", ptr)
+	}
+
 	// Parameters
-	for i, param := range typ.Params {
+	for i, param := range params {
 		name := fun.ParamNames[paramI]
 		value := fun.ParamValues[paramI]
 		typ := c.types.Get(param)
@@ -127,10 +142,17 @@ func (c *codegen) CreateFunction(f *ast.Func, declare bool) *ir.Function {
 	}
 
 	// Params
+	params := typ.Params
 	paramNames := make([]string, 0, len(f.Params)+1)
 
+	if f.IsMethod() && f.Receiver != nil {
+		sig.Params = append(sig.Params, ir.Pointer)
+		paramNames = append(paramNames, "self")
+		params = params[1:]
+	}
+
 	for i, param := range f.Params {
-		classes, info := c.callConv.Classify(c.arch, typ.Params[i])
+		classes, info := c.callConv.Classify(c.arch, params[i])
 
 		if len(classes) == 1 && classes[0] == abi.Memory {
 			sig.Params = append(sig.Params, ir.Pointer)

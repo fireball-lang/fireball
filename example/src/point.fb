@@ -1,11 +1,23 @@
 mod example::math;
 
+import example::c::{printf};
+
 struct Point {
 	x: i32,
 	y: i32,
 }
 
-func get(p: *Point) {
-	p.x = 5;
-	p.y = 5 * 3;
+impl Point {
+	func new(x: i32, y: i32) Point {
+		var p: Point;
+
+		p.x = x;
+		p.y = y;
+
+		return p;
+	}
+
+	func print(self) {
+		printf("X: %d, Y: %d\n", self.x, self.y);
+	}
 }

@@ -332,10 +332,21 @@ func (a *analyzer) VisitMember(m *ast.Member) {
 	if t, ok := typ.(*types.Struct); ok {
 		if field, index := t.Field(m.Name.Token.Text); index != -1 {
 			a.typ = field.Type
-		} else {
-			a.Error(m.Name, "member '%s' doesn't exist on type '%s'", m.Name.Token.Text, t)
-			a.typ = types.Invalid
+			return
 		}
+
+		if f, typ := a.methodTable.Get(typ, m.Name.Token.Text); !core.IsNil(typ) {
+			a.nodeTypes[f] = typ
+
+			a.typ = typ
+			a.node = f
+			a.address = false
+
+			return
+		}
+
+		a.Error(m.Name, "member '%s' doesn't exist on type '%s'", m.Name.Token.Text, t)
+		a.typ = types.Invalid
 
 		return
 	}
@@ -352,20 +363,25 @@ func (a *analyzer) VisitCall(c *ast.Call) {
 	}
 
 	if f, ok := expr.Type.(*types.Func); ok {
-		if len(c.Args) != len(f.Params) && (!f.VarArgs || len(c.Args) < len(f.Params)) {
-			a.Error(c.Callee, "expected %d arguments, got %d", len(f.Params), len(c.Args))
+		params := f.Params
+		if expr.Node.(*ast.Func).IsMethod() && expr.Node.(*ast.Func).Receiver != nil {
+			params = params[1:]
 		}
 
-		for i := 0; i < min(len(c.Args), len(f.Params)); i++ {
+		if len(c.Args) != len(params) && (!f.VarArgs || len(c.Args) < len(params)) {
+			a.Error(c.Callee, "expected %d arguments, got %d", len(params), len(c.Args))
+		}
+
+		for i := 0; i < min(len(c.Args), len(params)); i++ {
 			arg := a.AnalyzeExpr(c.Args[i])
 			if arg.Invalid() {
 				continue
 			}
 
-			a.ExpectType(f.Params[i], arg, c.Args[i])
+			a.ExpectType(params[i], arg, c.Args[i])
 		}
 
-		for i := len(f.Params); i < len(c.Args); i++ {
+		for i := len(params); i < len(c.Args); i++ {
 			a.AnalyzeExpr(c.Args[i])
 		}
 

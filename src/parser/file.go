@@ -13,7 +13,7 @@ func (p *parser) parseFile() (f *ast.File) {
 	}()
 
 	recoverId := -1
-	p.pushRecoverPoint(lexer.Hashtag, lexer.Mod, lexer.Import, lexer.Struct, lexer.Func)
+	p.pushRecoverPoint(lexer.Hashtag, lexer.Mod, lexer.Import, lexer.Struct, lexer.Impl, lexer.Func)
 
 	// Mod
 	if f.Mod, recoverId = p.parseMod(); recoverId >= 0 && p.current.Kind == lexer.EOF {

@@ -23,8 +23,13 @@ func (p *parser) parseDecl() (ast.Decl, int) {
 	switch p.current.Kind {
 	case lexer.Struct:
 		return p.parseStruct(attributes)
+	case lexer.Impl:
+		if len(attributes) != 0 {
+			p.reportError(sliceRange(attributes), "implementation blocks cannot have attributes")
+		}
+		return p.parseImpl()
 	case lexer.Func:
-		return p.parseFunc(attributes)
+		return p.parseFunc(attributes, false)
 
 	default:
 		b := &ast.BadDecl{}
@@ -160,7 +165,59 @@ func (p *parser) parseStruct(attributes []*ast.Attribute) (s *ast.Struct, recove
 	return
 }
 
-func (p *parser) parseFunc(attributes []*ast.Attribute) (f *ast.Func, recoverId int) {
+func (p *parser) parseImpl() (i *ast.Impl, recoverId int) {
+	i = &ast.Impl{}
+	i.Range_.Start = p.current.Range.Start
+	defer func() {
+		i.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'impl'
+	if recoverId = p.expect(lexer.Impl, "expected 'impl'"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if i.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
+	}
+
+	// '{'
+	if recoverId = p.expect(lexer.LeftBrace, "expected '{' before members"); recoverId >= 0 {
+		return
+	}
+
+	// Methods
+
+	for p.current.Kind != lexer.RightBrace && p.current.Kind != lexer.EOF {
+		myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Func)
+
+		var f *ast.Func
+		f, recoverId = p.parseFunc(nil, true)
+		i.Functions = append(i.Functions, f)
+
+		p.popRecoverPoint()
+
+		if recoverId >= 0 {
+			if recoverId == myRecoverId {
+				recoverId = -1
+			} else {
+				return
+			}
+		}
+	}
+
+	// '}'
+	if recoverId = p.expect(lexer.RightBrace, "expected '}' after members"); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseFunc(attributes []*ast.Attribute, allowReceiver bool) (f *ast.Func, recoverId int) {
 	f = &ast.Func{}
 	f.Range_.Start = p.current.Range.Start
 	f.Attributes = attributes
@@ -190,6 +247,19 @@ func (p *parser) parseFunc(attributes []*ast.Attribute) (f *ast.Func, recoverId 
 		// '('
 		if recoverId = p.expect(lexer.LeftParen, "expected '(' before function parameters"); recoverId >= 0 {
 			return
+		}
+
+		// Receiver
+		if allowReceiver && p.current.Kind == lexer.Identifier && p.current.Text == "self" {
+			if f.Receiver, recoverId = p.parseLeaf(); recoverId >= 0 {
+				return
+			}
+
+			if p.current.Kind != lexer.RightParen {
+				if recoverId = p.expect(lexer.Comma, "expected ',' after receiver"); recoverId >= 0 {
+					return
+				}
+			}
 		}
 
 		// Parameters

@@ -1,20 +1,10 @@
 mod example;
 
-import example::math::{get};
-import example::math;
+import example::math::{Point};
 
 func main() i32 {
-	var p: math::Point;
-
-	get(&p);
-	print(p);
+	var p = Point::new(5, 5 * 3);
+	p.print();
 
 	return p.y;
 }
-
-func print(p: math::Point) {
-	print_format("X: %d, Y: %d\n", p.x, p.y);
-}
-
-#[extern, link_name("printf")]
-func print_format(format: *u8, ...) void

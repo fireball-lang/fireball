@@ -28,6 +28,7 @@ type analyzer struct {
 
 	exprInfos   map[ast.Expr]ExprInfo
 	nodeTypes   map[ast.Node]types.Type
+	methodTable symbols.MethodTable
 	diagnostics []core.Diagnostic
 
 	funcType *types.Func
@@ -38,7 +39,7 @@ type analyzer struct {
 	address bool
 }
 
-func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, topLevelModule, path string) (map[ast.Expr]ExprInfo, map[ast.Node]types.Type, []core.Diagnostic) {
+func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, methodTable symbols.MethodTable, topLevelModule, path string) (map[ast.Expr]ExprInfo, map[ast.Node]types.Type, []core.Diagnostic) {
 	locals := &symbols.BlockScope{}
 
 	a := analyzer{
@@ -48,6 +49,7 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, t
 		path:           path,
 		exprInfos:      make(map[ast.Expr]ExprInfo),
 		nodeTypes:      make(map[ast.Node]types.Type),
+		methodTable:    methodTable,
 	}
 
 	a.scope = &symbols.CombinedScope{Scopes: []symbols.Scope{
@@ -125,22 +127,57 @@ func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
 		return symbols.Symbol{}, false
 	}
 
-	// Get module scope
-	modulePath := path.Entries[:len(path.Entries)-1]
-	scope, ok := getScope(a.scope, modulePath)
+	var scope symbols.Scope = a.scope
 
-	if !ok {
-		sb := strings.Builder{}
+	for i := 0; i < len(path.Entries)-1; i++ {
+		entry := path.Entries[i].Token.Text
 
-		for i, leaf := range modulePath {
-			if i > 0 {
-				sb.WriteString("::")
+		// Get module
+		child, ok := scope.GetScope(entry)
+		errMsg := "module '%s' cannot be found"
+
+		// Get struct
+		if !ok && i == len(path.Entries)-2 {
+			var symbol symbols.Symbol
+			symbol, ok = scope.GetSymbol(entry)
+
+			if ok {
+				name := path.Entries[i+1].Token.Text
+
+				if f, typ := a.methodTable.GetStatic(symbol.Type, name); !core.IsNil(f) {
+					return symbols.Symbol{
+						Kind: symbols.Func,
+						Name: f.Name(),
+						Node: f,
+						Type: typ,
+					}, true
+				}
+
+				// Method error
+				a.Error(path, "method '%s' cannot be found on type '%s'", name, symbol.Type)
+				return symbols.Symbol{}, false
 			}
-			sb.WriteString(leaf.Token.Text)
+
+			ok = false
+			errMsg = "module or type '%s' cannot be found"
 		}
 
-		a.Error(path, "module '%s' cannot be found", &sb)
-		return symbols.Symbol{}, false
+		scope = child
+
+		// Module error
+		if !ok {
+			sb := strings.Builder{}
+
+			for i, leaf := range path.Entries[:i+1] {
+				if i > 0 {
+					sb.WriteString("::")
+				}
+				sb.WriteString(leaf.Token.Text)
+			}
+
+			a.Error(path, errMsg, &sb)
+			return symbols.Symbol{}, false
+		}
 	}
 
 	// Get symbol

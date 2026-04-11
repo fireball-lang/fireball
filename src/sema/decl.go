@@ -58,6 +58,42 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 	}
 }
 
+func (a *analyzer) VisitImpl(i *ast.Impl) {
+	// Type
+	typ := a.AnalyzeType(i.Type)
+	if typ == types.Invalid {
+		return
+	}
+
+	a.nodeTypes[i] = typ
+
+	if _, ok := typ.(*types.Struct); !ok {
+		a.Error(i.Type, "implementation blocks can only be attached to struct types, not '%s'", typ)
+	}
+
+	// Methods
+	receiverTyp := &types.Pointer{Pointee: typ}
+
+	for _, f := range i.Functions {
+		if core.IsNil(f.Body) {
+			a.Error(f.Name_, "methods need to have a body")
+		}
+
+		var fTyp *types.Func
+		receiverTyp := receiverTyp
+
+		if f.Receiver == nil {
+			_, fTyp = a.methodTable.GetStatic(typ, f.Name())
+			receiverTyp = nil
+		} else {
+			_, fTyp = a.methodTable.Get(typ, f.Name())
+		}
+
+		a.nodeTypes[f] = fTyp
+		a.VisitFuncInner(f, fTyp, receiverTyp)
+	}
+}
+
 func (a *analyzer) VisitFunc(f *ast.Func) {
 	// Attributes
 	attributes := make(map[string]any)
@@ -159,10 +195,34 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 		}
 	}
 
+	// Inner
+	a.VisitFuncInner(f, typ, nil)
+}
+
+func (a *analyzer) VisitFuncInner(f *ast.Func, typ *types.Func, receiverTyp types.Type) {
+	// Params
 	a.locals.Push()
 
-	for i, param := range f.Params {
-		typ := typ.Params[i]
+	paramI := 0
+
+	if !core.IsNil(receiverTyp) {
+		symbol := symbols.Symbol{
+			Kind: symbols.Param,
+			Name: "self",
+			Node: f.Receiver,
+			Type: receiverTyp,
+		}
+
+		if !a.locals.Add(symbol) {
+			panic("analyzer.analyzer.VisitFuncInner() - Failed to add 'self' receiver to locals")
+		}
+
+		paramI++
+	}
+
+	for _, param := range f.Params {
+		typ := typ.Params[paramI]
+		paramI++
 
 		if typ == types.PrimitiveVoid {
 			a.Error(param.Type, "parameter cannot be of type 'void'")
@@ -181,6 +241,7 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 		}
 	}
 
+	// Body
 	a.funcType = typ
 	a.AnalyzeStmt(f.Body)
 	a.funcType = nil

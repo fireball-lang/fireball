@@ -1,6 +1,9 @@
 package project
 
 import (
+	"fireball/ast"
+	"fireball/symbols"
+	"fireball/types"
 	"io/fs"
 	"path/filepath"
 )
@@ -11,7 +14,13 @@ type Project struct {
 	Config Config
 	Files  []*File
 
-	Module *Module
+	Module      *Module
+	MethodTable symbols.MethodTable
+}
+
+type Method struct {
+	Ast  *ast.File
+	Type *types.Func
 }
 
 func Open(path string) (*Project, error) {
@@ -47,6 +56,7 @@ func Open(path string) (*Project, error) {
 
 func (p *Project) Parse() {
 	p.Module = &Module{Name: p.Config.Name}
+	p.MethodTable = symbols.NewMethodTable()
 
 	for _, file := range p.Files {
 		file.parse()
@@ -54,11 +64,11 @@ func (p *Project) Parse() {
 	}
 
 	for _, file := range p.Files {
-		file.resolve()
+		file.resolve(p.MethodTable)
 	}
 
 	for _, file := range p.Files {
-		file.analyze()
+		file.analyze(p.MethodTable)
 	}
 }
 

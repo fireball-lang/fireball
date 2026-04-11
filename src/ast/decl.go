@@ -7,6 +7,7 @@ import (
 
 type DeclVisitor interface {
 	VisitStruct(s *Struct)
+	VisitImpl(i *Impl)
 	VisitFunc(f *Func)
 
 	VisitBadDecl(b *BadDecl)
@@ -77,6 +78,37 @@ func (s *Struct) VisitDecl(visitor DeclVisitor) {
 	visitor.VisitStruct(s)
 }
 
+// Impl
+
+type Impl struct {
+	baseNode
+
+	Type Type
+
+	Functions []*Func
+}
+
+func (i *Impl) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(i.Type) {
+			return
+		}
+		for _, function := range i.Functions {
+			if !yield(function) {
+				return
+			}
+		}
+	}
+}
+
+func (i *Impl) Name() string {
+	return "<impl>"
+}
+
+func (i *Impl) VisitDecl(visitor DeclVisitor) {
+	visitor.VisitImpl(i)
+}
+
 // Func
 
 type Func struct {
@@ -86,9 +118,11 @@ type Func struct {
 
 	Name_ *Leaf
 
+	Receiver *Leaf // optional
+	Params   []*NameType
+	VarArgs  bool
+
 	Returns Type
-	Params  []*NameType
-	VarArgs bool
 
 	Body Stmt // optional
 }
@@ -103,13 +137,16 @@ func (f *Func) Children() iter.Seq[Node] {
 		if !yield(f.Name_) {
 			return
 		}
-		if !yield(f.Returns) {
+		if f.Receiver != nil && !yield(f.Receiver) {
 			return
 		}
 		for _, param := range f.Params {
 			if !yield(param) {
 				return
 			}
+		}
+		if !yield(f.Returns) {
+			return
 		}
 		if !core.IsNil(f.Body) {
 			yield(f.Body)
@@ -123,6 +160,11 @@ func (f *Func) Name() string {
 
 func (f *Func) VisitDecl(visitor DeclVisitor) {
 	visitor.VisitFunc(f)
+}
+
+func (f *Func) IsMethod() bool {
+	_, ok := f.Parent().(*Impl)
+	return ok
 }
 
 func (f *Func) GetTestName() string {

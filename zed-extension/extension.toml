@@ -8,4 +8,4 @@ repository = "https://github.com/MineGame159/fireball"
 
 [grammars.fireball]
 repository = "https://github.com/MineGame159/tree-sitter-fireball"
-rev = "2e637196281203e58f969e8fc30032699875dc14"
+rev = "9c6343c131fd24b631726908defbf89758e365f6"

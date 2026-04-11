@@ -300,6 +300,9 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) {
 	case *ast.Var:
 		c.value = c.scope.Get(node.Name.Token.Text)
 
+	case *ast.Leaf:
+		c.value = c.scope.Get(node.Token.Text)
+
 	default:
 		panic("codegen.codegen.VisitIdentifier() - Invalid node")
 	}
@@ -355,6 +358,16 @@ func (c *codegen) VisitMember(m *ast.Member) {
 
 	_, index := s.Field(m.Name.Token.Text)
 
+	// Method
+	if index == -1 {
+		f := c.exprInfos[m].Node.(*ast.Func)
+
+		c.AddSummaryCallee(m, f)
+		c.value = c.GetFunction(f)
+
+		return
+	}
+
 	// Get struct value
 	var value ir.Value
 
@@ -377,17 +390,43 @@ func (c *codegen) VisitMember(m *ast.Member) {
 }
 
 func (c *codegen) VisitCall(e *ast.Call) {
-	f := c.exprInfos[e.Callee].Type.(*types.Func)
+	f := c.exprInfos[e.Callee].Node.(*ast.Func)
+	typ := c.exprInfos[e.Callee].Type.(*types.Func)
 	callee := c.Load(e.Callee).(*ir.Function)
-	args := make([]ir.Value, 0, len(e.Args))
+	args := make([]ir.Value, 0, len(e.Args)+1)
 
 	// Arguments
+
+	params := typ.Params
+
+	if f.IsMethod() && f.Receiver != nil {
+		m := e.Callee.(*ast.Member)
+
+		var value ir.Value
+
+		if _, ok := c.UnderlyingExprType(m.Expr).(*types.Pointer); ok {
+			value = c.Load(m.Expr)
+		} else {
+			value = c.GenerateExpr(m.Expr)
+
+			if !c.exprInfos[m.Expr].Address {
+				typ := c.types.Get(c.UnderlyingExprType(m.Expr))
+				ptr := c.Alloca(typ, "call.self")
+				c.emitter.Store(value, ptr)
+				value = ptr
+			}
+		}
+
+		args = append(args, value)
+		params = params[1:]
+	}
+
 	for i, arg := range e.Args {
 		var valueType types.Type
 		var value ir.Value
 
-		if i < len(f.Params) {
-			valueType = f.Params[i]
+		if i < len(params) {
+			valueType = params[i]
 			value = c.LoadImplicitCast(arg, valueType)
 		} else {
 			valueType = c.UnderlyingExprType(arg)

@@ -1,0 +1,108 @@
+mod tests::methods;
+
+// ── types ──────────────────────────────────────────────────────────────────────
+
+struct Counter {
+    value: i32,
+}
+
+impl Counter {
+    func new(start: i32) Counter {
+        var c: Counter;
+        c.value = start;
+        return c;
+    }
+
+    func zero() Counter {
+        return Counter::new(0);
+    }
+
+    func get(self) i32 {
+        return self.value;
+    }
+
+    func increment(self) {
+        self.value = self.value + 1;
+    }
+
+    func add(self, n: i32) {
+        self.value = self.value + n;
+    }
+
+    func doubled(self) Counter {
+        return Counter::new(self.value * 2);
+    }
+}
+
+
+// ── static method tests ────────────────────────────────────────────────────────
+
+#[test("static constructor")]
+func testStaticNew() bool {
+    var c = Counter::new(42);
+    return c.value == 42;
+}
+
+#[test("static calling another static")]
+func testStaticChain() bool {
+    var c = Counter::zero();
+    return c.value == 0;
+}
+
+// ── instance method tests ──────────────────────────────────────────────────────
+
+#[test("instance getter")]
+func testGet() bool {
+    var c = Counter::new(7);
+    return c.get() == 7;
+}
+
+#[test("instance mutator")]
+func testIncrement() bool {
+    var c = Counter::new(10);
+    c.increment();
+    return c.value == 11;
+}
+
+#[test("instance mutator with argument")]
+func testAdd() bool {
+    var c = Counter::new(5);
+    c.add(3);
+    return c.value == 8;
+}
+
+#[test("instance method returning new struct does not mutate original")]
+func testDoubledIsolation() bool {
+    var c = Counter::new(6);
+    var d = c.doubled();
+    return c.value == 6 && d.value == 12;
+}
+
+// ── methods on temporary values ────────────────────────────────────────────────
+
+#[test("getter on temporary")]
+func testGetOnTemp() bool {
+    return Counter::new(99).get() == 99;
+}
+
+#[test("chained method calls on temporary")]
+func testDoubledOnTemp() bool {
+    return Counter::new(4).doubled().get() == 8;
+}
+
+// ── methods via pointer variable ───────────────────────────────────────────────
+
+#[test("instance getter via pointer")]
+func testGetViaPointer() bool {
+    var c = Counter::new(99);
+    var p = &c;
+    return p.get() == 99;
+}
+
+#[test("instance mutator via pointer affects original")]
+func testMutateViaPointer() bool {
+    var c = Counter::new(20);
+    var p = &c;
+    p.increment();
+    return c.value == 21;
+}

@@ -4,6 +4,7 @@
 "import" @keyword
 
 "struct" @keyword
+"impl" @keyword
 "func" @keyword.function
 
 "var" @keyword
@@ -41,14 +42,15 @@
 (struct field: (name_type name: (identifier) @property))
 
 (func name: (identifier) @function)
+(func receiver: (identifier) @keyword)
 (func param: (name_type name: (identifier) @variable.parameter))
 
 ; Expressions
 
+(member_expr name: (identifier) @property)
+
 (call_expr callee: (identifier_path) @function.call)
 (call_expr callee: (member_expr name: (identifier) @function.method.call))
-
-(member_expr name: (identifier) @property)
 
 (var name: (identifier) @variable)
 
@@ -83,6 +85,8 @@
 
 (identifier_type (identifier_path (identifier) @type))
 (identifier_path (identifier) @namespace . "::")
+
+(call_expr callee: (identifier_path (identifier) @type . "::") (#match? @type "^[A-Z]"))
 
 ; Literals
 

@@ -48,14 +48,14 @@ func (f *File) parse() {
 	f.Symbols = symbols.Collect(f.Ast)
 }
 
-func (f *File) resolve() {
+func (f *File) resolve(methodTable symbols.MethodTable) {
 	root := rootScope{f.Proj.Module}
-	f.resolveDiagnostics = sema.ResolveSymbols(f.Ast, f.Symbols, &root, f.Path)
+	f.resolveDiagnostics = sema.ResolveSymbols(f.Ast, f.Symbols, methodTable, &root, f.Path)
 }
 
-func (f *File) analyze() {
+func (f *File) analyze(methodTable symbols.MethodTable) {
 	root := rootScope{f.Proj.Module}
-	f.ExprInfos, f.NodeTypes, f.semaDiagnostics = sema.Analyze(f.Ast, f.Symbols, &root, f.Proj.Config.Name, f.Path)
+	f.ExprInfos, f.NodeTypes, f.semaDiagnostics = sema.Analyze(f.Ast, f.Symbols, &root, methodTable, f.Proj.Config.Name, f.Path)
 }
 
 func (f *File) Diagnostics() iter.Seq[core.Diagnostic] {

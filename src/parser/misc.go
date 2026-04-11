@@ -109,6 +109,13 @@ func (p *parser) badType() *ast.BadType {
 	return b
 }
 
+func sliceRange[T ast.Node](nodes []T) core.Range {
+	return core.Range{
+		Start: nodes[0].Range().Start,
+		End:   nodes[len(nodes)-1].Range().End,
+	}
+}
+
 func parseCommaList[T any](p *parser, itemStartToken, endToken lexer.TokenKind, parseItem func() (T, int)) (items []T, recoverId int) {
 	recoverId = -1
 
