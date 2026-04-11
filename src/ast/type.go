@@ -6,19 +6,10 @@ import (
 	"iter"
 )
 
-type TypeVisitor interface {
-	VisitPrimitiveType(p *PrimitiveType)
-	VisitArrayType(a *ArrayType)
-	VisitPointerType(p *PointerType)
-	VisitIdentifierType(i *IdentifierType)
-
-	VisitBadType(b *BadType)
-}
-
 type Type interface {
 	Node
 
-	VisitType(visitor TypeVisitor)
+	_isType()
 }
 
 // Primitive
@@ -33,9 +24,7 @@ func (p *PrimitiveType) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
 }
 
-func (p *PrimitiveType) VisitType(visitor TypeVisitor) {
-	visitor.VisitPrimitiveType(p)
-}
+func (p *PrimitiveType) _isType() {}
 
 // Array
 
@@ -52,9 +41,7 @@ func (a *ArrayType) Children() iter.Seq[Node] {
 	}
 }
 
-func (a *ArrayType) VisitType(visitor TypeVisitor) {
-	visitor.VisitArrayType(a)
-}
+func (a *ArrayType) _isType() {}
 
 // Pointer
 
@@ -70,9 +57,7 @@ func (p *PointerType) Children() iter.Seq[Node] {
 	}
 }
 
-func (p *PointerType) VisitType(visitor TypeVisitor) {
-	visitor.VisitPointerType(p)
-}
+func (p *PointerType) _isType() {}
 
 // Identifier
 
@@ -90,9 +75,7 @@ func (i *IdentifierType) Children() iter.Seq[Node] {
 	}
 }
 
-func (i *IdentifierType) VisitType(visitor TypeVisitor) {
-	visitor.VisitIdentifierType(i)
-}
+func (i *IdentifierType) _isType() {}
 
 // Bad
 
@@ -104,6 +87,4 @@ func (b *BadType) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
 }
 
-func (b *BadType) VisitType(visitor TypeVisitor) {
-	visitor.VisitBadType(b)
-}
+func (b *BadType) _isType() {}

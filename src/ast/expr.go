@@ -6,33 +6,10 @@ import (
 	"iter"
 )
 
-type ExprVisitor interface {
-	VisitBool(b *Bool)
-	VisitNumber(n *Number)
-	VisitCharacter(c *Character)
-	VisitString(s *String)
-	VisitNull(n *Null)
-
-	VisitSizeOf(s *SizeOf)
-	VisitAlignOf(a *AlignOf)
-	VisitOffsetOf(o *OffsetOf)
-
-	VisitPrefix(u *Prefix)
-	VisitBinary(b *Binary)
-
-	VisitIdentifier(i *Identifier)
-	VisitIndex(i *Index)
-	VisitMember(m *Member)
-	VisitCall(c *Call)
-	VisitCast(c *Cast)
-
-	VisitBadExpr(p *BadExpr)
-}
-
 type Expr interface {
 	Node
 
-	VisitExpr(visitor ExprVisitor)
+	_isExpr()
 }
 
 // Bool
@@ -47,9 +24,7 @@ func (b *Bool) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
 }
 
-func (b *Bool) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitBool(b)
-}
+func (b *Bool) _isExpr() {}
 
 // Number
 
@@ -63,9 +38,7 @@ func (n *Number) Range() core.Range {
 	return n.Token.Range
 }
 
-func (n *Number) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitNumber(n)
-}
+func (n *Number) _isExpr() {}
 
 // Character
 
@@ -79,9 +52,7 @@ func (c *Character) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
 }
 
-func (c *Character) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitCharacter(c)
-}
+func (c *Character) _isExpr() {}
 
 // String
 
@@ -95,9 +66,7 @@ func (s *String) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
 }
 
-func (s *String) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitString(s)
-}
+func (s *String) _isExpr() {}
 
 // Null
 
@@ -109,9 +78,7 @@ func (n *Null) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
 }
 
-func (n *Null) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitNull(n)
-}
+func (n *Null) _isExpr() {}
 
 // SizeOf
 
@@ -129,9 +96,7 @@ func (s *SizeOf) Children() iter.Seq[Node] {
 	}
 }
 
-func (s *SizeOf) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitSizeOf(s)
-}
+func (s *SizeOf) _isExpr() {}
 
 // AlignOf
 
@@ -149,9 +114,7 @@ func (a *AlignOf) Children() iter.Seq[Node] {
 	}
 }
 
-func (a *AlignOf) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitAlignOf(a)
-}
+func (a *AlignOf) _isExpr() {}
 
 // OffsetOf
 
@@ -173,9 +136,7 @@ func (o *OffsetOf) Children() iter.Seq[Node] {
 	}
 }
 
-func (o *OffsetOf) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitOffsetOf(o)
-}
+func (o *OffsetOf) _isExpr() {}
 
 // Prefix
 
@@ -202,9 +163,7 @@ func (u *Prefix) Children() iter.Seq[Node] {
 	}
 }
 
-func (u *Prefix) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitPrefix(u)
-}
+func (u *Prefix) _isExpr() {}
 
 // Binary
 
@@ -272,9 +231,7 @@ func (b *Binary) Children() iter.Seq[Node] {
 	}
 }
 
-func (b *Binary) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitBinary(b)
-}
+func (b *Binary) _isExpr() {}
 
 // Identifier
 
@@ -292,9 +249,7 @@ func (i *Identifier) Children() iter.Seq[Node] {
 	}
 }
 
-func (i *Identifier) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitIdentifier(i)
-}
+func (i *Identifier) _isExpr() {}
 
 // Index
 
@@ -314,9 +269,7 @@ func (i *Index) Children() iter.Seq[Node] {
 	}
 }
 
-func (i *Index) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitIndex(i)
-}
+func (i *Index) _isExpr() {}
 
 // Member
 
@@ -336,9 +289,7 @@ func (m *Member) Children() iter.Seq[Node] {
 	}
 }
 
-func (m *Member) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitMember(m)
-}
+func (m *Member) _isExpr() {}
 
 // Call
 
@@ -362,9 +313,7 @@ func (c *Call) Children() iter.Seq[Node] {
 	}
 }
 
-func (c *Call) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitCall(c)
-}
+func (c *Call) _isExpr() {}
 
 // Cast
 
@@ -386,9 +335,7 @@ func (c *Cast) Children() iter.Seq[Node] {
 	}
 }
 
-func (c *Cast) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitCast(c)
-}
+func (c *Cast) _isExpr() {}
 
 // Bad
 
@@ -400,6 +347,4 @@ func (b *BadExpr) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
 }
 
-func (b *BadExpr) VisitExpr(visitor ExprVisitor) {
-	visitor.VisitBadExpr(b)
-}
+func (b *BadExpr) _isExpr() {}

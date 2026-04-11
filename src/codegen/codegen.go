@@ -38,8 +38,6 @@ type codegen struct {
 
 	summaryCalls []ir.FunctionSummaryCall
 	summaryRefs  []ir.SummaryRef
-
-	value ir.Value
 }
 
 func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos map[ast.Expr]sema.ExprInfo, nodeTypes map[ast.Node]types.Type, path string, summary bool) *ir.Module {

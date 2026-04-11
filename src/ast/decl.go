@@ -5,20 +5,12 @@ import (
 	"iter"
 )
 
-type DeclVisitor interface {
-	VisitStruct(s *Struct)
-	VisitImpl(i *Impl)
-	VisitFunc(f *Func)
-
-	VisitBadDecl(b *BadDecl)
-}
-
 type Decl interface {
 	Node
 
 	Name() string
 
-	VisitDecl(visitor DeclVisitor)
+	_isDecl()
 }
 
 type Attribute struct {
@@ -74,9 +66,7 @@ func (s *Struct) Name() string {
 	return s.Name_.Token.Text
 }
 
-func (s *Struct) VisitDecl(visitor DeclVisitor) {
-	visitor.VisitStruct(s)
-}
+func (s *Struct) _isDecl() {}
 
 // Impl
 
@@ -105,9 +95,7 @@ func (i *Impl) Name() string {
 	return "<impl>"
 }
 
-func (i *Impl) VisitDecl(visitor DeclVisitor) {
-	visitor.VisitImpl(i)
-}
+func (i *Impl) _isDecl() {}
 
 // Func
 
@@ -158,9 +146,7 @@ func (f *Func) Name() string {
 	return f.Name_.Token.Text
 }
 
-func (f *Func) VisitDecl(visitor DeclVisitor) {
-	visitor.VisitFunc(f)
-}
+func (f *Func) _isDecl() {}
 
 func (f *Func) IsMethod() bool {
 	_, ok := f.Parent().(*Impl)
@@ -231,6 +217,4 @@ func (b *BadDecl) Name() string {
 	return ""
 }
 
-func (b *BadDecl) VisitDecl(visitor DeclVisitor) {
-	visitor.VisitBadDecl(b)
-}
+func (b *BadDecl) _isDecl() {}

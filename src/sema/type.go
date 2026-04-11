@@ -10,85 +10,69 @@ import (
 
 // Visitor
 
-func (a *analyzer) VisitPrimitiveType(p *ast.PrimitiveType) {
-	a.typ = types.GetPrimitive(p.Kind)
+func (a *analyzer) VisitPrimitiveType(p *ast.PrimitiveType) types.Type {
+	return types.GetPrimitive(p.Kind)
 }
 
-func (a *analyzer) VisitArrayType(t *ast.ArrayType) {
+func (a *analyzer) VisitArrayType(t *ast.ArrayType) types.Type {
 	element := a.AnalyzeType(t.Type)
 	if element == types.Invalid {
-		a.typ = types.Invalid
-		return
+		return types.Invalid
 	}
-
 	if element == types.PrimitiveVoid {
-		a.Error(t, "arrays of voids are not allowed")
-		a.typ = types.Invalid
-		return
+		return a.Error(t, "arrays of voids are not allowed").Type
 	}
 
 	size := lexer.ParseInteger(t.Size)
 	if size == 0 {
-		a.Error(t, "zero-sized arrays are not allowed")
-		a.typ = types.Invalid
-		return
+		return a.Error(t, "zero-sized arrays are not allowed").Type
 	}
-
 	if size > math.MaxUint32 {
-		a.Error(t, "array size cannot be bigger than an unsigned 32-bit integer")
-		a.typ = types.Invalid
-		return
+		return a.Error(t, "array size cannot be bigger than an unsigned 32-bit integer").Type
 	}
 
-	a.typ = &types.Array{
+	return &types.Array{
 		Size:    uint32(size),
 		Element: element,
 	}
 }
 
-func (a *analyzer) VisitPointerType(p *ast.PointerType) {
+func (a *analyzer) VisitPointerType(p *ast.PointerType) types.Type {
 	pointee := a.AnalyzeType(p.Pointee)
 	if pointee == types.Invalid {
-		a.typ = types.Invalid
-		return
+		return types.Invalid
 	}
 
-	a.typ = &types.Pointer{
+	return &types.Pointer{
 		Pointee: pointee,
 	}
 }
 
-func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) {
+func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) types.Type {
 	symbol, ok := a.GetSymbol(i.Path)
 	if !ok {
-		a.typ = types.Invalid
-		return
+		return types.Invalid
 	}
 
 	switch symbol.Kind {
 	case symbols.Struct:
-		a.typ = symbol.Type
+		return symbol.Type
 
 	case symbols.Func, symbols.Param, symbols.Var:
 		a.Error(i, "'%s' cannot be used as a type", i.Path.LastName())
-		a.typ = types.Invalid
+		return types.Invalid
 
 	default:
 		panic("sema.analyzer.VisitIdentifierType() - Invalid kind")
 	}
 }
 
-func (a *analyzer) VisitBadType(_ *ast.BadType) {
-	a.typ = types.Invalid
+func (a *analyzer) VisitBadType(_ *ast.BadType) types.Type {
+	return types.Invalid
 }
 
 // Utils
 
-func (a *analyzer) AnalyzeType(type_ ast.Type) types.Type {
-	type_.VisitType(a)
-
-	typ := a.typ
-	a.typ = nil
-
-	return typ
+func (a *analyzer) AnalyzeType(typ ast.Type) types.Type {
+	return ast.VisitType(a, typ)
 }

@@ -217,5 +217,5 @@ func (c *codegen) VisitBadStmt(_ *ast.BadStmt) {}
 
 func (c *codegen) GenerateStmt(stmt ast.Stmt) {
 	c.emitter.SetDebugLocation(stmt.Range().Start)
-	stmt.VisitStmt(c)
+	ast.VisitStmt(c, stmt)
 }

@@ -15,23 +15,21 @@ import (
 
 // Visitor
 
-func (c *codegen) VisitBool(b *ast.Bool) {
+func (c *codegen) VisitBool(b *ast.Bool) ir.Value {
 	if b.Value {
-		c.value = ir.True
-	} else {
-		c.value = ir.False
+		return ir.True
 	}
+
+	return ir.False
 }
 
-func (c *codegen) VisitNumber(n *ast.Number) {
+func (c *codegen) VisitNumber(n *ast.Number) ir.Value {
 	// Integer
 	if lexer.IsInteger(n.Token.Kind) {
-		c.value = &ir.Integer{
+		return &ir.Integer{
 			Typ:   c.types.Get(c.UnderlyingExprType(n)),
 			Value: core.Unsigned(false, lexer.ParseInteger(n.Token)),
 		}
-
-		return
 	}
 
 	// Float
@@ -41,9 +39,7 @@ func (c *codegen) VisitNumber(n *ast.Number) {
 			panic("codegen.codegen.VisitNumber() - Failed to parse float '" + n.Token.Text + "'")
 		}
 
-		c.value = &ir.FloatV{Value: float32(value)}
-
-		return
+		return &ir.FloatV{Value: float32(value)}
 	}
 
 	// Double
@@ -53,23 +49,21 @@ func (c *codegen) VisitNumber(n *ast.Number) {
 			panic("codegen.codegen.VisitNumber() - Failed to parse double '" + n.Token.Text + "'")
 		}
 
-		c.value = &ir.DoubleV{Value: value}
-
-		return
+		return &ir.DoubleV{Value: value}
 	}
 
 	// Unknown
 	panic("codegen.codegen.VisitNumber() - Invalid token kind")
 }
 
-func (c *codegen) VisitCharacter(e *ast.Character) {
-	c.value = &ir.Integer{
+func (c *codegen) VisitCharacter(e *ast.Character) ir.Value {
+	return &ir.Integer{
 		Typ:   ir.I32,
 		Value: core.Unsigned(false, uint64(e.Rune)),
 	}
 }
 
-func (c *codegen) VisitString(s *ast.String) {
+func (c *codegen) VisitString(s *ast.String) ir.Value {
 	value := ir.NewString(s.Runes, true)
 
 	global := c.module.NewGlobalVar(fmt.Sprintf("string.%d", c.stringCount), value.Type())
@@ -77,8 +71,6 @@ func (c *codegen) VisitString(s *ast.String) {
 
 	global.Flags = ir.Private | ir.UnnamedAddr | ir.Constant
 	global.Initializer = value
-
-	c.value = global
 
 	// Summary
 
@@ -101,112 +93,113 @@ func (c *codegen) VisitString(s *ast.String) {
 
 		c.summaryRefs = append(c.summaryRefs, ref)
 	}
+
+	return global
 }
 
-func (c *codegen) VisitNull(_ *ast.Null) {
-	c.value = &ir.Null{}
+func (c *codegen) VisitNull(_ *ast.Null) ir.Value {
+	return &ir.Null{}
 }
 
-func (c *codegen) VisitSizeOf(s *ast.SizeOf) {
+func (c *codegen) VisitSizeOf(s *ast.SizeOf) ir.Value {
 	typ := c.nodeTypes[s.Type]
 	info := c.arch.Info(typ)
 
-	c.value = &ir.Integer{
+	return &ir.Integer{
 		Typ:   ir.I32,
 		Value: core.Unsigned(false, uint64(info.Size)),
 	}
 }
 
-func (c *codegen) VisitAlignOf(e *ast.AlignOf) {
+func (c *codegen) VisitAlignOf(e *ast.AlignOf) ir.Value {
 	typ := c.nodeTypes[e.Type]
 	info := c.arch.Info(typ)
 
-	c.value = &ir.Integer{
+	return &ir.Integer{
 		Typ:   ir.I32,
 		Value: core.Unsigned(false, uint64(info.Align)),
 	}
 }
 
-func (c *codegen) VisitOffsetOf(o *ast.OffsetOf) {
+func (c *codegen) VisitOffsetOf(o *ast.OffsetOf) ir.Value {
 	typ := c.nodeTypes[o.Type].(*types.Struct)
 	info := c.arch.Info(typ)
 	_, index := typ.Field(o.Field.Token.Text)
 
-	c.value = &ir.Integer{
+	return &ir.Integer{
 		Typ:   ir.I32,
 		Value: core.Unsigned(false, uint64(info.Offsets[index])),
 	}
 }
 
-func (c *codegen) VisitPrefix(u *ast.Prefix) {
+func (c *codegen) VisitPrefix(u *ast.Prefix) ir.Value {
 	switch u.Op {
 	case ast.Negate:
 		value := c.Load(u.Expr)
 
 		// Floating
 		if typ := c.UnderlyingExprType(u.Expr); typ == types.PrimitiveF32 || typ == types.PrimitiveF64 {
-			c.value = c.emitter.Fneg(value)
-			return
+			return c.emitter.Fneg(value)
 		}
 
 		// Integer
 		zero := &ir.Integer{Typ: value.Type(), Value: core.Signed(0)}
-		c.value = c.emitter.Sub(zero, value)
+		return c.emitter.Sub(zero, value)
 
 	case ast.Not:
 		value := c.LoadImplicitCast(u.Expr, types.PrimitiveBool)
-		c.value = c.emitter.Xor(value, ir.True)
+		return c.emitter.Xor(value, ir.True)
 
 	case ast.AddressOf:
-		c.value = c.GenerateExpr(u.Expr)
+		return c.GenerateExpr(u.Expr)
 
 	case ast.Dereference:
-		c.value = c.Load(u.Expr)
+		return c.Load(u.Expr)
 
 	default:
 		panic("codegen.codegen.VisitPrefix() - Invalid operator")
 	}
 }
 
-func (c *codegen) VisitBinary(b *ast.Binary) {
+func (c *codegen) VisitBinary(b *ast.Binary) ir.Value {
 	switch b.Op {
 	// Math
 
 	case ast.Add:
 		typ := c.exprInfos[b].Type
-		c.value = c.emitter.Add(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
+		return c.emitter.Add(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	case ast.Subtract:
 		typ := c.exprInfos[b].Type
-		c.value = c.emitter.Sub(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
+		return c.emitter.Sub(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	case ast.Multiply:
 		typ := c.exprInfos[b].Type
-		c.value = c.emitter.Mul(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
+		return c.emitter.Mul(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	case ast.Divide:
 		typ := c.exprInfos[b].Type
 		kind := c.GetDivKind(b.Left)
-		c.value = c.emitter.Div(kind, c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
+		return c.emitter.Div(kind, c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	case ast.Modulo:
 		typ := c.exprInfos[b].Type
 		kind := c.GetDivKind(b.Left)
-		c.value = c.emitter.Rem(kind, c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
+		return c.emitter.Rem(kind, c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	// Bitwise
 
 	case ast.BitOr:
 		typ := c.exprInfos[b].Type
-		c.value = c.emitter.Or(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
+		return c.emitter.Or(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	case ast.BitXor:
 		typ := c.exprInfos[b].Type
-		c.value = c.emitter.Xor(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
+		return c.emitter.Xor(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	case ast.BitAnd:
 		typ := c.exprInfos[b].Type
-		c.value = c.emitter.And(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
+		return c.emitter.And(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
 
 	// Boolean
 
@@ -228,7 +221,7 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 		// Exit
 		c.emitter.Begin(bExit)
 
-		c.value = c.emitter.Phi(
+		return c.emitter.Phi(
 			ir.PhiPair{Block: bLeft, Value: ir.False},
 			ir.PhiPair{Block: bRight, Value: right},
 		)
@@ -251,7 +244,7 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 		// Exit
 		c.emitter.Begin(bExit)
 
-		c.value = c.emitter.Phi(
+		return c.emitter.Phi(
 			ir.PhiPair{Block: bLeft, Value: ir.True},
 			ir.PhiPair{Block: bRight, Value: right},
 		)
@@ -259,24 +252,24 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 	// Equality
 
 	case ast.Equal:
-		c.value = c.EmitCmp(ir.Eq, b.Left, b.Right)
+		return c.EmitCmp(ir.Eq, b.Left, b.Right)
 
 	case ast.NotEqual:
-		c.value = c.EmitCmp(ir.Ne, b.Left, b.Right)
+		return c.EmitCmp(ir.Ne, b.Left, b.Right)
 
 	// Relational
 
 	case ast.Less:
-		c.value = c.EmitCmp(ir.Lt, b.Left, b.Right)
+		return c.EmitCmp(ir.Lt, b.Left, b.Right)
 
 	case ast.LessEqual:
-		c.value = c.EmitCmp(ir.Le, b.Left, b.Right)
+		return c.EmitCmp(ir.Le, b.Left, b.Right)
 
 	case ast.Greater:
-		c.value = c.EmitCmp(ir.Gt, b.Left, b.Right)
+		return c.EmitCmp(ir.Gt, b.Left, b.Right)
 
 	case ast.GreaterEqual:
-		c.value = c.EmitCmp(ir.Ge, b.Left, b.Right)
+		return c.EmitCmp(ir.Ge, b.Left, b.Right)
 
 	// Assignment
 
@@ -285,34 +278,34 @@ func (c *codegen) VisitBinary(b *ast.Binary) {
 		value := c.LoadImplicitCast(b.Right, c.exprInfos[b.Left].Type)
 
 		c.emitter.Store(value, ptr)
-		c.value = value
+		return value
 
 	default:
 		panic("codegen.codegen.VisitBinary() - Invalid operator kind")
 	}
 }
 
-func (c *codegen) VisitIdentifier(i *ast.Identifier) {
+func (c *codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 	switch node := c.exprInfos[i].Node.(type) {
 	case *ast.Func:
 		c.AddSummaryCallee(i, node)
-		c.value = c.GetFunction(node)
+		return c.GetFunction(node)
 
 	case *ast.NameType:
-		c.value = c.scope.Get(node.Name.Token.Text)
+		return c.scope.Get(node.Name.Token.Text)
 
 	case *ast.Var:
-		c.value = c.scope.Get(node.Name.Token.Text)
+		return c.scope.Get(node.Name.Token.Text)
 
 	case *ast.Leaf:
-		c.value = c.scope.Get(node.Token.Text)
+		return c.scope.Get(node.Token.Text)
 
 	default:
 		panic("codegen.codegen.VisitIdentifier() - Invalid node")
 	}
 }
 
-func (c *codegen) VisitIndex(i *ast.Index) {
+func (c *codegen) VisitIndex(i *ast.Index) ir.Value {
 	typ := c.UnderlyingExprType(i.Expr)
 	index := c.Load(i.Index)
 
@@ -320,8 +313,7 @@ func (c *codegen) VisitIndex(i *ast.Index) {
 	if p, ok := typ.(*types.Pointer); ok {
 		irTyp := c.types.Get(p.Pointee)
 		ptr := c.Load(i.Expr)
-		c.value = c.emitter.GetElementPtrDyn(irTyp, ptr, index, nil)
-		return
+		return c.emitter.GetElementPtrDyn(irTyp, ptr, index, nil)
 	}
 
 	// Array indexing
@@ -339,15 +331,17 @@ func (c *codegen) VisitIndex(i *ast.Index) {
 		c.emitter.Store(value, ptr)
 	}
 
-	c.value = c.emitter.GetElementPtrDyn(irTyp, ptr, ir.False, index)
+	value := c.emitter.GetElementPtrDyn(irTyp, ptr, ir.False, index)
 
 	if !c.exprInfos[i].Address {
 		typ := c.types.Get(typ.(*types.Array).Element)
-		c.value = c.emitter.Load(typ, c.value)
+		value = c.emitter.Load(typ, value)
 	}
+
+	return value
 }
 
-func (c *codegen) VisitMember(m *ast.Member) {
+func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 	typ := c.UnderlyingExprType(m.Expr)
 
 	var pointer bool
@@ -367,9 +361,7 @@ func (c *codegen) VisitMember(m *ast.Member) {
 		f := c.exprInfos[m].Node.(*ast.Func)
 
 		c.AddSummaryCallee(m, f)
-		c.value = c.GetFunction(f)
-
-		return
+		return c.GetFunction(f)
 	}
 
 	// Get struct value
@@ -384,16 +376,14 @@ func (c *codegen) VisitMember(m *ast.Member) {
 	// Pointer
 	if c.exprInfos[m].Address {
 		typ := c.types.Get(s)
-		c.value = c.emitter.GetElementPtrConst(typ, value, 0, uint32(index))
-
-		return
+		return c.emitter.GetElementPtrConst(typ, value, 0, uint32(index))
 	}
 
 	// Value
-	c.value = c.emitter.ExtractValue(value, uint32(index))
+	return c.emitter.ExtractValue(value, uint32(index))
 }
 
-func (c *codegen) VisitCall(e *ast.Call) {
+func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 	f := c.exprInfos[e.Callee].Node.(*ast.Func)
 	typ := c.exprInfos[e.Callee].Type.(*types.Func)
 	callee := c.Load(e.Callee).(*ir.Function)
@@ -472,14 +462,16 @@ func (c *codegen) VisitCall(e *ast.Call) {
 	// Return value
 	if core.IsNil(returnPtr) {
 		typ := c.types.Get(returnTyp)
-		c.value = c.BitCast(value, typ)
-	} else {
+		return c.BitCast(value, typ)
+	}
+
+	{
 		typ := c.types.Get(returnTyp)
-		c.value = c.emitter.Load(typ, returnPtr)
+		return c.emitter.Load(typ, returnPtr)
 	}
 }
 
-func (c *codegen) VisitCast(e *ast.Cast) {
+func (c *codegen) VisitCast(e *ast.Cast) ir.Value {
 	value := c.Load(e.Expr)
 
 	from := c.exprInfos[e.Expr].Type
@@ -487,10 +479,12 @@ func (c *codegen) VisitCast(e *ast.Cast) {
 
 	kind, _ := sema.GetExplicitCast(from, to)
 
-	c.value = c.Cast(value, kind, from, to)
+	return c.Cast(value, kind, from, to)
 }
 
-func (c *codegen) VisitBadExpr(_ *ast.BadExpr) {}
+func (c *codegen) VisitBadExpr(_ *ast.BadExpr) ir.Value {
+	panic("codegen.codegen.VisitBadExpr() - Shouldn't ever get here")
+}
 
 // Utils
 
@@ -672,10 +666,5 @@ func (c *codegen) Load(expr ast.Expr) ir.Value {
 
 func (c *codegen) GenerateExpr(expr ast.Expr) ir.Value {
 	c.emitter.SetDebugLocation(expr.Range().Start)
-	expr.VisitExpr(c)
-
-	value := c.value
-	c.value = nil
-
-	return value
+	return ast.VisitExpr(c, expr)
 }

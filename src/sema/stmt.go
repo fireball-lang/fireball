@@ -135,6 +135,5 @@ func (a *analyzer) AnalyzeStmt(stmt ast.Stmt) {
 	if core.IsNil(stmt) {
 		return
 	}
-
-	stmt.VisitStmt(a)
+	ast.VisitStmt(a, stmt)
 }

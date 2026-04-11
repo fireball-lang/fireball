@@ -33,10 +33,6 @@ type analyzer struct {
 
 	funcType *types.Func
 	loop     int
-
-	typ     types.Type
-	node    ast.Node
-	address bool
 }
 
 func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, methodTable symbols.MethodTable, topLevelModule, path string) (map[ast.Expr]ExprInfo, map[ast.Node]types.Type, []core.Diagnostic) {
@@ -68,7 +64,7 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, m
 	// Declarations
 
 	for _, decl := range file.Decls {
-		decl.VisitDecl(&a)
+		ast.VisitDecl(&a, decl)
 	}
 
 	return a.exprInfos, a.nodeTypes, a.diagnostics
@@ -226,11 +222,13 @@ func (a *analyzer) ExpectType(typ types.Type, expr ExprInfo, node ast.Node) {
 	}
 }
 
-func (a *analyzer) Error(node ast.Node, format string, args ...any) {
+func (a *analyzer) Error(node ast.Node, format string, args ...any) ExprInfo {
 	a.diagnostics = append(a.diagnostics, core.Diagnostic{
 		Kind:    core.Error,
 		Path:    a.path,
 		Range:   node.Range(),
 		Message: fmt.Sprintf(format, args...),
 	})
+
+	return ExprInfo{Type: types.Invalid}
 }

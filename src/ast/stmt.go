@@ -5,26 +5,10 @@ import (
 	"iter"
 )
 
-type StmtVisitor interface {
-	VisitBlock(b *Block)
-	VisitExpression(e *Expression)
-
-	VisitVar(v *Var)
-	VisitIf(i *If)
-	VisitWhile(w *While)
-	VisitFor(f *For)
-
-	VisitReturn(r *Return)
-	VisitBreak(b *Break)
-	VisitContinue(c *Continue)
-
-	VisitBadStmt(b *BadStmt)
-}
-
 type Stmt interface {
 	Node
 
-	VisitStmt(visitor StmtVisitor)
+	_isStmt()
 }
 
 // Block
@@ -45,9 +29,7 @@ func (b *Block) Children() iter.Seq[Node] {
 	}
 }
 
-func (b *Block) VisitStmt(visitor StmtVisitor) {
-	visitor.VisitBlock(b)
-}
+func (b *Block) _isStmt() {}
 
 // Expression
 
@@ -63,9 +45,7 @@ func (e *Expression) Children() iter.Seq[Node] {
 	}
 }
 
-func (e *Expression) VisitStmt(visitor StmtVisitor) {
-	visitor.VisitExpression(e)
-}
+func (e *Expression) _isStmt() {}
 
 // Var
 
@@ -91,9 +71,7 @@ func (v *Var) Children() iter.Seq[Node] {
 	}
 }
 
-func (v *Var) VisitStmt(visitor StmtVisitor) {
-	visitor.VisitVar(v)
-}
+func (v *Var) _isStmt() {}
 
 // If
 
@@ -119,9 +97,7 @@ func (i *If) Children() iter.Seq[Node] {
 	}
 }
 
-func (i *If) VisitStmt(visitor StmtVisitor) {
-	visitor.VisitIf(i)
-}
+func (i *If) _isStmt() {}
 
 // While
 
@@ -141,9 +117,7 @@ func (w *While) Children() iter.Seq[Node] {
 	}
 }
 
-func (w *While) VisitStmt(visitor StmtVisitor) {
-	visitor.VisitWhile(w)
-}
+func (w *While) _isStmt() {}
 
 // For
 
@@ -172,9 +146,7 @@ func (f *For) Children() iter.Seq[Node] {
 	}
 }
 
-func (f *For) VisitStmt(visitor StmtVisitor) {
-	visitor.VisitFor(f)
-}
+func (f *For) _isStmt() {}
 
 // Return
 
@@ -192,9 +164,7 @@ func (r *Return) Children() iter.Seq[Node] {
 	}
 }
 
-func (r *Return) VisitStmt(visitor StmtVisitor) {
-	visitor.VisitReturn(r)
-}
+func (r *Return) _isStmt() {}
 
 // Break
 
@@ -206,9 +176,7 @@ func (b *Break) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
 }
 
-func (b *Break) VisitStmt(visitor StmtVisitor) {
-	visitor.VisitBreak(b)
-}
+func (b *Break) _isStmt() {}
 
 // Continue
 
@@ -220,9 +188,7 @@ func (c *Continue) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
 }
 
-func (c *Continue) VisitStmt(visitor StmtVisitor) {
-	visitor.VisitContinue(c)
-}
+func (c *Continue) _isStmt() {}
 
 // Bad
 
@@ -234,6 +200,4 @@ func (b *BadStmt) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
 }
 
-func (b *BadStmt) VisitStmt(visitor StmtVisitor) {
-	visitor.VisitBadStmt(b)
-}
+func (b *BadStmt) _isStmt() {}

@@ -11,93 +11,87 @@ import (
 
 // Visitor
 
-func (a *analyzer) VisitBool(_ *ast.Bool) {
-	a.typ = types.PrimitiveBool
+func (a *analyzer) VisitBool(_ *ast.Bool) ExprInfo {
+	return ExprInfo{Type: types.PrimitiveBool}
 }
 
-func (a *analyzer) VisitNumber(n *ast.Number) {
+func (a *analyzer) VisitNumber(n *ast.Number) ExprInfo {
 	switch n.Token.Kind {
 	case lexer.BinaryInteger, lexer.HexInteger, lexer.UnsignedInteger:
 		value := lexer.ParseInteger(n.Token)
 
 		if value <= math.MaxUint8 {
-			a.typ = types.PrimitiveU8
+			return ExprInfo{Type: types.PrimitiveU8}
 		} else if value <= math.MaxUint16 {
-			a.typ = types.PrimitiveU16
+			return ExprInfo{Type: types.PrimitiveU16}
 		} else if value <= math.MaxUint32 {
-			a.typ = types.PrimitiveU32
-		} else {
-			a.typ = types.PrimitiveU64
+			return ExprInfo{Type: types.PrimitiveU32}
 		}
+		return ExprInfo{Type: types.PrimitiveU64}
 
 	case lexer.SignedInteger:
 		value := lexer.ParseInteger(n.Token)
 
 		if value <= math.MaxInt8 {
-			a.typ = types.PrimitiveI8
+			return ExprInfo{Type: types.PrimitiveI8}
 		} else if value <= math.MaxInt16 {
-			a.typ = types.PrimitiveI16
+			return ExprInfo{Type: types.PrimitiveI16}
 		} else if value <= math.MaxInt32 {
-			a.typ = types.PrimitiveI32
-		} else {
-			a.typ = types.PrimitiveI64
+			return ExprInfo{Type: types.PrimitiveI32}
 		}
+		return ExprInfo{Type: types.PrimitiveI64}
 
 	case lexer.Decimal:
-		a.typ = types.PrimitiveF64
+		return ExprInfo{Type: types.PrimitiveF64}
 
 	case lexer.Decimal32bit:
-		a.typ = types.PrimitiveF32
+		return ExprInfo{Type: types.PrimitiveF32}
 
 	default:
 		panic("sema.analyzer.VisitNumber() - Invalid token kind")
 	}
 }
 
-func (a *analyzer) VisitCharacter(_ *ast.Character) {
-	a.typ = types.PrimitiveU32
+func (a *analyzer) VisitCharacter(_ *ast.Character) ExprInfo {
+	return ExprInfo{Type: types.PrimitiveU32}
 }
 
 var stringType = &types.Pointer{Pointee: types.PrimitiveU8}
 
-func (a *analyzer) VisitString(_ *ast.String) {
-	a.typ = stringType
+func (a *analyzer) VisitString(_ *ast.String) ExprInfo {
+	return ExprInfo{Type: stringType}
 }
 
 var voidPtrType = &types.Pointer{Pointee: types.PrimitiveVoid}
 
-func (a *analyzer) VisitNull(_ *ast.Null) {
-	a.typ = voidPtrType
+func (a *analyzer) VisitNull(_ *ast.Null) ExprInfo {
+	return ExprInfo{Type: voidPtrType}
 }
 
-func (a *analyzer) VisitSizeOf(s *ast.SizeOf) {
+func (a *analyzer) VisitSizeOf(s *ast.SizeOf) ExprInfo {
 	typ := a.AnalyzeType(s.Type)
-	a.typ = types.PrimitiveU32
-
 	if typ == types.Invalid {
-		return
+		return ExprInfo{Type: types.Invalid}
 	}
 
 	a.nodeTypes[s.Type] = typ
+	return ExprInfo{Type: types.PrimitiveU32}
 }
 
-func (a *analyzer) VisitAlignOf(e *ast.AlignOf) {
+func (a *analyzer) VisitAlignOf(e *ast.AlignOf) ExprInfo {
 	typ := a.AnalyzeType(e.Type)
-	a.typ = types.PrimitiveU32
-
 	if typ == types.Invalid {
-		return
+		return ExprInfo{Type: types.Invalid}
 	}
 
 	a.nodeTypes[e.Type] = typ
+	return ExprInfo{Type: types.PrimitiveU32}
 }
 
-func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) {
+func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) ExprInfo {
 	typ := a.AnalyzeType(o.Type)
-	a.typ = types.PrimitiveU32
-
 	if typ == types.Invalid {
-		return
+		return ExprInfo{Type: types.Invalid}
 	}
 
 	a.nodeTypes[o.Type] = typ
@@ -109,53 +103,52 @@ func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) {
 	} else {
 		a.Error(o.Type, "expected a struct type, not '%s'", typ)
 	}
+
+	return ExprInfo{Type: types.PrimitiveU32}
 }
 
-func (a *analyzer) VisitPrefix(u *ast.Prefix) {
+func (a *analyzer) VisitPrefix(u *ast.Prefix) ExprInfo {
 	expr := a.AnalyzeExpr(u.Expr)
 	if expr.Invalid() {
-		a.typ = types.Invalid
-		return
+		return ExprInfo{Type: types.Invalid}
 	}
 
 	switch u.Op {
 	case ast.Negate:
-		a.typ = a.ExpectPrimitiveClass(types.IsSigned, "signed numeric", expr, u.Expr)
+		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsSigned, "signed numeric", expr, u.Expr)}
 
 	case ast.Not:
 		a.ExpectType(types.PrimitiveBool, expr, u.Expr)
-		a.typ = types.PrimitiveBool
+		return ExprInfo{Type: types.PrimitiveBool}
 
 	case ast.AddressOf:
 		if !expr.Address {
-			a.Error(u.Expr, "cannot take address of a temporary expression")
-			a.typ = types.Invalid
-			return
+			return a.Error(u.Expr, "cannot take address of a temporary expression")
 		}
 
-		a.typ = &types.Pointer{Pointee: expr.Type}
+		return ExprInfo{Type: &types.Pointer{Pointee: expr.Type}}
 
 	case ast.Dereference:
 		if p, ok := expr.Type.(*types.Pointer); ok {
-			a.typ = p.Pointee
-			a.address = true
-		} else {
-			a.Error(u.Expr, "can only dereference pointers, not '%s'", expr.Type)
-			a.typ = types.Invalid
+			return ExprInfo{
+				Type:    p.Pointee,
+				Address: true,
+			}
 		}
+
+		return a.Error(u.Expr, "can only dereference pointers, not '%s'", expr.Type)
 
 	default:
 		panic("sema.analyzer.VisitPrefix() - Invalid operator kind")
 	}
 }
 
-func (a *analyzer) VisitBinary(b *ast.Binary) {
+func (a *analyzer) VisitBinary(b *ast.Binary) ExprInfo {
 	left := a.AnalyzeExpr(b.Left)
 	right := a.AnalyzeExpr(b.Right)
 
 	if left.Invalid() || right.Invalid() {
-		a.typ = types.Invalid
-		return
+		return ExprInfo{Type: types.Invalid}
 	}
 
 	// Math
@@ -164,18 +157,15 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 		right := a.ExpectPrimitiveClass(types.IsNumeric, "numeric", right, b.Right)
 
 		if left == types.Invalid || right == types.Invalid {
-			a.typ = types.Invalid
-			return
+			return ExprInfo{Type: types.Invalid}
 		}
 
-		a.typ = CommonType(left, right)
-		if a.typ == nil {
-			a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left, right)
-			a.typ = types.Invalid
-			return
+		typ := CommonType(left, right)
+		if typ == nil {
+			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left, right)
 		}
 
-		return
+		return ExprInfo{Type: typ}
 	}
 
 	// Bitwise
@@ -184,18 +174,15 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 		right := a.ExpectPrimitiveClass(types.IsInteger, "integer", right, b.Right)
 
 		if left == types.Invalid || right == types.Invalid {
-			a.typ = types.Invalid
-			return
+			return ExprInfo{Type: types.Invalid}
 		}
 
-		a.typ = CommonType(left, right)
-		if a.typ == nil {
-			a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left, right)
-			a.typ = types.Invalid
-			return
+		typ := CommonType(left, right)
+		if typ == nil {
+			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left, right)
 		}
 
-		return
+		return ExprInfo{Type: typ}
 	}
 
 	// Boolean
@@ -203,28 +190,22 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 		a.ExpectType(types.PrimitiveBool, left, b.Left)
 		a.ExpectType(types.PrimitiveBool, right, b.Right)
 
-		a.typ = types.PrimitiveBool
-		return
+		return ExprInfo{Type: types.PrimitiveBool}
 	}
 
 	// Equality
 	if b.Op.IsEquality() {
 		if common := CommonType(left.Type, right.Type); common == nil && !left.Type.Equals(right.Type) {
-			a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left.Type, right.Type)
-			a.typ = types.Invalid
-			return
+			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left.Type, right.Type)
 		}
 
 		switch left.Type.(type) {
 		case *types.Primitive, *types.Pointer:
 		default:
-			a.Error(b, "equality operators only work on primitive types or pointers, not %s", left.Type)
-			a.typ = types.Invalid
-			return
+			return a.Error(b, "equality operators only work on primitive types or pointers, not %s", left.Type)
 		}
 
-		a.typ = types.PrimitiveBool
-		return
+		return ExprInfo{Type: types.PrimitiveBool}
 	}
 
 	// Relational
@@ -233,66 +214,62 @@ func (a *analyzer) VisitBinary(b *ast.Binary) {
 		right := a.ExpectPrimitiveClass(types.IsNumeric, "numeric", right, b.Right)
 
 		if left == types.Invalid || right == types.Invalid {
-			a.typ = types.Invalid
-			return
+			return ExprInfo{Type: types.Invalid}
 		}
 
 		if common := CommonType(left, right); common == nil {
-			a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left, right)
-			a.typ = types.Invalid
-			return
+			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left, right)
 		}
 
-		a.typ = types.PrimitiveBool
-		return
+		return ExprInfo{Type: types.PrimitiveBool}
 	}
 
 	// Assignment
 	if b.Op == ast.Assign {
 		if !left.Address {
-			a.Error(b.Left, "cannot assign to a non-addressable expression")
-			a.typ = types.Invalid
-			return
+			return a.Error(b.Left, "cannot assign to a non-addressable expression")
 		}
 
 		a.ExpectType(left.Type, right, b.Right)
 
-		a.typ = left.Type
-		return
+		return ExprInfo{Type: left.Type}
 	}
 
 	// Invalid
 	panic("sema.analyzer.VisitBinary() - Invalid operator kind")
 }
 
-func (a *analyzer) VisitIdentifier(i *ast.Identifier) {
+func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 	symbol, ok := a.GetSymbol(i.Path)
 	if !ok {
-		a.typ = types.Invalid
-		return
+		return ExprInfo{Type: types.Invalid}
 	}
 
 	a.nodeTypes[symbol.Node] = symbol.Type
-	a.node = symbol.Node
 
 	switch symbol.Kind {
 	case symbols.Param, symbols.Var:
-		a.typ = symbol.Type
-		a.address = true
+		return ExprInfo{
+			Type:    symbol.Type,
+			Node:    symbol.Node,
+			Address: true,
+		}
 
 	case symbols.Func:
-		a.typ = symbol.Type
+		return ExprInfo{
+			Type: symbol.Type,
+			Node: symbol.Node,
+		}
 
 	case symbols.Struct:
-		a.Error(i, "symbol '%s' is a type and cannot be used as an expression", i.Path.LastName())
-		a.typ = types.Invalid
+		return a.Error(i, "symbol '%s' is a type and cannot be used as an expression", i.Path.LastName())
 
 	default:
 		panic("sema.analyzer.VisitIdentifier() - Invalid symbol kind")
 	}
 }
 
-func (a *analyzer) VisitIndex(i *ast.Index) {
+func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
 	// Index
 	index := a.AnalyzeExpr(i.Index)
 	a.ExpectPrimitiveClass(types.IsInteger, "integer", index, i.Index)
@@ -300,72 +277,67 @@ func (a *analyzer) VisitIndex(i *ast.Index) {
 	// Expression
 	expr := a.AnalyzeExpr(i.Expr)
 	if expr.Invalid() {
-		a.typ = types.Invalid
-		return
+		return ExprInfo{Type: types.Invalid}
 	}
 
 	if p, ok := expr.Type.(*types.Pointer); ok {
-		a.typ = p.Pointee
-		a.address = true
-		return
+		return ExprInfo{
+			Type:    p.Pointee,
+			Address: true,
+		}
 	}
 
 	if t, ok := expr.Type.(*types.Array); ok {
-		a.typ = t.Element
-		a.address = expr.Address
-		return
+		return ExprInfo{
+			Type:    t.Element,
+			Address: expr.Address,
+		}
 	}
 
-	a.Error(i.Expr, "expected an array or a pointer, got '%s'", expr.Type)
-	a.typ = types.Invalid
+	return a.Error(i.Expr, "expected an array or a pointer, got '%s'", expr.Type)
 }
 
-func (a *analyzer) VisitMember(m *ast.Member) {
+func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 	expr := a.AnalyzeExpr(m.Expr)
 	if expr.Invalid() {
-		a.typ = types.Invalid
-		return
+		return ExprInfo{Type: types.Invalid}
 	}
 
-	a.address = expr.Address
 	typ := expr.Type
+	address := expr.Address
 
 	if p, ok := typ.(*types.Pointer); ok {
-		a.address = true
+		address = true
 		typ = p.Pointee
 	}
 
 	if t, ok := typ.(*types.Struct); ok {
 		if field, index := t.Field(m.Name.Token.Text); index != -1 {
-			a.typ = field.Type
-			return
+			return ExprInfo{
+				Type:    field.Type,
+				Address: address,
+			}
 		}
 
 		if f, typ := a.methodTable.Get(typ, m.Name.Token.Text); !core.IsNil(typ) {
 			a.nodeTypes[f] = typ
 
-			a.typ = typ
-			a.node = f
-			a.address = false
-
-			return
+			return ExprInfo{
+				Type: typ,
+				Node: f,
+			}
 		}
 
-		a.Error(m.Name, "member '%s' doesn't exist on type '%s'", m.Name.Token.Text, t)
-		a.typ = types.Invalid
-
-		return
+		return a.Error(m.Name, "member '%s' doesn't exist on type '%s'", m.Name.Token.Text, t)
 	}
 
-	a.Error(m.Expr, "expected a struct or a pointer to a struct, got '%s'", expr.Type)
-	a.typ = types.Invalid
+	return a.Error(m.Expr, "expected a struct or a pointer to a struct, got '%s'", expr.Type)
 }
 
-func (a *analyzer) VisitCall(c *ast.Call) {
+func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 	expr := a.AnalyzeExpr(c.Callee)
 	if expr.Invalid() {
-		a.typ = types.Invalid
-		return
+		return ExprInfo{Type: types.Invalid}
 	}
 
 	if f, ok := expr.Type.(*types.Func); ok {
@@ -391,38 +363,32 @@ func (a *analyzer) VisitCall(c *ast.Call) {
 			a.AnalyzeExpr(c.Args[i])
 		}
 
-		a.typ = f.Returns
-		return
+		return ExprInfo{Type: f.Returns}
 	}
 
-	a.Error(c.Callee, "expected a function, got '%s'", expr.Type)
-	a.typ = types.Invalid
+	return a.Error(c.Callee, "expected a function, got '%s'", expr.Type)
 }
 
-func (a *analyzer) VisitCast(c *ast.Cast) {
+func (a *analyzer) VisitCast(c *ast.Cast) ExprInfo {
 	expr := a.AnalyzeExpr(c.Expr)
 	if expr.Invalid() {
-		a.typ = types.Invalid
-		return
+		return ExprInfo{Type: types.Invalid}
 	}
 
 	to := a.AnalyzeType(c.Type)
 	if to == types.Invalid {
-		a.typ = types.Invalid
-		return
+		return ExprInfo{Type: types.Invalid}
 	}
 
 	if _, ok := GetExplicitCast(expr.Type, to); ok {
-		a.typ = to
-		return
+		return ExprInfo{Type: to}
 	}
 
-	a.Error(c, "'%s' cannot be cast to '%s'", expr.Type, to)
-	a.typ = types.Invalid
+	return a.Error(c, "'%s' cannot be cast to '%s'", expr.Type, to)
 }
 
-func (a *analyzer) VisitBadExpr(_ *ast.BadExpr) {
-	a.typ = types.Invalid
+func (a *analyzer) VisitBadExpr(_ *ast.BadExpr) ExprInfo {
+	return ExprInfo{Type: types.Invalid}
 }
 
 // Utils
@@ -432,18 +398,8 @@ func (a *analyzer) AnalyzeExpr(expr ast.Expr) ExprInfo {
 		return ExprInfo{}
 	}
 
-	expr.VisitExpr(a)
-
-	if core.IsNil(a.typ) {
-		panic("sema.analyzer.AnalyzeExpr() - Expression type is nil")
-	}
-
-	info := ExprInfo{a.typ, a.node, a.address}
+	info := ast.VisitExpr(a, expr)
 	a.exprInfos[expr] = info
-
-	a.typ = nil
-	a.node = nil
-	a.address = false
 
 	return info
 }
