@@ -103,6 +103,10 @@ func (c *codegen) VisitString(s *ast.String) {
 	}
 }
 
+func (c *codegen) VisitNull(_ *ast.Null) {
+	c.value = &ir.Null{}
+}
+
 func (c *codegen) VisitSizeOf(s *ast.SizeOf) {
 	typ := c.nodeTypes[s.Type]
 	info := c.arch.Info(typ)

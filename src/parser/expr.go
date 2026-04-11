@@ -68,6 +68,9 @@ func (p *parser) parsePrefixExpr() (ast.Expr, int) {
 	case lexer.String:
 		return p.parseString()
 
+	case lexer.Null:
+		return p.parseNull()
+
 	case lexer.Identifier:
 		return p.parseIdentifier()
 
@@ -392,6 +395,23 @@ func (p *parser) parsePrefix(rightPower int) (u *ast.Prefix, recoverId int) {
 
 	// Expression
 	if u.Expr, recoverId = p.parseExprWithPower(rightPower); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseNull() (n *ast.Null, recoverId int) {
+	n = &ast.Null{}
+	n.Range_.Start = p.current.Range.Start
+	defer func() {
+		n.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'null'
+	if recoverId = p.expect(lexer.Null, "expected 'null'"); recoverId >= 0 {
 		return
 	}
 

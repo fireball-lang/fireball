@@ -19,3 +19,9 @@ func testCharLit() bool {
 func testF32Lit() bool {
 	return 1.0f == 1.0f;
 }
+
+#[test("null pointer")]
+func testNull() bool {
+	var ptr: *i32;
+	return ptr == null;
+}

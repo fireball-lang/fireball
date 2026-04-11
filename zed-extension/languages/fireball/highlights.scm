@@ -95,6 +95,7 @@
 (number) @number
 (char)   @character
 (string) @string
+(null_expr) @constant.builtin
 
 ; Other
 

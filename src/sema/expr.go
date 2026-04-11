@@ -64,6 +64,12 @@ func (a *analyzer) VisitString(_ *ast.String) {
 	a.typ = stringType
 }
 
+var voidPtrType = &types.Pointer{Pointee: types.PrimitiveVoid}
+
+func (a *analyzer) VisitNull(_ *ast.Null) {
+	a.typ = voidPtrType
+}
+
 func (a *analyzer) VisitSizeOf(s *ast.SizeOf) {
 	typ := a.AnalyzeType(s.Type)
 	a.typ = types.PrimitiveU32

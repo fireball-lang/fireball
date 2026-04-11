@@ -11,6 +11,7 @@ type ExprVisitor interface {
 	VisitNumber(n *Number)
 	VisitCharacter(c *Character)
 	VisitString(s *String)
+	VisitNull(n *Null)
 
 	VisitSizeOf(s *SizeOf)
 	VisitAlignOf(a *AlignOf)
@@ -96,6 +97,20 @@ func (s *String) Children() iter.Seq[Node] {
 
 func (s *String) VisitExpr(visitor ExprVisitor) {
 	visitor.VisitString(s)
+}
+
+// Null
+
+type Null struct {
+	baseNode
+}
+
+func (n *Null) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {}
+}
+
+func (n *Null) VisitExpr(visitor ExprVisitor) {
+	visitor.VisitNull(n)
 }
 
 // SizeOf

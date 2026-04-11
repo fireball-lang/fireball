@@ -27,6 +27,8 @@ const (
 	True
 	False
 
+	Null
+
 	Mod
 	Import
 

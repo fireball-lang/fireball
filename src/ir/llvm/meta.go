@@ -118,7 +118,7 @@ func (w *writer) meta(node ir.MetaNode) {
 		w.beginMeta(false, "DIDerivedType")
 		w.fieldString("name", node.Name)
 		w.fieldRaw("tag", tag)
-		w.fieldMetaRef("baseType", node.Base)
+		w.fieldMetaRefAlways("baseType", node.Base)
 		w.fieldUint("offset", node.Offset)
 		w.fieldUint("size", node.Size)
 		w.fieldUint("align", node.Align)
@@ -306,6 +306,18 @@ func (w *writer) fieldMetaRef(name string, ref ir.MetaRef) {
 		return
 	}
 
+	if w.objectHasField {
+		w.string(", ")
+	}
+
+	w.string(name)
+	w.string(": ")
+	w.metaRef(ref)
+
+	w.objectHasField = true
+}
+
+func (w *writer) fieldMetaRefAlways(name string, ref ir.MetaRef) {
 	if w.objectHasField {
 		w.string(", ")
 	}

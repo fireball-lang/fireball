@@ -22,6 +22,23 @@ const (
 )
 
 func CommonType(a, b types.Type) types.Type {
+	// Pointer
+	if pa, ok := a.(*types.Pointer); ok {
+		if pb, ok := b.(*types.Pointer); ok {
+			if pa.Pointee == types.PrimitiveVoid {
+				return pa
+			}
+			if pb.Pointee == types.PrimitiveVoid {
+				return pb
+			}
+
+			return nil
+		}
+
+		return nil
+	}
+
+	// Primitive
 	pa, aOk := a.(*types.Primitive)
 	pb, bOk := b.(*types.Primitive)
 

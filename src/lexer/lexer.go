@@ -313,6 +313,9 @@ func (l *Lexer) keywordIdentifier() Token {
 	case "false":
 		token.Kind = False
 
+	case "null":
+		token.Kind = Null
+
 	case "mod":
 		token.Kind = Mod
 	case "import":
