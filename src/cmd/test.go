@@ -25,7 +25,7 @@ func getTestCmd() *cobra.Command {
 			start := time.Now()
 
 			// Parse
-			proj, err := parseProject(start)
+			proj, projMap, err := parseProject(start)
 			if err != nil {
 				return err
 			}
@@ -39,7 +39,7 @@ func getTestCmd() *cobra.Command {
 			// Build
 			proj.Config.LibC = true
 
-			exePath, err := buildProject(proj, "debug", start, func(proj *project.Project) (build.EntrypointFn, error) {
+			exePath, err := buildProject(proj, projMap, "debug", start, func(proj *project.Project) (build.EntrypointFn, error) {
 				return func(module *ir.Module, fun *ir.Function) {
 					testEntrypoint(module, fun, testFuncs)
 				}, nil

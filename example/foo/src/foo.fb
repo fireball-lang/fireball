@@ -1,0 +1,5 @@
+mod foo;
+
+func bar() *u8 {
+    return "Hello from a dependency!\n";
+}

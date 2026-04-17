@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -16,11 +17,21 @@ type Profile struct {
 	OutputIr bool   `toml:"output-ir"`
 }
 
+type Dependency struct {
+	// Local
+	Path string `toml:"path"`
+
+	// Git
+	Url      string `toml:"url"`
+	Revision string `toml:"revision"`
+}
+
 type Config struct {
 	Name string `toml:"name"`
 	LibC bool   `toml:"lib-c"`
 
-	Profiles map[string]Profile `toml:"profile"`
+	Profiles     map[string]Profile `toml:"profile"`
+	Dependencies []Dependency       `toml:"dependency"`
 }
 
 var nameRegex = regexp.MustCompile("^[a-zA-Z_-][a-zA-Z0-9_-]*$")
@@ -60,6 +71,30 @@ func readConfig(path string) (Config, error) {
 		}
 
 		config.Profiles[name] = profile
+	}
+
+	// Dependencies
+	for _, dep := range config.Dependencies {
+		if dep.Path != "" {
+			if dep.Url != "" || dep.Revision != "" {
+				return Config{}, fmt.Errorf("local dependency contains git fields: '%s'", dep.Path)
+			}
+
+			continue
+		}
+
+		if dep.Url != "" {
+			if !strings.HasSuffix(dep.Url, ".git") {
+				return Config{}, fmt.Errorf("git dependency url needs to end with '.git': '%s'", dep.Url)
+			}
+			if dep.Revision == "" {
+				return Config{}, fmt.Errorf("git dependency needs a revision field: '%s'", dep.Url)
+			}
+
+			continue
+		}
+
+		return Config{}, fmt.Errorf("empty dependency")
 	}
 
 	// Default debug profile

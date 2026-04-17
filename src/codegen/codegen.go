@@ -6,11 +6,14 @@ import (
 	"fireball/ir"
 	"fireball/sema"
 	"fireball/types"
+	"fmt"
+	"hash/crc32"
 	"strings"
 )
 
 type codegen struct {
 	module *ir.Module
+	uid    string
 
 	arch      abi.Arch
 	callConv  abi.CallConv
@@ -46,6 +49,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 
 	c := codegen{
 		module: module,
+		uid:    fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(path))),
 
 		arch:      arch,
 		callConv:  callConv,

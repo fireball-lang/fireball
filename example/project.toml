@@ -9,3 +9,6 @@ output-ir = true
 opt = 2
 lto = true
 output-ir = true
+
+[[dependency]]
+path = "foo"

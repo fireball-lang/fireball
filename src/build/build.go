@@ -16,42 +16,56 @@ import (
 
 type EntrypointFn func(module *ir.Module, fun *ir.Function)
 
-func Build(proj *project.Project, target toolchain.Target, profile project.Profile, entrypointFn EntrypointFn) (string, error) {
+func Build(main *project.Project, projMap map[string]*project.Project, target toolchain.Target, profile project.Profile, entrypointFn EntrypointFn) (string, error) {
 	// Get paths
-	buildPath := filepath.Join(proj.Path, "build", target.Name, profile.Name)
-	if err := os.MkdirAll(buildPath, 0750); err != nil {
-		return "", err
-	}
-
-	objPath := filepath.Join(buildPath, "obj")
-	if err := os.MkdirAll(objPath, 0750); err != nil {
-		return "", err
-	}
-
-	irPath := ""
-	if profile.OutputIr {
-		irPath = filepath.Join(buildPath, "ir")
-		if err := os.MkdirAll(irPath, 0750); err != nil {
-			return "", err
-		}
-	}
+	profilePath := filepath.Join(main.Path, "build", target.Name, profile.Name)
 
 	// Compile files
 	var objFilePaths []string
+	linkLibC := false
 
-	for _, file := range proj.Files {
-		name := getBuildFileName(file)
-		module := codegen.Generate(file.Ast, target.Arch, target.CallConv, file.ExprInfos, file.NodeTypes, file.Path, profile.Lto)
+	for _, proj := range projMap {
+		buildPath := filepath.Join(profilePath, proj.Config.Name)
 
-		objFilePath, err := compileModule(target, profile, objPath, irPath, name, module)
-		if err != nil {
+		objPath := filepath.Join(buildPath, "obj")
+		if err := os.MkdirAll(objPath, 0750); err != nil {
 			return "", err
 		}
 
-		objFilePaths = append(objFilePaths, objFilePath)
+		irPath := ""
+		if profile.OutputIr {
+			irPath = filepath.Join(buildPath, "ir")
+			if err := os.MkdirAll(irPath, 0750); err != nil {
+				return "", err
+			}
+		}
+
+		for _, file := range proj.Files {
+			name := getBuildFileName(file)
+			module := codegen.Generate(file.Ast, target.Arch, target.CallConv, file.ExprInfos, file.NodeTypes, file.Path, profile.Lto)
+
+			objFilePath, err := compileModule(target, profile, objPath, irPath, name, module)
+			if err != nil {
+				return "", err
+			}
+
+			objFilePaths = append(objFilePaths, objFilePath)
+		}
+
+		if proj.Config.LibC {
+			linkLibC = true
+		}
 	}
 
 	// Entrypoint
+	mainBuildPath := filepath.Join(profilePath, main.Config.Name)
+	mainObjPath := filepath.Join(mainBuildPath, "obj")
+
+	mainIrPath := ""
+	if profile.OutputIr {
+		mainIrPath = filepath.Join(mainBuildPath, "ir")
+	}
+
 	{
 		// Create module
 		module := ir.NewModule()
@@ -63,7 +77,7 @@ func Build(proj *project.Project, target toolchain.Target, profile project.Profi
 		}
 
 		name := "_start"
-		if proj.Config.LibC {
+		if linkLibC {
 			name = "main"
 		}
 
@@ -73,7 +87,7 @@ func Build(proj *project.Project, target toolchain.Target, profile project.Profi
 		entrypointFn(module, fun)
 
 		// Compile
-		objFilePath, err := compileModule(target, profile, objPath, irPath, "__entrypoint", module)
+		objFilePath, err := compileModule(target, profile, mainObjPath, mainIrPath, "__entrypoint", module)
 		if err != nil {
 			return "", err
 		}
@@ -82,11 +96,11 @@ func Build(proj *project.Project, target toolchain.Target, profile project.Profi
 	}
 
 	// Link executable
-	exeFilePath := filepath.Join(buildPath, proj.Config.Name+target.ExecutableFileExtension)
+	exeFilePath := filepath.Join(mainBuildPath, main.Config.Name+target.ExecutableFileExtension)
 
 	var libc *toolchain.LibC
 
-	if proj.Config.LibC {
+	if linkLibC {
 		lib, err := toolchain.FindLibC()
 		if err != nil {
 			return "", err

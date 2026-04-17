@@ -48,14 +48,12 @@ func (f *File) parse() {
 	f.Symbols = symbols.Collect(f.Ast)
 }
 
-func (f *File) resolve(methodTable symbols.MethodTable) {
-	root := rootScope{f.Proj.Module}
-	f.resolveDiagnostics = sema.ResolveSymbols(f.Ast, f.Symbols, methodTable, &root, f.Path)
+func (f *File) resolve(root symbols.Scope, methodTable symbols.MethodTable) {
+	f.resolveDiagnostics = sema.ResolveSymbols(f.Ast, f.Symbols, methodTable, root, f.Path)
 }
 
-func (f *File) analyze(methodTable symbols.MethodTable) {
-	root := rootScope{f.Proj.Module}
-	f.ExprInfos, f.NodeTypes, f.semaDiagnostics = sema.Analyze(f.Ast, f.Symbols, &root, methodTable, f.Proj.Config.Name, f.Path)
+func (f *File) analyze(root symbols.Scope, methodTable symbols.MethodTable) {
+	f.ExprInfos, f.NodeTypes, f.semaDiagnostics = sema.Analyze(f.Ast, f.Symbols, root, methodTable, f.Proj.Config.Name, f.Path)
 }
 
 func (f *File) Diagnostics() iter.Seq[core.Diagnostic] {
@@ -76,22 +74,4 @@ func (f *File) Diagnostics() iter.Seq[core.Diagnostic] {
 			}
 		}
 	}
-}
-
-// rootScope
-
-type rootScope struct {
-	module *Module
-}
-
-func (r *rootScope) GetScope(name string) (symbols.Scope, bool) {
-	if r.module.Name == name {
-		return r.module, true
-	}
-
-	return nil, false
-}
-
-func (r *rootScope) GetSymbol(_ string) (symbols.Symbol, bool) {
-	return symbols.Symbol{}, false
 }

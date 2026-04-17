@@ -19,7 +19,7 @@ func getRunCmd() *cobra.Command {
 			start := time.Now()
 
 			// Parse
-			proj, err := parseProject(start)
+			proj, projMap, err := parseProject(start)
 			if err != nil {
 				return err
 			}
@@ -28,7 +28,7 @@ func getRunCmd() *cobra.Command {
 			}
 
 			// Build
-			exePath, err := buildProject(proj, profileName, start, normalEntrypointProvider)
+			exePath, err := buildProject(proj, projMap, profileName, start, normalEntrypointProvider)
 			fmt.Println()
 
 			if err != nil {

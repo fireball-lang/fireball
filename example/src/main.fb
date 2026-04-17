@@ -1,8 +1,13 @@
 mod example;
 
+import foo::{bar};
+
+import example::c::{printf};
 import example::math::{Point};
 
 func main() i32 {
+	printf(bar());
+
 	var p = Point::new(5, 5 * 3);
 	p.print();
 

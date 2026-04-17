@@ -14,8 +14,7 @@ type Project struct {
 	Config Config
 	Files  []*File
 
-	Module      *Module
-	MethodTable symbols.MethodTable
+	Module *Module
 }
 
 type Method struct {
@@ -56,20 +55,43 @@ func Open(path string) (*Project, error) {
 
 func (p *Project) Parse() {
 	p.Module = &Module{Name: p.Config.Name}
-	p.MethodTable = symbols.NewMethodTable()
 
 	for _, file := range p.Files {
 		file.parse()
 		p.assignFileToModule(file)
 	}
+}
+
+func (p *Project) Resolve(depMap map[Dependency]*Project, methodTable symbols.MethodTable) {
+	root := p.getRootScope(depMap)
 
 	for _, file := range p.Files {
-		file.resolve(p.MethodTable)
+		file.resolve(&root, methodTable)
 	}
+}
+
+func (p *Project) Analyze(projMap map[Dependency]*Project, methodTable symbols.MethodTable) {
+	root := p.getRootScope(projMap)
 
 	for _, file := range p.Files {
-		file.analyze(p.MethodTable)
+		file.analyze(&root, methodTable)
 	}
+}
+
+func (p *Project) getRootScope(depMap map[Dependency]*Project) rootScope {
+	modules := make([]*Module, 0, 1+len(p.Config.Dependencies))
+	modules = append(modules, p.Module)
+
+	for _, dep := range p.Config.Dependencies {
+		proj, ok := depMap[dep]
+		if !ok {
+			panic("project.Project.getRootScope() - Missing dependency project")
+		}
+
+		modules = append(modules, proj.Module)
+	}
+
+	return rootScope{modules}
 }
 
 func (p *Project) assignFileToModule(file *File) {
@@ -88,4 +110,24 @@ func (p *Project) assignFileToModule(file *File) {
 	}
 
 	mod.Files = append(mod.Files, file)
+}
+
+// rootScope
+
+type rootScope struct {
+	modules []*Module
+}
+
+func (r *rootScope) GetScope(name string) (symbols.Scope, bool) {
+	for _, module := range r.modules {
+		if module.Name == name {
+			return module, true
+		}
+	}
+
+	return nil, false
+}
+
+func (r *rootScope) GetSymbol(_ string) (symbols.Symbol, bool) {
+	return symbols.Symbol{}, false
 }

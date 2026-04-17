@@ -8,6 +8,7 @@ import (
 	"fireball/core"
 	"fireball/ir"
 	"fireball/project"
+	"fireball/symbols"
 	"fireball/toolchain"
 	"fireball/types"
 	"fmt"
@@ -17,7 +18,7 @@ import (
 	"github.com/fatih/color"
 )
 
-func buildProject(proj *project.Project, profileName string, start time.Time, entrypointFnProvider func(project2 *project.Project) (build.EntrypointFn, error)) (string, error) {
+func buildProject(proj *project.Project, projMap map[string]*project.Project, profileName string, start time.Time, entrypointFnProvider func(project2 *project.Project) (build.EntrypointFn, error)) (string, error) {
 	// Build
 	entrypointFn, err := entrypointFnProvider(proj)
 	if err != nil {
@@ -38,7 +39,7 @@ func buildProject(proj *project.Project, profileName string, start time.Time, en
 		return "", fmt.Errorf("unknown profile: '%s'", profileName)
 	}
 
-	exePath, err := build.Build(proj, target, profile, entrypointFn)
+	exePath, err := build.Build(proj, projMap, target, profile, entrypointFn)
 	if err != nil {
 		return "", err
 	}
@@ -52,28 +53,50 @@ func buildProject(proj *project.Project, profileName string, start time.Time, en
 	return exePath, nil
 }
 
-func parseProject(start time.Time) (*project.Project, error) {
-	proj, err := project.Open(".")
+func parseProject(start time.Time) (*project.Project, map[string]*project.Project, error) {
+	main, err := project.Open(".")
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	projMap, depMap, err := project.LoadHierarchy(main)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// Parse
-	proj.Parse()
+	for _, proj := range projMap {
+		proj.Parse()
+	}
 
+	// Resolve
+	methodTable := symbols.NewMethodTable()
+
+	for _, proj := range projMap {
+		proj.Resolve(depMap, methodTable)
+	}
+
+	// Analyze
+	for _, proj := range projMap {
+		proj.Analyze(depMap, methodTable)
+	}
+
+	// Print diagnostics
 	hasErrors := false
 
-	for _, file := range proj.Files {
-		path, err := filepath.Rel(proj.Path, file.Path)
-		if err != nil {
-			panic(err)
-		}
+	for _, proj := range projMap {
+		for _, file := range proj.Files {
+			path, err := filepath.Rel(proj.Path, file.Path)
+			if err != nil {
+				panic(err)
+			}
 
-		for diag := range file.Diagnostics() {
-			printDiagnostic(path, diag)
+			for diag := range file.Diagnostics() {
+				printDiagnostic(path, diag)
 
-			if diag.Kind == core.Error {
-				hasErrors = true
+				if diag.Kind == core.Error {
+					hasErrors = true
+				}
 			}
 		}
 	}
@@ -85,10 +108,10 @@ func parseProject(start time.Time) (*project.Project, error) {
 		_, _ = color.New(color.FgRed, color.Bold).Print("Build failed\n")
 		color.White("  took %s", duration)
 
-		return nil, nil
+		return nil, nil, nil
 	}
 
-	return proj, nil
+	return main, projMap, nil
 }
 
 func normalEntrypointProvider(proj *project.Project) (build.EntrypointFn, error) {

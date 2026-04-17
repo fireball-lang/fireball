@@ -66,7 +66,7 @@ func (c *codegen) VisitCharacter(e *ast.Character) ir.Value {
 func (c *codegen) VisitString(s *ast.String) ir.Value {
 	value := ir.NewString(s.Runes, true)
 
-	global := c.module.NewGlobalVar(fmt.Sprintf("string.%d", c.stringCount), value.Type())
+	global := c.module.NewGlobalVar(fmt.Sprintf("string.%s.%d", c.uid, c.stringCount), value.Type())
 	c.stringCount++
 
 	global.Flags = ir.Private | ir.UnnamedAddr | ir.Constant
