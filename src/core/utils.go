@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	path2 "path"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -49,7 +50,7 @@ func ExtractVersionedEmbedFs(path, fsRoot string, fs embed.FS) error {
 			return err
 		}
 
-		expected, err := fs.ReadFile(filepath.Join(fsRoot, "version_info.txt"))
+		expected, err := fs.ReadFile(path2.Join(fsRoot, "version_info.txt"))
 		if err != nil {
 			return err
 		}
@@ -90,7 +91,7 @@ func extractEmbedFsFolder(to, from string, fs embed.FS) error {
 
 	for _, entry := range entries {
 		to := filepath.Join(to, entry.Name())
-		from := filepath.Join(from, entry.Name())
+		from := path2.Join(from, entry.Name())
 
 		if entry.IsDir() {
 			// Recurse folder
