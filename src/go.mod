@@ -6,6 +6,7 @@ require (
 	github.com/fatih/color v1.19.0
 	github.com/go-git/go-git/v6 v6.0.0-alpha.2
 	github.com/pelletier/go-toml/v2 v2.3.0
+	github.com/petermattis/goid v0.0.0-20260330135022-df67b199bc81
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/sys v0.43.0
 )

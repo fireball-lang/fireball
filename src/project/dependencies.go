@@ -2,6 +2,7 @@ package project
 
 import (
 	"errors"
+	"fireball/core"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -22,6 +23,8 @@ type gitVersion struct {
 }
 
 func LoadHierarchy(main *Project) (map[string]*Project, map[Dependency]*Project, error) {
+	defer core.Scope()()
+
 	projMap := make(map[string]*Project)
 	projMap[main.Config.Name] = main
 
@@ -78,6 +81,8 @@ func LoadHierarchy(main *Project) (map[string]*Project, map[Dependency]*Project,
 }
 
 func processLocalDep(projMap map[string]*Project, depMap map[Dependency]*Project, parent *Project, dep Dependency) (*Project, error) {
+	defer core.Scope()()
+
 	// Open project
 	proj, err := Open(filepath.Join(parent.Path, dep.Path))
 	if err != nil {
@@ -98,6 +103,8 @@ func processLocalDep(projMap map[string]*Project, depMap map[Dependency]*Project
 }
 
 func processGitDep(gitVersions map[string]gitVersion, currentHash map[string]plumbing.Hash, depsPath string, dep Dependency) (*Project, error) {
+	defer core.Scope()()
+
 	path := filepath.Join(depsPath, repoName(dep.Url))
 
 	// Open repo
@@ -155,6 +162,8 @@ func processGitDep(gitVersions map[string]gitVersion, currentHash map[string]plu
 }
 
 func finalizeGitVersions(projMap map[string]*Project, depMap map[Dependency]*Project, currentHash map[string]plumbing.Hash, gitVersions map[string]gitVersion) error {
+	defer core.Scope()()
+
 	for name, version := range gitVersions {
 		// Check duplicate project name
 		if _, ok := projMap[name]; ok {
@@ -188,6 +197,8 @@ func finalizeGitVersions(projMap map[string]*Project, depMap map[Dependency]*Pro
 }
 
 func openOrClone(repoPath, url string) (*git.Repository, error) {
+	defer core.Scope()()
+
 	exists, err := pathExists(repoPath)
 	if err != nil {
 		return nil, err
@@ -224,6 +235,8 @@ func resolveCommit(repo *git.Repository, revision string) (*object.Commit, error
 }
 
 func checkoutHash(repo *git.Repository, hash plumbing.Hash) error {
+	defer core.Scope()()
+
 	tree, err := repo.Worktree()
 	if err != nil {
 		return err

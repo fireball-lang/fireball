@@ -2,12 +2,15 @@ package toolchain
 
 import (
 	"bytes"
+	"fireball/core"
 	"fmt"
 	"io"
 	"os/exec"
 )
 
 func Compile(input io.Reader, output string, opt uint8) error {
+	defer core.Scope()()
+
 	cmd := exec.Command("llc", fmt.Sprintf("-O%d", opt), "--filetype=obj", "-o", output)
 
 	cmd.Stdin = input

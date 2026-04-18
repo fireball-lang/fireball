@@ -36,6 +36,8 @@ type analyzer struct {
 }
 
 func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, methodTable symbols.MethodTable, topLevelModule, path string) (map[ast.Expr]ExprInfo, map[ast.Node]types.Type, []core.Diagnostic) {
+	defer core.Scope()()
+
 	locals := &symbols.BlockScope{}
 
 	a := analyzer{

@@ -8,6 +8,8 @@ import (
 )
 
 func ResolveSymbols(file *ast.File, fileSymbols []symbols.Symbol, methodTable symbols.MethodTable, root symbols.Scope, path string) []core.Diagnostic {
+	defer core.Scope()()
+
 	a := analyzer{
 		path: path,
 	}

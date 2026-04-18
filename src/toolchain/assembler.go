@@ -2,12 +2,15 @@ package toolchain
 
 import (
 	"bytes"
+	"fireball/core"
 	"fmt"
 	"io"
 	"os/exec"
 )
 
 func Assemble(input io.Reader, output string) error {
+	defer core.Scope()()
+
 	cmd := exec.Command("llvm-as", "-o", output)
 
 	cmd.Stdin = input

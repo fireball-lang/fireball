@@ -24,6 +24,8 @@ type writer struct {
 }
 
 func Write(module *ir.Module, out io.Writer) error {
+	defer core.Scope()()
+
 	w := &writer{
 		module: module,
 		out:    out,

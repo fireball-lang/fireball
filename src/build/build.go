@@ -17,44 +17,57 @@ import (
 type EntrypointFn func(module *ir.Module, fun *ir.Function)
 
 func Build(main *project.Project, projMap map[string]*project.Project, target toolchain.Target, profile project.Profile, entrypointFn EntrypointFn) (string, error) {
+	defer core.Scope()()
+
 	// Get paths
 	profilePath := filepath.Join(main.Path, "build", target.Name, profile.Name)
 
 	// Compile files
+	var files []*project.File
 	var objFilePaths []string
+
 	linkLibC := false
 
 	for _, proj := range projMap {
-		buildPath := filepath.Join(profilePath, proj.Config.Name)
+		for _, file := range proj.Files {
+			files = append(files, file)
+			objFilePaths = append(objFilePaths, "")
+		}
+
+		if proj.Config.LibC {
+			linkLibC = true
+		}
+	}
+
+	err := core.ParallelFor(files, func(i int, file *project.File) error {
+		buildPath := filepath.Join(profilePath, file.Proj.Config.Name)
 
 		objPath := filepath.Join(buildPath, "obj")
 		if err := os.MkdirAll(objPath, 0750); err != nil {
-			return "", err
+			return err
 		}
 
 		irPath := ""
 		if profile.OutputIr {
 			irPath = filepath.Join(buildPath, "ir")
 			if err := os.MkdirAll(irPath, 0750); err != nil {
-				return "", err
+				return err
 			}
 		}
 
-		for _, file := range proj.Files {
-			name := getBuildFileName(file)
-			module := codegen.Generate(file.Ast, target.Arch, target.CallConv, file.ExprInfos, file.NodeTypes, file.Path, profile.Lto)
+		name := getBuildFileName(file)
+		module := codegen.Generate(file.Ast, target.Arch, target.CallConv, file.ExprInfos, file.NodeTypes, file.Path, profile.Lto)
 
-			objFilePath, err := compileModule(target, profile, objPath, irPath, name, module)
-			if err != nil {
-				return "", err
-			}
-
-			objFilePaths = append(objFilePaths, objFilePath)
+		objFilePath, err := compileModule(target, profile, objPath, irPath, name, module)
+		if err != nil {
+			return err
 		}
 
-		if proj.Config.LibC {
-			linkLibC = true
-		}
+		objFilePaths[i] = objFilePath
+		return nil
+	})
+	if err != nil {
+		return "", err
 	}
 
 	// Entrypoint
@@ -117,6 +130,8 @@ func Build(main *project.Project, projMap map[string]*project.Project, target to
 }
 
 func compileModule(target toolchain.Target, profile project.Profile, objPath, irPath string, name string, module *ir.Module) (string, error) {
+	defer core.Scope()()
+
 	module.DataLayout = target.DataLayout
 	module.Triple = target.Triple
 

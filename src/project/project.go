@@ -2,6 +2,7 @@ package project
 
 import (
 	"fireball/ast"
+	"fireball/core"
 	"fireball/symbols"
 	"fireball/types"
 	"io/fs"
@@ -23,6 +24,8 @@ type Method struct {
 }
 
 func Open(path string) (*Project, error) {
+	defer core.Scope()()
+
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
@@ -54,6 +57,8 @@ func Open(path string) (*Project, error) {
 }
 
 func (p *Project) Parse() {
+	defer core.Scope()()
+
 	p.Module = &Module{Name: p.Config.Name}
 
 	for _, file := range p.Files {
@@ -63,6 +68,8 @@ func (p *Project) Parse() {
 }
 
 func (p *Project) Resolve(depMap map[Dependency]*Project, methodTable symbols.MethodTable) {
+	defer core.Scope()()
+
 	root := p.getRootScope(depMap)
 
 	for _, file := range p.Files {
@@ -71,6 +78,8 @@ func (p *Project) Resolve(depMap map[Dependency]*Project, methodTable symbols.Me
 }
 
 func (p *Project) Analyze(projMap map[Dependency]*Project, methodTable symbols.MethodTable) {
+	defer core.Scope()()
+
 	root := p.getRootScope(projMap)
 
 	for _, file := range p.Files {

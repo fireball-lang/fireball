@@ -22,6 +22,8 @@ type parser struct {
 }
 
 func Parse(reader io.Reader, path string) (*ast.File, []core.Diagnostic) {
+	defer core.Scope()()
+
 	p := parser{
 		lexer: lexer.New(reader),
 		path:  path,

@@ -12,6 +12,7 @@ import (
 	"fireball/toolchain"
 	"fireball/types"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -19,6 +20,8 @@ import (
 )
 
 func buildProject(proj *project.Project, projMap map[string]*project.Project, profileName string, start time.Time, entrypointFnProvider func(project2 *project.Project) (build.EntrypointFn, error)) (string, error) {
+	defer core.Scope()()
+
 	// Build
 	entrypointFn, err := entrypointFnProvider(proj)
 	if err != nil {
@@ -54,10 +57,24 @@ func buildProject(proj *project.Project, projMap map[string]*project.Project, pr
 }
 
 func parseProject(start time.Time) (*project.Project, map[string]*project.Project, error) {
+	defer core.Scope()()
+
 	main, err := project.Open(".")
 	if err != nil {
 		return nil, nil, err
 	}
+
+	err = os.MkdirAll(filepath.Join(main.Path, "build"), 0750)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	timings, err := os.Create(filepath.Join(main.Path, "build", "timings.json"))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	core.SetProfilerOutput(timings)
 
 	projMap, depMap, err := project.LoadHierarchy(main)
 	if err != nil {

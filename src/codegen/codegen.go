@@ -3,6 +3,7 @@ package codegen
 import (
 	"fireball/abi"
 	"fireball/ast"
+	"fireball/core"
 	"fireball/ir"
 	"fireball/sema"
 	"fireball/types"
@@ -44,6 +45,8 @@ type codegen struct {
 }
 
 func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos map[ast.Expr]sema.ExprInfo, nodeTypes map[ast.Node]types.Type, path string, summary bool) *ir.Module {
+	defer core.Scope()()
+
 	module := ir.NewModule()
 	module.Path = path
 

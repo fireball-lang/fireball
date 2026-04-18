@@ -2,12 +2,15 @@ package toolchain
 
 import (
 	"bytes"
+	"fireball/core"
 	"fmt"
 	"os/exec"
 	"strings"
 )
 
 func Link(inputs []string, output string, opt uint8, target Target, libc *LibC) error {
+	defer core.Scope()()
+
 	lld := "ld.lld"
 	if strings.Contains(target.Name, "darwin") {
 		lld = "ld64.lld"
