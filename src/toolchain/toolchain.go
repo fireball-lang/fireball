@@ -2,6 +2,7 @@ package toolchain
 
 import (
 	"errors"
+	"fireball/core"
 	"fmt"
 	"runtime"
 
@@ -9,6 +10,8 @@ import (
 )
 
 func Validate() error {
+	defer core.Scope()()
+
 	if _, err := execabs.LookPath("llc"); err != nil {
 		return errors.New("failed to find 'llc', you probably don't have LLVM installed")
 	}

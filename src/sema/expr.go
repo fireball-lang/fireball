@@ -56,10 +56,8 @@ func (a *analyzer) VisitCharacter(_ *ast.Character) ExprInfo {
 	return ExprInfo{Type: types.PrimitiveU32}
 }
 
-var stringType = &types.Pointer{Pointee: types.PrimitiveU8}
-
 func (a *analyzer) VisitString(_ *ast.String) ExprInfo {
-	return ExprInfo{Type: stringType}
+	return ExprInfo{Type: a.stringViewType}
 }
 
 var voidPtrType = &types.Pointer{Pointee: types.PrimitiveVoid}

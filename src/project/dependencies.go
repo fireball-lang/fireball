@@ -3,6 +3,7 @@ package project
 import (
 	"errors"
 	"fireball/core"
+	fb_core "fireball/fb-core"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -34,6 +35,14 @@ func LoadHierarchy(main *Project) (map[string]*Project, map[Dependency]*Project,
 	if err := os.MkdirAll(depsPath, 0750); err != nil {
 		return nil, nil, err
 	}
+
+	coreProj, err := loadCore(depsPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	projMap["core"] = coreProj
+	depMap[Dependency{Path: "core"}] = coreProj
 
 	gitVersions := make(map[string]gitVersion)
 	currentHash := make(map[string]plumbing.Hash)
@@ -78,6 +87,21 @@ func LoadHierarchy(main *Project) (map[string]*Project, map[Dependency]*Project,
 	}
 
 	return projMap, depMap, nil
+}
+
+func loadCore(depsPath string) (*Project, error) {
+	defer core.Scope()()
+
+	// Extract
+	path := filepath.Join(depsPath, "core")
+
+	err := core.ExtractVersionedEmbedFs(path, ".", fb_core.Fs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Open
+	return Open(path)
 }
 
 func processLocalDep(projMap map[string]*Project, depMap map[Dependency]*Project, parent *Project, dep Dependency) (*Project, error) {

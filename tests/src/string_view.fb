@@ -1,0 +1,56 @@
+mod tests::string_view;
+
+#[test("StringView::starts_with() - true")]
+func startsWithTrue() bool {
+	return "Hello, World!".starts_with("Hello");
+}
+
+#[test("StringView::starts_with() - false")]
+func startsWithFalse() bool {
+	return !"Hello, World!".starts_with("ello");
+}
+
+#[test("StringView::ends_with() - true")]
+func endsWithTrue() bool {
+	return "Hello, World!".ends_with("World!");
+}
+
+#[test("StringView::ends_with() - false")]
+func endsWithFalse() bool {
+	return !"Hello, World!".ends_with("World");
+}
+
+#[test("StringView::contains() - true")]
+func containsTrue() bool {
+	return "Hello, World!".contains("o, W");
+}
+
+#[test("StringView::contains() - false")]
+func containsFalse() bool {
+	return !"Hello, World!".contains("o W");
+}
+
+#[test("StringView::index() - True")]
+func indexTrue() bool {
+	return "Hello, World!".index("l") == 2;
+}
+
+#[test("StringView::index() - False")]
+func indexFalse() bool {
+	return "Hello, World!".index("l") != 3;
+}
+
+#[test("StringView::index_last() - True")]
+func indexLastTrue() bool {
+	return "Hello, World!".index_last("l") == 10;
+}
+
+#[test("StringView::index_last() - False")]
+func indexLastFalse() bool {
+	return "Hello, World!".index_last("l") != 11;
+}
+
+#[test("StringView::trim()")]
+func trim() bool {
+	return "  Hello, World!\t".trim().size == 13u;
+}

@@ -3,6 +3,7 @@ package sema
 import (
 	"fireball/ast"
 	"fireball/core"
+	"fireball/lexer"
 	"fireball/symbols"
 	"fireball/types"
 	"fmt"
@@ -31,6 +32,8 @@ type analyzer struct {
 	methodTable symbols.MethodTable
 	diagnostics []core.Diagnostic
 
+	stringViewType types.Type
+
 	funcType *types.Func
 	loop     int
 }
@@ -56,6 +59,18 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, m
 		symbols.SymbolScope(fileSymbols),
 		locals,
 	}}
+
+	// Core
+
+	stringViewSymbol, ok := a.GetSymbol(&ast.IdentifierPath{Entries: []*ast.Leaf{
+		{Token: lexer.Token{Text: "core"}},
+		{Token: lexer.Token{Text: "StringView"}},
+	}})
+	if !ok {
+		panic("analyze.Analyze() - Failed to find 'core::StringView'")
+	}
+
+	a.stringViewType = stringViewSymbol.Type
 
 	// Module
 

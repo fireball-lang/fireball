@@ -3,12 +3,10 @@ package toolchain
 import (
 	"embed"
 	_ "embed"
-	"errors"
 	"fireball/abi"
-	"io"
+	"fireball/core"
 	"os"
 	"path/filepath"
-	"slices"
 )
 
 func getTargetWindowsAmd64() (Target, error) {
@@ -25,14 +23,24 @@ func getTargetWindowsAmd64() (Target, error) {
 }
 
 //go:embed mingw
-var mingw embed.FS
+var mingwFs embed.FS
 
 func findLibcWindows() (LibC, error) {
-	path, err := extractMingw()
+	// Get destination mingw path
+	path, err := os.UserCacheDir()
 	if err != nil {
 		return LibC{}, err
 	}
 
+	path = filepath.Join(path, "fireball", "mingw")
+
+	// Extract mingw
+	err = core.ExtractVersionedEmbedFs(path, "mingw", mingwFs)
+	if err != nil {
+		return LibC{}, err
+	}
+
+	// Return
 	return LibC{
 		LibPaths:           []string{path},
 		Libs:               []string{"gcc", "gcc_eh", "kernel32", "m", "mingw32", "mingwex", "ucrt"},
@@ -40,77 +48,4 @@ func findLibcWindows() (LibC, error) {
 		PostObjectPaths:    []string{"crtend.o"},
 		AdditionalLinkArgs: nil,
 	}, nil
-}
-
-func extractMingw() (string, error) {
-	// Get base path
-	path, err := os.UserCacheDir()
-	if err != nil {
-		return "", err
-	}
-
-	path = filepath.Join(path, "fireball", "mingw")
-	if err := os.MkdirAll(path, 0755); err != nil {
-		return "", err
-	}
-
-	// Check version
-	versionInfoFile, err := os.Open(filepath.Join(path, "version_info.txt"))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", err
-	}
-
-	//goland:noinspection GoUnhandledErrorResult
-	defer versionInfoFile.Close()
-
-	if err == nil {
-		found, err := io.ReadAll(versionInfoFile)
-		if err != nil {
-			return "", err
-		}
-
-		expectedFile, err := mingw.Open("mingw/version_info.txt")
-		if err != nil {
-			return "", err
-		}
-
-		expected, err := io.ReadAll(expectedFile)
-		if err != nil {
-			return "", err
-		}
-
-		if slices.Equal(found, expected) {
-			return path, nil
-		}
-	}
-
-	// Copy over mingw libraries
-	entries, err := mingw.ReadDir("mingw")
-	if err != nil {
-		return "", err
-	}
-
-	for _, entry := range entries {
-		from, err := mingw.Open("mingw/" + entry.Name())
-		if err != nil {
-			return "", err
-		}
-
-		to, err := os.Create(filepath.Join(path, entry.Name()))
-		if err != nil {
-			_ = from.Close()
-			return "", err
-		}
-
-		_, err = io.Copy(to, from)
-
-		_ = from.Close()
-		_ = to.Close()
-
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return path, nil
 }

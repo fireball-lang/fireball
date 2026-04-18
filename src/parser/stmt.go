@@ -6,7 +6,17 @@ import (
 	"fireball/lexer"
 )
 
-func (p *parser) parseStmt() (ast.Stmt, int) {
+func (p *parser) parseStmt() (stmt ast.Stmt, recoverId int) {
+	defer func() {
+		if recoverId == -1 {
+			if needsSemicolon(stmt) {
+				recoverId = p.expect(lexer.Semicolon, "expected ';' after statement")
+			}
+		} else if p.current.Kind == lexer.Semicolon {
+			p.advance()
+		}
+	}()
+
 	switch p.current.Kind {
 	case lexer.LeftBrace:
 		return p.parseBlock()
@@ -53,14 +63,6 @@ func (p *parser) parseBlock() (b *ast.Block, recoverId int) {
 		var stmt ast.Stmt
 		stmt, recoverId = p.parseStmt()
 		b.Stmts = append(b.Stmts, stmt)
-
-		if recoverId == -1 {
-			if needsSemicolon(stmt) {
-				recoverId = p.expect(lexer.Semicolon, "expected ';' after statement")
-			}
-		} else if p.current.Kind == lexer.Semicolon {
-			p.advance()
-		}
 
 		p.popRecoverPoint()
 
@@ -270,9 +272,7 @@ func (p *parser) parseForClauses() (c forClauses, recoverId int) {
 		if c.initializer, recoverId = p.parseStmt(); recoverId >= 0 {
 			return
 		}
-	}
-
-	if recoverId = p.expect(lexer.Semicolon, "expected ';' after initializer"); recoverId >= 0 {
+	} else if recoverId = p.expect(lexer.Semicolon, "expected ';' after initializer"); recoverId >= 0 {
 		return
 	}
 

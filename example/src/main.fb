@@ -6,7 +6,7 @@ import example::c::{printf};
 import example::math::{Point};
 
 func main() i32 {
-	printf(bar());
+	printf(bar().ptr);
 
 	var p = Point::new(5, 5 * 3);
 	p.print();

@@ -18,6 +18,6 @@ impl Point {
 	}
 
 	func print(self) {
-		printf("X: %d, Y: %d\n", self.x, self.y);
+		printf("X: %d, Y: %d\n".ptr, self.x, self.y);
 	}
 }

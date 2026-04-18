@@ -2,6 +2,7 @@ package toolchain
 
 import (
 	"errors"
+	"fireball/core"
 	"runtime"
 )
 
@@ -16,6 +17,8 @@ type LibC struct {
 }
 
 func FindLibC() (LibC, error) {
+	defer core.Scope()()
+
 	if runtime.GOOS == "windows" {
 		return findLibcWindows()
 	}

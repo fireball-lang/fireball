@@ -1,5 +1,5 @@
 mod foo;
 
-func bar() *u8 {
+func bar() StringView {
     return "Hello from a dependency!\n";
 }

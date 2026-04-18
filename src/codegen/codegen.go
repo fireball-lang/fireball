@@ -117,8 +117,14 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 	c.scope.Push()
 
 	for _, decl := range file.Decls {
-		if f, ok := decl.(*ast.Func); ok {
-			c.scope.Add(decl.Name(), c.CreateFunction(f, false))
+		switch decl := decl.(type) {
+		case *ast.Impl:
+			for _, f := range decl.Functions {
+				c.CreateFunction(f, false)
+			}
+
+		case *ast.Func:
+			c.scope.Add(decl.Name(), c.CreateFunction(decl, false))
 		}
 	}
 
@@ -127,7 +133,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 		case *ast.Impl:
 			for _, f := range decl.Functions {
 				typ := c.nodeTypes[f].(*types.Func)
-				fun := c.CreateFunction(f, false)
+				fun := c.GetFunction(f)
 
 				c.VisitFunc(f, typ, fun)
 			}

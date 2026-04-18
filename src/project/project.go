@@ -88,7 +88,7 @@ func (p *Project) Analyze(projMap map[Dependency]*Project, methodTable symbols.M
 }
 
 func (p *Project) getRootScope(depMap map[Dependency]*Project) rootScope {
-	modules := make([]*Module, 0, 1+len(p.Config.Dependencies))
+	modules := make([]*Module, 0, 2+len(p.Config.Dependencies))
 	modules = append(modules, p.Module)
 
 	for _, dep := range p.Config.Dependencies {
@@ -100,7 +100,10 @@ func (p *Project) getRootScope(depMap map[Dependency]*Project) rootScope {
 		modules = append(modules, proj.Module)
 	}
 
-	return rootScope{modules}
+	return rootScope{
+		modules: modules,
+		core:    depMap[Dependency{Path: "core"}].Module,
+	}
 }
 
 func (p *Project) assignFileToModule(file *File) {
@@ -125,6 +128,7 @@ func (p *Project) assignFileToModule(file *File) {
 
 type rootScope struct {
 	modules []*Module
+	core    *Module
 }
 
 func (r *rootScope) GetScope(name string) (symbols.Scope, bool) {
@@ -134,9 +138,13 @@ func (r *rootScope) GetScope(name string) (symbols.Scope, bool) {
 		}
 	}
 
+	if r.core.Name == name {
+		return r.core, true
+	}
+
 	return nil, false
 }
 
-func (r *rootScope) GetSymbol(_ string) (symbols.Symbol, bool) {
-	return symbols.Symbol{}, false
+func (r *rootScope) GetSymbol(name string) (symbols.Symbol, bool) {
+	return r.core.GetSymbol(name)
 }

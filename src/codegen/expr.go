@@ -64,13 +64,27 @@ func (c *codegen) VisitCharacter(e *ast.Character) ir.Value {
 }
 
 func (c *codegen) VisitString(s *ast.String) ir.Value {
-	value := ir.NewString(s.Runes, true)
+	// Global
 
-	global := c.module.NewGlobalVar(fmt.Sprintf("string.%s.%d", c.uid, c.stringCount), value.Type())
+	literal := ir.NewString(s.Runes, true)
+
+	global := c.module.NewGlobalVar(fmt.Sprintf("string.%s.%d", c.uid, c.stringCount), literal.Type())
 	c.stringCount++
 
 	global.Flags = ir.Private | ir.UnnamedAddr | ir.Constant
-	global.Initializer = value
+	global.Initializer = literal
+
+	// Value
+
+	typ := c.types.Get(c.UnderlyingExprType(s))
+
+	value := &ir.Struct{
+		Typ: typ,
+		Fields: []ir.Value{
+			global,
+			&ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, uint64(literal.Size))},
+		},
+	}
 
 	// Summary
 
@@ -94,7 +108,7 @@ func (c *codegen) VisitString(s *ast.String) ir.Value {
 		c.summaryRefs = append(c.summaryRefs, ref)
 	}
 
-	return global
+	return value
 }
 
 func (c *codegen) VisitNull(_ *ast.Null) ir.Value {

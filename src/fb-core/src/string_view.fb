@@ -1,0 +1,91 @@
+mod core;
+
+struct StringView {
+	ptr: *u8,
+	size: u32,
+}
+
+impl StringView {
+	func starts_with(self, other: StringView) bool {
+		if (self.size < other.size) return false;
+
+		return self.slice(0u, other.size).equals(other);
+	}
+
+	func ends_with(self, other: StringView) bool {
+		if (self.size < other.size) return false;
+
+		return self.slice(self.size - other.size, self.size).equals(other);
+	}
+
+	func contains(self, other: StringView) bool {
+		return self.index(other) != -1;
+	}
+
+	func trim(self) StringView {
+		var start = 0u;
+		var end = self.size;
+
+		while (start < self.size && (self.ptr[start] == ' ' || self.ptr[start] == '\t' || self.ptr[start] == '\n')) {
+			start = start + 1u;
+		}
+
+		while (end - 1u >= 0u && (self.ptr[end - 1u] == ' ' || self.ptr[end - 1u] == '\t' || self.ptr[end - 1u] == '\n')) {
+			end = end - 1u;
+		}
+
+		return self.slice(start, end);
+	}
+
+	func index(self, other: StringView) i32 {
+		if (other.size == 0u) return 0;
+		if (self.size < other.size) return -1;
+
+		var last = self.size - other.size;
+
+		for (var i = 0u; i <= last; i = i + 1u) {
+			if (self.slice(i, i + other.size).equals(other)) {
+				return (i as i32);
+			}
+		}
+
+		return -1;
+	}
+
+	func index_last(self, other: StringView) i32 {
+		if (other.size == 0u) return (self.size as i32);
+		if (self.size < other.size) return -1;
+
+		var last = self.size - other.size;
+
+		for (var i = last; ; i = i - 1u) {
+			if (self.slice(i, i + other.size).equals(other)) {
+				return (i as i32);
+			}
+
+			if (i == 0u) {
+				break;
+			}
+		}
+
+		return -1;
+	}
+
+	func slice(self, start: u32, end: u32) StringView {
+		var view: StringView;
+		view.ptr = &self.ptr[start];
+		view.size = end - start;
+
+		return view;
+	}
+
+	func equals(self, other: StringView) bool {
+		if (self.size != other.size) return false;
+
+		for (var i = 0u; i < other.size; i = i + 1u) {
+			if (self.ptr[i] != other.ptr[i]) return false;
+		}
+
+		return true;
+	}
+}
