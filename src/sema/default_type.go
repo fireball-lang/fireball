@@ -28,6 +28,8 @@ func isLiteralExpr(expr ast.Expr) bool {
 
 	case *ast.Prefix:
 		return isLiteralExpr(e.Expr)
+	case *ast.Postfix:
+		return isLiteralExpr(e.Expr)
 	case *ast.Binary:
 		return isLiteralExpr(e.Left) && isLiteralExpr(e.Right)
 

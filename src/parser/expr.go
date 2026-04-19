@@ -384,6 +384,11 @@ func (p *parser) parsePrefix(rightPower int) (u *ast.Prefix, recoverId int) {
 	case lexer.Bang:
 		u.Op = ast.Not
 
+	case lexer.PlusPlus:
+		u.Op = ast.IncrementE
+	case lexer.MinusMinus:
+		u.Op = ast.DecrementE
+
 	case lexer.Ampersand:
 		u.Op = ast.AddressOf
 	case lexer.Star:
@@ -564,6 +569,8 @@ func (p *parser) parseCast(left ast.Expr, _ int) (c *ast.Cast, recoverId int) {
 
 func (p *parser) parsePostfixExpr(left ast.Expr) (ast.Expr, int) {
 	switch p.current.Kind {
+	case lexer.PlusPlus, lexer.MinusMinus:
+		return p.parsePostfix(left)
 	case lexer.LeftBracket:
 		return p.parseIndex(left)
 	case lexer.LeftParen:
@@ -574,6 +581,29 @@ func (p *parser) parsePostfixExpr(left ast.Expr) (ast.Expr, int) {
 		b.Range_ = p.current.Range
 		return b, p.error("expected expression")
 	}
+}
+
+func (p *parser) parsePostfix(left ast.Expr) (e *ast.Postfix, recoverId int) {
+	e = &ast.Postfix{}
+	e.Expr = left
+	e.Range_.Start = left.Range().Start
+	defer func() {
+		e.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	switch p.advance().Kind {
+	case lexer.PlusPlus:
+		e.Op = ast.IncrementO
+	case lexer.MinusMinus:
+		e.Op = ast.DecrementO
+
+	default:
+		panic("parser.parser.parsePostfix() - Invalid operator token '" + p.previous.Text + "'")
+	}
+
+	return
 }
 
 func (p *parser) parseIndex(left ast.Expr) (i *ast.Index, recoverId int) {
@@ -704,8 +734,10 @@ func init() {
 	infix(false, lexer.Plus, lexer.Minus)
 	// *, /, %
 	infix(false, lexer.Star, lexer.Slash, lexer.Percentage)
-	// -x, !x, &x, *x
-	prefix(lexer.Minus, lexer.Bang, lexer.Ampersand, lexer.Star)
+	// -x, !x, ++x, --x, &x, *x
+	prefix(lexer.Minus, lexer.Bang, lexer.PlusPlus, lexer.MinusMinus, lexer.Ampersand, lexer.Star)
+	// x++, x--
+	postfix(lexer.PlusPlus, lexer.MinusMinus)
 	// x[], x()
 	postfix(lexer.LeftBracket, lexer.LeftParen)
 	// x.y

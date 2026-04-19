@@ -44,3 +44,27 @@ func testMixedMul() bool {
 func testMixedDiv() bool {
 	return 1000 / 10 == 100;
 }
+
+#[test("increment prefix")]
+func incPre() bool {
+	var a = 5;
+	return ++a == 6;
+}
+
+#[test("increment postfix")]
+func incPost() bool {
+	var a = 5;
+	return a++ == 5;
+}
+
+#[test("decrement prefix")]
+func decPre() bool {
+	var a = 5;
+	return --a == 4;
+}
+
+#[test("decrement postfix")]
+func decPost() bool {
+	var a = 5;
+	return a-- == 5;
+}

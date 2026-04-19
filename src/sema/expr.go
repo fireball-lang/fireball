@@ -105,23 +105,37 @@ func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) ExprInfo {
 	return ExprInfo{Type: types.PrimitiveU32}
 }
 
-func (a *analyzer) VisitPrefix(u *ast.Prefix) ExprInfo {
-	expr := a.AnalyzeExpr(u.Expr)
+func (a *analyzer) VisitPrefix(p *ast.Prefix) ExprInfo {
+	expr := a.AnalyzeExpr(p.Expr)
 	if expr.Invalid() {
 		return ExprInfo{Type: types.Invalid}
 	}
 
-	switch u.Op {
+	switch p.Op {
 	case ast.Negate:
-		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsSigned, "signed numeric", expr, u.Expr)}
+		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsSigned, "signed numeric", expr, p.Expr)}
 
 	case ast.Not:
-		a.ExpectType(types.PrimitiveBool, expr, u.Expr)
+		a.ExpectType(types.PrimitiveBool, expr, p.Expr)
 		return ExprInfo{Type: types.PrimitiveBool}
+
+	case ast.IncrementE:
+		if !expr.Address {
+			return a.Error(p.Expr, "cannot increment a temporary expression")
+		}
+
+		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsNumeric, "numeric", expr, p.Expr)}
+
+	case ast.DecrementE:
+		if !expr.Address {
+			return a.Error(p.Expr, "cannot decrement a temporary expression")
+		}
+
+		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsNumeric, "numeric", expr, p.Expr)}
 
 	case ast.AddressOf:
 		if !expr.Address {
-			return a.Error(u.Expr, "cannot take address of a temporary expression")
+			return a.Error(p.Expr, "cannot take address of a temporary expression")
 		}
 
 		return ExprInfo{Type: &types.Pointer{Pointee: expr.Type}}
@@ -134,10 +148,36 @@ func (a *analyzer) VisitPrefix(u *ast.Prefix) ExprInfo {
 			}
 		}
 
-		return a.Error(u.Expr, "can only dereference pointers, not '%s'", expr.Type)
+		return a.Error(p.Expr, "can only dereference pointers, not '%s'", expr.Type)
 
 	default:
 		panic("sema.analyzer.VisitPrefix() - Invalid operator kind")
+	}
+}
+
+func (a *analyzer) VisitPostfix(p *ast.Postfix) ExprInfo {
+	expr := a.AnalyzeExpr(p.Expr)
+	if expr.Invalid() {
+		return ExprInfo{Type: types.Invalid}
+	}
+
+	switch p.Op {
+	case ast.IncrementO:
+		if !expr.Address {
+			return a.Error(p.Expr, "cannot increment a temporary expression")
+		}
+
+		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsNumeric, "numeric", expr, p.Expr)}
+
+	case ast.DecrementO:
+		if !expr.Address {
+			return a.Error(p.Expr, "cannot decrement a temporary expression")
+		}
+
+		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsNumeric, "numeric", expr, p.Expr)}
+
+	default:
+		panic("sema.analyzer.VisitPostfix() - Invalid operator kind")
 	}
 }
 

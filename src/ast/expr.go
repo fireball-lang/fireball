@@ -146,6 +146,9 @@ const (
 	Negate PrefixOp = iota
 	Not
 
+	IncrementE
+	DecrementE
+
 	AddressOf
 	Dereference
 )
@@ -164,6 +167,30 @@ func (u *Prefix) Children() iter.Seq[Node] {
 }
 
 func (u *Prefix) _isExpr() {}
+
+// Postfix
+
+type PostfixOp uint8
+
+const (
+	IncrementO PostfixOp = iota
+	DecrementO
+)
+
+type Postfix struct {
+	baseNode
+
+	Expr Expr
+	Op   PostfixOp
+}
+
+func (p *Postfix) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		yield(p.Expr)
+	}
+}
+
+func (p *Postfix) _isExpr() {}
 
 // Binary
 

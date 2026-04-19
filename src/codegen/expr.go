@@ -146,13 +146,13 @@ func (c *codegen) VisitOffsetOf(o *ast.OffsetOf) ir.Value {
 	}
 }
 
-func (c *codegen) VisitPrefix(u *ast.Prefix) ir.Value {
-	switch u.Op {
+func (c *codegen) VisitPrefix(p *ast.Prefix) ir.Value {
+	switch p.Op {
 	case ast.Negate:
-		value := c.Load(u.Expr)
+		value := c.Load(p.Expr)
 
 		// Floating
-		if typ := c.UnderlyingExprType(u.Expr); typ == types.PrimitiveF32 || typ == types.PrimitiveF64 {
+		if typ := c.UnderlyingExprType(p.Expr); typ == types.PrimitiveF32 || typ == types.PrimitiveF64 {
 			return c.emitter.Fneg(value)
 		}
 
@@ -161,17 +161,68 @@ func (c *codegen) VisitPrefix(u *ast.Prefix) ir.Value {
 		return c.emitter.Sub(zero, value)
 
 	case ast.Not:
-		value := c.LoadImplicitCast(u.Expr, types.PrimitiveBool)
+		value := c.LoadImplicitCast(p.Expr, types.PrimitiveBool)
 		return c.emitter.Xor(value, ir.True)
 
+	case ast.IncrementE:
+		ptr := c.GenerateExpr(p.Expr)
+
+		typ := c.types.Get(c.UnderlyingExprType(p.Expr))
+		value := c.emitter.Load(typ, ptr)
+
+		value = c.emitter.Add(value, &ir.Integer{Typ: value.Type(), Value: core.Signed(1)})
+		c.emitter.Store(value, ptr)
+
+		return value
+
+	case ast.DecrementE:
+		ptr := c.GenerateExpr(p.Expr)
+
+		typ := c.types.Get(c.UnderlyingExprType(p.Expr))
+		value := c.emitter.Load(typ, ptr)
+
+		value = c.emitter.Sub(value, &ir.Integer{Typ: value.Type(), Value: core.Signed(1)})
+		c.emitter.Store(value, ptr)
+
+		return value
+
 	case ast.AddressOf:
-		return c.GenerateExpr(u.Expr)
+		return c.GenerateExpr(p.Expr)
 
 	case ast.Dereference:
-		return c.Load(u.Expr)
+		return c.Load(p.Expr)
 
 	default:
 		panic("codegen.codegen.VisitPrefix() - Invalid operator")
+	}
+}
+
+func (c *codegen) VisitPostfix(p *ast.Postfix) ir.Value {
+	switch p.Op {
+	case ast.IncrementO:
+		ptr := c.GenerateExpr(p.Expr)
+
+		typ := c.types.Get(c.UnderlyingExprType(p.Expr))
+		value := c.emitter.Load(typ, ptr)
+
+		newValue := c.emitter.Add(value, &ir.Integer{Typ: value.Type(), Value: core.Signed(1)})
+		c.emitter.Store(newValue, ptr)
+
+		return value
+
+	case ast.DecrementO:
+		ptr := c.GenerateExpr(p.Expr)
+
+		typ := c.types.Get(c.UnderlyingExprType(p.Expr))
+		value := c.emitter.Load(typ, ptr)
+
+		newValue := c.emitter.Sub(value, &ir.Integer{Typ: value.Type(), Value: core.Signed(1)})
+		c.emitter.Store(newValue, ptr)
+
+		return value
+
+	default:
+		panic("codegen.codegen.VisitPostfix() - Invalid operator")
 	}
 }
 

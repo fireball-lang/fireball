@@ -27,11 +27,11 @@ impl StringView {
 		var end = self.size;
 
 		while (start < self.size && (self.ptr[start] == ' ' || self.ptr[start] == '\t' || self.ptr[start] == '\n')) {
-			start = start + 1u;
+			start++;
 		}
 
 		while (end - 1u >= 0u && (self.ptr[end - 1u] == ' ' || self.ptr[end - 1u] == '\t' || self.ptr[end - 1u] == '\n')) {
-			end = end - 1u;
+			end--;
 		}
 
 		return self.slice(start, end);
@@ -43,7 +43,7 @@ impl StringView {
 
 		var last = self.size - other.size;
 
-		for (var i = 0u; i <= last; i = i + 1u) {
+		for (var i = 0u; i <= last; i++) {
 			if (self.slice(i, i + other.size).equals(other)) {
 				return (i as i32);
 			}
@@ -58,7 +58,7 @@ impl StringView {
 
 		var last = self.size - other.size;
 
-		for (var i = last; ; i = i - 1u) {
+		for (var i = last; ; i--) {
 			if (self.slice(i, i + other.size).equals(other)) {
 				return (i as i32);
 			}
@@ -82,7 +82,7 @@ impl StringView {
 	func equals(self, other: StringView) bool {
 		if (self.size != other.size) return false;
 
-		for (var i = 0u; i < other.size; i = i + 1u) {
+		for (var i = 0u; i < other.size; i++) {
 			if (self.ptr[i] != other.ptr[i]) return false;
 		}
 

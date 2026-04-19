@@ -11,7 +11,8 @@ type ExprVisitor[T any] interface {
 	VisitAlignOf(a *AlignOf) T
 	VisitOffsetOf(o *OffsetOf) T
 
-	VisitPrefix(u *Prefix) T
+	VisitPrefix(p *Prefix) T
+	VisitPostfix(p *Postfix) T
 	VisitBinary(b *Binary) T
 
 	VisitIdentifier(i *Identifier) T
@@ -45,6 +46,8 @@ func VisitExpr[V ExprVisitor[T], T any](visitor V, expr Expr) T {
 
 	case *Prefix:
 		return visitor.VisitPrefix(expr)
+	case *Postfix:
+		return visitor.VisitPostfix(expr)
 	case *Binary:
 		return visitor.VisitBinary(expr)
 
