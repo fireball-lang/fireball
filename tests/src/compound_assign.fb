@@ -1,0 +1,85 @@
+mod tests::compound_assign;
+
+#[test("add assign")]
+func testAddAssign() bool {
+	var a = 10;
+	a += 5;
+	return a == 15;
+}
+
+#[test("subtract assign")]
+func testSubAssign() bool {
+	var a = 10;
+	a -= 3;
+	return a == 7;
+}
+
+#[test("multiply assign")]
+func testMulAssign() bool {
+	var a = 4;
+	a *= 3;
+	return a == 12;
+}
+
+#[test("divide assign")]
+func testDivAssign() bool {
+	var a = 20;
+	a /= 4;
+	return a == 5;
+}
+
+#[test("modulo assign")]
+func testModAssign() bool {
+	var a = 10;
+	a %= 3;
+	return a == 1;
+}
+
+#[test("bit or assign")]
+func testBitOrAssign() bool {
+	var a = 0b1010;
+	a |= 0b0101;
+	return a == 0b1111;
+}
+
+#[test("bit xor assign")]
+func testBitXorAssign() bool {
+	var a = 0b1111;
+	a ^= 0b1010;
+	return a == 0b0101;
+}
+
+#[test("bit and assign")]
+func testBitAndAssign() bool {
+	var a = 0xFF;
+	a &= 0x0F;
+	return a == 0x0F;
+}
+
+#[test("add assign signed")]
+func testAddAssignSigned() bool {
+	var a = -10;
+	a += 4;
+	return a == -6;
+}
+
+#[test("divide assign signed")]
+func testDivAssignSigned() bool {
+	var a = -20;
+	a /= 4;
+	return a == -5;
+}
+
+#[test("add assign float")]
+func testAddAssignFloat() bool {
+	var a = 1.5;
+	a += 0.5;
+	return a == 2.0;
+}
+
+#[test("multiply assign float")]
+func testMulAssignFloat() bool {
+	var a = 2.0;
+	a *= 3.0;
+	return a == 6.0;
+}

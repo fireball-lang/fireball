@@ -227,45 +227,32 @@ func (c *codegen) VisitPostfix(p *ast.Postfix) ir.Value {
 }
 
 func (c *codegen) VisitBinary(b *ast.Binary) ir.Value {
+	// Compound assignment
+	if b.Op.IsCompoundAssign() {
+		ptr := c.GenerateExpr(b.Left)
+		typ := c.exprInfos[b].Type
+
+		leftVal := c.emitter.Load(c.types.Get(c.UnderlyingExprType(b.Left)), ptr)
+		left := c.ImplicitCast(leftVal, c.exprInfos[b.Left].Type, typ)
+		right := c.LoadImplicitCast(b.Right, typ)
+
+		op := b.Op.CompoundAssignBase()
+		value := c.VisitCompoundBaseBinaryOp(b, left, right, op)
+		c.emitter.Store(value, ptr)
+
+		return value
+	}
+
+	// Assignment
+	if b.Op == ast.Assign {
+		ptr := c.GenerateExpr(b.Left)
+		value := c.LoadImplicitCast(b.Right, c.exprInfos[b.Left].Type)
+
+		c.emitter.Store(value, ptr)
+		return value
+	}
+
 	switch b.Op {
-	// Math
-
-	case ast.Add:
-		typ := c.exprInfos[b].Type
-		return c.emitter.Add(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
-
-	case ast.Subtract:
-		typ := c.exprInfos[b].Type
-		return c.emitter.Sub(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
-
-	case ast.Multiply:
-		typ := c.exprInfos[b].Type
-		return c.emitter.Mul(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
-
-	case ast.Divide:
-		typ := c.exprInfos[b].Type
-		kind := c.GetDivKind(b.Left)
-		return c.emitter.Div(kind, c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
-
-	case ast.Modulo:
-		typ := c.exprInfos[b].Type
-		kind := c.GetDivKind(b.Left)
-		return c.emitter.Rem(kind, c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
-
-	// Bitwise
-
-	case ast.BitOr:
-		typ := c.exprInfos[b].Type
-		return c.emitter.Or(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
-
-	case ast.BitXor:
-		typ := c.exprInfos[b].Type
-		return c.emitter.Xor(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
-
-	case ast.BitAnd:
-		typ := c.exprInfos[b].Type
-		return c.emitter.And(c.LoadImplicitCast(b.Left, typ), c.LoadImplicitCast(b.Right, typ))
-
 	// Boolean
 
 	case ast.BoolAnd:
@@ -336,17 +323,50 @@ func (c *codegen) VisitBinary(b *ast.Binary) ir.Value {
 	case ast.GreaterEqual:
 		return c.EmitCmp(ir.Ge, b.Left, b.Right)
 
-	// Assignment
+	default:
+		typ := c.exprInfos[b].Type
 
-	case ast.Assign:
-		ptr := c.GenerateExpr(b.Left)
-		value := c.LoadImplicitCast(b.Right, c.exprInfos[b.Left].Type)
+		left := c.LoadImplicitCast(b.Left, typ)
+		right := c.LoadImplicitCast(b.Right, typ)
 
-		c.emitter.Store(value, ptr)
-		return value
+		return c.VisitCompoundBaseBinaryOp(b, left, right, b.Op)
+	}
+}
+
+func (c *codegen) VisitCompoundBaseBinaryOp(b *ast.Binary, left, right ir.Value, op ast.BinaryOp) ir.Value {
+	switch op {
+	// Math
+
+	case ast.Add:
+		return c.emitter.Add(left, right)
+
+	case ast.Subtract:
+		return c.emitter.Sub(left, right)
+
+	case ast.Multiply:
+		return c.emitter.Mul(left, right)
+
+	case ast.Divide:
+		kind := c.GetDivKind(b.Left)
+		return c.emitter.Div(kind, left, right)
+
+	case ast.Modulo:
+		kind := c.GetDivKind(b.Left)
+		return c.emitter.Rem(kind, left, right)
+
+	// Bitwise
+
+	case ast.BitOr:
+		return c.emitter.Or(left, right)
+
+	case ast.BitXor:
+		return c.emitter.Xor(left, right)
+
+	case ast.BitAnd:
+		return c.emitter.And(left, right)
 
 	default:
-		panic("codegen.codegen.VisitBinary() - Invalid operator kind")
+		panic("codegen.codegen.VisitCompoundBaseBinaryOp() - Invalid compound base operator")
 	}
 }
 

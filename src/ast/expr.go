@@ -219,6 +219,16 @@ const (
 	GreaterEqual
 
 	Assign
+
+	AddAssign
+	SubtractAssign
+	MultiplyAssign
+	DivideAssign
+	ModuloAssign
+
+	BitOrAssign
+	BitXorAssign
+	BitAndAssign
 )
 
 func (b BinaryOp) IsMath() bool {
@@ -239,6 +249,35 @@ func (b BinaryOp) IsEquality() bool {
 
 func (b BinaryOp) IsRelational() bool {
 	return b >= Less && b <= GreaterEqual
+}
+
+func (b BinaryOp) IsCompoundAssign() bool {
+	return b >= AddAssign && b <= BitAndAssign
+}
+
+func (b BinaryOp) CompoundAssignBase() BinaryOp {
+	switch b {
+	case AddAssign:
+		return Add
+	case SubtractAssign:
+		return Subtract
+	case MultiplyAssign:
+		return Multiply
+	case DivideAssign:
+		return Divide
+	case ModuloAssign:
+		return Modulo
+
+	case BitOrAssign:
+		return BitOr
+	case BitXorAssign:
+		return BitXor
+	case BitAndAssign:
+		return BitAnd
+
+	default:
+		panic("ast.BinaryOp.CompoundBase() - Not compound operator")
+	}
 }
 
 type Binary struct {

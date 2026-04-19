@@ -189,8 +189,38 @@ func (a *analyzer) VisitBinary(b *ast.Binary) ExprInfo {
 		return ExprInfo{Type: types.Invalid}
 	}
 
+	// Compound assignment
+	if b.Op.IsCompoundAssign() {
+		if !left.Address {
+			return a.Error(b.Left, "cannot assign to a non-addressable expression")
+		}
+
+		op := b.Op.CompoundAssignBase()
+		right := a.AnalyzeBaseBinaryOp(b, left, right, op)
+
+		a.ExpectType(left.Type, right, b.Right)
+
+		return ExprInfo{Type: left.Type}
+	}
+
+	// Assignment
+	if b.Op == ast.Assign {
+		if !left.Address {
+			return a.Error(b.Left, "cannot assign to a non-addressable expression")
+		}
+
+		a.ExpectType(left.Type, right, b.Right)
+
+		return ExprInfo{Type: left.Type}
+	}
+
+	// Base
+	return a.AnalyzeBaseBinaryOp(b, left, right, b.Op)
+}
+
+func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op ast.BinaryOp) ExprInfo {
 	// Math
-	if b.Op.IsMath() {
+	if op.IsMath() {
 		left := a.ExpectPrimitiveClass(types.IsNumeric, "numeric", left, b.Left)
 		right := a.ExpectPrimitiveClass(types.IsNumeric, "numeric", right, b.Right)
 
@@ -207,7 +237,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) ExprInfo {
 	}
 
 	// Bitwise
-	if b.Op.IsBitwise() {
+	if op.IsBitwise() {
 		left := a.ExpectPrimitiveClass(types.IsInteger, "integer", left, b.Left)
 		right := a.ExpectPrimitiveClass(types.IsInteger, "integer", right, b.Right)
 
@@ -224,7 +254,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) ExprInfo {
 	}
 
 	// Boolean
-	if b.Op.IsBoolean() {
+	if op.IsBoolean() {
 		a.ExpectType(types.PrimitiveBool, left, b.Left)
 		a.ExpectType(types.PrimitiveBool, right, b.Right)
 
@@ -232,7 +262,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) ExprInfo {
 	}
 
 	// Equality
-	if b.Op.IsEquality() {
+	if op.IsEquality() {
 		if common := CommonType(left.Type, right.Type); common == nil && !left.Type.Equals(right.Type) {
 			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left.Type, right.Type)
 		}
@@ -247,7 +277,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) ExprInfo {
 	}
 
 	// Relational
-	if b.Op.IsRelational() {
+	if op.IsRelational() {
 		left := a.ExpectPrimitiveClass(types.IsNumeric, "numeric", left, b.Left)
 		right := a.ExpectPrimitiveClass(types.IsNumeric, "numeric", right, b.Right)
 
@@ -262,19 +292,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) ExprInfo {
 		return ExprInfo{Type: types.PrimitiveBool}
 	}
 
-	// Assignment
-	if b.Op == ast.Assign {
-		if !left.Address {
-			return a.Error(b.Left, "cannot assign to a non-addressable expression")
-		}
-
-		a.ExpectType(left.Type, right, b.Right)
-
-		return ExprInfo{Type: left.Type}
-	}
-
-	// Invalid
-	panic("sema.analyzer.VisitBinary() - Invalid operator kind")
+	panic("sema.analyzer.AnalyzeBaseBinaryOp() - Invalid base operator")
 }
 
 func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {

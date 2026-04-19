@@ -506,6 +506,24 @@ func (p *parser) parseBinary(left ast.Expr, rightPower int) (b *ast.Binary, reco
 	case lexer.Equal:
 		b.Op = ast.Assign
 
+	case lexer.PlusEqual:
+		b.Op = ast.AddAssign
+	case lexer.MinusEqual:
+		b.Op = ast.SubtractAssign
+	case lexer.StarEqual:
+		b.Op = ast.MultiplyAssign
+	case lexer.SlashEqual:
+		b.Op = ast.DivideAssign
+	case lexer.PercentageEqual:
+		b.Op = ast.ModuloAssign
+
+	case lexer.PipeEqual:
+		b.Op = ast.BitOrAssign
+	case lexer.CaretEqual:
+		b.Op = ast.BitXorAssign
+	case lexer.AmpersandEqual:
+		b.Op = ast.BitAndAssign
+
 	default:
 		panic("parser.parseBinary() - Invalid operator token '" + p.previous.Text + "'")
 	}
@@ -712,8 +730,8 @@ func init() {
 		}
 	}
 
-	// =
-	infix(true, lexer.Equal)
+	// =, +=, -=, *=, /=, %=, |=, ^=, &=
+	infix(true, lexer.Equal, lexer.PlusEqual, lexer.MinusEqual, lexer.StarEqual, lexer.SlashEqual, lexer.PercentageEqual, lexer.PipeEqual, lexer.CaretEqual, lexer.AmpersandEqual)
 	// ||
 	infix(false, lexer.PipePipe)
 	// &&
