@@ -477,6 +477,13 @@ func (p *parser) parseBinary(left ast.Expr, rightPower int) (b *ast.Binary, reco
 	case lexer.Percentage:
 		b.Op = ast.Modulo
 
+	case lexer.LessLess:
+		b.Op = ast.ShiftLeft
+	case lexer.GreaterGreater:
+		b.Op = ast.ShiftRightSignExt
+	case lexer.GreaterGreaterGreater:
+		b.Op = ast.ShiftRightZeroExt
+
 	case lexer.Pipe:
 		b.Op = ast.BitOr
 	case lexer.Caret:
@@ -516,6 +523,13 @@ func (p *parser) parseBinary(left ast.Expr, rightPower int) (b *ast.Binary, reco
 		b.Op = ast.DivideAssign
 	case lexer.PercentageEqual:
 		b.Op = ast.ModuloAssign
+
+	case lexer.LessLessEqual:
+		b.Op = ast.ShiftLeftAssign
+	case lexer.GreaterGreaterEqual:
+		b.Op = ast.ShiftRightSignExtAssign
+	case lexer.GreaterGreaterGreaterEqual:
+		b.Op = ast.ShiftRightZeroExtAssign
 
 	case lexer.PipeEqual:
 		b.Op = ast.BitOrAssign
@@ -730,8 +744,8 @@ func init() {
 		}
 	}
 
-	// =, +=, -=, *=, /=, %=, |=, ^=, &=
-	infix(true, lexer.Equal, lexer.PlusEqual, lexer.MinusEqual, lexer.StarEqual, lexer.SlashEqual, lexer.PercentageEqual, lexer.PipeEqual, lexer.CaretEqual, lexer.AmpersandEqual)
+	// =, +=, -=, *=, /=, %=, <<=, >>=, >>>= |=, ^=, &=
+	infix(true, lexer.Equal, lexer.PlusEqual, lexer.MinusEqual, lexer.StarEqual, lexer.SlashEqual, lexer.PercentageEqual, lexer.LessLessEqual, lexer.GreaterGreaterEqual, lexer.GreaterGreaterGreaterEqual, lexer.PipeEqual, lexer.CaretEqual, lexer.AmpersandEqual)
 	// ||
 	infix(false, lexer.PipePipe)
 	// &&
@@ -748,6 +762,8 @@ func init() {
 	infix(false, lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual)
 	// as
 	infix(false, lexer.As)
+	// <<, >>, >>>
+	infix(false, lexer.LessLess, lexer.Greater, lexer.GreaterGreater, lexer.GreaterGreaterGreater)
 	// +, -
 	infix(false, lexer.Plus, lexer.Minus)
 	// *, /, %

@@ -7,5 +7,5 @@ description = "Fireball language support"
 repository = "https://github.com/MineGame159/fireball"
 
 [grammars.fireball]
-repository = "https://github.com/MineGame159/tree-sitter-fireball"
-rev = "c040463be78ca875bcf72d607d6bd8eb37b0d339"
+repository = "https://github.com/fireball-lang/tree-sitter-fireball"
+rev = "120a08e6186df7ffb0700363efa990e63e6f369f"

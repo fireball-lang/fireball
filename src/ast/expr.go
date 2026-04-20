@@ -203,6 +203,10 @@ const (
 	Divide
 	Modulo
 
+	ShiftLeft
+	ShiftRightSignExt
+	ShiftRightZeroExt
+
 	BitOr
 	BitXor
 	BitAnd
@@ -226,6 +230,10 @@ const (
 	DivideAssign
 	ModuloAssign
 
+	ShiftLeftAssign
+	ShiftRightSignExtAssign
+	ShiftRightZeroExtAssign
+
 	BitOrAssign
 	BitXorAssign
 	BitAndAssign
@@ -236,7 +244,7 @@ func (b BinaryOp) IsMath() bool {
 }
 
 func (b BinaryOp) IsBitwise() bool {
-	return b >= BitOr && b <= BitAnd
+	return b >= ShiftLeft && b <= BitAnd
 }
 
 func (b BinaryOp) IsBoolean() bool {
@@ -267,6 +275,13 @@ func (b BinaryOp) CompoundAssignBase() BinaryOp {
 		return Divide
 	case ModuloAssign:
 		return Modulo
+
+	case ShiftLeftAssign:
+		return ShiftLeft
+	case ShiftRightSignExtAssign:
+		return ShiftRightSignExt
+	case ShiftRightZeroExtAssign:
+		return ShiftRightZeroExt
 
 	case BitOrAssign:
 		return BitOr

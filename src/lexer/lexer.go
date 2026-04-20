@@ -157,6 +157,9 @@ func (l *Lexer) Next() Token {
 			return l.make(GreaterEqual)
 		}
 		if l.match('>') {
+			if l.match('>') {
+				return l.makeMatch('=', GreaterGreaterGreater, GreaterGreaterGreaterEqual)
+			}
 			return l.makeMatch('=', GreaterGreater, GreaterGreaterEqual)
 		}
 		return l.make(Greater)

@@ -83,3 +83,25 @@ func testMulAssignFloat() bool {
 	a *= 3.0;
 	return a == 6.0;
 }
+
+#[test("shift left assign")]
+func testShiftLeftAssign() bool {
+	var a = 0b00000001;
+	a <<= 3u;
+	return a == 0b00001000;
+}
+
+#[test("shift right sign ext assign")]
+func testShiftRightSignExtAssign() bool {
+	var a: i32 = -8;
+	a >>= 2;
+	return a == -2;
+}
+
+#[test("shift right zero ext assign")]
+func testShiftRightZeroExtAssign() bool {
+	var a: u32 = 0b10000000000000000000000000000000;
+	a >>>= 1u;
+	return a == 0b01000000000000000000000000000000;
+}
+

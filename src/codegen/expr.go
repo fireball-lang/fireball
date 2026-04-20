@@ -356,6 +356,15 @@ func (c *codegen) VisitCompoundBaseBinaryOp(b *ast.Binary, left, right ir.Value,
 
 	// Bitwise
 
+	case ast.ShiftLeft:
+		return c.emitter.Shl(left, right)
+
+	case ast.ShiftRightSignExt:
+		return c.emitter.Shr(true, left, right)
+
+	case ast.ShiftRightZeroExt:
+		return c.emitter.Shr(false, left, right)
+
 	case ast.BitOr:
 		return c.emitter.Or(left, right)
 

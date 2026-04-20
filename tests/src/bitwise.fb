@@ -14,3 +14,21 @@ func testBitAnd() bool {
 func testBitXor() bool {
 	return (0b1111 ^ 0b1010) == 0b0101;
 }
+
+#[test("shift left")]
+func testShiftLeft() bool {
+	return (0b00000001 << 3u) == 0b00001000;
+}
+
+#[test("shift right sign ext")]
+func testShiftRightSignExt() bool {
+	var a: i32 = -8;
+	return (a >> 2) == -2;
+}
+
+#[test("shift right zero ext")]
+func testShiftRightZeroExt() bool {
+	var a: u32 = 0b10000000000000000000000000000000;
+	return (a >>> 1u) == 0b01000000000000000000000000000000;
+}
+

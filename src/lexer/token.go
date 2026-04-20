@@ -118,6 +118,8 @@ const (
 	GreaterEqual
 	GreaterGreater
 	GreaterGreaterEqual
+	GreaterGreaterGreater
+	GreaterGreaterGreaterEqual
 
 	// Last
 
