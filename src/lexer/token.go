@@ -29,6 +29,8 @@ const (
 
 	Null
 
+	Mut
+
 	Mod
 	Import
 

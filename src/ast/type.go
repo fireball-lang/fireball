@@ -48,6 +48,7 @@ func (a *ArrayType) _isType() {}
 type PointerType struct {
 	baseNode
 
+	Mutable bool
 	Pointee Type
 }
 

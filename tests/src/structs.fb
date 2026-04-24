@@ -18,11 +18,11 @@ func asVecPtr(v: *Vec2) *Vec2 {
 }
 
 // Writes to a field through a pointer parameter
-func setVecX(v: *Vec2, x: i32) {
+func setVecX(v: *mut Vec2, x: i32) {
     v.x = x;
 }
 
-func setVecY(v: *Vec2, y: i32) {
+func setVecY(v: *mut Vec2, y: i32) {
     v.y = y;
 }
 

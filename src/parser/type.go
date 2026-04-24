@@ -119,6 +119,12 @@ func (p *parser) parsePointerType() (t *ast.PointerType, recoverId int) {
 		return
 	}
 
+	// 'mut'
+	if p.current.Kind == lexer.Mut {
+		p.advance()
+		t.Mutable = true
+	}
+
 	// Pointee
 	if t.Pointee, recoverId = p.parseType(); recoverId >= 0 {
 		return

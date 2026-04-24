@@ -11,8 +11,10 @@ import (
 )
 
 type ExprInfo struct {
-	Type    types.Type
-	Node    ast.Node
+	Type types.Type
+	Node ast.Node
+
+	Mutable bool
 	Address bool
 }
 

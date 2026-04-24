@@ -123,12 +123,18 @@ func (a *analyzer) VisitPrefix(p *ast.Prefix) ExprInfo {
 		if !expr.Address {
 			return a.Error(p.Expr, "cannot increment a temporary expression")
 		}
+		if !expr.Mutable {
+			return a.Error(p.Expr, "cannot increment an immutable value")
+		}
 
 		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsNumeric, "numeric", expr, p.Expr)}
 
 	case ast.DecrementE:
 		if !expr.Address {
 			return a.Error(p.Expr, "cannot decrement a temporary expression")
+		}
+		if !expr.Mutable {
+			return a.Error(p.Expr, "cannot decrement an immutable value")
 		}
 
 		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsNumeric, "numeric", expr, p.Expr)}
@@ -138,12 +144,13 @@ func (a *analyzer) VisitPrefix(p *ast.Prefix) ExprInfo {
 			return a.Error(p.Expr, "cannot take address of a temporary expression")
 		}
 
-		return ExprInfo{Type: &types.Pointer{Pointee: expr.Type}}
+		return ExprInfo{Type: &types.Pointer{Mutable: expr.Mutable, Pointee: expr.Type}}
 
 	case ast.Dereference:
 		if p, ok := expr.Type.(*types.Pointer); ok {
 			return ExprInfo{
 				Type:    p.Pointee,
+				Mutable: p.Mutable,
 				Address: true,
 			}
 		}
@@ -166,12 +173,18 @@ func (a *analyzer) VisitPostfix(p *ast.Postfix) ExprInfo {
 		if !expr.Address {
 			return a.Error(p.Expr, "cannot increment a temporary expression")
 		}
+		if !expr.Mutable {
+			return a.Error(p.Expr, "cannot increment an immutable value")
+		}
 
 		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsNumeric, "numeric", expr, p.Expr)}
 
 	case ast.DecrementO:
 		if !expr.Address {
 			return a.Error(p.Expr, "cannot decrement a temporary expression")
+		}
+		if !expr.Mutable {
+			return a.Error(p.Expr, "cannot decrement an immutable value")
 		}
 
 		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsNumeric, "numeric", expr, p.Expr)}
@@ -194,6 +207,9 @@ func (a *analyzer) VisitBinary(b *ast.Binary) ExprInfo {
 		if !left.Address {
 			return a.Error(b.Left, "cannot assign to a non-addressable expression")
 		}
+		if !left.Mutable {
+			return a.Error(b.Left, "cannot assign to an immutable value")
+		}
 
 		op := b.Op.CompoundAssignBase()
 		right := a.AnalyzeBaseBinaryOp(b, left, right, op)
@@ -207,6 +223,9 @@ func (a *analyzer) VisitBinary(b *ast.Binary) ExprInfo {
 	if b.Op == ast.Assign {
 		if !left.Address {
 			return a.Error(b.Left, "cannot assign to a non-addressable expression")
+		}
+		if !left.Mutable {
+			return a.Error(b.Left, "cannot assign to an immutable value")
 		}
 
 		a.ExpectType(left.Type, right, b.Right)
@@ -308,6 +327,7 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 		return ExprInfo{
 			Type:    symbol.Type,
 			Node:    symbol.Node,
+			Mutable: true,
 			Address: true,
 		}
 
@@ -339,6 +359,7 @@ func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
 	if p, ok := expr.Type.(*types.Pointer); ok {
 		return ExprInfo{
 			Type:    p.Pointee,
+			Mutable: p.Mutable,
 			Address: true,
 		}
 	}
@@ -346,6 +367,7 @@ func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
 	if t, ok := expr.Type.(*types.Array); ok {
 		return ExprInfo{
 			Type:    t.Element,
+			Mutable: true,
 			Address: expr.Address,
 		}
 	}
@@ -361,9 +383,11 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 
 	typ := expr.Type
 	address := expr.Address
+	mutable := expr.Mutable
 
 	if p, ok := typ.(*types.Pointer); ok {
 		address = true
+		mutable = p.Mutable
 		typ = p.Pointee
 	}
 
@@ -371,6 +395,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		if field, index := t.Field(m.Name.Token.Text); index != -1 {
 			return ExprInfo{
 				Type:    field.Type,
+				Mutable: mutable,
 				Address: address,
 			}
 		}

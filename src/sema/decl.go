@@ -72,7 +72,7 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	}
 
 	// Methods
-	receiverTyp := &types.Pointer{Pointee: typ}
+	receiverTyp := &types.Pointer{Mutable: true, Pointee: typ}
 
 	for _, f := range i.Functions {
 		if core.IsNil(f.Body) {

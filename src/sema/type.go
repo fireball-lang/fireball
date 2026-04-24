@@ -44,6 +44,7 @@ func (a *analyzer) VisitPointerType(p *ast.PointerType) types.Type {
 	}
 
 	return &types.Pointer{
+		Mutable: p.Mutable,
 		Pointee: pointee,
 	}
 }

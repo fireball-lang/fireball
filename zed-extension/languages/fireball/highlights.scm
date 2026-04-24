@@ -1,5 +1,7 @@
 ; Keywords
 
+"mut" @keyword
+
 "mod" @keyword
 "import" @keyword
 
