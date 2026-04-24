@@ -41,7 +41,7 @@ func ResolveSymbols(file *ast.File, fileSymbols []symbols.Symbol, methodTable sy
 				t.VarArgs = f.VarArgs
 
 				if f.Receiver != nil {
-					t.Params = append(t.Params, &types.Pointer{Pointee: typ})
+					t.Params = append(t.Params, &types.Pointer{Mutable: f.Receiver.Mutable, Pointee: typ})
 				}
 
 				for _, param := range f.Params {

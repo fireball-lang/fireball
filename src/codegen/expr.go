@@ -394,6 +394,9 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 	case *ast.Leaf:
 		return c.scope.Get(node.Token.Text)
 
+	case *ast.Receiver:
+		return c.scope.Get("self")
+
 	default:
 		panic("codegen.codegen.VisitIdentifier() - Invalid node")
 	}

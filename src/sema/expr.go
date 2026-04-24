@@ -422,9 +422,19 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 	}
 
 	if f, ok := expr.Type.(*types.Func); ok {
+		funcNode := expr.Node.(*ast.Func)
 		params := f.Params
-		if expr.Node.(*ast.Func).IsMethod() && expr.Node.(*ast.Func).Receiver != nil {
+
+		if funcNode.IsMethod() && funcNode.Receiver != nil {
 			params = params[1:]
+
+			if funcNode.Receiver.Mutable {
+				if member, ok := c.Callee.(*ast.Member); ok {
+					if p, ok := a.exprInfos[member.Expr].Type.(*types.Pointer); ok && !p.Mutable {
+						a.Error(member.Expr, "cannot call mutable method '%s' on an immutable pointer", funcNode.Name())
+					}
+				}
+			}
 		}
 
 		if len(c.Args) != len(params) && (!f.VarArgs || len(c.Args) < len(params)) {

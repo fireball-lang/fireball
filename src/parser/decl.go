@@ -250,8 +250,8 @@ func (p *parser) parseFunc(attributes []*ast.Attribute, allowReceiver bool) (f *
 		}
 
 		// Receiver
-		if allowReceiver && p.current.Kind == lexer.Identifier && p.current.Text == "self" {
-			if f.Receiver, recoverId = p.parseLeaf(); recoverId >= 0 {
+		if allowReceiver && (p.current.Kind == lexer.Mut || (p.current.Kind == lexer.Identifier && p.current.Text == "self")) {
+			if f.Receiver, recoverId = p.parseReceiver(); recoverId >= 0 {
 				return
 			}
 
@@ -329,6 +329,31 @@ func (p *parser) parseFunc(attributes []*ast.Attribute, allowReceiver bool) (f *
 		}
 	}
 
+	return
+}
+
+func (p *parser) parseReceiver() (r *ast.Receiver, recoverId int) {
+	r = &ast.Receiver{}
+	r.Range_.Start = p.current.Range.Start
+	defer func() {
+		r.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'mut'
+	if p.current.Kind == lexer.Mut {
+		p.advance()
+		r.Mutable = true
+	}
+
+	// 'self'
+	if p.current.Kind != lexer.Identifier || p.current.Text != "self" {
+		recoverId = p.error("expected 'self'")
+		return
+	}
+
+	p.advance()
 	return
 }
 

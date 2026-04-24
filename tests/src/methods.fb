@@ -21,11 +21,11 @@ impl Counter {
         return self.value;
     }
 
-    func increment(self) {
+    func increment(mut self) {
         self.value = self.value + 1;
     }
 
-    func add(self, n: i32) {
+    func add(mut self, n: i32) {
         self.value = self.value + n;
     }
 

@@ -72,7 +72,6 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	}
 
 	// Methods
-	receiverTyp := &types.Pointer{Mutable: true, Pointee: typ}
 
 	for _, f := range i.Functions {
 		if core.IsNil(f.Body) {
@@ -80,13 +79,14 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		}
 
 		var fTyp *types.Func
-		receiverTyp := receiverTyp
+		var receiverTyp types.Type
 
 		if f.Receiver == nil {
 			_, fTyp = a.methodTable.GetStatic(typ, f.Name())
 			receiverTyp = nil
 		} else {
 			_, fTyp = a.methodTable.Get(typ, f.Name())
+			receiverTyp = fTyp.Params[0]
 		}
 
 		a.nodeTypes[f] = fTyp

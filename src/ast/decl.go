@@ -106,7 +106,7 @@ type Func struct {
 
 	Name_ *Leaf
 
-	Receiver *Leaf // optional
+	Receiver *Receiver // optional
 	Params   []*NameType
 	VarArgs  bool
 
@@ -201,6 +201,18 @@ func (f *Func) GetLinkName() string {
 	}
 
 	return ""
+}
+
+// Receiver
+
+type Receiver struct {
+	baseNode
+
+	Mutable bool
+}
+
+func (r *Receiver) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {}
 }
 
 // Bad
