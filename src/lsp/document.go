@@ -50,16 +50,7 @@ func (h *Handler) publishFileDiagnostics(ctx context.Context, file *project.File
 		}
 
 		diagnostics = append(diagnostics, lsp.Diagnostic{
-			Range: lsp.Range{
-				Start: lsp.Position{
-					Line:      int(diagnostic.Range.Start.Line) - 1,
-					Character: int(diagnostic.Range.Start.Column) - 1,
-				},
-				End: lsp.Position{
-					Line:      int(diagnostic.Range.End.Line) - 1,
-					Character: int(diagnostic.Range.End.Column) - 1,
-				},
-			},
+			Range:    toLspRange(diagnostic.Range),
 			Severity: &severity,
 			Message:  diagnostic.Message,
 		})

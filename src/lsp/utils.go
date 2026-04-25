@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"context"
+	"fireball/core"
 	"fmt"
 	"strings"
 
@@ -27,6 +28,34 @@ func (h *Handler) error(ctx context.Context, format string, args ...any) {
 		Type:    lsp.MessageTypeError,
 		Message: fmt.Sprintf(format, args...),
 	})
+}
+
+func toLspRange(r core.Range) lsp.Range {
+	return lsp.Range{
+		Start: toLspPos(r.Start),
+		End:   toLspPos(r.End),
+	}
+}
+
+func toLspPos(pos core.Pos) lsp.Position {
+	return lsp.Position{
+		Line:      int(pos.Line) - 1,
+		Character: int(pos.Column) - 1,
+	}
+}
+
+func toCoreRange(r lsp.Range) core.Range {
+	return core.Range{
+		Start: toCorePos(r.Start),
+		End:   toCorePos(r.End),
+	}
+}
+
+func toCorePos(pos lsp.Position) core.Pos {
+	return core.Pos{
+		Line:   uint32(pos.Line) + 1,
+		Column: uint32(pos.Character) + 1,
+	}
 }
 
 func uriPath(uri lsp.DocumentURI) string {

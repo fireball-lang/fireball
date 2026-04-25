@@ -7,6 +7,7 @@ import (
 
 func (p *parser) parseFile() (f *ast.File) {
 	f = &ast.File{}
+	f.Path = p.path
 	f.Range_.Start = p.current.Range.Start
 	defer func() {
 		f.Range_.End = p.previous.Range.End

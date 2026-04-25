@@ -2,6 +2,24 @@ package ast
 
 import "fireball/core"
 
+func GetNodeAtPos(node Node, pos core.Pos) Node {
+	if !node.Range().Contains(pos) {
+		return nil
+	}
+
+outer:
+	for {
+		for child := range node.Children() {
+			if child.Range().Contains(pos) {
+				node = child
+				continue outer
+			}
+		}
+
+		return node
+	}
+}
+
 func GetFile(node Node) *File {
 	return GetClosestParent[*File](node)
 }

@@ -7,6 +7,8 @@ import (
 type File struct {
 	baseNode
 
+	Path string
+
 	Mod     *Mod
 	Imports []*Import
 	Decls   []Decl

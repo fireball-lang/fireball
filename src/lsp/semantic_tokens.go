@@ -80,6 +80,7 @@ func (hi *highlighter) visit(node ast.Node) {
 				entry := node.Path.Entries[len(node.Path.Entries)-1]
 
 				switch info.Symbol {
+				case symbols.Invalid:
 				case symbols.Struct:
 					hi.add(entry, classKind)
 				case symbols.Func:

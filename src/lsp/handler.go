@@ -113,6 +113,7 @@ func (h *Handler) Initialize(ctx context.Context, params *lsp.InitializeParams) 
 				},
 				Full: &lsp.SemanticTokensFull{},
 			},
+			DefinitionProvider: new(true),
 		},
 		ServerInfo: &lsp.ServerInfo{
 			Name:    "fireball",

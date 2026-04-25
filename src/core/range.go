@@ -15,3 +15,18 @@ func (p Pos) Shift(columnOffset int) Pos {
 type Range struct {
 	Start, End Pos
 }
+
+func (r Range) Contains(pos Pos) bool {
+	if pos.Line < r.Start.Line || pos.Line > r.End.Line {
+		return false
+	}
+
+	if pos.Line == r.Start.Line && pos.Column < r.Start.Column {
+		return false
+	}
+	if pos.Line == r.End.Line && pos.Column > r.End.Column {
+		return false
+	}
+
+	return true
+}
