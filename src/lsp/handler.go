@@ -42,6 +42,7 @@ func (h *Handler) parseWorker() {
 			workspace := h.getWorkspace(file)
 
 			if !slices.Contains(workspaces, workspace) {
+				workspace.mutex.Lock()
 				workspaces = append(workspaces, workspace)
 			}
 
@@ -55,6 +56,7 @@ func (h *Handler) parseWorker() {
 			// Parse queued files and analyze the workspace they are in
 			for _, workspace := range workspaces {
 				workspace.parseFiles(files)
+				workspace.mutex.Unlock()
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -91,6 +93,26 @@ func (h *Handler) Initialize(ctx context.Context, params *lsp.InitializeParams) 
 				OpenClose: new(true),
 				Change:    lsp.SyncIncremental,
 			},
+			SemanticTokensProvider: &lsp.SemanticTokensOptions{
+				Legend: lsp.SemanticTokensLegend{
+					TokenTypes: []string{
+						"function",
+						"parameter",
+						"variable",
+						"type",
+						"class",
+						"enum",
+						"property",
+						"enumMember",
+						"namespace",
+						"interface",
+						"typeParameter",
+						"keyword",
+					},
+					TokenModifiers: []string{},
+				},
+				Full: &lsp.SemanticTokensFull{},
+			},
 		},
 		ServerInfo: &lsp.ServerInfo{
 			Name:    "fireball",
@@ -111,7 +133,7 @@ func (h *Handler) Shutdown(ctx context.Context) error {
 
 func (h *Handler) DidOpen(_ context.Context, params *lsp.DidOpenTextDocumentParams) error {
 	// Get file
-	file := h.getFile(uriPath(params.TextDocument.URI))
+	file, _ := h.getFile(uriPath(params.TextDocument.URI))
 	if file == nil {
 		return nil
 	}
@@ -133,7 +155,7 @@ func (h *Handler) DidOpen(_ context.Context, params *lsp.DidOpenTextDocumentPara
 
 func (h *Handler) DidChange(_ context.Context, params *lsp.DidChangeTextDocumentParams) error {
 	// Get file
-	file := h.getFile(uriPath(params.TextDocument.URI))
+	file, _ := h.getFile(uriPath(params.TextDocument.URI))
 	if file == nil {
 		return nil
 	}

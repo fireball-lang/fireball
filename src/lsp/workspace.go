@@ -53,9 +53,6 @@ func (h *Handler) openWorkspace(ctx context.Context, path string) {
 }
 
 func (w *Workspace) parseFiles(files []*project.File) {
-	w.mutex.Lock()
-	defer w.mutex.Unlock()
-
 	for _, proj := range w.projMap {
 		proj.Parse(files)
 	}
@@ -71,18 +68,18 @@ func (w *Workspace) parseFiles(files []*project.File) {
 	}
 }
 
-func (h *Handler) getFile(path string) *project.File {
+func (h *Handler) getFile(path string) (*project.File, sync.Locker) {
 	for _, workspace := range h.workspaces {
 		for _, proj := range workspace.projMap {
 			for _, file := range proj.Files {
 				if file.Path == path {
-					return file
+					return file, workspace.mutex.RLocker()
 				}
 			}
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (h *Handler) getWorkspace(file *project.File) *Workspace {

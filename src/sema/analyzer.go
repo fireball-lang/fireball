@@ -14,6 +14,8 @@ type ExprInfo struct {
 	Type types.Type
 	Node ast.Node
 
+	Symbol symbols.Kind
+
 	Mutable bool
 	Address bool
 }
@@ -40,7 +42,7 @@ type analyzer struct {
 	loop     int
 }
 
-func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, methodTable symbols.MethodTable, topLevelModule, path string) (map[ast.Expr]ExprInfo, map[ast.Node]types.Type, []core.Diagnostic) {
+func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, methodTable symbols.MethodTable, nodeTypes map[ast.Node]types.Type, topLevelModule, path string) (map[ast.Expr]ExprInfo, []core.Diagnostic) {
 	defer core.Scope()()
 
 	locals := &symbols.BlockScope{}
@@ -51,7 +53,7 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, m
 		topLevelModule: topLevelModule,
 		path:           path,
 		exprInfos:      make(map[ast.Expr]ExprInfo),
-		nodeTypes:      make(map[ast.Node]types.Type),
+		nodeTypes:      nodeTypes,
 		methodTable:    methodTable,
 	}
 
@@ -86,7 +88,7 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, m
 		ast.VisitDecl(&a, decl)
 	}
 
-	return a.exprInfos, a.nodeTypes, a.diagnostics
+	return a.exprInfos, a.diagnostics
 }
 
 // Utils
@@ -131,6 +133,10 @@ func (a *analyzer) GetImportsScope(root symbols.Scope, file *ast.File) symbols.S
 			}
 
 			scope.AddSymbol(symbol)
+
+			if a.nodeTypes != nil {
+				a.nodeTypes[name] = symbol.Type
+			}
 		}
 	}
 
@@ -157,6 +163,8 @@ func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
 			symbol, ok = scope.GetSymbol(entry)
 
 			if ok {
+				a.nodeTypes[path.Entries[i]] = symbol.Type
+
 				name := path.Entries[i+1].Token.Text
 
 				if f, typ := a.methodTable.GetStatic(symbol.Type, name); !core.IsNil(f) {
@@ -196,9 +204,12 @@ func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
 	}
 
 	// Get symbol
-	symbol, ok := scope.GetSymbol(path.Entries[len(path.Entries)-1].Token.Text)
-	if !ok {
-		entry := path.Entries[len(path.Entries)-1]
+	entry := path.Entries[len(path.Entries)-1]
+
+	symbol, ok := scope.GetSymbol(entry.Token.Text)
+	if ok {
+		a.nodeTypes[entry] = symbol.Type
+	} else {
 		a.Error(entry, "symbol '%s' cannot be found", entry.Token.Text)
 	}
 

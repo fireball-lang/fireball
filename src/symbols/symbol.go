@@ -8,7 +8,8 @@ import (
 type Kind uint8
 
 const (
-	Struct Kind = iota
+	Invalid Kind = iota
+	Struct
 	Func
 	Param
 	Var

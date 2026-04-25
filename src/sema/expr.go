@@ -327,14 +327,16 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 		return ExprInfo{
 			Type:    symbol.Type,
 			Node:    symbol.Node,
+			Symbol:  symbol.Kind,
 			Mutable: true,
 			Address: true,
 		}
 
 	case symbols.Func:
 		return ExprInfo{
-			Type: symbol.Type,
-			Node: symbol.Node,
+			Type:   symbol.Type,
+			Node:   symbol.Node,
+			Symbol: symbol.Kind,
 		}
 
 	case symbols.Struct:

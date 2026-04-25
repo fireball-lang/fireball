@@ -57,6 +57,7 @@ func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) types.Type {
 
 	switch symbol.Kind {
 	case symbols.Struct:
+		a.nodeTypes[i] = symbol.Type
 		return symbol.Type
 
 	case symbols.Func, symbols.Param, symbols.Var:
