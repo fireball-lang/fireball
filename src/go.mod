@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/fatih/color v1.19.0
 	github.com/go-git/go-git/v6 v6.0.0-alpha.2
+	github.com/owenrumney/go-lsp v0.1.4
 	github.com/pelletier/go-toml/v2 v2.3.0
 	github.com/petermattis/goid v0.0.0-20260330135022-df67b199bc81
 	github.com/spf13/cobra v1.10.2
@@ -19,6 +20,7 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/go-git/gcfg/v2 v2.0.2 // indirect
 	github.com/go-git/go-billy/v6 v6.0.0-20260410103409-85b6241850b5 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kevinburke/ssh_config v1.6.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect

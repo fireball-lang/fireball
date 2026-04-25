@@ -7,6 +7,7 @@ import (
 	"fireball/types"
 	"io/fs"
 	"path/filepath"
+	"slices"
 )
 
 type Project struct {
@@ -56,13 +57,16 @@ func Open(path string) (*Project, error) {
 	return project, nil
 }
 
-func (p *Project) Parse() {
+func (p *Project) Parse(files []*File) {
 	defer core.Scope()()
 
 	p.Module = &Module{Name: p.Config.Name}
 
 	for _, file := range p.Files {
-		file.parse()
+		if len(files) == 0 || slices.Contains(files, file) {
+			file.parse()
+		}
+
 		p.assignFileToModule(file)
 	}
 }
@@ -77,10 +81,10 @@ func (p *Project) Resolve(depMap map[Dependency]*Project, methodTable symbols.Me
 	}
 }
 
-func (p *Project) Analyze(projMap map[Dependency]*Project, methodTable symbols.MethodTable) {
+func (p *Project) Analyze(depMap map[Dependency]*Project, methodTable symbols.MethodTable) {
 	defer core.Scope()()
 
-	root := p.getRootScope(projMap)
+	root := p.getRootScope(depMap)
 
 	for _, file := range p.Files {
 		file.analyze(&root, methodTable)

@@ -52,15 +52,26 @@ func SetProfilerOutput(w io.Writer) {
 }
 
 func EndProfiler() {
-	_, _ = bufW.WriteString("\n]\n")
+	if start == 0 {
+		return
+	}
 
-	_ = bufW.Flush()
+	if bufW != nil {
+		_, _ = bufW.WriteString("\n]\n")
 
-	if c, ok := norW.(io.Closer); ok {
-		_ = c.Close()
+		_ = bufW.Flush()
+
+		if c, ok := norW.(io.Closer); ok {
+			_ = c.Close()
+		}
+
+		norW = nil
+		bufW = nil
+		wHasEvents = false
 	}
 
 	start = 0
+	events = nil
 }
 
 func Scope() func() {
@@ -91,7 +102,9 @@ func Scope() func() {
 
 	// End event
 	return func() {
-		recordEvent(name, 'E')
+		if start != 0 {
+			recordEvent(name, 'E')
+		}
 	}
 }
 

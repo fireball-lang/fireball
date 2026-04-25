@@ -83,7 +83,7 @@ func parseProject(start time.Time) (*project.Project, map[string]*project.Projec
 
 	// Parse
 	for _, proj := range projMap {
-		proj.Parse()
+		proj.Parse(nil)
 	}
 
 	// Resolve

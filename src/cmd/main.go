@@ -19,6 +19,7 @@ func main() {
 	root.AddCommand(getBuildCmd())
 	root.AddCommand(getRunCmd())
 	root.AddCommand(getTestCmd())
+	root.AddCommand(getLspCmd())
 
 	if err := root.Execute(); err != nil {
 		scope()

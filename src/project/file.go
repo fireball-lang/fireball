@@ -7,6 +7,7 @@ import (
 	"fireball/sema"
 	"fireball/symbols"
 	"fireball/types"
+	"io"
 	"iter"
 	"os"
 )
@@ -14,6 +15,9 @@ import (
 type File struct {
 	Proj *Project
 	Path string
+
+	Source Source
+	Data   any
 
 	Ast              *ast.File
 	parseDiagnostics []core.Diagnostic
@@ -27,24 +31,25 @@ type File struct {
 	semaDiagnostics []core.Diagnostic
 }
 
+type Source interface {
+	Get() io.ReadCloser
+}
+
 func newFile(proj *Project, path string) *File {
 	return &File{
-		Proj: proj,
-		Path: path,
-		Ast:  nil,
+		Proj:   proj,
+		Path:   path,
+		Source: &fileSource{path: path},
 	}
 }
 
 func (f *File) parse() {
-	file, err := os.Open(f.Path)
-	if err != nil {
-		panic(err)
-	}
+	reader := f.Source.Get()
 
 	//goland:noinspection GoUnhandledErrorResult
-	defer file.Close()
+	defer reader.Close()
 
-	f.Ast, f.parseDiagnostics = parser.Parse(file, f.Path)
+	f.Ast, f.parseDiagnostics = parser.Parse(reader, f.Path)
 	f.Symbols = symbols.Collect(f.Ast)
 }
 
@@ -74,4 +79,19 @@ func (f *File) Diagnostics() iter.Seq[core.Diagnostic] {
 			}
 		}
 	}
+}
+
+// fileSource
+
+type fileSource struct {
+	path string
+}
+
+func (f *fileSource) Get() io.ReadCloser {
+	file, err := os.Open(f.path)
+	if err != nil {
+		panic(err)
+	}
+
+	return file
 }
