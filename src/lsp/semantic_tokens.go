@@ -81,12 +81,24 @@ func (hi *highlighter) visit(node ast.Node) {
 
 				switch info.Symbol {
 				case symbols.Invalid:
+
 				case symbols.Struct:
 					hi.add(entry, classKind)
+
 				case symbols.Func:
 					hi.add(entry, functionKind)
+
 				case symbols.Param:
-					hi.add(entry, parameterKind)
+					kind := parameterKind
+
+					if len(node.Path.Entries) == 1 && entry.Token.Text == "self" {
+						if f := ast.GetClosestParent[*ast.Func](node); f != nil && f.Receiver != nil {
+							kind = keywordKind
+						}
+					}
+
+					hi.add(entry, kind)
+
 				case symbols.Var:
 					hi.add(entry, variableKind)
 				}
