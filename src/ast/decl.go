@@ -3,6 +3,7 @@ package ast
 import (
 	"fireball/core"
 	"iter"
+	"strings"
 )
 
 type Decl interface {
@@ -201,6 +202,46 @@ func (f *Func) GetLinkName() string {
 	}
 
 	return ""
+}
+
+func (f *Func) String(paramNames bool) string {
+	var sb strings.Builder
+
+	sb.WriteString("func ")
+	sb.WriteString(f.Name_.Token.Text)
+	sb.WriteString("(")
+
+	hasParams := false
+
+	if f.Receiver != nil {
+		if f.Receiver.Mutable {
+			sb.WriteString("mut self")
+		} else {
+			sb.WriteString("self")
+		}
+
+		hasParams = true
+	}
+
+	for _, param := range f.Params {
+		if hasParams {
+			sb.WriteString(", ")
+		}
+
+		if paramNames {
+			sb.WriteString(param.Name.Token.Text)
+			sb.WriteString(": ")
+		}
+
+		sb.WriteString(param.Type.String())
+
+		hasParams = true
+	}
+
+	sb.WriteString(") ")
+	sb.WriteString(f.Returns.String())
+
+	return sb.String()
 }
 
 // Receiver

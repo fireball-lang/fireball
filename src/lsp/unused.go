@@ -87,10 +87,6 @@ func (s *Server) DocumentLinkResolve(ctx context.Context, params *protocol.Docum
 	return nil, errors.New("not implemented")
 }
 
-func (s *Server) DocumentSymbol(ctx context.Context, params *protocol.DocumentSymbolParams) (result []interface{}, err error) {
-	return nil, errors.New("not implemented")
-}
-
 func (s *Server) ExecuteCommand(ctx context.Context, params *protocol.ExecuteCommandParams) (result interface{}, err error) {
 	return nil, errors.New("not implemented")
 }
@@ -132,10 +128,6 @@ func (s *Server) Rename(ctx context.Context, params *protocol.RenameParams) (res
 }
 
 func (s *Server) SignatureHelp(ctx context.Context, params *protocol.SignatureHelpParams) (result *protocol.SignatureHelp, err error) {
-	return nil, errors.New("not implemented")
-}
-
-func (s *Server) Symbols(ctx context.Context, params *protocol.WorkspaceSymbolParams) (result []protocol.SymbolInformation, err error) {
 	return nil, errors.New("not implemented")
 }
 

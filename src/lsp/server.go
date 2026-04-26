@@ -112,7 +112,11 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 				},
 				Full: &protocol.SemanticTokensFull{},
 			},
-			DefinitionProvider: &protocol.DefinitionOptions{},
+			DocumentSymbolProvider: &protocol.DocumentSymbolOptions{
+				Label: "Fireball",
+			},
+			WorkspaceSymbolProvider: &protocol.WorkspaceSymbolOptions{},
+			DefinitionProvider:      &protocol.DefinitionOptions{},
 		},
 		ServerInfo: &protocol.ServerInfo{
 			Name:    "fireball",
