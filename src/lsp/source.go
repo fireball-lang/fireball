@@ -8,7 +8,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"github.com/owenrumney/go-lsp/lsp"
+	"github.com/fireball-lang/protocol"
 )
 
 type Source struct {
@@ -31,7 +31,7 @@ func NewSource(prev project.Source) *Source {
 	}
 }
 
-func (l *Source) Apply(change lsp.TextDocumentContentChangeEvent) {
+func (l *Source) Apply(change protocol.TextDocumentContentChangeEvent) {
 	// Full
 	if change.Range == nil {
 		l.lines = bytes.SplitAfter([]byte(change.Text), []byte{'\n'})
@@ -52,16 +52,16 @@ func (l *Source) Apply(change lsp.TextDocumentContentChangeEvent) {
 	newParts[0] = append(append([]byte(nil), prefix...), newParts[0]...)
 	newParts[len(newParts)-1] = append(newParts[len(newParts)-1], suffix...)
 
-	l.lines = slices.Replace(l.lines, startLine, endLine+1, newParts...)
+	l.lines = slices.Replace(l.lines, int(startLine), int(endLine+1), newParts...)
 }
 
-func utf16OffsetToBytes(line []byte, utf16Offset int) int {
+func utf16OffsetToBytes(line []byte, utf16Offset uint32) int {
 	byteOffset := 0
-	utf16Count := 0
+	utf16Count := uint32(0)
 
 	for byteOffset < len(line) && utf16Count < utf16Offset {
 		r, size := utf8.DecodeRune(line[byteOffset:])
-		utf16Count += utf16.RuneLen(r)
+		utf16Count += uint32(utf16.RuneLen(r))
 		byteOffset += size
 	}
 

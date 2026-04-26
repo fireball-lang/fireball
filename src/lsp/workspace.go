@@ -15,18 +15,18 @@ type Workspace struct {
 	depMap  map[project.Dependency]*project.Project
 }
 
-func (h *Handler) openWorkspace(ctx context.Context, path string) {
+func (s *Server) openWorkspace(ctx context.Context, path string) {
 	// Open project
 	proj, err := project.Open(path)
 	if err != nil {
-		h.warning(ctx, "Failed to open project: %s", err.Error())
+		s.warn(ctx, "Failed to open project: %s", err.Error())
 		return
 	}
 
 	// Load hierarchy
 	projMap, depMap, err := project.LoadHierarchy(proj)
 	if err != nil {
-		h.error(ctx, "Failed to load hierarchy: %s", err.Error())
+		s.error(ctx, "Failed to load hierarchy: %s", err.Error())
 		return
 	}
 
@@ -44,9 +44,9 @@ func (h *Handler) openWorkspace(ctx context.Context, path string) {
 		depMap:  depMap,
 	}
 
-	h.workspaces = append(h.workspaces, workspace)
+	s.workspaces = append(s.workspaces, workspace)
 
-	h.info(ctx, "Opened workspace at: %s", path)
+	s.info(ctx, "Opened workspace at: %s", path)
 
 	// Initial parse
 	workspace.parseFiles(nil)
@@ -68,8 +68,8 @@ func (w *Workspace) parseFiles(files []*project.File) {
 	}
 }
 
-func (h *Handler) getFile(path string) (*project.File, sync.Locker) {
-	for _, workspace := range h.workspaces {
+func (s *Server) getFile(path string) (*project.File, sync.Locker) {
+	for _, workspace := range s.workspaces {
 		for _, proj := range workspace.projMap {
 			for _, file := range proj.Files {
 				if file.Path == path {
@@ -82,8 +82,8 @@ func (h *Handler) getFile(path string) (*project.File, sync.Locker) {
 	return nil, nil
 }
 
-func (h *Handler) getWorkspace(file *project.File) *Workspace {
-	for _, workspace := range h.workspaces {
+func (s *Server) getWorkspace(file *project.File) *Workspace {
+	for _, workspace := range s.workspaces {
 		for _, proj := range workspace.projMap {
 			for _, f := range proj.Files {
 				if f == file {

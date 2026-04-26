@@ -32,7 +32,7 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 	}
 
 	// Type
-	symbol, _ := a.scope.GetSymbol(s.Name())
+	symbol, _ := a.scope.GetSymbol(s.Name().Token.Text)
 
 	typ := symbol.Type.(*types.Struct)
 	a.nodeTypes[s] = typ
@@ -82,10 +82,10 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		var receiverTyp types.Type
 
 		if f.Receiver == nil {
-			_, fTyp = a.methodTable.GetStatic(typ, f.Name())
+			_, fTyp = a.methodTable.GetStatic(typ, f.Name().Token.Text)
 			receiverTyp = nil
 		} else {
-			_, fTyp = a.methodTable.Get(typ, f.Name())
+			_, fTyp = a.methodTable.Get(typ, f.Name().Token.Text)
 			receiverTyp = fTyp.Params[0]
 		}
 
@@ -159,7 +159,7 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	}
 
 	// Type
-	symbol, _ := a.scope.GetSymbol(f.Name())
+	symbol, _ := a.scope.GetSymbol(f.Name().Token.Text)
 
 	typ := symbol.Type.(*types.Func)
 	a.nodeTypes[f] = typ

@@ -10,12 +10,12 @@ import (
 	"fireball/types"
 	"slices"
 
-	"github.com/owenrumney/go-lsp/lsp"
+	"github.com/fireball-lang/protocol"
 )
 
-func (h *Handler) SemanticTokensFull(_ context.Context, params *lsp.SemanticTokensParams) (*lsp.SemanticTokens, error) {
+func (s *Server) SemanticTokensFull(_ context.Context, params *protocol.SemanticTokensParams) (*protocol.SemanticTokens, error) {
 	// Get file
-	file, locker := h.getFile(uriPath(params.TextDocument.URI))
+	file, locker := s.getFile(uriPath(params.TextDocument.URI))
 	if file == nil {
 		return nil, nil
 	}
@@ -39,7 +39,7 @@ func (h *Handler) SemanticTokensFull(_ context.Context, params *lsp.SemanticToke
 		hi.visit(decl)
 	}
 
-	return &lsp.SemanticTokens{Data: hi.data()}, nil
+	return &protocol.SemanticTokens{Data: hi.data()}, nil
 }
 
 // Highlighter
@@ -143,7 +143,7 @@ func (hi *highlighter) add(node ast.Node, kind semanticKind) {
 	}
 }
 
-func (hi *highlighter) data() []int {
+func (hi *highlighter) data() []uint32 {
 	// Sort tokens
 	slices.SortFunc(hi.tokens, func(a, b semantic) int {
 		if a.line == b.line {
@@ -158,7 +158,7 @@ func (hi *highlighter) data() []int {
 	})
 
 	// Get data
-	data := make([]int, len(hi.tokens)*5)
+	data := make([]uint32, len(hi.tokens)*5)
 
 	lastLine := uint16(0)
 	lastColumn := uint8(0)
@@ -170,10 +170,10 @@ func (hi *highlighter) data() []int {
 
 		j := i * 5
 
-		data[j+0] = int(token.line - lastLine)
-		data[j+1] = int(token.column - lastColumn)
-		data[j+2] = int(token.length)
-		data[j+3] = int(token.kind)
+		data[j+0] = uint32(token.line - lastLine)
+		data[j+1] = uint32(token.column - lastColumn)
+		data[j+2] = uint32(token.length)
+		data[j+3] = uint32(token.kind)
 		data[j+4] = 0
 
 		lastLine = token.line

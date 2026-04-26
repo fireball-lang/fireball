@@ -19,7 +19,7 @@ func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 	// Meta
 
 	ref := c.module.AddMeta(&ir.SubprogramMeta{
-		Name:     f.Name(),
+		Name:     f.Name().Token.Text,
 		LinkName: FuncLinkName(f),
 		Type:     c.types.GetMeta(typ),
 		Scope:    c.emitter.PeekScope(),

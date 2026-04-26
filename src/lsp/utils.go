@@ -6,59 +6,68 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/owenrumney/go-lsp/lsp"
+	"github.com/fireball-lang/protocol"
 )
 
-func (h *Handler) info(ctx context.Context, format string, args ...any) {
-	_ = h.Client.LogMessage(ctx, &lsp.LogMessageParams{
-		Type:    lsp.MessageTypeInfo,
-		Message: fmt.Sprintf(format, args...),
+func (s *Server) info(ctx context.Context, format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	s.Logger.Info(msg)
+
+	_ = s.Client.LogMessage(ctx, &protocol.LogMessageParams{
+		Type:    protocol.MessageTypeInfo,
+		Message: msg,
 	})
 }
 
-func (h *Handler) warning(ctx context.Context, format string, args ...any) {
-	_ = h.Client.LogMessage(ctx, &lsp.LogMessageParams{
-		Type:    lsp.MessageTypeWarning,
-		Message: fmt.Sprintf(format, args...),
+func (s *Server) warn(ctx context.Context, format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	s.Logger.Warn(msg)
+
+	_ = s.Client.LogMessage(ctx, &protocol.LogMessageParams{
+		Type:    protocol.MessageTypeWarning,
+		Message: msg,
 	})
 }
 
-func (h *Handler) error(ctx context.Context, format string, args ...any) {
-	_ = h.Client.LogMessage(ctx, &lsp.LogMessageParams{
-		Type:    lsp.MessageTypeError,
-		Message: fmt.Sprintf(format, args...),
+func (s *Server) error(ctx context.Context, format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	s.Logger.Error(msg)
+
+	_ = s.Client.LogMessage(ctx, &protocol.LogMessageParams{
+		Type:    protocol.MessageTypeError,
+		Message: msg,
 	})
 }
 
-func toLspRange(r core.Range) lsp.Range {
-	return lsp.Range{
+func toLspRange(r core.Range) protocol.Range {
+	return protocol.Range{
 		Start: toLspPos(r.Start),
 		End:   toLspPos(r.End),
 	}
 }
 
-func toLspPos(pos core.Pos) lsp.Position {
-	return lsp.Position{
-		Line:      int(pos.Line) - 1,
-		Character: int(pos.Column) - 1,
+func toLspPos(pos core.Pos) protocol.Position {
+	return protocol.Position{
+		Line:      pos.Line - 1,
+		Character: pos.Column - 1,
 	}
 }
 
-func toCoreRange(r lsp.Range) core.Range {
+func toCoreRange(r protocol.Range) core.Range {
 	return core.Range{
 		Start: toCorePos(r.Start),
 		End:   toCorePos(r.End),
 	}
 }
 
-func toCorePos(pos lsp.Position) core.Pos {
+func toCorePos(pos protocol.Position) core.Pos {
 	return core.Pos{
-		Line:   uint32(pos.Line) + 1,
-		Column: uint32(pos.Character) + 1,
+		Line:   pos.Line + 1,
+		Column: pos.Character + 1,
 	}
 }
 
-func uriPath(uri lsp.DocumentURI) string {
+func uriPath(uri protocol.DocumentURI) string {
 	str := string(uri)
 
 	if !strings.HasPrefix(str, "file://") {

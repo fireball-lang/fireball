@@ -5,23 +5,23 @@ import (
 	"fireball/core"
 	"fireball/project"
 
-	"github.com/owenrumney/go-lsp/lsp"
+	"github.com/fireball-lang/protocol"
 )
 
 type Document struct {
-	Version        int
+	Version        int32
 	HasDiagnostics bool
 }
 
 // Diagnostics
 
-func (h *Handler) publishDiagnostics(ctx context.Context) {
-	for _, workspace := range h.workspaces {
+func (s *Server) publishDiagnostics(ctx context.Context) {
+	for _, workspace := range s.workspaces {
 		workspace.mutex.RLock()
 
 		for _, proj := range workspace.projMap {
 			for _, file := range proj.Files {
-				h.publishFileDiagnostics(ctx, file)
+				s.publishFileDiagnostics(ctx, file)
 			}
 		}
 
@@ -30,36 +30,36 @@ func (h *Handler) publishDiagnostics(ctx context.Context) {
 }
 
 //goland:noinspection GoPreferNilSlice
-var emptyDiagnostics = []lsp.Diagnostic{}
+var emptyDiagnostics = []protocol.Diagnostic{}
 
-func (h *Handler) publishFileDiagnostics(ctx context.Context, file *project.File) {
+func (s *Server) publishFileDiagnostics(ctx context.Context, file *project.File) {
 	document := file.Data.(*Document)
 	diagnostics := emptyDiagnostics
 
 	for diagnostic := range file.Diagnostics() {
-		var severity lsp.DiagnosticSeverity
+		var severity protocol.DiagnosticSeverity
 
 		switch diagnostic.Kind {
 		case core.Warning:
-			severity = lsp.SeverityWarning
+			severity = protocol.DiagnosticSeverityWarning
 		case core.Error:
-			severity = lsp.SeverityError
+			severity = protocol.DiagnosticSeverityError
 
 		default:
 			panic("lsp.Handler.publishFileDiagnostics() - Invalid diagnostic kind")
 		}
 
-		diagnostics = append(diagnostics, lsp.Diagnostic{
+		diagnostics = append(diagnostics, protocol.Diagnostic{
 			Range:    toLspRange(diagnostic.Range),
-			Severity: &severity,
+			Severity: severity,
 			Message:  diagnostic.Message,
 		})
 	}
 
 	if len(diagnostics) > 0 || document.HasDiagnostics {
-		_ = h.Client.PublishDiagnostics(ctx, &lsp.PublishDiagnosticsParams{
-			URI:         lsp.DocumentURI("file://" + file.Path),
-			Version:     &document.Version,
+		_ = s.Client.PublishDiagnostics(ctx, &protocol.PublishDiagnosticsParams{
+			URI:         protocol.DocumentURI("file://" + file.Path),
+			Version:     uint32(document.Version),
 			Diagnostics: diagnostics,
 		})
 

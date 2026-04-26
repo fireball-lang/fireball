@@ -42,7 +42,7 @@ func (m MethodTable) AddStatic(typ types.Type, f *ast.Func, t *types.Func) bool 
 
 func (m MethodTable) GetStatic(typ types.Type, name string) (*ast.Func, *types.Func) {
 	for _, m := range m.static[typ] {
-		if m.ast.Name() == name {
+		if m.ast.Name().Token.Text == name {
 			return m.ast, m.typ
 		}
 	}
@@ -70,7 +70,7 @@ func (m MethodTable) Add(typ types.Type, f *ast.Func, t *types.Func) bool {
 
 func (m MethodTable) Get(typ types.Type, name string) (*ast.Func, *types.Func) {
 	for _, m := range m.instance[typ] {
-		if m.ast.Name() == name {
+		if m.ast.Name().Token.Text == name {
 			return m.ast, m.typ
 		}
 	}

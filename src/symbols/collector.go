@@ -19,11 +19,11 @@ func Collect(file *ast.File) []Symbol {
 				sb.WriteString("::")
 			}
 
-			sb.WriteString(decl.Name())
+			sb.WriteString(decl.Name().Token.Text)
 
 			symbols = append(symbols, Symbol{
 				Kind: Struct,
-				Name: decl.Name(),
+				Name: decl.Name().Token.Text,
 				Node: decl,
 				Type: &types.Struct{Name: sb.String()}, // filled in type resolver
 			})
@@ -31,7 +31,7 @@ func Collect(file *ast.File) []Symbol {
 		case *ast.Func:
 			symbols = append(symbols, Symbol{
 				Kind: Func,
-				Name: decl.Name(),
+				Name: decl.Name().Token.Text,
 				Node: decl,
 				Type: &types.Func{}, // filled in type resolver
 			})

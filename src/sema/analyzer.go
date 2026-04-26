@@ -170,7 +170,7 @@ func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
 				if f, typ := a.methodTable.GetStatic(symbol.Type, name); !core.IsNil(f) {
 					return symbols.Symbol{
 						Kind: symbols.Func,
-						Name: f.Name(),
+						Name: f.Name().Token.Text,
 						Node: f,
 						Type: typ,
 					}, true

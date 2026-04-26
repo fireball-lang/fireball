@@ -124,7 +124,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 			}
 
 		case *ast.Func:
-			c.scope.Add(decl.Name(), c.CreateFunction(decl, false))
+			c.scope.Add(decl.Name().Token.Text, c.CreateFunction(decl, false))
 		}
 	}
 
@@ -140,7 +140,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 
 		case *ast.Func:
 			typ := c.nodeTypes[decl].(*types.Func)
-			fun := c.scope.Get(decl.Name()).(*ir.Function)
+			fun := c.scope.Get(decl.Name().Token.Text).(*ir.Function)
 
 			c.VisitFunc(decl, typ, fun)
 		}
@@ -174,7 +174,7 @@ func FuncLinkName(f *ast.Func) string {
 			return linkName
 		}
 
-		return f.Name()
+		return f.Name().Token.Text
 	}
 
 	// Custom link name
@@ -200,7 +200,7 @@ func FuncLinkName(f *ast.Func) string {
 		sb.WriteString("::")
 	}
 
-	sb.WriteString(f.Name())
+	sb.WriteString(f.Name().Token.Text)
 
 	return sb.String()
 }

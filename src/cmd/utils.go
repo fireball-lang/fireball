@@ -138,7 +138,7 @@ func normalEntrypointProvider(proj *project.Project) (build.EntrypointFn, error)
 outer:
 	for _, file := range proj.Files {
 		for _, decl := range file.Ast.Decls {
-			if f, ok := decl.(*ast.Func); ok && f.Name() == "main" && len(f.Params) == 0 && !f.VarArgs {
+			if f, ok := decl.(*ast.Func); ok && f.Name().Token.Text == "main" && len(f.Params) == 0 && !f.VarArgs {
 				typ := file.NodeTypes[f].(*types.Func)
 
 				if p, ok := typ.Returns.(*types.Primitive); (ok && types.IsInteger(p.Kind)) || typ.Returns == types.PrimitiveVoid {

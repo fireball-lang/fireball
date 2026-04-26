@@ -8,7 +8,7 @@ import (
 type Decl interface {
 	Node
 
-	Name() string
+	Name() *Leaf
 
 	_isDecl()
 }
@@ -62,8 +62,8 @@ func (s *Struct) Children() iter.Seq[Node] {
 	}
 }
 
-func (s *Struct) Name() string {
-	return s.Name_.Token.Text
+func (s *Struct) Name() *Leaf {
+	return s.Name_
 }
 
 func (s *Struct) _isDecl() {}
@@ -91,8 +91,8 @@ func (i *Impl) Children() iter.Seq[Node] {
 	}
 }
 
-func (i *Impl) Name() string {
-	return "<impl>"
+func (i *Impl) Name() *Leaf {
+	return nil
 }
 
 func (i *Impl) _isDecl() {}
@@ -142,8 +142,8 @@ func (f *Func) Children() iter.Seq[Node] {
 	}
 }
 
-func (f *Func) Name() string {
-	return f.Name_.Token.Text
+func (f *Func) Name() *Leaf {
+	return f.Name_
 }
 
 func (f *Func) _isDecl() {}
@@ -165,7 +165,7 @@ func (f *Func) GetTestName() string {
 			}
 
 			if name == "" {
-				name = f.Name()
+				name = f.Name_.Token.Text
 			}
 
 			return name
@@ -225,8 +225,8 @@ func (b *BadDecl) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
 }
 
-func (b *BadDecl) Name() string {
-	return ""
+func (b *BadDecl) Name() *Leaf {
+	return nil
 }
 
 func (b *BadDecl) _isDecl() {}
