@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fireball/project"
+	"iter"
 	"log/slog"
+	"path"
 	"slices"
 	"time"
 
@@ -77,6 +79,8 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 		s.openWorkspace(ctx, uriPath(protocol.DocumentURI(folder.URI)))
 	}
 
+	s.info(ctx, "%#v", params.Capabilities.Workspace.FileOperations)
+
 	s.publishDiagnostics(ctx)
 
 	s.changed = make(chan *project.File, 8)
@@ -86,8 +90,36 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 
 	go s.parseWorker()
 
+	filters := []protocol.FileOperationFilter{
+		{
+			Scheme: "file",
+			Pattern: protocol.FileOperationPattern{
+				Glob:    "**/*.fb",
+				Matches: protocol.FileOperationPatternKindFile,
+			},
+		},
+		{
+			Scheme: "file",
+			Pattern: protocol.FileOperationPattern{
+				Glob:    "**/project.toml",
+				Matches: protocol.FileOperationPatternKindFile,
+			},
+		},
+	}
+
 	return &protocol.InitializeResult{
 		Capabilities: protocol.ServerCapabilities{
+			Workspace: &protocol.ServerCapabilitiesWorkspace{
+				WorkspaceFolders: &protocol.ServerCapabilitiesWorkspaceFolders{
+					Supported:           true,
+					ChangeNotifications: true,
+				},
+				FileOperations: &protocol.ServerCapabilitiesWorkspaceFileOperations{
+					DidCreate: &protocol.FileOperationRegistrationOptions{Filters: filters},
+					DidRename: &protocol.FileOperationRegistrationOptions{Filters: filters},
+					DidDelete: &protocol.FileOperationRegistrationOptions{Filters: filters},
+				},
+			},
 			TextDocumentSync: &protocol.TextDocumentSyncOptions{
 				OpenClose: true,
 				Change:    protocol.TextDocumentSyncKindIncremental,
@@ -131,6 +163,142 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	s.stop <- nil
 
 	return nil
+}
+
+// Workspace
+
+func (s *Server) DidChangeWorkspaceFolders(ctx context.Context, params *protocol.DidChangeWorkspaceFoldersParams) error {
+	for _, folder := range params.Event.Removed {
+		folderPath := uriPath(protocol.DocumentURI(folder.URI))
+
+		index := slices.IndexFunc(s.workspaces, func(workspace *Workspace) bool {
+			return workspace.path == folderPath
+		})
+
+		if index == -1 {
+			s.warn(ctx, "Workspace not found: '%s'", folder.URI)
+			continue
+		}
+
+		s.workspaces = slices.Delete(s.workspaces, index, index+1)
+	}
+
+	for _, folder := range params.Event.Added {
+		s.openWorkspace(ctx, uriPath(protocol.DocumentURI(folder.URI)))
+	}
+
+	return nil
+}
+
+func (s *Server) DidCreateFiles(ctx context.Context, params *protocol.CreateFilesParams) error {
+	s.reloadWorkspacesIfProjectConfigChanged(ctx, func(yield func(string) bool) {
+		for _, file := range params.Files {
+			if !yield(file.URI) {
+				return
+			}
+		}
+	})
+
+	for _, fileCreate := range params.Files {
+		if path.Ext(fileCreate.URI) != ".fb" {
+			continue
+		}
+
+		fullPath := uriPath(protocol.DocumentURI(fileCreate.URI))
+		proj := s.getProject(fullPath)
+
+		if proj == nil {
+			s.warn(ctx, "Failed to find project for file: '%s'", fileCreate.URI)
+			continue
+		}
+
+		file := proj.AddFile(fullPath)
+
+		if file == nil {
+			s.warn(ctx, "Failed to add file to project: '%s'", fileCreate.URI)
+			continue
+		}
+
+		file.Data = &Document{}
+
+		s.changed <- file
+	}
+
+	return nil
+}
+
+func (s *Server) DidRenameFiles(ctx context.Context, params *protocol.RenameFilesParams) error {
+	var deleted []protocol.FileDelete
+	var created []protocol.FileCreate
+
+	for _, file := range params.Files {
+		deleted = append(deleted, protocol.FileDelete{URI: file.OldURI})
+		created = append(created, protocol.FileCreate{URI: file.NewURI})
+	}
+
+	_ = s.DidDeleteFiles(ctx, &protocol.DeleteFilesParams{Files: deleted})
+	_ = s.DidCreateFiles(ctx, &protocol.CreateFilesParams{Files: created})
+
+	return nil
+}
+
+func (s *Server) DidDeleteFiles(ctx context.Context, params *protocol.DeleteFilesParams) error {
+	s.reloadWorkspacesIfProjectConfigChanged(ctx, func(yield func(string) bool) {
+		for _, file := range params.Files {
+			if !yield(file.URI) {
+				return
+			}
+		}
+	})
+
+	for _, fileDelete := range params.Files {
+		if path.Ext(fileDelete.URI) != ".fb" {
+			continue
+		}
+
+		fullPath := uriPath(protocol.DocumentURI(fileDelete.URI))
+		proj := s.getProject(fullPath)
+
+		if proj == nil {
+			s.warn(ctx, "Failed to find project for file: '%s'", fileDelete.URI)
+			continue
+		}
+
+		if !proj.RemoveFile(fullPath) {
+			s.warn(ctx, "Failed to remove file from project: '%s'", fileDelete.URI)
+			continue
+		}
+
+		// workaround to re-check the project
+		if len(proj.Files) > 0 {
+			s.changed <- proj.Files[0]
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) reloadWorkspacesIfProjectConfigChanged(ctx context.Context, it iter.Seq[string]) {
+	var workspaces []*Workspace
+
+	for uri := range it {
+		if path.Base(uri) == "project.toml" {
+			workspace := s.getWorkspaceForProjectConfig(uriPath(protocol.DocumentURI(uri)))
+
+			if workspace == nil {
+				s.warn(ctx, "failed to find workspace for project config file: '%s'", uri)
+				continue
+			}
+
+			if !slices.Contains(workspaces, workspace) {
+				workspaces = append(workspaces, workspace)
+			}
+		}
+	}
+
+	for _, workspace := range workspaces {
+		workspace.reload(s, ctx)
+	}
 }
 
 // Text document sync

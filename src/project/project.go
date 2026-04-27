@@ -57,6 +57,31 @@ func Open(path string) (*Project, error) {
 	return project, nil
 }
 
+func (p *Project) AddFile(fullPath string) *File {
+	if !core.IsFilepathInside(filepath.Join(p.Path, "src"), fullPath) {
+		return nil
+	}
+
+	file := newFile(p, fullPath)
+	p.Files = append(p.Files, file)
+
+	return file
+}
+
+func (p *Project) RemoveFile(fullPath string) bool {
+	index := slices.IndexFunc(p.Files, func(file *File) bool {
+		return file.Path == fullPath
+	})
+
+	if index == -1 {
+		return false
+	}
+
+	p.Files = slices.Delete(p.Files, index, index+1)
+
+	return true
+}
+
 func (p *Project) Parse(files []*File) {
 	defer core.Scope()()
 

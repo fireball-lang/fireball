@@ -1,9 +1,13 @@
 package lsp
 
 import (
+	"cmp"
 	"context"
+	"fireball/core"
 	"fireball/project"
 	"fireball/symbols"
+	"path/filepath"
+	"slices"
 	"sync"
 )
 
@@ -16,19 +20,38 @@ type Workspace struct {
 }
 
 func (s *Server) openWorkspace(ctx context.Context, path string) {
+	// Create workspace
+	workspace := &Workspace{
+		path: path,
+	}
+
+	if !workspace.reload(s, ctx) {
+		return
+	}
+
+	// Add workspace
+	s.workspaces = append(s.workspaces, workspace)
+
+	s.info(ctx, "Opened workspace at: %s", path)
+}
+
+func (w *Workspace) reload(s *Server, ctx context.Context) bool {
 	// Open project
-	proj, err := project.Open(path)
+	proj, err := project.Open(w.path)
 	if err != nil {
 		s.warn(ctx, "Failed to open project: %s", err.Error())
-		return
+		return false
 	}
 
 	// Load hierarchy
 	projMap, depMap, err := project.LoadHierarchy(proj)
 	if err != nil {
 		s.error(ctx, "Failed to load hierarchy: %s", err.Error())
-		return
+		return false
 	}
+
+	w.projMap = projMap
+	w.depMap = depMap
 
 	// Create documents
 	for _, proj := range projMap {
@@ -37,19 +60,10 @@ func (s *Server) openWorkspace(ctx context.Context, path string) {
 		}
 	}
 
-	// Create workspace
-	workspace := &Workspace{
-		path:    path,
-		projMap: projMap,
-		depMap:  depMap,
-	}
-
-	s.workspaces = append(s.workspaces, workspace)
-
-	s.info(ctx, "Opened workspace at: %s", path)
-
 	// Initial parse
-	workspace.parseFiles(nil)
+	w.parseFiles(nil)
+
+	return true
 }
 
 func (w *Workspace) parseFiles(files []*project.File) {
@@ -68,6 +82,26 @@ func (w *Workspace) parseFiles(files []*project.File) {
 	}
 }
 
+func (w *Workspace) getProject(file string) *project.Project {
+	projects := make([]*project.Project, 0, len(w.projMap))
+
+	for _, proj := range w.projMap {
+		projects = append(projects, proj)
+	}
+
+	slices.SortFunc(projects, func(a, b *project.Project) int {
+		return cmp.Compare(len(b.Path), len(a.Path))
+	})
+
+	for _, proj := range projects {
+		if core.IsFilepathInside(proj.Path, file) {
+			return proj
+		}
+	}
+
+	return nil
+}
+
 func (s *Server) getFile(path string) (*project.File, sync.Locker) {
 	for _, workspace := range s.workspaces {
 		for _, proj := range workspace.projMap {
@@ -82,6 +116,22 @@ func (s *Server) getFile(path string) (*project.File, sync.Locker) {
 	return nil, nil
 }
 
+func (s *Server) getProject(file string) *project.Project {
+	workspaces := append([]*Workspace{}, s.workspaces...)
+
+	slices.SortFunc(workspaces, func(a, b *Workspace) int {
+		return cmp.Compare(len(b.path), len(a.path))
+	})
+
+	for _, workspace := range workspaces {
+		if core.IsFilepathInside(workspace.path, file) {
+			return workspace.getProject(file)
+		}
+	}
+
+	return nil
+}
+
 func (s *Server) getWorkspace(file *project.File) *Workspace {
 	for _, workspace := range s.workspaces {
 		for _, proj := range workspace.projMap {
@@ -94,4 +144,16 @@ func (s *Server) getWorkspace(file *project.File) *Workspace {
 	}
 
 	panic("lsp.Handler.getWorkspace() - File doesn't belong to any workspace")
+}
+
+func (s *Server) getWorkspaceForProjectConfig(path string) *Workspace {
+	for _, workspace := range s.workspaces {
+		for _, proj := range workspace.projMap {
+			if filepath.Join(proj.Path, "project.toml") == path {
+				return workspace
+			}
+		}
+	}
+
+	return nil
 }

@@ -63,10 +63,6 @@ func (s *Server) DidChangeWatchedFiles(ctx context.Context, params *protocol.Did
 	return errors.New("not implemented")
 }
 
-func (s *Server) DidChangeWorkspaceFolders(ctx context.Context, params *protocol.DidChangeWorkspaceFoldersParams) (err error) {
-	return errors.New("not implemented")
-}
-
 func (s *Server) DidSave(ctx context.Context, params *protocol.DidSaveTextDocumentParams) (err error) {
 	return errors.New("not implemented")
 }
@@ -151,24 +147,12 @@ func (s *Server) WillCreateFiles(ctx context.Context, params *protocol.CreateFil
 	return nil, errors.New("not implemented")
 }
 
-func (s *Server) DidCreateFiles(ctx context.Context, params *protocol.CreateFilesParams) (err error) {
-	return errors.New("not implemented")
-}
-
 func (s *Server) WillRenameFiles(ctx context.Context, params *protocol.RenameFilesParams) (result *protocol.WorkspaceEdit, err error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *Server) DidRenameFiles(ctx context.Context, params *protocol.RenameFilesParams) (err error) {
-	return errors.New("not implemented")
-}
-
 func (s *Server) WillDeleteFiles(ctx context.Context, params *protocol.DeleteFilesParams) (result *protocol.WorkspaceEdit, err error) {
 	return nil, errors.New("not implemented")
-}
-
-func (s *Server) DidDeleteFiles(ctx context.Context, params *protocol.DeleteFilesParams) (err error) {
-	return errors.New("not implemented")
 }
 
 func (s *Server) CodeLensRefresh(ctx context.Context) (err error) {

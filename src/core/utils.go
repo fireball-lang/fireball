@@ -9,7 +9,13 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 )
+
+func IsFilepathInside(base, target string) bool {
+	rel, err := filepath.Rel(base, target)
+	return err == nil && !strings.HasPrefix(rel, "..")
+}
 
 func IsNil(v any) bool {
 	if v == nil {
