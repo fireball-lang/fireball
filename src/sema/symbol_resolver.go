@@ -67,7 +67,7 @@ func ResolveSymbols(file *ast.File, fileSymbols []symbols.Symbol, methodTable sy
 				}
 
 				if ok && !okAdd {
-					a.Error(f.Name_, "method with the name '%s' already exists on type '%s'", f.Name(), typ)
+					a.Error(f.Name_, "method with the name '%s' already exists on type '%s'", f.Name().Token.Text, typ)
 				}
 			}
 		}

@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fireball/ast"
+	"fireball/core"
 	"fireball/lexer"
 	"fireball/types"
 )
@@ -77,6 +78,10 @@ func (p *parser) parseArrayType() (a *ast.ArrayType, recoverId int) {
 	a.Range_.Start = p.current.Range.Start
 	defer func() {
 		a.Range_.End = p.previous.Range.End
+
+		if core.IsNil(a.Type) {
+			a.Type = p.badType()
+		}
 	}()
 
 	recoverId = -1
