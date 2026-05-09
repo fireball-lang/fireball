@@ -59,9 +59,36 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 }
 
 func (a *analyzer) VisitImpl(i *ast.Impl) {
+	prevScope := a.scope
+
+	if prev, ok := a.nodeTypes[i.Type]; ok {
+		if s, ok := prev.(*types.Struct); ok {
+			template := s
+			if s.Generic != nil {
+				template = s.Generic
+			}
+
+			if len(template.TypeParams) > 0 && len(i.TypeParams) == len(template.TypeParams) {
+				implNames := make([]string, len(i.TypeParams))
+
+				for j, leaf := range i.TypeParams {
+					implNames[j] = leaf.Token.Text
+				}
+
+				a.scope = &symbols.ParamScope{
+					Parent: a.scope,
+					Names:  implNames,
+					Params: template.TypeParams,
+					Nodes:  i.TypeParams,
+				}
+			}
+		}
+	}
+
 	// Type
 	typ := a.AnalyzeType(i.Type)
 	if typ == types.Invalid {
+		a.scope = prevScope
 		return
 	}
 
@@ -71,27 +98,54 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		a.Error(i.Type, "implementation blocks can only be attached to struct types, not '%s'", typ)
 	}
 
-	// Methods
+	lookupTyp := typ
 
+	if s, ok := typ.(*types.Struct); ok && s.Generic != nil && len(i.TypeParams) > 0 {
+		lookupTyp = s.Generic
+	}
+
+	// Methods
 	for _, f := range i.Functions {
 		if core.IsNil(f.Body) {
 			a.Error(f.Name_, "methods need to have a body")
+		}
+
+		prevFuncScope := a.scope
+
+		if len(f.TypeParams) > 0 {
+			funcTypeParams := make([]*types.Param, 0, len(f.TypeParams))
+
+			for _, param := range f.TypeParams {
+				funcTypeParams = append(funcTypeParams, &types.Param{Name: param.Token.Text})
+			}
+
+			a.scope = &symbols.ParamScope{
+				Parent: a.scope,
+				Params: funcTypeParams,
+				Nodes:  f.TypeParams,
+			}
 		}
 
 		var fTyp *types.Func
 		var receiverTyp types.Type
 
 		if f.Receiver == nil {
-			_, fTyp = a.methodTable.GetStatic(typ, f.Name().Token.Text)
+			_, fTyp = a.methodTable.GetStatic(lookupTyp, f.Name().Token.Text)
 			receiverTyp = nil
 		} else {
-			_, fTyp = a.methodTable.Get(typ, f.Name().Token.Text)
-			receiverTyp = fTyp.Params[0]
+			_, fTyp = a.methodTable.Get(lookupTyp, f.Name().Token.Text)
+			if fTyp != nil {
+				receiverTyp = fTyp.Params[0]
+			}
 		}
 
 		a.nodeTypes[f] = fTyp
 		a.VisitFuncInner(f, fTyp, receiverTyp)
+
+		a.scope = prevFuncScope
 	}
+
+	a.scope = prevScope
 }
 
 func (a *analyzer) VisitFunc(f *ast.Func) {
@@ -196,7 +250,14 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	}
 
 	// Inner
+	prevScope := a.scope
+	if len(typ.TypeParams) > 0 {
+		a.scope = &symbols.ParamScope{Parent: a.scope, Params: typ.TypeParams, Nodes: f.TypeParams}
+	}
+
 	a.VisitFuncInner(f, typ, nil)
+
+	a.scope = prevScope
 }
 
 func (a *analyzer) VisitFuncInner(f *ast.Func, typ *types.Func, receiverTyp types.Type) {

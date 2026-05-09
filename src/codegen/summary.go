@@ -3,6 +3,7 @@ package codegen
 import (
 	"fireball/ast"
 	"fireball/ir"
+	"fireball/types"
 	"slices"
 )
 
@@ -20,17 +21,17 @@ func (c *codegen) AddSummaryRef(ref ir.SummaryRef) {
 	}
 }
 
-func (c *codegen) GetFunctionSummaryRef(f *ast.Func) ir.SummaryRef {
-	name := FuncLinkName(f)
+func (c *codegen) GetFunctionSummaryRef(f *ast.Func, typ *types.Func) ir.SummaryRef {
+	name := FuncLinkName(f, typ)
 	return c.GetSummaryRef(name, false)
 }
 
-func (c *codegen) AddSummaryCallee(node ast.Node, f *ast.Func) {
+func (c *codegen) AddSummaryCallee(node ast.Node, f *ast.Func, typ *types.Func) {
 	if !c.moduleSummaryRef.Valid() {
 		return
 	}
 
-	ref := c.GetFunctionSummaryRef(f)
+	ref := c.GetFunctionSummaryRef(f, typ)
 
 	if call, ok := node.Parent().(*ast.Call); ok && call.Callee == node {
 		c.AddSummaryCall(ref)

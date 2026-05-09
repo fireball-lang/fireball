@@ -21,19 +21,31 @@ func Collect(file *ast.File) []Symbol {
 
 			sb.WriteString(decl.Name().Token.Text)
 
+			typeParams := make([]*types.Param, 0, len(decl.TypeParams))
+
+			for _, param := range decl.TypeParams {
+				typeParams = append(typeParams, &types.Param{Name: param.Token.Text})
+			}
+
 			symbols = append(symbols, Symbol{
 				Kind: Struct,
 				Name: decl.Name().Token.Text,
 				Node: decl,
-				Type: &types.Struct{Name: sb.String()}, // filled in type resolver
+				Type: &types.Struct{Name: sb.String(), TypeParams: typeParams}, // filled in type resolver
 			})
 
 		case *ast.Func:
+			typeParams := make([]*types.Param, 0, len(decl.TypeParams))
+
+			for _, param := range decl.TypeParams {
+				typeParams = append(typeParams, &types.Param{Name: param.Token.Text})
+			}
+
 			symbols = append(symbols, Symbol{
 				Kind: Func,
 				Name: decl.Name().Token.Text,
 				Node: decl,
-				Type: &types.Func{}, // filled in type resolver
+				Type: &types.Func{TypeParams: typeParams}, // filled in type resolver
 			})
 		}
 	}

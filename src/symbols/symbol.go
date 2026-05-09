@@ -11,6 +11,7 @@ const (
 	Invalid Kind = iota
 	Struct
 	Func
+	TypeParam
 	Param
 	Var
 )

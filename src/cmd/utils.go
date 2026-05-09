@@ -87,15 +87,16 @@ func parseProject(start time.Time) (*project.Project, map[string]*project.Projec
 	}
 
 	// Resolve
+	instantiations := types.NewInstantiationCache()
 	methodTable := symbols.NewMethodTable()
 
 	for _, proj := range projMap {
-		proj.Resolve(depMap, methodTable)
+		proj.Resolve(depMap, instantiations, methodTable)
 	}
 
 	// Analyze
 	for _, proj := range projMap {
-		proj.Analyze(depMap, methodTable)
+		proj.Analyze(depMap, instantiations, methodTable)
 	}
 
 	// Print diagnostics
@@ -157,7 +158,7 @@ outer:
 	return func(module *ir.Module, fun *ir.Function) {
 		typeCache := codegen.TypeCache{Module: module}
 
-		mainFun := module.NewFunction(codegen.FuncLinkName(mainFunc), &ir.Signature{Returns: typeCache.Get(mainFuncTyp.Returns)}, nil)
+		mainFun := module.NewFunction(codegen.FuncLinkName(mainFunc, mainFuncTyp), &ir.Signature{Returns: typeCache.Get(mainFuncTyp.Returns)}, nil)
 		mainFun.Flags = ir.Declare
 
 		emitter := ir.Emitter{Module: module}

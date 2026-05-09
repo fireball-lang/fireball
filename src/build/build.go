@@ -2,6 +2,7 @@ package build
 
 import (
 	"bytes"
+	"fireball/ast"
 	"fireball/codegen"
 	"fireball/core"
 	"fireball/ir"
@@ -11,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -39,6 +41,15 @@ func Build(main *project.Project, projMap map[string]*project.Project, target to
 		}
 	}
 
+	fileDataMap := make(map[*ast.File]codegen.FileData, len(files))
+
+	for _, file := range files {
+		fileDataMap[file.Ast] = codegen.FileData{
+			ExprInfos: file.ExprInfos,
+			NodeTypes: file.NodeTypes,
+		}
+	}
+
 	err := core.ParallelFor(files, func(i int, file *project.File) error {
 		buildPath := filepath.Join(profilePath, file.Proj.Config.Name)
 
@@ -56,7 +67,11 @@ func Build(main *project.Project, projMap map[string]*project.Project, target to
 		}
 
 		name := getBuildFileName(file)
-		module := codegen.Generate(file.Ast, target.Arch, target.CallConv, file.ExprInfos, file.NodeTypes, file.Path, profile.Lto)
+		module := codegen.Generate(file.Ast, target.Arch, target.CallConv, file.Instantiations, fileDataMap, file.Path, profile.Lto)
+
+		if module.IsEmpty() {
+			return nil
+		}
 
 		objFilePath, err := compileModule(target, profile, objPath, irPath, name, module)
 		if err != nil {
@@ -110,6 +125,9 @@ func Build(main *project.Project, projMap map[string]*project.Project, target to
 
 	// Link executable
 	exeFilePath := filepath.Join(mainBuildPath, main.Config.Name+target.ExecutableFileExtension)
+
+	// Filter out empty slots from files that produced no code (e.g. generic-only files).
+	objFilePaths = slices.DeleteFunc(objFilePaths, func(p string) bool { return p == "" })
 
 	var libc *toolchain.LibC
 

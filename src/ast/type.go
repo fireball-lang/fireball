@@ -84,13 +84,19 @@ func (p *PointerType) _isType() {}
 type IdentifierType struct {
 	baseNode
 
-	Path *IdentifierPath
+	Path     *IdentifierPath
+	TypeArgs []Type
 }
 
 func (i *IdentifierType) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
 		if !yield(i.Path) {
 			return
+		}
+		for _, arg := range i.TypeArgs {
+			if !yield(arg) {
+				return
+			}
 		}
 	}
 }

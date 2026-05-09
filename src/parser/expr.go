@@ -267,6 +267,10 @@ func (p *parser) parseSizeOf() (s *ast.SizeOf, recoverId int) {
 	s.Range_.Start = p.current.Range.Start
 	defer func() {
 		s.Range_.End = p.previous.Range.End
+
+		if core.IsNil(s.Type) {
+			s.Type = p.badType()
+		}
 	}()
 
 	recoverId = -1
@@ -299,6 +303,10 @@ func (p *parser) parseAlignOf() (a *ast.AlignOf, recoverId int) {
 	a.Range_.Start = p.current.Range.Start
 	defer func() {
 		a.Range_.End = p.previous.Range.End
+
+		if core.IsNil(a.Type) {
+			a.Type = p.badType()
+		}
 	}()
 
 	recoverId = -1
@@ -331,6 +339,14 @@ func (p *parser) parseOffsetOf() (o *ast.OffsetOf, recoverId int) {
 	o.Range_.Start = p.current.Range.Start
 	defer func() {
 		o.Range_.End = p.previous.Range.End
+
+		if core.IsNil(o.Type) {
+			o.Type = p.badType()
+		}
+
+		if o.Field == nil {
+			o.Field = p.badLeaf()
+		}
 	}()
 
 	recoverId = -1
@@ -605,7 +621,7 @@ func (p *parser) parsePostfixExpr(left ast.Expr) (ast.Expr, int) {
 		return p.parsePostfix(left)
 	case lexer.LeftBracket:
 		return p.parseIndex(left)
-	case lexer.LeftParen:
+	case lexer.LeftParen, lexer.ColonColon:
 		return p.parseCall(left)
 
 	default:
@@ -687,6 +703,37 @@ func (p *parser) parseCall(left ast.Expr) (c *ast.Call, recoverId int) {
 	}()
 
 	recoverId = -1
+
+	// '::' '[' Type Arguments ']'
+	if p.current.Kind == lexer.ColonColon {
+		// '::'
+		if recoverId = p.expect(lexer.ColonColon, "expected '::' before type arguments"); recoverId >= 0 {
+			return
+		}
+
+		// '['
+		if recoverId = p.expect(lexer.LeftBracket, "expected '[' before type arguments"); recoverId >= 0 {
+			return
+		}
+
+		// Type Arguments
+		myRecoverId := p.pushRecoverPoint(lexer.RightBracket)
+		c.TypeArgs, recoverId = parseCommaList(p, lexer.Comma, lexer.RightBracket, p.parseType)
+		p.popRecoverPoint()
+
+		if recoverId >= 0 {
+			if recoverId == myRecoverId {
+				recoverId = -1
+			} else {
+				return
+			}
+		}
+
+		// ']'
+		if recoverId = p.expect(lexer.RightBracket, "expected ']' after type arguments"); recoverId >= 0 {
+			return
+		}
+	}
 
 	// '(' Arguments ')'
 	{
@@ -772,8 +819,8 @@ func init() {
 	prefix(lexer.Minus, lexer.Bang, lexer.PlusPlus, lexer.MinusMinus, lexer.Ampersand, lexer.Star)
 	// x++, x--
 	postfix(lexer.PlusPlus, lexer.MinusMinus)
-	// x[], x()
-	postfix(lexer.LeftBracket, lexer.LeftParen)
+	// x[], x(), x::[]()
+	postfix(lexer.LeftBracket, lexer.LeftParen, lexer.ColonColon)
 	// x.y
 	infix(false, lexer.Dot)
 }

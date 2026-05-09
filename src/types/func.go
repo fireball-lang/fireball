@@ -3,10 +3,15 @@ package types
 import "strings"
 
 type Func struct {
+	TypeParams []*Param
+
 	Params  []Type
 	VarArgs bool
 
 	Returns Type
+
+	Generic       *Func
+	Substitutions []Substitution
 }
 
 var funcType = &Pointer{Pointee: PrimitiveVoid}
@@ -26,7 +31,40 @@ func (f *Func) Equals(other Type) bool {
 func (f *Func) String() string {
 	var sb strings.Builder
 
-	sb.WriteString("func(")
+	// Header
+	sb.WriteString("func")
+
+	// Substitutions
+	if f.Generic != nil {
+		// Instantiation
+		sb.WriteRune('[')
+
+		for i, sub := range f.Substitutions {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+
+			sb.WriteString(sub.Type.String())
+		}
+
+		sb.WriteRune(']')
+	} else if len(f.TypeParams) > 0 {
+		// Generic template
+		sb.WriteRune('[')
+
+		for i, param := range f.TypeParams {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+
+			sb.WriteString(param.Name)
+		}
+
+		sb.WriteRune(']')
+	}
+
+	// Parameters
+	sb.WriteRune('(')
 
 	for i, param := range f.Params {
 		if i > 0 {
@@ -38,6 +76,7 @@ func (f *Func) String() string {
 
 	sb.WriteRune(')')
 
+	// Returns
 	if !f.Returns.Equals(PrimitiveVoid) {
 		sb.WriteRune(' ')
 		sb.WriteString(f.Returns.String())

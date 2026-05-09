@@ -54,7 +54,7 @@ func (p *parser) parseIdentifierPath(stopAtLeftBrace bool) (i *ast.IdentifierPat
 	}
 
 	// ('::' entry)*
-	for p.current.Kind == lexer.ColonColon && (!stopAtLeftBrace || p.next.Kind != lexer.LeftBrace) {
+	for p.current.Kind == lexer.ColonColon && p.next.Kind != lexer.LeftBracket && (!stopAtLeftBrace || p.next.Kind != lexer.LeftBrace) {
 		// '::'
 		if recoverId = p.expect(lexer.ColonColon, "expected '::' before identifier"); recoverId >= 0 {
 			return
@@ -109,11 +109,10 @@ func (p *parser) badType() *ast.BadType {
 	return b
 }
 
-func sliceRange[T ast.Node](nodes []T) core.Range {
-	return core.Range{
-		Start: nodes[0].Range().Start,
-		End:   nodes[len(nodes)-1].Range().End,
-	}
+func (p *parser) badLeaf() *ast.Leaf {
+	l := &ast.Leaf{}
+	l.Token = p.previous
+	return l
 }
 
 func parseCommaList[T any](p *parser, itemStartToken, endToken lexer.TokenKind, parseItem func() (T, int)) (items []T, recoverId int) {

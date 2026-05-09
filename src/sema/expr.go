@@ -402,12 +402,17 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 			}
 		}
 
-		if f, typ := a.methodTable.Get(typ, m.Name.Token.Text); !core.IsNil(typ) {
-			a.nodeTypes[f] = typ
+		lookupTyp := types.Type(t)
 
-			return ExprInfo{
-				Type: typ,
-				Node: f,
+		if f, fTyp := a.methodTable.Get(lookupTyp, m.Name.Token.Text); !core.IsNil(fTyp) {
+			a.nodeTypes[f] = fTyp
+			return ExprInfo{Type: fTyp, Node: f}
+		}
+
+		if t.Generic != nil {
+			if f, fTyp := a.methodTable.Get(t.Generic, m.Name.Token.Text); !core.IsNil(fTyp) {
+				a.nodeTypes[f] = fTyp
+				return ExprInfo{Type: fTyp, Node: f}
 			}
 		}
 
@@ -425,6 +430,57 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 
 	if f, ok := expr.Type.(*types.Func); ok {
 		funcNode := expr.Node.(*ast.Func)
+
+		// Build substitutions
+		var subs []types.Substitution
+
+		// Generic receiver
+		if funcNode.IsMethod() {
+			if member, ok := c.Callee.(*ast.Member); ok {
+				receiverType := a.exprInfos[member.Expr].Type
+				if p, ok := receiverType.(*types.Pointer); ok {
+					receiverType = p.Pointee
+				}
+
+				implNode, isImplMethod := funcNode.Parent().(*ast.Impl)
+				if s, ok := receiverType.(*types.Struct); ok && s.Generic != nil &&
+					isImplMethod && len(implNode.TypeParams) > 0 {
+					subs = append(subs, s.Substitutions...)
+				}
+			}
+		}
+
+		// Generic method
+		if len(f.TypeParams) > 0 {
+			if len(c.TypeArgs) == 0 {
+				a.Error(c.Callee, "generic function '%s' requires explicit type arguments", funcNode.Name().Token.Text)
+				return ExprInfo{Type: types.Invalid}
+			}
+
+			if len(c.TypeArgs) != len(f.TypeParams) {
+				a.ErrorRange(ast.SliceRange(c.TypeArgs), "expected %d type argument(s), got %d", len(f.TypeParams), len(c.TypeArgs))
+				return ExprInfo{Type: types.Invalid}
+			}
+
+			for i, typeArg := range c.TypeArgs {
+				argType := a.AnalyzeType(typeArg)
+				if argType == types.Invalid {
+					return ExprInfo{Type: types.Invalid}
+				}
+
+				subs = append(subs, types.Substitution{Param: f.TypeParams[i], Type: argType})
+			}
+		} else if len(c.TypeArgs) > 0 {
+			a.Error(c.Callee, "function '%s' is not generic", funcNode.Name().Token.Text)
+		}
+
+		// Instantiate
+		if len(subs) > 0 {
+			f = a.instantiations.Get(f, subs).(*types.Func)
+			a.nodeTypes[funcNode] = f
+			a.nodeTypes[c] = f
+		}
+
 		params := f.Params
 
 		if funcNode.IsMethod() && funcNode.Receiver != nil {

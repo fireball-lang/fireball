@@ -41,9 +41,13 @@
 ; Declarations
 
 (struct name: (identifier) @type)
+(struct type_param: (identifier) @type.parameter)
 (struct field: (name_type name: (identifier) @property))
 
+(impl type_param: (identifier) @type.parameter)
+
 (func name: (identifier) @function)
+(func type_param: (identifier) @type.parameter)
 (func receiver: (identifier) @keyword)
 (func param: (name_type name: (identifier) @variable.parameter))
 

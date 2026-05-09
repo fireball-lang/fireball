@@ -12,6 +12,7 @@ type FunctionFlags uint8
 const (
 	Declare FunctionFlags = 1 << iota
 	DsoLocal
+	LinkOnceODR
 )
 
 type Signature struct {

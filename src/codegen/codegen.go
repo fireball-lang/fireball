@@ -12,6 +12,17 @@ import (
 	"strings"
 )
 
+type FileData struct {
+	ExprInfos map[ast.Expr]sema.ExprInfo
+	NodeTypes map[ast.Node]types.Type
+}
+
+type pendingInstantiation struct {
+	f   *ast.Func
+	typ *types.Func
+	fun *ir.Function
+}
+
 type codegen struct {
 	module *ir.Module
 	uid    string
@@ -33,18 +44,25 @@ type codegen struct {
 	moduleSummaryRef  ir.SummaryRef
 	functionSummaries map[*ast.Func]ir.SummaryRef
 
-	fun        *ir.Function
-	returnPtr  ir.Value
-	bVariables *ir.Block
+	fun           *ir.Function
+	funcTyp       *types.Func // type of the function currently being generated
+	substitutions []types.Substitution
+	returnPtr     ir.Value
+	bVariables    *ir.Block
 
 	bLoopBreak    *ir.Block
 	bLoopContinue *ir.Block
 
 	summaryCalls []ir.FunctionSummaryCall
 	summaryRefs  []ir.SummaryRef
+
+	instantiations        types.InstantiationCache
+	pendingInstantiations []pendingInstantiation
+
+	fileDataMap map[*ast.File]FileData
 }
 
-func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos map[ast.Expr]sema.ExprInfo, nodeTypes map[ast.Node]types.Type, path string, summary bool) *ir.Module {
+func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiations types.InstantiationCache, fileDataMap map[*ast.File]FileData, path string, summary bool) *ir.Module {
 	defer core.Scope()()
 
 	module := ir.NewModule()
@@ -54,10 +72,12 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 		module: module,
 		uid:    fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(path))),
 
-		arch:      arch,
-		callConv:  callConv,
-		exprInfos: exprInfos,
-		nodeTypes: nodeTypes,
+		arch:           arch,
+		callConv:       callConv,
+		exprInfos:      fileDataMap[file].ExprInfos,
+		nodeTypes:      fileDataMap[file].NodeTypes,
+		instantiations: instantiations,
+		fileDataMap:    fileDataMap,
 
 		types:   &TypeCache{Arch: arch, Module: module},
 		emitter: ir.Emitter{Module: module},
@@ -76,7 +96,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 	var retainedTypeRefs []ir.RawMetaValue
 
 	for _, decl := range file.Decls {
-		if s, ok := decl.(*ast.Struct); ok {
+		if s, ok := decl.(*ast.Struct); ok && len(s.TypeParams) == 0 {
 			ref := c.types.GetMeta(c.nodeTypes[s])
 			retainedTypeRefs = append(retainedTypeRefs, ir.RawMetaValue{Ref: ref})
 		}
@@ -120,11 +140,17 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 		switch decl := decl.(type) {
 		case *ast.Impl:
 			for _, f := range decl.Functions {
-				c.CreateFunction(f, false)
+				if !c.HasTypeParams(f) {
+					typ := c.nodeTypes[f].(*types.Func)
+					c.CreateFunction(f, typ, false)
+				}
 			}
 
 		case *ast.Func:
-			c.scope.Add(decl.Name().Token.Text, c.CreateFunction(decl, false))
+			if !c.HasTypeParams(decl) {
+				typ := c.nodeTypes[decl].(*types.Func)
+				c.scope.Add(decl.Name().Token.Text, c.CreateFunction(decl, typ, false))
+			}
 		}
 	}
 
@@ -132,21 +158,45 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 		switch decl := decl.(type) {
 		case *ast.Impl:
 			for _, f := range decl.Functions {
-				typ := c.nodeTypes[f].(*types.Func)
-				fun := c.GetFunction(f)
+				if !c.HasTypeParams(f) {
+					typ := c.nodeTypes[f].(*types.Func)
+					fun := c.GetFunction(f, typ)
 
-				c.VisitFunc(f, typ, fun)
+					c.VisitFunc(f, typ, fun)
+				}
 			}
 
 		case *ast.Func:
-			typ := c.nodeTypes[decl].(*types.Func)
-			fun := c.scope.Get(decl.Name().Token.Text).(*ir.Function)
+			if !c.HasTypeParams(decl) {
+				typ := c.nodeTypes[decl].(*types.Func)
+				fun := c.scope.Get(decl.Name().Token.Text).(*ir.Function)
 
-			c.VisitFunc(decl, typ, fun)
+				c.VisitFunc(decl, typ, fun)
+			}
 		}
 	}
 
 	c.scope.Pop()
+
+	// Function instantiations
+
+	for len(c.pendingInstantiations) > 0 {
+		pending := c.pendingInstantiations[len(c.pendingInstantiations)-1]
+		c.pendingInstantiations = c.pendingInstantiations[:len(c.pendingInstantiations)-1]
+
+		if fd, ok := c.fileDataMap[ast.GetFile(pending.f)]; ok {
+			c.exprInfos = fd.ExprInfos
+			c.nodeTypes = fd.NodeTypes
+		}
+
+		c.substitutions = pending.typ.Substitutions
+		c.funcTyp = pending.typ
+
+		c.VisitFunc(pending.f, pending.typ, pending.fun)
+
+		c.funcTyp = nil
+		c.substitutions = nil
+	}
 
 	// End summary
 
@@ -165,7 +215,21 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, exprInfos ma
 	return c.module
 }
 
-func FuncLinkName(f *ast.Func) string {
+func (c *codegen) HasTypeParams(f *ast.Func) bool {
+	typ := c.nodeTypes[f].(*types.Func)
+
+	if len(typ.TypeParams) > 0 || typ.Generic != nil {
+		return true
+	}
+
+	if impl, ok := f.Parent().(*ast.Impl); ok && len(impl.TypeParams) > 0 {
+		return true
+	}
+
+	return false
+}
+
+func FuncLinkName(f *ast.Func, typ *types.Func) string {
 	linkName := f.GetLinkName()
 
 	// Extern
@@ -202,14 +266,29 @@ func FuncLinkName(f *ast.Func) string {
 
 	sb.WriteString(f.Name().Token.Text)
 
+	// Generic
+	if typ != nil && typ.Generic != nil {
+		sb.WriteString("::[")
+
+		for i, sub := range typ.Substitutions {
+			if i > 0 {
+				sb.WriteRune(',')
+			}
+
+			sb.WriteString(sub.Type.String())
+		}
+
+		sb.WriteRune(']')
+	}
+
 	return sb.String()
 }
 
 // Utils
 
-func (c *codegen) GetFunction(f *ast.Func) *ir.Function {
+func (c *codegen) GetFunction(f *ast.Func, typ *types.Func) *ir.Function {
 	// Check already existing functions
-	name := FuncLinkName(f)
+	name := FuncLinkName(f, typ)
 
 	for fun := range c.module.Functions() {
 		if fun.Name == name {
@@ -217,8 +296,22 @@ func (c *codegen) GetFunction(f *ast.Func) *ir.Function {
 		}
 	}
 
+	// Instantiation
+	if typ.Generic != nil {
+		fun := c.CreateFunction(f, typ, false)
+		fun.Flags = ir.DsoLocal | ir.LinkOnceODR
+
+		c.pendingInstantiations = append(c.pendingInstantiations, pendingInstantiation{
+			f,
+			typ,
+			fun,
+		})
+
+		return fun
+	}
+
 	// Create extern function
-	return c.CreateFunction(f, true)
+	return c.CreateFunction(f, typ, true)
 }
 
 func (c *codegen) BitCast(value ir.Value, typ ir.Type) ir.Value {

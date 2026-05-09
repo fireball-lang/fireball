@@ -116,7 +116,7 @@ func (c *codegen) VisitNull(_ *ast.Null) ir.Value {
 }
 
 func (c *codegen) VisitSizeOf(s *ast.SizeOf) ir.Value {
-	typ := c.nodeTypes[s.Type]
+	typ := c.ResolveType(c.nodeTypes[s.Type])
 	info := c.arch.Info(typ)
 
 	return &ir.Integer{
@@ -126,7 +126,7 @@ func (c *codegen) VisitSizeOf(s *ast.SizeOf) ir.Value {
 }
 
 func (c *codegen) VisitAlignOf(e *ast.AlignOf) ir.Value {
-	typ := c.nodeTypes[e.Type]
+	typ := c.ResolveType(c.nodeTypes[e.Type])
 	info := c.arch.Info(typ)
 
 	return &ir.Integer{
@@ -136,7 +136,7 @@ func (c *codegen) VisitAlignOf(e *ast.AlignOf) ir.Value {
 }
 
 func (c *codegen) VisitOffsetOf(o *ast.OffsetOf) ir.Value {
-	typ := c.nodeTypes[o.Type].(*types.Struct)
+	typ := c.ResolveType(c.nodeTypes[o.Type]).(*types.Struct)
 	info := c.arch.Info(typ)
 	_, index := typ.Field(o.Field.Token.Text)
 
@@ -230,10 +230,10 @@ func (c *codegen) VisitBinary(b *ast.Binary) ir.Value {
 	// Compound assignment
 	if b.Op.IsCompoundAssign() {
 		ptr := c.GenerateExpr(b.Left)
-		typ := c.exprInfos[b].Type
+		typ := c.ExprType(b)
 
 		leftVal := c.emitter.Load(c.types.Get(c.UnderlyingExprType(b.Left)), ptr)
-		left := c.ImplicitCast(leftVal, c.exprInfos[b.Left].Type, typ)
+		left := c.ImplicitCast(leftVal, c.ExprType(b.Left), typ)
 		right := c.LoadImplicitCast(b.Right, typ)
 
 		op := b.Op.CompoundAssignBase()
@@ -246,7 +246,7 @@ func (c *codegen) VisitBinary(b *ast.Binary) ir.Value {
 	// Assignment
 	if b.Op == ast.Assign {
 		ptr := c.GenerateExpr(b.Left)
-		value := c.LoadImplicitCast(b.Right, c.exprInfos[b.Left].Type)
+		value := c.LoadImplicitCast(b.Right, c.ExprType(b.Left))
 
 		c.emitter.Store(value, ptr)
 		return value
@@ -324,7 +324,7 @@ func (c *codegen) VisitBinary(b *ast.Binary) ir.Value {
 		return c.EmitCmp(ir.Ge, b.Left, b.Right)
 
 	default:
-		typ := c.exprInfos[b].Type
+		typ := c.ExprType(b)
 
 		left := c.LoadImplicitCast(b.Left, typ)
 		right := c.LoadImplicitCast(b.Right, typ)
@@ -382,8 +382,9 @@ func (c *codegen) VisitCompoundBaseBinaryOp(b *ast.Binary, left, right ir.Value,
 func (c *codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 	switch node := c.exprInfos[i].Node.(type) {
 	case *ast.Func:
-		c.AddSummaryCallee(i, node)
-		return c.GetFunction(node)
+		typ := c.exprInfos[i].Type.(*types.Func)
+		c.AddSummaryCallee(i, node, typ)
+		return c.GetFunction(node, typ)
 
 	case *ast.NameType:
 		return c.scope.Get(node.Name.Token.Text)
@@ -456,9 +457,10 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 	// Method
 	if index == -1 {
 		f := c.exprInfos[m].Node.(*ast.Func)
+		typ := c.exprInfos[m].Type.(*types.Func)
 
-		c.AddSummaryCallee(m, f)
-		return c.GetFunction(f)
+		c.AddSummaryCallee(m, f, typ)
+		return c.GetFunction(f, typ)
 	}
 
 	// Get struct value
@@ -483,7 +485,13 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 	f := c.exprInfos[e.Callee].Node.(*ast.Func)
 	typ := c.exprInfos[e.Callee].Type.(*types.Func)
-	callee := c.Load(e.Callee).(*ir.Function)
+
+	if instTyp, ok := c.nodeTypes[e].(*types.Func); ok {
+		typ = instTyp
+	}
+
+	callee := c.GetFunction(f, typ)
+	c.AddSummaryCallee(e.Callee, f, typ)
 	args := make([]ir.Value, 0, len(e.Args)+1)
 
 	// Arguments
@@ -571,8 +579,8 @@ func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 func (c *codegen) VisitCast(e *ast.Cast) ir.Value {
 	value := c.Load(e.Expr)
 
-	from := c.exprInfos[e.Expr].Type
-	to := c.exprInfos[e].Type
+	from := c.ExprType(e.Expr)
+	to := c.ExprType(e)
 
 	kind, _ := sema.GetExplicitCast(from, to)
 
@@ -587,7 +595,7 @@ func (c *codegen) VisitBadExpr(_ *ast.BadExpr) ir.Value {
 
 func (c *codegen) LoadImplicitCast(expr ast.Expr, typ types.Type) ir.Value {
 	value := c.Load(expr)
-	return c.ImplicitCast(value, c.exprInfos[expr].Type, typ)
+	return c.ImplicitCast(value, c.ExprType(expr), typ)
 }
 
 func (c *codegen) ImplicitCast(value ir.Value, from, to types.Type) ir.Value {
@@ -692,8 +700,8 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) 
 }
 
 func (c *codegen) EmitCmp(op ir.CmpOp, left, right ast.Expr) ir.Value {
-	leftType := c.exprInfos[left].Type
-	rightType := c.exprInfos[right].Type
+	leftType := c.ExprType(left)
+	rightType := c.ExprType(right)
 
 	common := sema.CommonType(leftType, rightType)
 	if common == nil {
@@ -737,7 +745,7 @@ func (c *codegen) GetDivKind(expr ast.Expr) ir.DivKind {
 }
 
 func (c *codegen) UnderlyingExprType(expr ast.Expr) types.Type {
-	typ := c.exprInfos[expr].Type
+	typ := c.ExprType(expr)
 
 	if t, ok := typ.(types.Composed); ok {
 		typ = t.Underlying()
@@ -746,11 +754,15 @@ func (c *codegen) UnderlyingExprType(expr ast.Expr) types.Type {
 	return typ
 }
 
+func (c *codegen) ExprType(expr ast.Expr) types.Type {
+	return c.ResolveType(c.exprInfos[expr].Type)
+}
+
 func (c *codegen) Load(expr ast.Expr) ir.Value {
 	value := c.GenerateExpr(expr)
 
 	if info := c.exprInfos[expr]; info.Address {
-		typ := info.Type
+		typ := c.ResolveType(info.Type)
 		if t, ok := typ.(types.Composed); ok {
 			typ = t.Underlying()
 		}
@@ -759,6 +771,14 @@ func (c *codegen) Load(expr ast.Expr) ir.Value {
 	}
 
 	return value
+}
+
+func (c *codegen) ResolveType(typ types.Type) types.Type {
+	if len(c.substitutions) == 0 {
+		return typ
+	}
+
+	return c.instantiations.Substitute(typ, c.substitutions)
 }
 
 func (c *codegen) GenerateExpr(expr ast.Expr) ir.Value {

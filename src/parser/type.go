@@ -55,10 +55,42 @@ func (p *parser) parseIdentifierType() (ast.Type, int) {
 
 	default:
 		i := &ast.IdentifierType{}
+		i.Range_.Start = p.current.Range.Start
+		defer func() {
+			i.Range_.End = p.previous.Range.End
+		}()
+
 		recoverId := -1
 
+		// Path
 		if i.Path, recoverId = p.parseIdentifierPath(false); recoverId >= 0 {
 			return i, recoverId
+		}
+
+		// '[' Type Arguments ']'
+		if p.current.Kind == lexer.LeftBracket {
+			// '['
+			if recoverId = p.expect(lexer.LeftBracket, "expected '[' before type arguments"); recoverId >= 0 {
+				return i, recoverId
+			}
+
+			// Type Arguments
+			myRecoverId := p.pushRecoverPoint(lexer.RightBracket)
+			i.TypeArgs, recoverId = parseCommaList(p, lexer.Comma, lexer.RightBracket, p.parseType)
+			p.popRecoverPoint()
+
+			if recoverId >= 0 {
+				if recoverId == myRecoverId {
+					recoverId = -1
+				} else {
+					return i, recoverId
+				}
+			}
+
+			// ']'
+			if recoverId = p.expect(lexer.RightBracket, "expected ']' after type arguments"); recoverId >= 0 {
+				return i, recoverId
+			}
 		}
 
 		return i, recoverId

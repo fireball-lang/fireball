@@ -1,0 +1,286 @@
+mod tests::generics;
+
+// ── Helper types ───────────────────────────────────────────────────────────────
+
+// Two independent type params to exercise multi-param generics.
+struct Pair[A, B] {
+    first:  A,
+    second: B,
+}
+
+impl[A, B] Pair[A, B] {
+    // Read first field (covers: instance method returning type-param T from self)
+    func get_first(self) A {
+        return self.first;
+    }
+
+    // Read second field
+    func get_second(self) B {
+        return self.second;
+    }
+
+    // Mutate first field (covers: mutable receiver with type-param argument)
+    func set_first(mut self, v: A) {
+        self.first = v;
+    }
+
+    // Read AND write self in same method; returns old value.
+    func swap_first(mut self, v: A) A {
+        var old = self.first;
+        self.first = v;
+        return old;
+    }
+}
+
+// Single-param struct for simpler field-access tests.
+struct Box[T] {
+    value: T,
+}
+
+impl[T] Box[T] {
+    func get(self) T {
+        return self.value;
+    }
+
+    func set(mut self, v: T) {
+        self.value = v;
+    }
+}
+
+impl Box[i32] {
+    func inc(mut self) {
+        self.value++;
+    }
+}
+
+// ── Helper generic functions ───────────────────────────────────────────────────
+
+func identity[T](x: T) T {
+    return x;
+}
+
+func choose[T](cond: bool, a: T, b: T) T {
+    if (cond) return a;
+    return b;
+}
+
+
+// ── Generic functions: multiple type instantiations (Bug 3 regression) ─────────
+// Calling the same generic function with different concrete types must each
+// produce correct results even though nodeTypes[funcNode] gets overwritten per
+// instantiation during analysis.
+
+#[test("identity i32")]
+func testIdentityI32() bool {
+    return identity::[i32](42) == 42;
+}
+
+#[test("identity i64")]
+func testIdentityI64() bool {
+    return identity::[i64](1000000000) == 1000000000;
+}
+
+#[test("identity bool")]
+func testIdentityBool() bool {
+    return identity::[bool](true) == true;
+}
+
+#[test("choose i32 true branch")]
+func testChooseI32True() bool {
+    return choose::[i32](true, 10, 20) == 10;
+}
+
+#[test("choose i32 false branch")]
+func testChooseI32False() bool {
+    return choose::[i32](false, 10, 20) == 20;
+}
+
+#[test("choose bool true branch")]
+func testChooseBoolTrue() bool {
+    return choose::[bool](true, true, false) == true;
+}
+
+#[test("choose bool false branch")]
+func testChooseBoolFalse() bool {
+    return choose::[bool](false, true, false) == false;
+}
+
+
+// ── Generic struct: field access and zero-init ─────────────────────────────────
+
+#[test("Box[i32] field write read")]
+func testBoxI32() bool {
+    var b: Box[i32];
+    b.value = 99;
+    return b.value == 99;
+}
+
+#[test("Box[i32] zero init")]
+func testBoxI32Zero() bool {
+    var b: Box[i32];
+    return b.value == 0;
+}
+
+#[test("Pair[i32,i64] field write read")]
+func testPairI32I64() bool {
+    var p: Pair[i32, i64];
+    p.first  = 3;
+    p.second = 9000000000;
+    return p.first == 3 && p.second == 9000000000;
+}
+
+#[test("Pair[i32,i32] zero init")]
+func testPairZeroInit() bool {
+    var p: Pair[i32, i32];
+    return p.first == 0 && p.second == 0;
+}
+
+// Two different instantiations of the same struct live side-by-side; they must
+// not interfere with each other's IR type or link names.
+#[test("two Pair instantiations coexist")]
+func testTwoPairInstances() bool {
+    var a: Pair[i32, i32];
+    a.first  = 1;
+    a.second = 2;
+
+    var b: Pair[i64, i32];
+    b.first  = 999;
+    b.second = 4;
+
+    return a.first == 1 && a.second == 2 && b.first == 999 && b.second == 4;
+}
+
+// ── Generic struct methods: instance methods ──────────
+
+#[test("Box get method")]
+func testBoxGet() bool {
+    var b: Box[i32];
+    b.value = 42;
+    return b.get() == 42;
+}
+
+#[test("Box set method mutates field")]
+func testBoxSet() bool {
+    var b: Box[i32];
+    b.value = 1;
+    b.set(77);
+    return b.value == 77;
+}
+
+#[test("Box[i32] specific inc method")]
+func textBoxI32Inc() bool {
+    var b: Box[i32];
+    b.inc();
+    return b.value == 1;
+}
+
+#[test("Pair get_first returns correct field")]
+func testPairGetFirst() bool {
+    var p: Pair[i32, i32];
+    p.first  = 55;
+    p.second = 66;
+    return p.get_first() == 55;
+}
+
+#[test("Pair get_second returns correct field")]
+func testPairGetSecond() bool {
+    var p: Pair[i32, i64];
+    p.first  = 3;
+    p.second = 400;
+    return p.get_second() == 400;
+}
+
+#[test("Pair set_first mutates first field only")]
+func testPairSetFirst() bool {
+    var p: Pair[i32, i32];
+    p.first  = 1;
+    p.second = 2;
+    p.set_first(99);
+    return p.first == 99 && p.second == 2;
+}
+
+#[test("Pair swap_first returns old, stores new")]
+func testPairSwapFirst() bool {
+    var p: Pair[i32, i32];
+    p.first  = 10;
+    p.second = 20;
+    var old = p.swap_first(77);
+    return old == 10 && p.first == 77 && p.second == 20;
+}
+
+
+// Same method called on two different instantiations — link names must differ.
+#[test("get_first on two Pair instantiations")]
+func testGetFirstMultipleInstances() bool {
+    var a: Pair[i32, i32];
+    a.first  = 7;
+    a.second = 0;
+
+    var b: Pair[i64, i32];
+    b.first  = 8888;
+    b.second = 0;
+
+    return a.get_first() == 7 && b.get_first() == 8888;
+}
+
+#[test("set method on two Box instantiations")]
+func testSetTwoBoxInstances() bool {
+    var a: Box[i32];
+    var b: Box[i64];
+
+    a.set(11);
+    b.set(22);
+
+    return a.get() == 11 && b.get() == 22;
+}
+
+// ── Generic function + generic struct together ─────────────────────────────────
+
+#[test("identity applied to Box[i32]")]
+func testIdentityBox() bool {
+    var b: Box[i32];
+    b.value = 5;
+    var c = identity::[Box[i32]](b);
+    return c.value == 5;
+}
+
+#[test("choose between two Box[i32] values")]
+func testChooseBox() bool {
+    var a: Box[i32];
+    var b: Box[i32];
+    a.value = 1;
+    b.value = 2;
+
+    var x = choose::[Box[i32]](true,  a, b);
+    var y = choose::[Box[i32]](false, a, b);
+
+    return x.value == 1 && y.value == 2;
+}
+
+// ── Methods called via pointer variable ────────────────────────────────────────
+
+#[test("Box get via pointer")]
+func testBoxGetViaPointer() bool {
+    var b: Box[i32];
+    b.value = 123;
+    var p = &b;
+    return p.get() == 123;
+}
+
+#[test("Box set via pointer affects original")]
+func testBoxSetViaPointer() bool {
+    var b: Box[i32];
+    b.value = 0;
+    var p = &b;
+    p.set(456);
+    return b.value == 456;
+}
+
+#[test("Pair get_first via pointer")]
+func testPairGetFirstViaPointer() bool {
+    var p: Pair[i32, i32];
+    p.first  = 77;
+    p.second = 0;
+    var ptr = &p;
+    return ptr.get_first() == 77;
+}

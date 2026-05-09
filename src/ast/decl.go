@@ -41,8 +41,9 @@ type Struct struct {
 
 	Attributes []*Attribute
 
-	Name_  *Leaf
-	Fields []*NameType
+	Name_      *Leaf
+	TypeParams []*Leaf
+	Fields     []*NameType
 }
 
 func (s *Struct) Children() iter.Seq[Node] {
@@ -54,6 +55,11 @@ func (s *Struct) Children() iter.Seq[Node] {
 		}
 		if !yield(s.Name_) {
 			return
+		}
+		for _, param := range s.TypeParams {
+			if !yield(param) {
+				return
+			}
 		}
 		for _, field := range s.Fields {
 			if !yield(field) {
@@ -74,6 +80,8 @@ func (s *Struct) _isDecl() {}
 type Impl struct {
 	baseNode
 
+	TypeParams []*Leaf
+
 	Type Type
 
 	Functions []*Func
@@ -81,6 +89,11 @@ type Impl struct {
 
 func (i *Impl) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
+		for _, param := range i.TypeParams {
+			if !yield(param) {
+				return
+			}
+		}
 		if !yield(i.Type) {
 			return
 		}
@@ -105,7 +118,8 @@ type Func struct {
 
 	Attributes []*Attribute
 
-	Name_ *Leaf
+	Name_      *Leaf
+	TypeParams []*Leaf
 
 	Receiver *Receiver // optional
 	Params   []*NameType
@@ -125,6 +139,11 @@ func (f *Func) Children() iter.Seq[Node] {
 		}
 		if !yield(f.Name_) {
 			return
+		}
+		for _, param := range f.TypeParams {
+			if !yield(param) {
+				return
+			}
 		}
 		if f.Receiver != nil && !yield(f.Receiver) {
 			return

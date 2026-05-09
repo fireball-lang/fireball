@@ -28,6 +28,7 @@ type File struct {
 
 	ExprInfos       map[ast.Expr]sema.ExprInfo
 	NodeTypes       map[ast.Node]types.Type
+	Instantiations  types.InstantiationCache
 	semaDiagnostics []core.Diagnostic
 }
 
@@ -53,12 +54,13 @@ func (f *File) parse() {
 	f.Symbols = symbols.Collect(f.Ast)
 }
 
-func (f *File) resolve(root symbols.Scope, methodTable symbols.MethodTable) {
-	f.NodeTypes, f.resolveDiagnostics = sema.ResolveSymbols(f.Ast, f.Symbols, methodTable, root, f.Path)
+func (f *File) resolve(root symbols.Scope, instantiations types.InstantiationCache, methodTable symbols.MethodTable) {
+	f.Instantiations = instantiations
+	f.NodeTypes, f.resolveDiagnostics = sema.ResolveSymbols(f.Ast, f.Symbols, instantiations, methodTable, root, f.Path)
 }
 
-func (f *File) analyze(root symbols.Scope, methodTable symbols.MethodTable) {
-	f.ExprInfos, f.semaDiagnostics = sema.Analyze(f.Ast, f.Symbols, root, methodTable, f.NodeTypes, f.Proj.Config.Name, f.Path)
+func (f *File) analyze(root symbols.Scope, instantiations types.InstantiationCache, methodTable symbols.MethodTable) {
+	f.ExprInfos, f.semaDiagnostics = sema.Analyze(f.Ast, f.Symbols, root, instantiations, methodTable, f.NodeTypes, f.Proj.Config.Name, f.Path)
 }
 
 func (f *File) Diagnostics() iter.Seq[core.Diagnostic] {

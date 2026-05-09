@@ -12,6 +12,15 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 		s := symbol.Node.(*ast.Struct)
 		t := symbol.Type.(*types.Struct)
 
+		prevScope := a.scope
+		if len(t.TypeParams) > 0 {
+			a.scope = &symbols.ParamScope{
+				Parent: a.scope,
+				Params: t.TypeParams,
+				Nodes:  s.TypeParams,
+			}
+		}
+
 		t.Fields = make([]types.Field, len(s.Fields))
 
 		for i := 0; i < len(s.Fields); i++ {
@@ -27,9 +36,20 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 			}
 		}
 
+		a.scope = prevScope
+
 	case symbols.Func:
 		f := symbol.Node.(*ast.Func)
 		t := symbol.Type.(*types.Func)
+
+		prevScope := a.scope
+		if len(t.TypeParams) > 0 {
+			a.scope = &symbols.ParamScope{
+				Parent: a.scope,
+				Params: t.TypeParams,
+				Nodes:  f.TypeParams,
+			}
+		}
 
 		t.Params = make([]types.Type, len(f.Params))
 		t.VarArgs = f.VarArgs
@@ -45,6 +65,8 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 		}
 
 		t.Returns = a.AnalyzeType(f.Returns)
+
+		a.scope = prevScope
 
 	default:
 		panic("sema.analyzer.ResolveSymbol() - Invalid symbol kind")

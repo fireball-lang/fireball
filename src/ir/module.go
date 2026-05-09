@@ -34,6 +34,10 @@ func NewModule() *Module {
 	}
 }
 
+func (m *Module) IsEmpty() bool {
+	return len(m.functions) == 0 && len(m.globalVars) == 0
+}
+
 // Named structs
 
 func (m *Module) NamedStruct(name string, s StructType) *RefStructType {

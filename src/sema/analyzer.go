@@ -25,16 +25,17 @@ func (e ExprInfo) Invalid() bool {
 }
 
 type analyzer struct {
-	scope  *symbols.CombinedScope
+	scope  symbols.Scope
 	locals *symbols.BlockScope
 
 	topLevelModule string
 	path           string
 
-	exprInfos   map[ast.Expr]ExprInfo
-	nodeTypes   map[ast.Node]types.Type
-	methodTable symbols.MethodTable
-	diagnostics []core.Diagnostic
+	exprInfos      map[ast.Expr]ExprInfo
+	nodeTypes      map[ast.Node]types.Type
+	instantiations types.InstantiationCache
+	methodTable    symbols.MethodTable
+	diagnostics    []core.Diagnostic
 
 	stringViewType types.Type
 
@@ -42,7 +43,7 @@ type analyzer struct {
 	loop     int
 }
 
-func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, methodTable symbols.MethodTable, nodeTypes map[ast.Node]types.Type, topLevelModule, path string) (map[ast.Expr]ExprInfo, []core.Diagnostic) {
+func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations types.InstantiationCache, methodTable symbols.MethodTable, nodeTypes map[ast.Node]types.Type, topLevelModule, path string) (map[ast.Expr]ExprInfo, []core.Diagnostic) {
 	defer core.Scope()()
 
 	locals := &symbols.BlockScope{}
@@ -54,6 +55,7 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, m
 		path:           path,
 		exprInfos:      make(map[ast.Expr]ExprInfo),
 		nodeTypes:      nodeTypes,
+		instantiations: instantiations,
 		methodTable:    methodTable,
 	}
 
@@ -253,10 +255,14 @@ func (a *analyzer) ExpectType(typ types.Type, expr ExprInfo, node ast.Node) {
 }
 
 func (a *analyzer) Error(node ast.Node, format string, args ...any) ExprInfo {
+	return a.ErrorRange(node.Range(), format, args...)
+}
+
+func (a *analyzer) ErrorRange(range_ core.Range, format string, args ...any) ExprInfo {
 	a.diagnostics = append(a.diagnostics, core.Diagnostic{
 		Kind:    core.Error,
 		Path:    a.path,
-		Range:   node.Range(),
+		Range:   range_,
 		Message: fmt.Sprintf(format, args...),
 	})
 

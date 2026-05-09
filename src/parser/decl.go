@@ -25,7 +25,7 @@ func (p *parser) parseDecl() (ast.Decl, int) {
 		return p.parseStruct(attributes)
 	case lexer.Impl:
 		if len(attributes) != 0 {
-			p.reportError(sliceRange(attributes), "implementation blocks cannot have attributes")
+			p.reportError(ast.SliceRange(attributes), "implementation blocks cannot have attributes")
 		}
 		return p.parseImpl()
 	case lexer.Func:
@@ -136,6 +136,13 @@ func (p *parser) parseStruct(attributes []*ast.Attribute) (s *ast.Struct, recove
 		return
 	}
 
+	// '[' Type Parameters ']'
+	if p.current.Kind == lexer.LeftBracket {
+		if s.TypeParams, recoverId = p.parseTypeParams(); recoverId >= 0 {
+			return
+		}
+	}
+
 	// '{' Fields '}'
 	{
 		// '{'
@@ -177,6 +184,13 @@ func (p *parser) parseImpl() (i *ast.Impl, recoverId int) {
 	// 'impl'
 	if recoverId = p.expect(lexer.Impl, "expected 'impl'"); recoverId >= 0 {
 		return
+	}
+
+	// '[' Type Parameters ']'
+	if p.current.Kind == lexer.LeftBracket {
+		if i.TypeParams, recoverId = p.parseTypeParams(); recoverId >= 0 {
+			return
+		}
 	}
 
 	// Type
@@ -240,6 +254,13 @@ func (p *parser) parseFunc(attributes []*ast.Attribute, allowReceiver bool) (f *
 	// Name
 	if f.Name_, recoverId = p.parseLeaf(); recoverId >= 0 {
 		return
+	}
+
+	// '[' Type Parameters ']'
+	if p.current.Kind == lexer.LeftBracket {
+		if f.TypeParams, recoverId = p.parseTypeParams(); recoverId >= 0 {
+			return
+		}
 	}
 
 	// '(' Parameters ')'
@@ -366,4 +387,31 @@ func (p *parser) parseFuncParam() (*ast.NameType, int) {
 	}
 
 	return p.parseNameType()
+}
+
+func (p *parser) parseTypeParams() (params []*ast.Leaf, recoverId int) {
+	// '['
+	if recoverId = p.expect(lexer.LeftBracket, "expected '[' before type parameters"); recoverId >= 0 {
+		return
+	}
+
+	// Type Parameters
+	myRecoverId := p.pushRecoverPoint(lexer.RightBracket)
+	params, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightBracket, p.parseLeaf)
+	p.popRecoverPoint()
+
+	if recoverId >= 0 {
+		if recoverId == myRecoverId {
+			recoverId = -1
+		} else {
+			return
+		}
+	}
+
+	// ']'
+	if recoverId = p.expect(lexer.RightBracket, "expected ']' after type parameters"); recoverId >= 0 {
+		return
+	}
+
+	return
 }

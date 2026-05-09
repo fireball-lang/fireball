@@ -20,7 +20,7 @@ func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 
 	ref := c.module.AddMeta(&ir.SubprogramMeta{
 		Name:     f.Name().Token.Text,
-		LinkName: FuncLinkName(f),
+		LinkName: FuncLinkName(f, typ),
 		Type:     c.types.GetMeta(typ),
 		Scope:    c.emitter.PeekScope(),
 		Unit:     c.unitRef,
@@ -102,6 +102,7 @@ func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 	c.emitter.Begin(bEntry)
 
 	c.fun = fun
+	c.funcTyp = typ
 
 	c.GenerateStmt(f.Body)
 	c.emitter.Ret(nil)
@@ -110,6 +111,7 @@ func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 	c.emitter.Br(bEntry)
 
 	c.fun = nil
+	c.funcTyp = nil
 	c.returnPtr = nil
 	c.bVariables = nil
 
@@ -133,9 +135,7 @@ func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 
 // Utils
 
-func (c *codegen) CreateFunction(f *ast.Func, declare bool) *ir.Function {
-	typ := c.nodeTypes[f].(*types.Func)
-
+func (c *codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool) *ir.Function {
 	sig := &ir.Signature{
 		Params:  make([]ir.Type, 0, len(f.Params)+1),
 		VarArgs: f.VarArgs,
@@ -179,7 +179,7 @@ func (c *codegen) CreateFunction(f *ast.Func, declare bool) *ir.Function {
 	}
 
 	// Function
-	fun := c.module.NewFunction(FuncLinkName(f), sig, paramNames)
+	fun := c.module.NewFunction(FuncLinkName(f, typ), sig, paramNames)
 
 	if f.IsExtern() || declare {
 		fun.Flags = ir.Declare
@@ -190,11 +190,16 @@ func (c *codegen) CreateFunction(f *ast.Func, declare bool) *ir.Function {
 	// Summary
 
 	if !declare && !f.IsExtern() && c.moduleSummaryRef.Valid() {
+		linkage := ir.LinkageExternal
+		if typ.Generic != nil {
+			linkage = ir.LinkageLinkOnceODR
+		}
+
 		ref := c.module.AddSummary(&ir.FunctionSummary{
 			Module: c.moduleSummaryRef,
 			Name:   fun.Name,
 			LinkFlags: ir.LinkSummaryFlags{
-				Linkage:             ir.LinkageExternal,
+				Linkage:             linkage,
 				Visibility:          ir.VisibilityDefault,
 				NotEligibleToImport: false,
 				Live:                false,

@@ -27,12 +27,13 @@ func (c *codegen) VisitExpression(e *ast.Expression) {
 
 func (c *codegen) VisitVar(v *ast.Var) {
 	// Type
-	typ := c.types.Get(c.nodeTypes[v])
+	varTyp := c.ResolveType(c.nodeTypes[v])
+	typ := c.types.Get(varTyp)
 
 	// Pointer
 	ptr := c.Alloca(typ, "var."+v.Name.Token.Text)
 
-	c.emitDbgDeclare(v.Name.Token.Text, c.nodeTypes[v], ptr, 0, v.Name)
+	c.emitDbgDeclare(v.Name.Token.Text, varTyp, ptr, 0, v.Name)
 
 	// Value
 	var value ir.Value
@@ -40,7 +41,7 @@ func (c *codegen) VisitVar(v *ast.Var) {
 	if core.IsNil(v.Initializer) {
 		value = &ir.ZeroInitializer{Typ: typ}
 	} else {
-		value = c.LoadImplicitCast(v.Initializer, c.nodeTypes[v])
+		value = c.LoadImplicitCast(v.Initializer, varTyp)
 	}
 
 	// Variable
@@ -189,8 +190,7 @@ func (c *codegen) VisitReturn(r *ast.Return) {
 	var value ir.Value
 
 	if !core.IsNil(r.Value) {
-		f := c.nodeTypes[ast.GetClosestParent[*ast.Func](r)].(*types.Func)
-		value = c.LoadImplicitCast(r.Value, f.Returns)
+		value = c.LoadImplicitCast(r.Value, c.ResolveType(c.funcTyp.Returns))
 
 		if core.IsNil(c.returnPtr) {
 			value = c.BitCast(value, c.fun.Signature.Returns)

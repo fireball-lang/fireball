@@ -1,6 +1,15 @@
 package ast
 
-import "fireball/core"
+import (
+	"fireball/core"
+)
+
+func SliceRange[T Node](nodes []T) core.Range {
+	return core.Range{
+		Start: nodes[0].Range().Start,
+		End:   nodes[len(nodes)-1].Range().End,
+	}
+}
 
 func GetNodeAtPos(node Node, pos core.Pos) Node {
 	if !node.Range().Contains(pos) {

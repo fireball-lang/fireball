@@ -228,6 +228,9 @@ func (w *writer) function(fun *ir.Function) error {
 		w.string("define ")
 	}
 
+	if fun.Flags&ir.LinkOnceODR != 0 {
+		w.string("linkonce_odr ")
+	}
 	if fun.Flags&ir.DsoLocal != 0 {
 		w.string("dso_local ")
 	}

@@ -96,23 +96,23 @@ func (p *Project) Parse(files []*File) {
 	}
 }
 
-func (p *Project) Resolve(depMap map[Dependency]*Project, methodTable symbols.MethodTable) {
+func (p *Project) Resolve(depMap map[Dependency]*Project, instantiations types.InstantiationCache, methodTable symbols.MethodTable) {
 	defer core.Scope()()
 
 	root := p.getRootScope(depMap)
 
 	for _, file := range p.Files {
-		file.resolve(&root, methodTable)
+		file.resolve(&root, instantiations, methodTable)
 	}
 }
 
-func (p *Project) Analyze(depMap map[Dependency]*Project, methodTable symbols.MethodTable) {
+func (p *Project) Analyze(depMap map[Dependency]*Project, instantiations types.InstantiationCache, methodTable symbols.MethodTable) {
 	defer core.Scope()()
 
 	root := p.getRootScope(depMap)
 
 	for _, file := range p.Files {
-		file.analyze(&root, methodTable)
+		file.analyze(&root, instantiations, methodTable)
 	}
 }
 

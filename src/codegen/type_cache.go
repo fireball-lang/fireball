@@ -232,7 +232,7 @@ func (t *TypeCache) createStructType(typ *types.Struct) ir.Type {
 		Fields: fields,
 	}
 
-	return t.Module.NamedStruct(typ.Name, irTyp)
+	return t.Module.NamedStruct(typ.String(), irTyp)
 }
 
 func (t *TypeCache) createStructMeta(typ *types.Struct) ir.MetaRef {

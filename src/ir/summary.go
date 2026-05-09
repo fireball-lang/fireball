@@ -37,7 +37,7 @@ type LinkageKind uint8
 
 const (
 	LinkageExternal LinkageKind = iota
-	LinkageLinkOnce
+	LinkageLinkOnceODR
 	LinkagePrivate
 )
 
@@ -45,8 +45,8 @@ func (l LinkageKind) String() string {
 	switch l {
 	case LinkageExternal:
 		return "external"
-	case LinkageLinkOnce:
-		return "linkonce"
+	case LinkageLinkOnceODR:
+		return "linkonce_odr"
 	case LinkagePrivate:
 		return "private"
 	default:

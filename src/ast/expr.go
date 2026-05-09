@@ -377,14 +377,20 @@ func (m *Member) _isExpr() {}
 type Call struct {
 	baseNode
 
-	Callee Expr
-	Args   []Expr
+	Callee   Expr
+	TypeArgs []Type
+	Args     []Expr
 }
 
 func (c *Call) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
 		if !yield(c.Callee) {
 			return
+		}
+		for _, arg := range c.TypeArgs {
+			if !yield(arg) {
+				return
+			}
 		}
 		for _, arg := range c.Args {
 			if !yield(arg) {

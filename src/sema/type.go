@@ -57,6 +57,43 @@ func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) types.Type {
 
 	switch symbol.Kind {
 	case symbols.Struct:
+		s := symbol.Type.(*types.Struct)
+
+		// Non-generic
+		if len(i.TypeArgs) == 0 {
+			if len(s.TypeParams) > 0 {
+				a.Error(i, "'%s' is a generic type and requires type arguments", s.Name)
+				return types.Invalid
+			}
+
+			a.nodeTypes[i] = s
+			return s
+		}
+
+		// Check generic parameter count
+		if len(i.TypeArgs) != len(s.TypeParams) {
+			a.Error(i, "'%s' expects %d type argument(s), got %d", s.Name, len(s.TypeParams), len(i.TypeArgs))
+			return types.Invalid
+		}
+
+		// Instantiate
+		subs := make([]types.Substitution, len(s.TypeParams))
+
+		for j, param := range s.TypeParams {
+			argType := a.AnalyzeType(i.TypeArgs[j])
+			if argType == types.Invalid {
+				return types.Invalid
+			}
+
+			subs[j] = types.Substitution{Param: param, Type: argType}
+		}
+
+		result := a.instantiations.Get(s, subs).(*types.Struct)
+
+		a.nodeTypes[i] = result
+		return result
+
+	case symbols.TypeParam:
 		a.nodeTypes[i] = symbol.Type
 		return symbol.Type
 

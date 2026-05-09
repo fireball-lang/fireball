@@ -6,6 +6,7 @@ import (
 	"fireball/core"
 	"fireball/project"
 	"fireball/symbols"
+	"fireball/types"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -71,14 +72,15 @@ func (w *Workspace) parseFiles(files []*project.File) {
 		proj.Parse(files)
 	}
 
+	instantiations := types.NewInstantiationCache()
 	methodTable := symbols.NewMethodTable()
 
 	for _, proj := range w.projMap {
-		proj.Resolve(w.depMap, methodTable)
+		proj.Resolve(w.depMap, instantiations, methodTable)
 	}
 
 	for _, proj := range w.projMap {
-		proj.Analyze(w.depMap, methodTable)
+		proj.Analyze(w.depMap, instantiations, methodTable)
 	}
 }
 
