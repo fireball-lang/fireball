@@ -6,15 +6,13 @@ import (
 )
 
 type ParamScope struct {
-	Parent Scope
-
 	Names  []string
 	Params []*types.Param
 	Nodes  []*ast.Leaf
 }
 
-func (p *ParamScope) GetScope(name string) (Scope, bool) {
-	return p.Parent.GetScope(name)
+func (p *ParamScope) GetScope(_ string) (Scope, bool) {
+	return nil, false
 }
 
 func (p *ParamScope) GetSymbol(name string) (Symbol, bool) {
@@ -36,5 +34,5 @@ func (p *ParamScope) GetSymbol(name string) (Symbol, bool) {
 		}
 	}
 
-	return p.Parent.GetSymbol(name)
+	return Symbol{}, false
 }

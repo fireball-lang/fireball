@@ -25,7 +25,7 @@ func (e ExprInfo) Invalid() bool {
 }
 
 type analyzer struct {
-	scope  symbols.Scope
+	scopes symbols.ScopeStack
 	locals *symbols.BlockScope
 
 	topLevelModule string
@@ -49,7 +49,6 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 	locals := &symbols.BlockScope{}
 
 	a := analyzer{
-		scope:          nil,
 		locals:         locals,
 		topLevelModule: topLevelModule,
 		path:           path,
@@ -59,12 +58,10 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 		methodTable:    methodTable,
 	}
 
-	a.scope = &symbols.CombinedScope{Scopes: []symbols.Scope{
-		root,
-		a.GetImportsScope(root, file),
-		symbols.SymbolScope(fileSymbols),
-		locals,
-	}}
+	a.scopes.Push(root)
+	a.scopes.Push(a.GetImportsScope(root, file))
+	a.scopes.Push(symbols.SymbolScope(fileSymbols))
+	a.scopes.Push(locals)
 
 	// Core
 
@@ -89,6 +86,14 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 	for _, decl := range file.Decls {
 		ast.VisitDecl(&a, decl)
 	}
+
+	// Cleanup
+
+	for i := 0; i < 4; i++ {
+		a.scopes.Pop()
+	}
+
+	a.scopes.ValidateEmpty()
 
 	return a.exprInfos, a.diagnostics
 }
@@ -150,7 +155,7 @@ func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
 		return symbols.Symbol{}, false
 	}
 
-	var scope symbols.Scope = a.scope
+	var scope symbols.Scope = &a.scopes
 
 	for i := 0; i < len(path.Entries)-1; i++ {
 		entry := path.Entries[i].Token.Text

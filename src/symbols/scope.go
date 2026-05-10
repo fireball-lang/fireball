@@ -65,15 +65,29 @@ func (b *BasicScope) GetSymbol(name string) (Symbol, bool) {
 	return Symbol{}, false
 }
 
-// Combined
+// ScopeStack
 
-type CombinedScope struct {
-	Scopes []Scope
+type ScopeStack struct {
+	scopes []Scope
 }
 
-func (c *CombinedScope) GetScope(name string) (Scope, bool) {
-	for i := len(c.Scopes) - 1; i >= 0; i-- {
-		if scope, ok := c.Scopes[i].GetScope(name); ok {
+func (s *ScopeStack) Push(scope Scope) {
+	s.scopes = append(s.scopes, scope)
+}
+
+func (s *ScopeStack) Pop() {
+	s.scopes = s.scopes[:len(s.scopes)-1]
+}
+
+func (s *ScopeStack) ValidateEmpty() {
+	if len(s.scopes) != 0 {
+		panic("symbols.ScopeStack.ValidateEmpty() - Scope stack is not empty, missing Pop() call")
+	}
+}
+
+func (s *ScopeStack) GetScope(name string) (Scope, bool) {
+	for i := len(s.scopes) - 1; i >= 0; i-- {
+		if scope, ok := s.scopes[i].GetScope(name); ok {
 			return scope, true
 		}
 	}
@@ -81,9 +95,9 @@ func (c *CombinedScope) GetScope(name string) (Scope, bool) {
 	return nil, false
 }
 
-func (c *CombinedScope) GetSymbol(name string) (Symbol, bool) {
-	for i := len(c.Scopes) - 1; i >= 0; i-- {
-		if symbol, ok := c.Scopes[i].GetSymbol(name); ok {
+func (s *ScopeStack) GetSymbol(name string) (Symbol, bool) {
+	for i := len(s.scopes) - 1; i >= 0; i-- {
+		if symbol, ok := s.scopes[i].GetSymbol(name); ok {
 			return symbol, true
 		}
 	}

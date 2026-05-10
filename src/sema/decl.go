@@ -32,7 +32,7 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 	}
 
 	// Type
-	symbol, _ := a.scope.GetSymbol(s.Name().Token.Text)
+	symbol, _ := a.scopes.GetSymbol(s.Name().Token.Text)
 
 	typ := symbol.Type.(*types.Struct)
 	a.nodeTypes[s] = typ
@@ -59,8 +59,6 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 }
 
 func (a *analyzer) VisitImpl(i *ast.Impl) {
-	prevScope := a.scope
-
 	if prev, ok := a.nodeTypes[i.Type]; ok {
 		if s, ok := prev.(*types.Struct); ok {
 			template := s
@@ -75,12 +73,13 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 					implNames[j] = leaf.Token.Text
 				}
 
-				a.scope = &symbols.ParamScope{
-					Parent: a.scope,
+				a.scopes.Push(&symbols.ParamScope{
 					Names:  implNames,
 					Params: template.TypeParams,
 					Nodes:  i.TypeParams,
-				}
+				})
+
+				defer a.scopes.Pop()
 			}
 		}
 	}
@@ -88,7 +87,6 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	// Type
 	typ := a.AnalyzeType(i.Type)
 	if typ == types.Invalid {
-		a.scope = prevScope
 		return
 	}
 
@@ -110,8 +108,6 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 			a.Error(f.Name_, "methods need to have a body")
 		}
 
-		prevFuncScope := a.scope
-
 		if len(f.TypeParams) > 0 {
 			funcTypeParams := make([]*types.Param, 0, len(f.TypeParams))
 
@@ -119,11 +115,10 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 				funcTypeParams = append(funcTypeParams, &types.Param{Name: param.Token.Text})
 			}
 
-			a.scope = &symbols.ParamScope{
-				Parent: a.scope,
+			a.scopes.Push(&symbols.ParamScope{
 				Params: funcTypeParams,
 				Nodes:  f.TypeParams,
-			}
+			})
 		}
 
 		var fTyp *types.Func
@@ -142,10 +137,10 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		a.nodeTypes[f] = fTyp
 		a.VisitFuncInner(f, fTyp, receiverTyp)
 
-		a.scope = prevFuncScope
+		if len(f.TypeParams) > 0 {
+			a.scopes.Pop()
+		}
 	}
-
-	a.scope = prevScope
 }
 
 func (a *analyzer) VisitFunc(f *ast.Func) {
@@ -213,7 +208,7 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	}
 
 	// Type
-	symbol, _ := a.scope.GetSymbol(f.Name().Token.Text)
+	symbol, _ := a.scopes.GetSymbol(f.Name().Token.Text)
 
 	typ := symbol.Type.(*types.Func)
 	a.nodeTypes[f] = typ
@@ -250,14 +245,16 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	}
 
 	// Inner
-	prevScope := a.scope
 	if len(typ.TypeParams) > 0 {
-		a.scope = &symbols.ParamScope{Parent: a.scope, Params: typ.TypeParams, Nodes: f.TypeParams}
+		a.scopes.Push(&symbols.ParamScope{
+			Params: typ.TypeParams,
+			Nodes:  f.TypeParams,
+		})
+
+		defer a.scopes.Pop()
 	}
 
 	a.VisitFuncInner(f, typ, nil)
-
-	a.scope = prevScope
 }
 
 func (a *analyzer) VisitFuncInner(f *ast.Func, typ *types.Func, receiverTyp types.Type) {
