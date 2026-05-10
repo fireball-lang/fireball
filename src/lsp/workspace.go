@@ -51,6 +51,16 @@ func (w *Workspace) reload(s *Server, ctx context.Context) bool {
 		return false
 	}
 
+	// Update native watcher
+	if s.nativeWatcher != nil {
+		w.removeWatchers(s)
+
+		for _, proj := range projMap {
+			s.nativeWatcher.Add(filepath.Join(proj.Path, "src"))
+		}
+	}
+
+	// Set maps
 	w.projMap = projMap
 	w.depMap = depMap
 
@@ -65,6 +75,14 @@ func (w *Workspace) reload(s *Server, ctx context.Context) bool {
 	w.parseFiles(nil)
 
 	return true
+}
+
+func (w *Workspace) removeWatchers(s *Server) {
+	if s.nativeWatcher != nil {
+		for _, proj := range w.projMap {
+			s.nativeWatcher.Remove(filepath.Join(proj.Path, "src"))
+		}
+	}
 }
 
 func (w *Workspace) parseFiles(files []*project.File) {

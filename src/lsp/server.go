@@ -17,6 +17,8 @@ type Server struct {
 	Logger *slog.Logger
 	Client protocol.Client
 
+	nativeWatcher *NativeWatcher
+
 	workspaces []*Workspace
 
 	changed chan *project.File
@@ -75,6 +77,38 @@ func (s *Server) parseWorker() {
 func (s *Server) Initialize(ctx context.Context, params *protocol.InitializeParams) (*protocol.InitializeResult, error) {
 	s.info(ctx, "Starting")
 
+	var filters []protocol.FileOperationFilter
+
+	if params.Capabilities.Workspace.FileOperations.DidCreate && params.Capabilities.Workspace.FileOperations.DidDelete && params.Capabilities.Workspace.FileOperations.DidRename {
+		filters = []protocol.FileOperationFilter{
+			{
+				Scheme: "file",
+				Pattern: protocol.FileOperationPattern{
+					Glob:    "**/*.fb",
+					Matches: protocol.FileOperationPatternKindFile,
+				},
+			},
+			{
+				Scheme: "file",
+				Pattern: protocol.FileOperationPattern{
+					Glob:    "**/project.toml",
+					Matches: protocol.FileOperationPatternKindFile,
+				},
+			},
+		}
+
+		s.info(ctx, "Using LSP file operation notifications")
+	} else {
+		filters = []protocol.FileOperationFilter{}
+
+		s.nativeWatcher = NewNativeWatcher(s.Logger)
+
+		s.nativeWatcher.Create = s.DidCreateFiles
+		s.nativeWatcher.Delete = s.DidDeleteFiles
+
+		s.info(ctx, "Using native OS file watchers")
+	}
+
 	for _, folder := range params.WorkspaceFolders {
 		s.openWorkspace(ctx, uriPath(protocol.DocumentURI(folder.URI)))
 	}
@@ -89,23 +123,6 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 	s.definitionLinkSupport = params.Capabilities.TextDocument.Definition.LinkSupport
 
 	go s.parseWorker()
-
-	filters := []protocol.FileOperationFilter{
-		{
-			Scheme: "file",
-			Pattern: protocol.FileOperationPattern{
-				Glob:    "**/*.fb",
-				Matches: protocol.FileOperationPatternKindFile,
-			},
-		},
-		{
-			Scheme: "file",
-			Pattern: protocol.FileOperationPattern{
-				Glob:    "**/project.toml",
-				Matches: protocol.FileOperationPatternKindFile,
-			},
-		},
-	}
 
 	return &protocol.InitializeResult{
 		Capabilities: protocol.ServerCapabilities{
@@ -160,6 +177,10 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.info(ctx, "Stopping")
 
+	if s.nativeWatcher != nil {
+		s.nativeWatcher.Close()
+	}
+
 	s.stop <- nil
 
 	return nil
@@ -179,6 +200,8 @@ func (s *Server) DidChangeWorkspaceFolders(ctx context.Context, params *protocol
 			s.warn(ctx, "Workspace not found: '%s'", folder.URI)
 			continue
 		}
+
+		s.workspaces[index].removeWatchers(s)
 
 		s.workspaces = slices.Delete(s.workspaces, index, index+1)
 	}

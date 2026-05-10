@@ -5,11 +5,13 @@ go 1.26
 require (
 	github.com/fatih/color v1.19.0
 	github.com/fireball-lang/protocol v0.0.0-20260426085844-b1898f38e024
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-git/go-git/v6 v6.0.0-alpha.2
 	github.com/pelletier/go-toml/v2 v2.3.0
 	github.com/petermattis/goid v0.0.0-20260330135022-df67b199bc81
 	github.com/spf13/cobra v1.10.2
 	go.lsp.dev/jsonrpc2 v0.10.0
+	go.lsp.dev/uri v0.3.0
 	golang.org/x/sys v0.43.0
 )
 
@@ -32,7 +34,6 @@ require (
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.lsp.dev/pkg v0.0.0-20210717090340-384b27a52fb2 // indirect
-	go.lsp.dev/uri v0.3.0 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
