@@ -34,6 +34,22 @@ type Config struct {
 	Dependencies []Dependency       `toml:"dependency"`
 }
 
+type rawProfile struct {
+	Name     *string `toml:"-"`
+	Opt      *uint8  `toml:"opt"`
+	Debug    *bool   `toml:"debug"`
+	Lto      *bool   `toml:"lto"`
+	OutputIr *bool   `toml:"output-ir"`
+}
+
+type rawConfig struct {
+	Name string `toml:"name"`
+	LibC bool   `toml:"lib-c"`
+
+	Profiles     map[string]rawProfile `toml:"profile"`
+	Dependencies []Dependency          `toml:"dependency"`
+}
+
 var nameRegex = regexp.MustCompile("^[a-zA-Z_-][a-zA-Z0-9_-]*$")
 
 func readConfig(path string) (Config, error) {
@@ -45,22 +61,41 @@ func readConfig(path string) (Config, error) {
 	//goland:noinspection GoUnhandledErrorResult
 	defer file.Close()
 
-	var config Config
-	if err := toml.NewDecoder(file).DisallowUnknownFields().Decode(&config); err != nil {
+	var raw rawConfig
+	if err := toml.NewDecoder(file).DisallowUnknownFields().Decode(&raw); err != nil {
 		return Config{}, err
 	}
 
-	if !nameRegex.MatchString(config.Name) {
-		return Config{}, fmt.Errorf("invalid project name: '%s'", config.Name)
+	if !nameRegex.MatchString(raw.Name) {
+		return Config{}, fmt.Errorf("invalid project name: '%s'", raw.Name)
+	}
+
+	config := Config{
+		Name: raw.Name,
+		LibC: raw.LibC,
+		Profiles: map[string]Profile{
+			"debug": {
+				Name:  "debug",
+				Debug: true,
+			},
+			"release": {
+				Name: "release",
+				Opt:  2,
+				Lto:  true,
+			},
+		},
+		Dependencies: raw.Dependencies,
 	}
 
 	// Profiles
-	if config.Profiles == nil {
-		config.Profiles = make(map[string]Profile)
-	}
+	for name, raw := range raw.Profiles {
+		profile := Profile{Name: name}
 
-	for name, profile := range config.Profiles {
-		profile.Name = name
+		if p, ok := config.Profiles[name]; ok {
+			profile = p
+		}
+
+		profile = profile.merge(raw)
 
 		if !nameRegex.MatchString(name) {
 			return Config{}, fmt.Errorf("invalid profile name: '%s'", name)
@@ -97,22 +132,22 @@ func readConfig(path string) (Config, error) {
 		return Config{}, fmt.Errorf("empty dependency")
 	}
 
-	// Default debug profile
-	if _, ok := config.Profiles["debug"]; !ok {
-		config.Profiles["debug"] = Profile{
-			Name:  "debug",
-			Debug: true,
-		}
-	}
-
-	// Default release profile
-	if _, ok := config.Profiles["release"]; !ok {
-		config.Profiles["release"] = Profile{
-			Name: "release",
-			Opt:  2,
-			Lto:  true,
-		}
-	}
-
 	return config, nil
+}
+
+func (p Profile) merge(raw rawProfile) Profile {
+	if raw.Opt != nil {
+		p.Opt = *raw.Opt
+	}
+	if raw.Debug != nil {
+		p.Debug = *raw.Debug
+	}
+	if raw.Lto != nil {
+		p.Lto = *raw.Lto
+	}
+	if raw.OutputIr != nil {
+		p.OutputIr = *raw.OutputIr
+	}
+
+	return p
 }
