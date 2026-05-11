@@ -4,6 +4,10 @@ import (
 	"context"
 	"fireball/ast"
 	"fireball/core"
+	"fireball/project"
+	"fireball/symbols"
+	"fireball/types"
+	"iter"
 
 	"github.com/fireball-lang/protocol"
 )
@@ -19,7 +23,7 @@ func (s *Server) Definition(ctx context.Context, params *protocol.DefinitionPara
 	locker.Lock()
 	defer locker.Unlock()
 
-	// Leaf node
+	// Deepest node at the cursor position
 	node := ast.GetNodeAtPos(file.Ast, toCorePos(params.Position))
 
 	if core.IsNil(node) {
@@ -27,45 +31,149 @@ func (s *Server) Definition(ctx context.Context, params *protocol.DefinitionPara
 		return nil, nil
 	}
 
-	// Location
-	if _, ok := node.(*ast.Leaf); ok {
-		for {
-			if _, ok := node.(ast.Expr); ok {
-				break
+	defNode := s.resolveDefinition(file, node)
+	if core.IsNil(defNode) {
+		return nil, nil
+	}
+
+	return s.buildDefinitionResult(defNode), nil
+}
+
+func (s *Server) resolveDefinition(file *project.File, node ast.Node) ast.Node {
+	for !core.IsNil(node) {
+		switch n := node.(type) {
+
+		// Variable, function, static-method identifier
+		case *ast.Identifier:
+			if info, ok := file.ExprInfos[n]; ok && !core.IsNil(info.Node) {
+				return info.Node
 			}
 
-			parent := node.Parent()
-			if core.IsNil(parent) {
-				break
+		// Member access: field, method
+		case *ast.Member:
+			if info, ok := file.ExprInfos[n]; ok && !core.IsNil(info.Node) {
+				return info.Node
 			}
 
-			node = parent
+		// Type annotation
+		case *ast.IdentifierType:
+			if typ, ok := file.NodeTypes[n]; ok {
+				return s.findTypeDeclaration(typ)
+			}
+
+		// Leaf
+		case *ast.Leaf:
+			// Import symbols
+			if _, ok := n.Parent().(*ast.Import); ok {
+				if typ, ok := file.NodeTypes[n]; ok {
+					return s.findTypeDeclaration(typ)
+				}
+			}
+
+			// Intermediate path entry in a qualified identifier
+			if path, ok := n.Parent().(*ast.IdentifierPath); ok {
+				isLast := path.Entries[len(path.Entries)-1] == n
+
+				if !isLast {
+					if typ, ok := file.NodeTypes[n]; ok {
+						return s.findTypeDeclaration(typ)
+					}
+				}
+			}
+		}
+
+		node = node.Parent()
+	}
+
+	return nil
+}
+
+func (s *Server) findTypeDeclaration(typ types.Type) ast.Node {
+	switch t := typ.(type) {
+	case *types.Struct:
+		template := t
+		if t.Generic != nil {
+			template = t.Generic
+		}
+
+		return s.findStructNode(template)
+
+	case *types.Func:
+		return s.findFuncNode(t)
+	}
+
+	return nil
+}
+
+func (s *Server) findStructNode(st *types.Struct) *ast.Struct {
+	for sym := range s.allSymbols() {
+		if sym.Kind == symbols.Struct && sym.Type == st {
+			if n, ok := sym.Node.(*ast.Struct); ok {
+				return n
+			}
 		}
 	}
 
-	if expr, ok := node.(ast.Expr); ok {
-		if info, ok := file.ExprInfos[expr]; ok && !core.IsNil(info.Node) {
-			// Create
-			link := protocol.LocationLink{
-				TargetURI:   protocol.DocumentURI("file://" + ast.GetFile(info.Node).Path),
-				TargetRange: toLspRange(info.Node.Range()),
-			}
+	return nil
+}
 
-			if decl, ok := info.Node.(ast.Decl); ok && decl.Name() != nil {
-				link.TargetSelectionRange = toLspRange(decl.Name().Range())
+func (s *Server) findFuncNode(fn *types.Func) *ast.Func {
+	for sym := range s.allSymbols() {
+		if sym.Kind == symbols.Func && sym.Type == fn {
+			if n, ok := sym.Node.(*ast.Func); ok {
+				return n
 			}
-
-			// Return
-			if s.definitionLinkSupport {
-				return []protocol.LocationLink{link}, nil
-			}
-
-			return &protocol.Location{
-				URI:   link.TargetURI,
-				Range: link.TargetRange,
-			}, nil
 		}
 	}
 
-	return nil, nil
+	return nil
+}
+
+func (s *Server) allSymbols() iter.Seq[symbols.Symbol] {
+	return func(yield func(symbols.Symbol) bool) {
+		for _, workspace := range s.workspaces {
+			for _, proj := range workspace.projMap {
+				for _, file := range proj.Files {
+					for _, sym := range file.Symbols {
+						if !yield(sym) {
+							return
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func (s *Server) buildDefinitionResult(defNode ast.Node) interface{} {
+	nodeFile := ast.GetFile(defNode)
+	if nodeFile == nil {
+		return nil
+	}
+
+	link := protocol.LocationLink{
+		TargetURI:            protocol.DocumentURI("file://" + nodeFile.Path),
+		TargetRange:          toLspRange(defNode.Range()),
+		TargetSelectionRange: toLspRange(defNode.Range()),
+	}
+
+	switch n := defNode.(type) {
+	case ast.Decl:
+		if n.Name() != nil {
+			link.TargetSelectionRange = toLspRange(n.Name().Range())
+		}
+	case *ast.NameType:
+		link.TargetSelectionRange = toLspRange(n.Name.Range())
+	case *ast.Var:
+		link.TargetSelectionRange = toLspRange(n.Name.Range())
+	}
+
+	if s.definitionLinkSupport {
+		return []protocol.LocationLink{link}
+	}
+
+	return &protocol.Location{
+		URI:   link.TargetURI,
+		Range: link.TargetRange,
+	}
 }

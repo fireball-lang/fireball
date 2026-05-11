@@ -12,6 +12,8 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 		s := symbol.Node.(*ast.Struct)
 		t := symbol.Type.(*types.Struct)
 
+		a.typeEnv.RegisterStruct(t, s)
+
 		if len(t.TypeParams) > 0 {
 			a.scopes.Push(&symbols.ParamScope{
 				Params: t.TypeParams,

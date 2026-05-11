@@ -395,16 +395,31 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 
 	if t, ok := typ.(*types.Struct); ok {
 		if field, index := t.Field(m.Name.Token.Text); index != -1 {
+			var fieldNode ast.Node
+			lookupStruct := t
+
+			if t.Generic != nil {
+				lookupStruct = t.Generic
+			}
+
+			if structNode := a.typeEnv.GetStructNode(lookupStruct); structNode != nil {
+				for _, f := range structNode.Fields {
+					if f.Name.Token.Text == m.Name.Token.Text {
+						fieldNode = f
+						break
+					}
+				}
+			}
+
 			return ExprInfo{
 				Type:    field.Type,
+				Node:    fieldNode,
 				Mutable: mutable,
 				Address: address,
 			}
 		}
 
-		lookupTyp := types.Type(t)
-
-		if sym, ok := a.typeEnv.GetInstanceMethod(lookupTyp, m.Name.Token.Text); ok {
+		if sym, ok := a.typeEnv.GetInstanceMethod(t, m.Name.Token.Text); ok {
 			a.nodeTypes[sym.Node] = sym.Type
 			return ExprInfo{Type: sym.Type, Node: sym.Node}
 		}

@@ -1,20 +1,31 @@
 package sema
 
 import (
+	"fireball/ast"
 	"fireball/symbols"
 	"fireball/types"
 )
 
 type TypeEnvironment struct {
-	static   map[types.Type][]symbols.Symbol
-	instance map[types.Type][]symbols.Symbol
+	static      map[types.Type][]symbols.Symbol
+	instance    map[types.Type][]symbols.Symbol
+	structNodes map[*types.Struct]*ast.Struct
 }
 
 func NewTypeEnvironment() *TypeEnvironment {
 	return &TypeEnvironment{
-		static:   make(map[types.Type][]symbols.Symbol),
-		instance: make(map[types.Type][]symbols.Symbol),
+		static:      make(map[types.Type][]symbols.Symbol),
+		instance:    make(map[types.Type][]symbols.Symbol),
+		structNodes: make(map[*types.Struct]*ast.Struct),
 	}
+}
+
+func (e *TypeEnvironment) RegisterStruct(t *types.Struct, n *ast.Struct) {
+	e.structNodes[t] = n
+}
+
+func (e *TypeEnvironment) GetStructNode(t *types.Struct) *ast.Struct {
+	return e.structNodes[t]
 }
 
 func (e *TypeEnvironment) AddStaticMethod(typ types.Type, symbol symbols.Symbol) bool {
