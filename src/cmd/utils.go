@@ -8,7 +8,7 @@ import (
 	"fireball/core"
 	"fireball/ir"
 	"fireball/project"
-	"fireball/symbols"
+	"fireball/sema"
 	"fireball/toolchain"
 	"fireball/types"
 	"fmt"
@@ -88,15 +88,15 @@ func parseProject(start time.Time) (*project.Project, map[string]*project.Projec
 
 	// Resolve
 	instantiations := types.NewInstantiationCache()
-	methodTable := symbols.NewMethodTable()
+	typeEnv := sema.NewTypeEnvironment()
 
 	for _, proj := range projMap {
-		proj.Resolve(depMap, instantiations, methodTable)
+		proj.Resolve(depMap, instantiations, typeEnv)
 	}
 
 	// Analyze
 	for _, proj := range projMap {
-		proj.Analyze(depMap, instantiations, methodTable)
+		proj.Analyze(depMap, instantiations, typeEnv)
 	}
 
 	// Print diagnostics

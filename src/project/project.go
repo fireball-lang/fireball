@@ -3,6 +3,7 @@ package project
 import (
 	"fireball/ast"
 	"fireball/core"
+	"fireball/sema"
 	"fireball/symbols"
 	"fireball/types"
 	"io/fs"
@@ -96,23 +97,23 @@ func (p *Project) Parse(files []*File) {
 	}
 }
 
-func (p *Project) Resolve(depMap map[Dependency]*Project, instantiations types.InstantiationCache, methodTable symbols.MethodTable) {
+func (p *Project) Resolve(depMap map[Dependency]*Project, instantiations types.InstantiationCache, typeEnv *sema.TypeEnvironment) {
 	defer core.Scope()()
 
 	root := p.getRootScope(depMap)
 
 	for _, file := range p.Files {
-		file.resolve(&root, instantiations, methodTable)
+		file.resolve(&root, instantiations, typeEnv)
 	}
 }
 
-func (p *Project) Analyze(depMap map[Dependency]*Project, instantiations types.InstantiationCache, methodTable symbols.MethodTable) {
+func (p *Project) Analyze(depMap map[Dependency]*Project, instantiations types.InstantiationCache, typeEnv *sema.TypeEnvironment) {
 	defer core.Scope()()
 
 	root := p.getRootScope(depMap)
 
 	for _, file := range p.Files {
-		file.analyze(&root, instantiations, methodTable)
+		file.analyze(&root, instantiations, typeEnv)
 	}
 }
 

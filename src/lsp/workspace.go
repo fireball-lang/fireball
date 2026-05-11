@@ -5,7 +5,7 @@ import (
 	"context"
 	"fireball/core"
 	"fireball/project"
-	"fireball/symbols"
+	"fireball/sema"
 	"fireball/types"
 	"path/filepath"
 	"slices"
@@ -91,14 +91,14 @@ func (w *Workspace) parseFiles(files []*project.File) {
 	}
 
 	instantiations := types.NewInstantiationCache()
-	methodTable := symbols.NewMethodTable()
+	typeEnv := sema.NewTypeEnvironment()
 
 	for _, proj := range w.projMap {
-		proj.Resolve(w.depMap, instantiations, methodTable)
+		proj.Resolve(w.depMap, instantiations, typeEnv)
 	}
 
 	for _, proj := range w.projMap {
-		proj.Analyze(w.depMap, instantiations, methodTable)
+		proj.Analyze(w.depMap, instantiations, typeEnv)
 	}
 }
 

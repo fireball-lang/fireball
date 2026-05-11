@@ -7,14 +7,14 @@ import (
 	"fireball/types"
 )
 
-func ResolveSymbols(file *ast.File, fileSymbols []symbols.Symbol, instantiations types.InstantiationCache, methodTable symbols.MethodTable, root symbols.Scope, path string) (map[ast.Node]types.Type, []core.Diagnostic) {
+func ResolveSymbols(file *ast.File, fileSymbols []symbols.Symbol, instantiations types.InstantiationCache, typeEnv *TypeEnvironment, root symbols.Scope, path string) (map[ast.Node]types.Type, []core.Diagnostic) {
 	defer core.Scope()()
 
 	a := analyzer{
 		path:           path,
 		nodeTypes:      make(map[ast.Node]types.Type),
 		instantiations: instantiations,
-		methodTable:    methodTable,
+		typeEnv:        typeEnv,
 	}
 
 	a.scopes.Push(root)
@@ -145,12 +145,19 @@ func (a *analyzer) resolveMethod(f *ast.Func, okStruct bool, typ, methodTyp type
 
 	t.Returns = a.AnalyzeType(f.Returns)
 
+	symbol := symbols.Symbol{
+		Kind: symbols.Func,
+		Name: f.Name().Token.Text,
+		Node: f,
+		Type: t,
+	}
+
 	var okAdd bool
 
 	if f.Receiver == nil {
-		okAdd = a.methodTable.AddStatic(methodTyp, f, t)
+		okAdd = a.typeEnv.AddStaticMethod(methodTyp, symbol)
 	} else {
-		okAdd = a.methodTable.Add(methodTyp, f, t)
+		okAdd = a.typeEnv.AddInstanceMethod(methodTyp, symbol)
 	}
 
 	if okStruct && !okAdd {

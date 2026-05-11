@@ -404,15 +404,15 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 
 		lookupTyp := types.Type(t)
 
-		if f, fTyp := a.methodTable.Get(lookupTyp, m.Name.Token.Text); !core.IsNil(fTyp) {
-			a.nodeTypes[f] = fTyp
-			return ExprInfo{Type: fTyp, Node: f}
+		if sym, ok := a.typeEnv.GetInstanceMethod(lookupTyp, m.Name.Token.Text); ok {
+			a.nodeTypes[sym.Node] = sym.Type
+			return ExprInfo{Type: sym.Type, Node: sym.Node}
 		}
 
 		if t.Generic != nil {
-			if f, fTyp := a.methodTable.Get(t.Generic, m.Name.Token.Text); !core.IsNil(fTyp) {
-				a.nodeTypes[f] = fTyp
-				return ExprInfo{Type: fTyp, Node: f}
+			if sym, ok := a.typeEnv.GetInstanceMethod(t.Generic, m.Name.Token.Text); ok {
+				a.nodeTypes[sym.Node] = sym.Type
+				return ExprInfo{Type: sym.Type, Node: sym.Node}
 			}
 		}
 

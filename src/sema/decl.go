@@ -125,12 +125,16 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		var receiverTyp types.Type
 
 		if f.Receiver == nil {
-			_, fTyp = a.methodTable.GetStatic(lookupTyp, f.Name().Token.Text)
+			if sym, ok := a.typeEnv.GetStaticMethod(lookupTyp, f.Name().Token.Text); ok {
+				fTyp = sym.Type.(*types.Func)
+			}
 			receiverTyp = nil
 		} else {
-			_, fTyp = a.methodTable.Get(lookupTyp, f.Name().Token.Text)
-			if fTyp != nil {
-				receiverTyp = fTyp.Params[0]
+			if sym, ok := a.typeEnv.GetInstanceMethod(lookupTyp, f.Name().Token.Text); ok {
+				fTyp = sym.Type.(*types.Func)
+				if fTyp != nil {
+					receiverTyp = fTyp.Params[0]
+				}
 			}
 		}
 

@@ -34,7 +34,7 @@ type analyzer struct {
 	exprInfos      map[ast.Expr]ExprInfo
 	nodeTypes      map[ast.Node]types.Type
 	instantiations types.InstantiationCache
-	methodTable    symbols.MethodTable
+	typeEnv        *TypeEnvironment
 	diagnostics    []core.Diagnostic
 
 	stringViewType types.Type
@@ -43,7 +43,7 @@ type analyzer struct {
 	loop     int
 }
 
-func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations types.InstantiationCache, methodTable symbols.MethodTable, nodeTypes map[ast.Node]types.Type, topLevelModule, path string) (map[ast.Expr]ExprInfo, []core.Diagnostic) {
+func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations types.InstantiationCache, typeEnv *TypeEnvironment, nodeTypes map[ast.Node]types.Type, topLevelModule, path string) (map[ast.Expr]ExprInfo, []core.Diagnostic) {
 	defer core.Scope()()
 
 	locals := &symbols.BlockScope{}
@@ -55,7 +55,7 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 		exprInfos:      make(map[ast.Expr]ExprInfo),
 		nodeTypes:      nodeTypes,
 		instantiations: instantiations,
-		methodTable:    methodTable,
+		typeEnv:        typeEnv,
 	}
 
 	a.scopes.Push(root)
@@ -160,57 +160,41 @@ func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
 	for i := 0; i < len(path.Entries)-1; i++ {
 		entry := path.Entries[i].Token.Text
 
-		// Get module
-		child, ok := scope.GetScope(entry)
-		errMsg := "module '%s' cannot be found"
-
-		// Get struct
-		if !ok && i == len(path.Entries)-2 {
-			var symbol symbols.Symbol
-			symbol, ok = scope.GetSymbol(entry)
-
-			if ok {
-				a.nodeTypes[path.Entries[i]] = symbol.Type
-
-				name := path.Entries[i+1].Token.Text
-
-				if f, typ := a.methodTable.GetStatic(symbol.Type, name); !core.IsNil(f) {
-					return symbols.Symbol{
-						Kind: symbols.Func,
-						Name: f.Name().Token.Text,
-						Node: f,
-						Type: typ,
-					}, true
-				}
-
-				// Method error
-				a.Error(path, "method '%s' cannot be found on type '%s'", name, symbol.Type)
-				return symbols.Symbol{}, false
-			}
-
-			ok = false
-			errMsg = "module or type '%s' cannot be found"
+		// Try module scope navigation first.
+		if child, ok := scope.GetScope(entry); ok {
+			scope = child
+			continue
 		}
 
-		scope = child
+		// Try type scope (for Struct::staticMethod).
+		if symbol, ok := scope.GetSymbol(entry); ok {
+			a.nodeTypes[path.Entries[i]] = symbol.Type
 
-		// Module error
-		if !ok {
-			sb := strings.Builder{}
-
-			for i, leaf := range path.Entries[:i+1] {
-				if i > 0 {
-					sb.WriteString("::")
-				}
-				sb.WriteString(leaf.Token.Text)
+			if typeScope := a.typeEnv.GetTypeScope(symbol.Type); typeScope != nil {
+				scope = typeScope
+				continue
 			}
 
-			a.Error(path, errMsg, &sb)
+			// Symbol found but has no registered static methods.
+			a.Error(path, "method '%s' cannot be found on type '%s'", path.Entries[i+1].Token.Text, symbol.Type)
 			return symbols.Symbol{}, false
 		}
+
+		// Neither a module nor a type — build the full path for the error message.
+		sb := strings.Builder{}
+
+		for j, leaf := range path.Entries[:i+1] {
+			if j > 0 {
+				sb.WriteString("::")
+			}
+			sb.WriteString(leaf.Token.Text)
+		}
+
+		a.Error(path, "module or type '%s' cannot be found", &sb)
+		return symbols.Symbol{}, false
 	}
 
-	// Get symbol
+	// Look up the final segment in whatever scope we navigated to.
 	entry := path.Entries[len(path.Entries)-1]
 
 	symbol, ok := scope.GetSymbol(entry.Token.Text)
