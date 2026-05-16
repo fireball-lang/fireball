@@ -7,6 +7,7 @@ import (
 	"fireball/symbols"
 	"fireball/types"
 	"math"
+	"slices"
 )
 
 // Visitor
@@ -395,6 +396,10 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 
 	if t, ok := typ.(*types.Struct); ok {
 		if field, index := t.Field(m.Name.Token.Text); index != -1 {
+			if a.checkVisibility && !field.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
+				a.Error(m.Name, "field '%s' is private", m.Name.Token.Text)
+			}
+
 			var fieldNode ast.Node
 			lookupStruct := t
 
@@ -420,12 +425,20 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		}
 
 		if sym, ok := a.typeEnv.GetInstanceMethod(t, m.Name.Token.Text); ok {
+			if a.checkVisibility && !sym.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
+				a.Error(m.Name, "method '%s' is private", m.Name.Token.Text)
+			}
+
 			a.nodeTypes[sym.Node] = sym.Type
 			return ExprInfo{Type: sym.Type, Node: sym.Node}
 		}
 
 		if t.Generic != nil {
 			if sym, ok := a.typeEnv.GetInstanceMethod(t.Generic, m.Name.Token.Text); ok {
+				if a.checkVisibility && !sym.Public && !slices.Equal(t.Generic.ModulePath, a.fileModPath) {
+					a.Error(m.Name, "method '%s' is private", m.Name.Token.Text)
+				}
+
 				a.nodeTypes[sym.Node] = sym.Type
 				return ExprInfo{Type: sym.Type, Node: sym.Node}
 			}

@@ -11,6 +11,9 @@ import (
 func (p *parser) parseDecl() (ast.Decl, int) {
 	var attributes []*ast.Attribute
 
+	public := false
+	var publicToken lexer.Token
+
 	for p.current.Kind == lexer.Hashtag {
 		attrs, recoverId := p.parseAttributeGroup()
 		attributes = append(attributes, attrs...)
@@ -20,16 +23,24 @@ func (p *parser) parseDecl() (ast.Decl, int) {
 		}
 	}
 
+	if p.current.Kind == lexer.Pub {
+		publicToken = p.advance()
+		public = true
+	}
+
 	switch p.current.Kind {
 	case lexer.Struct:
-		return p.parseStruct(attributes)
+		return p.parseStruct(attributes, public)
 	case lexer.Impl:
 		if len(attributes) != 0 {
 			p.reportError(ast.SliceRange(attributes), "implementation blocks cannot have attributes")
 		}
+		if public {
+			p.reportError(publicToken.Range, "implementation blocks cannot be marked as public")
+		}
 		return p.parseImpl()
 	case lexer.Func:
-		return p.parseFunc(attributes, false)
+		return p.parseFunc(attributes, public, false)
 
 	default:
 		b := &ast.BadDecl{}
@@ -115,10 +126,11 @@ func (p *parser) parseAttribute() (a *ast.Attribute, recoverId int) {
 	return
 }
 
-func (p *parser) parseStruct(attributes []*ast.Attribute) (s *ast.Struct, recoverId int) {
+func (p *parser) parseStruct(attributes []*ast.Attribute, public bool) (s *ast.Struct, recoverId int) {
 	s = &ast.Struct{}
 	s.Range_.Start = p.current.Range.Start
 	s.Attributes = attributes
+	s.Public = public
 	s.Name_ = emptyLeaf
 	defer func() {
 		s.Range_.End = p.previous.Range.End
@@ -152,7 +164,7 @@ func (p *parser) parseStruct(attributes []*ast.Attribute) (s *ast.Struct, recove
 
 		// Fields
 		myRecoverId := p.pushRecoverPoint(lexer.RightBrace)
-		s.Fields, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightBrace, p.parseNameType)
+		s.Fields, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightBrace, p.parseField)
 		p.popRecoverPoint()
 
 		if recoverId >= 0 {
@@ -167,6 +179,43 @@ func (p *parser) parseStruct(attributes []*ast.Attribute) (s *ast.Struct, recove
 		if recoverId = p.expect(lexer.RightBrace, "expected '}' after struct fields"); recoverId >= 0 {
 			return
 		}
+	}
+
+	return
+}
+
+func (p *parser) parseField() (f *ast.Field, recoverId int) {
+	f = &ast.Field{}
+	f.Range_.Start = p.current.Range.Start
+	defer func() {
+		f.Range_.End = p.previous.Range.End
+
+		if core.IsNil(f.Type) {
+			f.Type = p.badType()
+		}
+	}()
+
+	recoverId = -1
+
+	// 'pub'
+	if p.current.Kind == lexer.Pub {
+		f.Public = true
+		p.advance()
+	}
+
+	// Name
+	if f.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// ':'
+	if recoverId = p.expect(lexer.Colon, "expected ':' before type"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if f.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
 	}
 
 	return
@@ -208,8 +257,15 @@ func (p *parser) parseImpl() (i *ast.Impl, recoverId int) {
 	for p.current.Kind != lexer.RightBrace && p.current.Kind != lexer.EOF {
 		myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Func)
 
+		public := false
+
+		if p.current.Kind == lexer.Pub {
+			p.advance()
+			public = true
+		}
+
 		var f *ast.Func
-		f, recoverId = p.parseFunc(nil, true)
+		f, recoverId = p.parseFunc(nil, public, true)
 		i.Functions = append(i.Functions, f)
 
 		p.popRecoverPoint()
@@ -231,10 +287,11 @@ func (p *parser) parseImpl() (i *ast.Impl, recoverId int) {
 	return
 }
 
-func (p *parser) parseFunc(attributes []*ast.Attribute, allowReceiver bool) (f *ast.Func, recoverId int) {
+func (p *parser) parseFunc(attributes []*ast.Attribute, public bool, allowReceiver bool) (f *ast.Func, recoverId int) {
 	f = &ast.Func{}
 	f.Range_.Start = p.current.Range.Start
 	f.Attributes = attributes
+	f.Public = public
 	f.Name_ = emptyLeaf
 	defer func() {
 		f.Range_.End = p.previous.Range.End
@@ -300,7 +357,7 @@ func (p *parser) parseFunc(attributes []*ast.Attribute, allowReceiver bool) (f *
 		}
 
 		for {
-			i := slices.IndexFunc(f.Params, func(n *ast.NameType) bool {
+			i := slices.IndexFunc(f.Params, func(n *ast.Param) bool {
 				return n.Name.Token.Kind == lexer.DotDotDot
 			})
 
@@ -378,15 +435,44 @@ func (p *parser) parseReceiver() (r *ast.Receiver, recoverId int) {
 	return
 }
 
-func (p *parser) parseFuncParam() (*ast.NameType, int) {
+func (p *parser) parseFuncParam() (param *ast.Param, recoverId int) {
 	if p.current.Kind == lexer.DotDotDot {
-		n := &ast.NameType{}
-		n.Name = &ast.Leaf{Token: p.advance()}
-		n.Range_ = p.previous.Range
-		return n, -1
+		param = &ast.Param{}
+		param.Name = &ast.Leaf{Token: p.advance()}
+		param.Range_ = p.previous.Range
+
+		recoverId = -1
+		return
 	}
 
-	return p.parseNameType()
+	param = &ast.Param{}
+	param.Range_.Start = p.current.Range.Start
+	defer func() {
+		param.Range_.End = p.previous.Range.End
+
+		if core.IsNil(param.Type) {
+			param.Type = p.badType()
+		}
+	}()
+
+	recoverId = -1
+
+	// Name
+	if param.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// ':'
+	if recoverId = p.expect(lexer.Colon, "expected ':' before type"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if param.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
+	}
+
+	return
 }
 
 func (p *parser) parseTypeParams() (params []*ast.Leaf, recoverId int) {

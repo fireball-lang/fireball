@@ -129,13 +129,15 @@ func (c InstantiationCache) substitute(generic Type, substitutions []Substitutio
 
 		for i, field := range generic.Fields {
 			fields[i] = Field{
-				Name: field.Name,
-				Type: c.resolve(field.Type, substitutions),
+				Name:   field.Name,
+				Type:   c.resolve(field.Type, substitutions),
+				Public: field.Public,
 			}
 		}
 
 		return &Struct{
 			Name:          generic.Name,
+			ModulePath:    generic.ModulePath,
 			Packed:        generic.Packed,
 			Fields:        fields,
 			Generic:       generic,

@@ -1,5 +1,6 @@
 ; Keywords
 
+"pub" @keyword
 "mut" @keyword
 
 "mod" @keyword
@@ -42,14 +43,14 @@
 
 (struct name: (identifier) @type)
 (struct type_param: (identifier) @type.parameter)
-(struct field: (name_type name: (identifier) @property))
+(struct field: (field name: (identifier) @property))
 
 (impl type_param: (identifier) @type.parameter)
 
 (func name: (identifier) @function)
 (func type_param: (identifier) @type.parameter)
 (func receiver: (identifier) @keyword)
-(func param: (name_type name: (identifier) @variable.parameter))
+(func param: (param name: (identifier) @variable.parameter))
 
 ; Expressions
 

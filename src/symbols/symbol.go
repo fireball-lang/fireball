@@ -18,7 +18,9 @@ const (
 
 type Symbol struct {
 	Kind Kind
-	Name string
+
+	Public bool
+	Name   string
 
 	Node ast.Node
 	Type types.Type

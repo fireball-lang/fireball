@@ -386,7 +386,7 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 		c.AddSummaryCallee(i, node, typ)
 		return c.GetFunction(node, typ)
 
-	case *ast.NameType:
+	case *ast.Param:
 		return c.scope.Get(node.Name.Token.Text)
 
 	case *ast.Var:

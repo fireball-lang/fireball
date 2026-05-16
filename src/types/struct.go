@@ -3,12 +3,14 @@ package types
 import "strings"
 
 type Field struct {
-	Name string
-	Type Type
+	Name   string
+	Type   Type
+	Public bool
 }
 
 type Struct struct {
 	Name       string
+	ModulePath []string // module path parts, e.g. ["myproject", "utils"]
 	Packed     bool
 	TypeParams []*Param
 	Fields     []Field

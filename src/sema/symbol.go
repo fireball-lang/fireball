@@ -33,8 +33,9 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 			}
 
 			t.Fields[i] = types.Field{
-				Name: s.Fields[i].Name.Token.Text,
-				Type: typ,
+				Name:   s.Fields[i].Name.Token.Text,
+				Type:   typ,
+				Public: s.Fields[i].Public,
 			}
 		}
 

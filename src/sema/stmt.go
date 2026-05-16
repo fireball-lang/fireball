@@ -57,10 +57,11 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 	a.nodeTypes[v] = typ
 
 	symbol := symbols.Symbol{
-		Kind: symbols.Var,
-		Name: v.Name.Token.Text,
-		Node: v,
-		Type: typ,
+		Kind:   symbols.Var,
+		Public: true,
+		Name:   v.Name.Token.Text,
+		Node:   v,
+		Type:   typ,
 	}
 
 	if !a.locals.Add(symbol) {

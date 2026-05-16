@@ -1,28 +1,28 @@
 mod core;
 
-struct StringView {
-	ptr: *u8,
-	size: u32,
+pub struct StringView {
+	pub ptr: *u8,
+	pub size: u32,
 }
 
 impl StringView {
-	func starts_with(self, other: StringView) bool {
+	pub func starts_with(self, other: StringView) bool {
 		if (self.size < other.size) return false;
 
 		return self.slice(0u, other.size).equals(other);
 	}
 
-	func ends_with(self, other: StringView) bool {
+	pub func ends_with(self, other: StringView) bool {
 		if (self.size < other.size) return false;
 
 		return self.slice(self.size - other.size, self.size).equals(other);
 	}
 
-	func contains(self, other: StringView) bool {
+	pub func contains(self, other: StringView) bool {
 		return self.index(other) != -1;
 	}
 
-	func trim(self) StringView {
+	pub func trim(self) StringView {
 		var start = 0u;
 		var end = self.size;
 
@@ -37,7 +37,7 @@ impl StringView {
 		return self.slice(start, end);
 	}
 
-	func index(self, other: StringView) i32 {
+	pub func index(self, other: StringView) i32 {
 		if (other.size == 0u) return 0;
 		if (self.size < other.size) return -1;
 
@@ -52,7 +52,7 @@ impl StringView {
 		return -1;
 	}
 
-	func index_last(self, other: StringView) i32 {
+	pub func index_last(self, other: StringView) i32 {
 		if (other.size == 0u) return (self.size as i32);
 		if (self.size < other.size) return -1;
 
@@ -71,7 +71,7 @@ impl StringView {
 		return -1;
 	}
 
-	func slice(self, start: u32, end: u32) StringView {
+	pub func slice(self, start: u32, end: u32) StringView {
 		var view: StringView;
 		view.ptr = &self.ptr[start];
 		view.size = end - start;
@@ -79,7 +79,7 @@ impl StringView {
 		return view;
 	}
 
-	func equals(self, other: StringView) bool {
+	pub func equals(self, other: StringView) bool {
 		if (self.size != other.size) return false;
 
 		for (var i = 0u; i < other.size; i++) {

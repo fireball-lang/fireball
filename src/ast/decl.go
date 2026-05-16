@@ -40,10 +40,11 @@ type Struct struct {
 	baseNode
 
 	Attributes []*Attribute
+	Public     bool
 
 	Name_      *Leaf
 	TypeParams []*Leaf
-	Fields     []*NameType
+	Fields     []*Field
 }
 
 func (s *Struct) Children() iter.Seq[Node] {
@@ -74,6 +75,26 @@ func (s *Struct) Name() *Leaf {
 }
 
 func (s *Struct) _isDecl() {}
+
+// Field
+
+type Field struct {
+	baseNode
+
+	Public bool
+
+	Name *Leaf
+	Type Type
+}
+
+func (f *Field) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(f.Name) {
+			return
+		}
+		yield(f.Type)
+	}
+}
 
 // Impl
 
@@ -117,12 +138,13 @@ type Func struct {
 	baseNode
 
 	Attributes []*Attribute
+	Public     bool
 
 	Name_      *Leaf
 	TypeParams []*Leaf
 
 	Receiver *Receiver // optional
-	Params   []*NameType
+	Params   []*Param
 	VarArgs  bool
 
 	Returns Type
@@ -273,6 +295,24 @@ type Receiver struct {
 
 func (r *Receiver) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
+}
+
+// Param
+
+type Param struct {
+	baseNode
+
+	Name *Leaf
+	Type Type
+}
+
+func (p *Param) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(p.Name) {
+			return
+		}
+		yield(p.Type)
+	}
 }
 
 // Bad

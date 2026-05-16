@@ -2,13 +2,13 @@ mod example::math;
 
 import example::c::{printf};
 
-struct Point {
-	x: i32,
-	y: i32,
+pub struct Point {
+	pub x: i32,
+	pub y: i32,
 }
 
 impl Point {
-	func new(x: i32, y: i32) Point {
+	pub func new(x: i32, y: i32) Point {
 		var p: Point;
 
 		p.x = x;
@@ -17,7 +17,7 @@ impl Point {
 		return p;
 	}
 
-	func print(self) {
+	pub func print(self) {
 		printf("X: %d, Y: %d\n".ptr, self.x, self.y);
 	}
 }

@@ -319,6 +319,8 @@ func (l *Lexer) keywordIdentifier() Token {
 	case "null":
 		token.Kind = Null
 
+	case "pub":
+		token.Kind = Pub
 	case "mut":
 		token.Kind = Mut
 

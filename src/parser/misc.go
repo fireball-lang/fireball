@@ -2,40 +2,8 @@ package parser
 
 import (
 	"fireball/ast"
-	"fireball/core"
 	"fireball/lexer"
 )
-
-func (p *parser) parseNameType() (n *ast.NameType, recoverId int) {
-	n = &ast.NameType{}
-	n.Range_.Start = p.current.Range.Start
-	defer func() {
-		n.Range_.End = p.previous.Range.End
-
-		if core.IsNil(n.Type) {
-			n.Type = p.badType()
-		}
-	}()
-
-	recoverId = -1
-
-	// Name
-	if n.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
-		return
-	}
-
-	// ':'
-	if recoverId = p.expect(lexer.Colon, "expected ':' before type"); recoverId >= 0 {
-		return
-	}
-
-	// Type
-	if n.Type, recoverId = p.parseType(); recoverId >= 0 {
-		return
-	}
-
-	return
-}
 
 func (p *parser) parseIdentifierPath(stopAtLeftBrace bool) (i *ast.IdentifierPath, recoverId int) {
 	i = &ast.IdentifierPath{}

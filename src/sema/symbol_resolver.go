@@ -146,10 +146,11 @@ func (a *analyzer) resolveMethod(f *ast.Func, okStruct bool, typ, methodTyp type
 	t.Returns = a.AnalyzeType(f.Returns)
 
 	symbol := symbols.Symbol{
-		Kind: symbols.Func,
-		Name: f.Name().Token.Text,
-		Node: f,
-		Type: t,
+		Kind:   symbols.Func,
+		Public: f.Public,
+		Name:   f.Name().Token.Text,
+		Node:   f,
+		Type:   t,
 	}
 
 	var okAdd bool

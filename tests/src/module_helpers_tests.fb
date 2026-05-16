@@ -1,0 +1,8 @@
+mod tests::module_helpers;
+
+import tests::module_helpers::{privateGetVecOne};
+
+#[test("private access, same module")]
+func testPrivateSameModule() bool {
+	return privateGetVecOne().x == 1;
+}

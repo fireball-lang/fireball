@@ -29,6 +29,7 @@ const (
 
 	Null
 
+	Pub
 	Mut
 
 	Mod

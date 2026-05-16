@@ -162,7 +162,9 @@ func (s *Server) buildDefinitionResult(defNode ast.Node) interface{} {
 		if n.Name() != nil {
 			link.TargetSelectionRange = toLspRange(n.Name().Range())
 		}
-	case *ast.NameType:
+	case *ast.Field:
+		link.TargetSelectionRange = toLspRange(n.Name.Range())
+	case *ast.Param:
 		link.TargetSelectionRange = toLspRange(n.Name.Range())
 	case *ast.Var:
 		link.TargetSelectionRange = toLspRange(n.Name.Range())

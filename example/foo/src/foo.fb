@@ -1,5 +1,5 @@
 mod foo;
 
-func bar() StringView {
+pub func bar() StringView {
     return "Hello from a dependency!\n";
 }

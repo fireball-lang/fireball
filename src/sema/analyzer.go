@@ -7,6 +7,7 @@ import (
 	"fireball/symbols"
 	"fireball/types"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -28,8 +29,10 @@ type analyzer struct {
 	scopes symbols.ScopeStack
 	locals *symbols.BlockScope
 
-	topLevelModule string
-	path           string
+	topLevelModule  string
+	path            string
+	fileModPath     []string
+	checkVisibility bool
 
 	exprInfos      map[ast.Expr]ExprInfo
 	nodeTypes      map[ast.Node]types.Type
@@ -48,14 +51,21 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 
 	locals := &symbols.BlockScope{}
 
+	fileModPath := make([]string, 0, len(file.Mod.Path.Entries))
+	for _, entry := range file.Mod.Path.Entries {
+		fileModPath = append(fileModPath, entry.Token.Text)
+	}
+
 	a := analyzer{
-		locals:         locals,
-		topLevelModule: topLevelModule,
-		path:           path,
-		exprInfos:      make(map[ast.Expr]ExprInfo),
-		nodeTypes:      nodeTypes,
-		instantiations: instantiations,
-		typeEnv:        typeEnv,
+		locals:          locals,
+		topLevelModule:  topLevelModule,
+		path:            path,
+		fileModPath:     fileModPath,
+		checkVisibility: true,
+		exprInfos:       make(map[ast.Expr]ExprInfo),
+		nodeTypes:       nodeTypes,
+		instantiations:  instantiations,
+		typeEnv:         typeEnv,
 	}
 
 	a.scopes.Push(root)
@@ -132,11 +142,20 @@ func (a *analyzer) GetImportsScope(root symbols.Scope, file *ast.File) symbols.S
 		}
 
 		// Symbols import
+		importModPath := make([]string, len(i.Path.Entries))
+		for j, entry := range i.Path.Entries {
+			importModPath[j] = entry.Token.Text
+		}
+
 		for _, name := range i.Symbols {
 			symbol, ok := importScope.GetSymbol(name.Token.Text)
 			if !ok {
 				a.Error(name, "symbol '%s' cannot be found", name.Token.Text)
 				continue
+			}
+
+			if a.checkVisibility && !symbol.Public && !slices.Equal(importModPath, a.fileModPath) {
+				a.Error(name, "symbol '%s' is private", name.Token.Text)
 			}
 
 			scope.AddSymbol(symbol)
@@ -156,12 +175,14 @@ func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
 	}
 
 	var scope symbols.Scope = &a.scopes
+	crossedModuleBoundary := false
 
 	for i := 0; i < len(path.Entries)-1; i++ {
 		entry := path.Entries[i].Token.Text
 
 		// Try module scope navigation first.
 		if child, ok := scope.GetScope(entry); ok {
+			crossedModuleBoundary = true
 			scope = child
 			continue
 		}
@@ -171,6 +192,15 @@ func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
 			a.nodeTypes[path.Entries[i]] = symbol.Type
 
 			if typeScope := a.typeEnv.GetTypeScope(symbol.Type); typeScope != nil {
+				// Check if this type belongs to a different module.
+				if a.checkVisibility {
+					if s, ok := symbol.Type.(*types.Struct); ok {
+						if !slices.Equal(s.ModulePath, a.fileModPath) {
+							crossedModuleBoundary = true
+						}
+					}
+				}
+
 				scope = typeScope
 				continue
 			}
@@ -199,6 +229,10 @@ func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
 
 	symbol, ok := scope.GetSymbol(entry.Token.Text)
 	if ok {
+		if crossedModuleBoundary && a.checkVisibility && !symbol.Public {
+			a.Error(entry, "symbol '%s' is private", entry.Token.Text)
+		}
+
 		a.nodeTypes[entry] = symbol.Type
 	} else {
 		a.Error(entry, "symbol '%s' cannot be found", entry.Token.Text)

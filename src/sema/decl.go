@@ -269,10 +269,11 @@ func (a *analyzer) VisitFuncInner(f *ast.Func, typ *types.Func, receiverTyp type
 
 	if !core.IsNil(receiverTyp) {
 		symbol := symbols.Symbol{
-			Kind: symbols.Param,
-			Name: "self",
-			Node: f.Receiver,
-			Type: receiverTyp,
+			Kind:   symbols.Param,
+			Public: true,
+			Name:   "self",
+			Node:   f.Receiver,
+			Type:   receiverTyp,
 		}
 
 		if !a.locals.Add(symbol) {
@@ -292,10 +293,11 @@ func (a *analyzer) VisitFuncInner(f *ast.Func, typ *types.Func, receiverTyp type
 		}
 
 		symbol := symbols.Symbol{
-			Kind: symbols.Param,
-			Name: param.Name.Token.Text,
-			Node: param,
-			Type: typ,
+			Kind:   symbols.Param,
+			Public: true,
+			Name:   param.Name.Token.Text,
+			Node:   param,
+			Type:   typ,
 		}
 
 		if !a.locals.Add(symbol) {
