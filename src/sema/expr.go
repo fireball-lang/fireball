@@ -395,7 +395,14 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 	}
 
 	if t, ok := typ.(*types.Struct); ok {
-		if field, index := t.Field(m.Name.Token.Text); index != -1 {
+		wantsFunction := false
+
+		if call, ok := m.Parent().(*ast.Call); ok && call.Callee == m {
+			wantsFunction = true
+		}
+
+		// Field
+		if field, index := t.Field(m.Name.Token.Text); index != -1 && !wantsFunction {
 			if a.checkVisibility && !field.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
 				a.Error(m.Name, "field '%s' is private", m.Name.Token.Text)
 			}
@@ -424,6 +431,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 			}
 		}
 
+		// Instance method
 		if sym, ok := a.typeEnv.GetInstanceMethod(t, m.Name.Token.Text); ok {
 			if a.checkVisibility && !sym.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
 				a.Error(m.Name, "method '%s' is private", m.Name.Token.Text)
@@ -433,6 +441,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 			return ExprInfo{Type: sym.Type, Node: sym.Node}
 		}
 
+		// Static method
 		if t.Generic != nil {
 			if sym, ok := a.typeEnv.GetInstanceMethod(t.Generic, m.Name.Token.Text); ok {
 				if a.checkVisibility && !sym.Public && !slices.Equal(t.Generic.ModulePath, a.fileModPath) {

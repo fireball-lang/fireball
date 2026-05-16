@@ -21,6 +21,10 @@ impl Counter {
         return self.value;
     }
 
+    func value(self) i32 {
+    	return self.value + 1;
+    }
+
     func increment(mut self) {
         self.value = self.value + 1;
     }
@@ -55,6 +59,12 @@ func testStaticChain() bool {
 func testGet() bool {
     var c = Counter::new(7);
     return c.get() == 7;
+}
+
+#[test("instance getter same name as field")]
+func testValueMethod() bool {
+	var c = Counter::new(6);
+	return c.value() == 7;
 }
 
 #[test("instance mutator")]
