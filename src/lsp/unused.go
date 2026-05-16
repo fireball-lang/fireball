@@ -123,10 +123,6 @@ func (s *Server) Rename(ctx context.Context, params *protocol.RenameParams) (res
 	return nil, errors.New("not implemented")
 }
 
-func (s *Server) SignatureHelp(ctx context.Context, params *protocol.SignatureHelpParams) (result *protocol.SignatureHelp, err error) {
-	return nil, errors.New("not implemented")
-}
-
 func (s *Server) TypeDefinition(ctx context.Context, params *protocol.TypeDefinitionParams) (result []protocol.Location, err error) {
 	return nil, errors.New("not implemented")
 }

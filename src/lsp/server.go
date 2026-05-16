@@ -166,6 +166,10 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 			},
 			WorkspaceSymbolProvider: &protocol.WorkspaceSymbolOptions{},
 			DefinitionProvider:      &protocol.DefinitionOptions{},
+			SignatureHelpProvider: &protocol.SignatureHelpOptions{
+				TriggerCharacters:   []string{"("},
+				RetriggerCharacters: []string{","},
+			},
 		},
 		ServerInfo: &protocol.ServerInfo{
 			Name:    "fireball",
