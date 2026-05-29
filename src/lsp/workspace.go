@@ -91,7 +91,7 @@ func (w *Workspace) parseFiles(files []*project.File) {
 	}
 
 	instantiations := types.NewInstantiationCache()
-	typeEnv := sema.NewTypeEnvironment()
+	typeEnv := sema.NewTypeEnvironment(instantiations)
 
 	for _, proj := range w.projMap {
 		proj.Resolve(w.depMap, instantiations, typeEnv)

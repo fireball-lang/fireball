@@ -10,6 +10,7 @@ type Kind uint8
 const (
 	Invalid Kind = iota
 	Struct
+	Interface
 	Func
 	TypeParam
 	Param

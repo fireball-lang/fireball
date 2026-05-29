@@ -29,6 +29,7 @@ type File struct {
 	ExprInfos       map[ast.Expr]sema.ExprInfo
 	NodeTypes       map[ast.Node]types.Type
 	Instantiations  types.InstantiationCache
+	TypeEnv         *sema.TypeEnvironment
 	semaDiagnostics []core.Diagnostic
 }
 
@@ -56,6 +57,7 @@ func (f *File) parse() {
 
 func (f *File) resolve(root symbols.Scope, instantiations types.InstantiationCache, typeEnv *sema.TypeEnvironment) {
 	f.Instantiations = instantiations
+	f.TypeEnv = typeEnv
 	f.NodeTypes, f.resolveDiagnostics = sema.ResolveSymbols(f.Ast, f.Symbols, instantiations, typeEnv, root, f.Path)
 }
 

@@ -31,6 +31,11 @@ func (p *parser) parseDecl() (ast.Decl, int) {
 	switch p.current.Kind {
 	case lexer.Struct:
 		return p.parseStruct(attributes, public)
+	case lexer.Interface:
+		if len(attributes) != 0 {
+			p.reportError(ast.SliceRange(attributes), "interfaces cannot have attributes")
+		}
+		return p.parseInterface(public)
 	case lexer.Impl:
 		if len(attributes) != 0 {
 			p.reportError(ast.SliceRange(attributes), "implementation blocks cannot have attributes")
@@ -221,6 +226,65 @@ func (p *parser) parseField() (f *ast.Field, recoverId int) {
 	return
 }
 
+func (p *parser) parseInterface(public bool) (i *ast.Interface, recoverId int) {
+	i = &ast.Interface{}
+	i.Range_.Start = p.current.Range.Start
+	i.Public = public
+	defer func() {
+		i.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'interface'
+	if recoverId = p.expect(lexer.Interface, "expected 'interface'"); recoverId >= 0 {
+		return
+	}
+
+	// Name
+	if i.Name_, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// '[' Type Parameters ']'
+	if p.current.Kind == lexer.LeftBracket {
+		if i.TypeParams, recoverId = p.parseTypeParams(); recoverId >= 0 {
+			return
+		}
+	}
+
+	// '{'
+	if recoverId = p.expect(lexer.LeftBrace, "expected '{' before members"); recoverId >= 0 {
+		return
+	}
+
+	// Methods
+	for p.current.Kind != lexer.RightBrace && p.current.Kind != lexer.EOF {
+		myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Func)
+
+		var f *ast.Func
+		f, recoverId = p.parseFunc(nil, true, true)
+		i.Methods = append(i.Methods, f)
+
+		p.popRecoverPoint()
+
+		if recoverId >= 0 {
+			if recoverId == myRecoverId {
+				recoverId = -1
+			} else {
+				return
+			}
+		}
+	}
+
+	// '}'
+	if recoverId = p.expect(lexer.RightBrace, "expected '}' after members"); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
 func (p *parser) parseImpl() (i *ast.Impl, recoverId int) {
 	i = &ast.Impl{}
 	i.Range_.Start = p.current.Range.Start
@@ -247,15 +311,23 @@ func (p *parser) parseImpl() (i *ast.Impl, recoverId int) {
 		return
 	}
 
+	// (':' Interface)?
+	if p.current.Kind == lexer.Colon {
+		p.advance()
+
+		if i.Interface, recoverId = p.parseNonPrimitiveIdentifierType(); recoverId >= 0 {
+			return
+		}
+	}
+
 	// '{'
 	if recoverId = p.expect(lexer.LeftBrace, "expected '{' before members"); recoverId >= 0 {
 		return
 	}
 
 	// Methods
-
 	for p.current.Kind != lexer.RightBrace && p.current.Kind != lexer.EOF {
-		myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Func)
+		myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Pub, lexer.Func)
 
 		public := false
 
@@ -266,7 +338,7 @@ func (p *parser) parseImpl() (i *ast.Impl, recoverId int) {
 
 		var f *ast.Func
 		f, recoverId = p.parseFunc(nil, public, true)
-		i.Functions = append(i.Functions, f)
+		i.Methods = append(i.Methods, f)
 
 		p.popRecoverPoint()
 

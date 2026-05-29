@@ -38,7 +38,7 @@ func (c InstantiationCache) get(generic Type, substitutions []Substitution) Type
 	}
 
 	switch generic.(type) {
-	case *Struct, *Func:
+	case *Struct, *Interface, *Func:
 		typ := c.substitute(generic, substitutions)
 		c.types[generic] = append(entries, cacheEntry{substitutions: substitutions, typ: typ})
 		return typ
@@ -60,18 +60,38 @@ func (c InstantiationCache) resolve(typ Type, substitutions []Substitution) Type
 		return typ
 
 	case *Pointer:
+		pointee := c.resolve(typ.Pointee, substitutions)
+		if pointee == typ.Pointee {
+			return typ
+		}
+
 		return &Pointer{
 			Mutable: typ.Mutable,
-			Pointee: c.resolve(typ.Pointee, substitutions),
+			Pointee: pointee,
 		}
 
 	case *Array:
+		element := c.resolve(typ.Element, substitutions)
+		if element == typ.Element {
+			return typ
+		}
+
 		return &Array{
 			Size:    typ.Size,
-			Element: c.resolve(typ.Element, substitutions),
+			Element: element,
 		}
 
 	case *Struct:
+		if typ.Generic != nil {
+			return c.getRemapped(typ.Generic, typ.Substitutions, substitutions)
+		}
+		if len(typ.TypeParams) > 0 {
+			return c.get(typ, substitutions)
+		}
+
+		return typ
+
+	case *Interface:
 		if typ.Generic != nil {
 			return c.getRemapped(typ.Generic, typ.Substitutions, substitutions)
 		}
@@ -142,6 +162,33 @@ func (c InstantiationCache) substitute(generic Type, substitutions []Substitutio
 			Fields:        fields,
 			Generic:       generic,
 			Substitutions: substitutions,
+		}
+
+	case *Interface:
+		instanceMethods := make([]Method, len(generic.InstanceMethods))
+		staticMethods := make([]Method, len(generic.StaticMethods))
+
+		for i, m := range generic.InstanceMethods {
+			instanceMethods[i] = Method{
+				Name: m.Name,
+				Type: c.resolve(m.Type, substitutions).(*Func),
+			}
+		}
+
+		for i, m := range generic.StaticMethods {
+			staticMethods[i] = Method{
+				Name: m.Name,
+				Type: c.resolve(m.Type, substitutions).(*Func),
+			}
+		}
+
+		return &Interface{
+			Name:            generic.Name,
+			ModulePath:      generic.ModulePath,
+			InstanceMethods: instanceMethods,
+			StaticMethods:   staticMethods,
+			Generic:         generic,
+			Substitutions:   substitutions,
 		}
 
 	case *Func:

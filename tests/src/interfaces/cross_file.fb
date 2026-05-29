@@ -1,0 +1,71 @@
+mod tests::interfaces;
+
+import tests::interfaces::{Getter, Constant, Addition, Number, Immediate, Wrapper};
+
+#[test("cross-file non-generic vtable reference")]
+func testCrossFileGetter() bool {
+	var c: Constant;
+	c.value = 13;
+
+	var g: Getter = &c;
+	return g.get() == 13;
+}
+
+#[test("cross-file non-generic vtable, composite dispatch")]
+func testCrossFileAddition() bool {
+	var a: Constant;
+	a.value = 4;
+
+	var b: Constant;
+	b.value = 6;
+
+	var add: Addition;
+	add.left = &a;
+	add.right = &b;
+
+	var g: Getter = &add;
+	return g.get() == 10;
+}
+
+// The generic vtable for Immediate[i32] : Number[i32] is also instantiated in
+// interfaces.fb. Both files emit it as linkonce_odr so the linker deduplicates
+// them to a single definition.
+
+#[test("cross-file generic vtable, same instantiation as sibling file")]
+func testCrossFileGenericSharedInstantiation() bool {
+	var c: Immediate[i32];
+	c.value = 99;
+	c.live = true;
+
+	var n: Number[i32] = &c;
+	return n.get() == 99 && n.valid() == true;
+}
+
+// This instantiation (u32) is only used in this file, so its vtable is defined
+// here and referenced as extern by any other file that might use it.
+
+#[test("cross-file generic vtable, instantiation unique to this file")]
+func testCrossFileGenericUniqueInstantiation() bool {
+	var c: Immediate[u32];
+	c.value = 7u;
+	c.live = true;
+
+	var n: Number[u32] = &c;
+	return n.get() == 7u && n.valid() == true;
+}
+
+// Wrapper[i32] is also used in interfaces.fb, exercising dedup of a generic
+// vtable whose method implementations themselves dispatch through an interface.
+
+#[test("cross-file generic vtable dedup with nested dispatch")]
+func testCrossFileWrapperDedup() bool {
+	var inner: Immediate[i32];
+	inner.value = 42;
+	inner.live = true;
+
+	var w: Wrapper[i32];
+	w.inner = &inner;
+
+	var n: Number[i32] = &w;
+	return n.get() == 42 && n.valid() == true;
+}

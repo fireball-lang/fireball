@@ -21,17 +21,17 @@ func (c *codegen) AddSummaryRef(ref ir.SummaryRef) {
 	}
 }
 
-func (c *codegen) GetFunctionSummaryRef(f *ast.Func, typ *types.Func) ir.SummaryRef {
-	name := FuncLinkName(f, typ)
+func (c *codegen) GetFunctionSummaryRef(f *ast.Func, typ *types.Func, in *types.Interface) ir.SummaryRef {
+	name := FuncLinkName(f, typ, in)
 	return c.GetSummaryRef(name, false)
 }
 
-func (c *codegen) AddSummaryCallee(node ast.Node, f *ast.Func, typ *types.Func) {
+func (c *codegen) AddSummaryCallee(node ast.Node, f *ast.Func, typ *types.Func, in *types.Interface) {
 	if !c.moduleSummaryRef.Valid() {
 		return
 	}
 
-	ref := c.GetFunctionSummaryRef(f, typ)
+	ref := c.GetFunctionSummaryRef(f, typ, in)
 
 	if call, ok := node.Parent().(*ast.Call); ok && call.Callee == node {
 		c.AddSummaryCall(ref)

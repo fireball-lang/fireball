@@ -388,12 +388,44 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 	address := expr.Address
 	mutable := expr.Mutable
 
+	// Interface
+	if t, ok := typ.(*types.Interface); ok {
+		for _, method := range t.InstanceMethods {
+			if method.Name == m.Name.Token.Text {
+				in := a.typeEnv.GetInterfaceNode(t)
+				if in == nil {
+					return ExprInfo{Type: types.Invalid}
+				}
+
+				var f *ast.Func
+
+				for _, m := range in.Methods {
+					if m.Name().Token.Text == method.Name {
+						f = m
+						break
+					}
+				}
+
+				if f == nil {
+					panic("sema.analyzer.VisitMember() - Failed to find interface method node")
+				}
+
+				a.nodeTypes[f] = method.Type
+				return ExprInfo{Type: method.Type, Node: f}
+			}
+		}
+
+		return a.Error(m.Name, "method '%s' doesn't exist on interface '%s'", m.Name.Token.Text, t)
+	}
+
+	// Pointer
 	if p, ok := typ.(*types.Pointer); ok {
 		address = true
 		mutable = p.Mutable
 		typ = p.Pointee
 	}
 
+	// Struct
 	if t, ok := typ.(*types.Struct); ok {
 		wantsFunction := false
 
@@ -566,7 +598,7 @@ func (a *analyzer) VisitCast(c *ast.Cast) ExprInfo {
 		return ExprInfo{Type: types.Invalid}
 	}
 
-	if _, ok := GetExplicitCast(expr.Type, to); ok {
+	if _, ok := GetExplicitCast(a.typeEnv, expr.Type, to); ok {
 		return ExprInfo{Type: to}
 	}
 

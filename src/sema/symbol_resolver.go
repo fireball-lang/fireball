@@ -97,8 +97,22 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 		}
 	}
 
-	for _, f := range impl.Functions {
+	for _, f := range impl.Methods {
 		a.resolveMethod(f, ok, typ, methodTyp)
+	}
+
+	// Interface
+	if impl.Interface != nil {
+		inRaw := a.AnalyzeType(impl.Interface)
+		in, ok := inRaw.(*types.Interface)
+
+		if inRaw != types.Invalid && !ok {
+			a.Error(impl.Interface, "'%s' is not an interface", impl.Interface)
+		} else if ok {
+			if !a.typeEnv.AddConformance(methodTyp, in) {
+				a.Error(impl.Type, "type '%s' already implements interface '%s'", typ, in)
+			}
+		}
 	}
 }
 

@@ -31,6 +31,7 @@ type codegen struct {
 	callConv  abi.CallConv
 	exprInfos map[ast.Expr]sema.ExprInfo
 	nodeTypes map[ast.Node]types.Type
+	typeEnv   *sema.TypeEnvironment
 
 	scope       symbolScope
 	stringCount uint32
@@ -62,7 +63,7 @@ type codegen struct {
 	fileDataMap map[*ast.File]FileData
 }
 
-func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiations types.InstantiationCache, fileDataMap map[*ast.File]FileData, path string, summary bool) *ir.Module {
+func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiations types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]FileData, path string, summary bool) *ir.Module {
 	defer core.Scope()()
 
 	module := ir.NewModule()
@@ -76,6 +77,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		callConv:       callConv,
 		exprInfos:      fileDataMap[file].ExprInfos,
 		nodeTypes:      fileDataMap[file].NodeTypes,
+		typeEnv:        typeEnv,
 		instantiations: instantiations,
 		fileDataMap:    fileDataMap,
 
@@ -132,35 +134,55 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		c.functionSummaries = make(map[*ast.Func]ir.SummaryRef)
 	}
 
-	// Emit functions
+	// Function declarations
 
 	c.scope.Push()
 
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
 		case *ast.Impl:
-			for _, f := range decl.Functions {
+			var in *types.Interface
+			if decl.Interface != nil {
+				in, _ = c.nodeTypes[decl.Interface].(*types.Interface)
+			}
+
+			for _, f := range decl.Methods {
 				if !c.HasTypeParams(f) {
 					typ := c.nodeTypes[f].(*types.Func)
-					c.CreateFunction(f, typ, false)
+					c.CreateFunction(f, typ, false, in)
 				}
 			}
 
 		case *ast.Func:
 			if !c.HasTypeParams(decl) {
 				typ := c.nodeTypes[decl].(*types.Func)
-				c.scope.Add(decl.Name().Token.Text, c.CreateFunction(decl, typ, false))
+				c.scope.Add(decl.Name().Token.Text, c.CreateFunction(decl, typ, false, nil))
 			}
 		}
 	}
 
+	// V-Tables
+
+	for _, decl := range file.Decls {
+		if impl, ok := decl.(*ast.Impl); ok && impl.Interface != nil && len(impl.TypeParams) == 0 {
+			c.CreateVTable(impl)
+		}
+	}
+
+	// Function definitions
+
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
 		case *ast.Impl:
-			for _, f := range decl.Functions {
+			var in *types.Interface
+			if decl.Interface != nil {
+				in, _ = c.nodeTypes[decl.Interface].(*types.Interface)
+			}
+
+			for _, f := range decl.Methods {
 				if !c.HasTypeParams(f) {
 					typ := c.nodeTypes[f].(*types.Func)
-					fun := c.GetFunction(f, typ)
+					fun := c.GetFunction(f, typ, in)
 
 					c.VisitFunc(f, typ, fun)
 				}
@@ -215,6 +237,8 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 	return c.module
 }
 
+// Utils
+
 func (c *codegen) HasTypeParams(f *ast.Func) bool {
 	typ := c.nodeTypes[f].(*types.Func)
 
@@ -229,7 +253,7 @@ func (c *codegen) HasTypeParams(f *ast.Func) bool {
 	return false
 }
 
-func FuncLinkName(f *ast.Func, typ *types.Func) string {
+func FuncLinkName(f *ast.Func, typ *types.Func, in *types.Interface) string {
 	linkName := f.GetLinkName()
 
 	// Extern
@@ -252,16 +276,43 @@ func FuncLinkName(f *ast.Func, typ *types.Func) string {
 	sb := strings.Builder{}
 	sb.WriteString("fb$")
 
-	for _, entry := range file.Mod.Path.Entries {
+	for i, entry := range file.Mod.Path.Entries {
+		if i > 0 {
+			sb.WriteString("::")
+		}
+
 		sb.WriteString(entry.Token.Text)
-		sb.WriteString("::")
 	}
 
 	if i, ok := f.Parent().(*ast.Impl); ok {
 		t := i.Type.(*ast.IdentifierType)
 
-		sb.WriteString(t.Path.LastName())
 		sb.WriteString("::")
+		sb.WriteString(t.Path.LastName())
+		sb.WriteRune('$')
+
+		// Interface disambiguation
+		if in != nil {
+			sb.WriteString(in.Name)
+
+			if in.Generic != nil {
+				sb.WriteString("::[")
+
+				for j, sub := range in.Substitutions {
+					if j > 0 {
+						sb.WriteRune(',')
+					}
+
+					sb.WriteString(sub.Type.String())
+				}
+
+				sb.WriteRune(']')
+			}
+
+			sb.WriteRune('$')
+		}
+	} else {
+		sb.WriteRune('$')
 	}
 
 	sb.WriteString(f.Name().Token.Text)
@@ -284,11 +335,29 @@ func FuncLinkName(f *ast.Func, typ *types.Func) string {
 	return sb.String()
 }
 
-// Utils
+func (c *codegen) getFuncInterface(f *ast.Func) *types.Interface {
+	impl, ok := f.Parent().(*ast.Impl)
+	if !ok || impl.Interface == nil {
+		return nil
+	}
 
-func (c *codegen) GetFunction(f *ast.Func, typ *types.Func) *ir.Function {
+	fileData, ok := c.fileDataMap[ast.GetFile(impl)]
+	if !ok {
+		return nil
+	}
+
+	raw, ok := fileData.NodeTypes[impl.Interface]
+	if !ok {
+		return nil
+	}
+
+	in, _ := c.ResolveType(raw).(*types.Interface)
+	return in
+}
+
+func (c *codegen) GetFunction(f *ast.Func, typ *types.Func, iface *types.Interface) *ir.Function {
 	// Check already existing functions
-	name := FuncLinkName(f, typ)
+	name := FuncLinkName(f, typ, iface)
 
 	for fun := range c.module.Functions() {
 		if fun.Name == name {
@@ -298,7 +367,7 @@ func (c *codegen) GetFunction(f *ast.Func, typ *types.Func) *ir.Function {
 
 	// Instantiation
 	if typ.Generic != nil {
-		fun := c.CreateFunction(f, typ, false)
+		fun := c.CreateFunction(f, typ, false, iface)
 		fun.Flags = ir.DsoLocal | ir.LinkOnceODR
 
 		c.pendingInstantiations = append(c.pendingInstantiations, pendingInstantiation{
@@ -311,7 +380,7 @@ func (c *codegen) GetFunction(f *ast.Func, typ *types.Func) *ir.Function {
 	}
 
 	// Create extern function
-	return c.CreateFunction(f, typ, true)
+	return c.CreateFunction(f, typ, true, iface)
 }
 
 func (c *codegen) BitCast(value ir.Value, typ ir.Type) ir.Value {

@@ -383,8 +383,9 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 	switch node := c.exprInfos[i].Node.(type) {
 	case *ast.Func:
 		typ := c.exprInfos[i].Type.(*types.Func)
-		c.AddSummaryCallee(i, node, typ)
-		return c.GetFunction(node, typ)
+		in := c.getFuncInterface(node)
+		c.AddSummaryCallee(i, node, typ, in)
+		return c.GetFunction(node, typ, in)
 
 	case *ast.Param:
 		return c.scope.Get(node.Name.Token.Text)
@@ -458,9 +459,10 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 	if index == -1 {
 		f := c.exprInfos[m].Node.(*ast.Func)
 		typ := c.exprInfos[m].Type.(*types.Func)
+		in := c.getFuncInterface(f)
 
-		c.AddSummaryCallee(m, f, typ)
-		return c.GetFunction(f, typ)
+		c.AddSummaryCallee(m, f, typ, in)
+		return c.GetFunction(f, typ, in)
 	}
 
 	// Get struct value
@@ -484,43 +486,160 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 
 func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 	f := c.exprInfos[e.Callee].Node.(*ast.Func)
-	typ := c.exprInfos[e.Callee].Type.(*types.Func)
+	typ := c.ResolveType(c.exprInfos[e.Callee].Type).(*types.Func)
 
 	if instTyp, ok := c.nodeTypes[e].(*types.Func); ok {
 		typ = instTyp
 	}
 
-	callee := c.GetFunction(f, typ)
-	c.AddSummaryCallee(e.Callee, f, typ)
-	args := make([]ir.Value, 0, len(e.Args)+1)
+	var callee ir.Value
+	var sig *ir.Signature
+	var receiver ir.Value
 
-	// Arguments
+	if m, ok := e.Callee.(*ast.Member); ok && f.Receiver != nil {
+		if _, ok := c.ExprType(m.Expr).(*types.Interface); ok {
+			// Interface dispatch.
+			callee, receiver = c.PrepareInterfaceCall(m)
+
+			syntheticParams := make([]types.Type, 0, 1+len(typ.Params))
+			syntheticParams = append(syntheticParams, &types.Pointer{Mutable: true, Pointee: types.PrimitiveVoid})
+			syntheticParams = append(syntheticParams, typ.Params...)
+			typ = &types.Func{Params: syntheticParams, Returns: typ.Returns, VarArgs: typ.VarArgs}
+
+			sig = c.BuildSignature(typ, true)
+		} else {
+			// Direct method call
+			in := c.getFuncInterface(f)
+
+			callee = c.GetFunction(f, typ, in)
+			sig = callee.(*ir.Function).Signature
+
+			c.AddSummaryCallee(e.Callee, f, typ, in)
+
+			receiver = c.PrepareReceiver(m)
+		}
+	} else {
+		// Static call
+		in := c.getFuncInterface(f)
+
+		callee = c.GetFunction(f, typ, in)
+		sig = callee.(*ir.Function).Signature
+
+		c.AddSummaryCallee(e.Callee, f, typ, in)
+	}
+
+	return c.EmitCall(callee, sig, typ, receiver, e.Args, c.UnderlyingExprType(e))
+}
+
+func (c *codegen) PrepareReceiver(m *ast.Member) ir.Value {
+	var value ir.Value
+
+	if _, ok := c.UnderlyingExprType(m.Expr).(*types.Pointer); ok {
+		value = c.Load(m.Expr)
+	} else {
+		value = c.GenerateExpr(m.Expr)
+
+		if !c.exprInfos[m.Expr].Address {
+			typ := c.types.Get(c.UnderlyingExprType(m.Expr))
+			ptr := c.Alloca(typ, "call.self")
+			c.emitter.Store(value, ptr)
+			value = ptr
+		}
+	}
+
+	return value
+}
+
+func (c *codegen) PrepareInterfaceCall(m *ast.Member) (callee ir.Value, receiver ir.Value) {
+	interfaceValue := c.Load(m.Expr)
+	interfaceType := c.ExprType(m.Expr).(*types.Interface)
+
+	receiver = c.emitter.ExtractValue(interfaceValue, 0)
+	vtablePtr := c.emitter.ExtractValue(interfaceValue, 1)
+
+	methodName := m.Name.Token.Text
+	methodIndex := -1
+
+	for i, method := range interfaceType.InstanceMethods {
+		if method.Name == methodName {
+			methodIndex = i
+			break
+		}
+	}
+
+	if methodIndex == -1 {
+		panic("codegen.codegen.PrepareInterfaceCall() - interface method not found")
+	}
+
+	vtableArrayType := &ir.ArrayType{
+		Length:  uint32(len(interfaceType.InstanceMethods)),
+		Element: ir.Pointer,
+	}
+
+	funcPtrPtr := c.emitter.GetElementPtrConst(vtableArrayType, vtablePtr, 0, uint32(methodIndex))
+	callee = c.emitter.Load(ir.Pointer, funcPtrPtr)
+
+	return callee, receiver
+}
+
+func (c *codegen) BuildSignature(typ *types.Func, hasReceiver bool) *ir.Signature {
+	sig := &ir.Signature{
+		Params:  make([]ir.Type, 0),
+		VarArgs: typ.VarArgs,
+	}
 
 	params := typ.Params
 
-	if f.IsMethod() && f.Receiver != nil {
-		m := e.Callee.(*ast.Member)
+	// Receiver
+	if hasReceiver {
+		sig.Params = append(sig.Params, ir.Pointer)
 
-		var value ir.Value
-
-		if _, ok := c.UnderlyingExprType(m.Expr).(*types.Pointer); ok {
-			value = c.Load(m.Expr)
-		} else {
-			value = c.GenerateExpr(m.Expr)
-
-			if !c.exprInfos[m.Expr].Address {
-				typ := c.types.Get(c.UnderlyingExprType(m.Expr))
-				ptr := c.Alloca(typ, "call.self")
-				c.emitter.Store(value, ptr)
-				value = ptr
-			}
+		if len(params) > 0 {
+			params = params[1:]
 		}
+	}
 
-		args = append(args, value)
+	// Params
+	for _, param := range params {
+		classes, info := c.callConv.Classify(c.arch, param)
+
+		if len(classes) == 1 && classes[0] == abi.Memory {
+			sig.Params = append(sig.Params, ir.Pointer)
+		} else {
+			sig.Params = append(sig.Params, getTypeForClasses(classes, info.Size))
+		}
+	}
+
+	// Returns
+	classes, info := c.callConv.Classify(c.arch, typ.Returns)
+
+	if len(classes) == 1 && classes[0] == abi.Memory {
+		sig.Returns = ir.Void
+		sig.SRet = c.types.Get(typ.Returns)
+		sig.Params = slices.Insert(sig.Params, 0, ir.Type(ir.Pointer))
+	} else {
+		sig.Returns = getTypeForClasses(classes, info.Size)
+	}
+
+	return sig
+}
+
+func (c *codegen) EmitCall(callee ir.Value, sig *ir.Signature, funcType *types.Func, receiver ir.Value, args []ast.Expr, returnType types.Type) ir.Value {
+	irArgs := make([]ir.Value, 0, len(args)+1)
+
+	// Receiver
+	if receiver != nil {
+		irArgs = append(irArgs, receiver)
+	}
+
+	// Parameters
+	params := funcType.Params
+
+	if receiver != nil && len(params) > 0 {
 		params = params[1:]
 	}
 
-	for i, arg := range e.Args {
+	for i, arg := range args {
 		var valueType types.Type
 		var value ir.Value
 
@@ -534,46 +653,38 @@ func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 
 		classes, info := c.callConv.Classify(c.arch, valueType)
 
-		// Pointer
 		if len(classes) == 1 && classes[0] == abi.Memory {
 			ptr := c.Alloca(value.Type(), "call.param")
 			c.emitter.Store(value, ptr)
-
-			args = append(args, ptr)
+			irArgs = append(irArgs, ptr)
 			continue
 		}
 
-		// Value
 		typ := getTypeForClasses(classes, info.Size)
 		value = c.BitCast(value, typ)
-
-		args = append(args, value)
+		irArgs = append(irArgs, value)
 	}
 
-	// Return value
-	returnTyp := c.UnderlyingExprType(e)
-	returnClasses, _ := c.callConv.Classify(c.arch, returnTyp)
+	// Return value handling
+	returnClasses, _ := c.callConv.Classify(c.arch, returnType)
 
 	var returnPtr ir.Value
-
 	if len(returnClasses) == 1 && returnClasses[0] == abi.Memory {
-		returnPtr = c.Alloca(c.types.Get(returnTyp), "call.sret")
-		args = slices.Insert(args, 0, returnPtr)
+		returnPtr = c.Alloca(c.types.Get(returnType), "call.sret")
+		irArgs = slices.Insert(irArgs, 0, returnPtr)
 	}
 
 	// Call
-	value := c.emitter.Call(callee.Signature, callee, args)
+	value := c.emitter.Call(sig, callee, irArgs)
 
-	// Return value
+	// Return
 	if core.IsNil(returnPtr) {
-		typ := c.types.Get(returnTyp)
+		typ := c.types.Get(returnType)
 		return c.BitCast(value, typ)
 	}
 
-	{
-		typ := c.types.Get(returnTyp)
-		return c.emitter.Load(typ, returnPtr)
-	}
+	typ := c.types.Get(returnType)
+	return c.emitter.Load(typ, returnPtr)
 }
 
 func (c *codegen) VisitCast(e *ast.Cast) ir.Value {
@@ -582,7 +693,7 @@ func (c *codegen) VisitCast(e *ast.Cast) ir.Value {
 	from := c.ExprType(e.Expr)
 	to := c.ExprType(e)
 
-	kind, _ := sema.GetExplicitCast(from, to)
+	kind, _ := sema.GetExplicitCast(c.typeEnv, from, to)
 
 	return c.Cast(value, kind, from, to)
 }
@@ -599,7 +710,7 @@ func (c *codegen) LoadImplicitCast(expr ast.Expr, typ types.Type) ir.Value {
 }
 
 func (c *codegen) ImplicitCast(value ir.Value, from, to types.Type) ir.Value {
-	if kind, ok := sema.GetImplicitCast(from, to); ok {
+	if kind, ok := sema.GetImplicitCast(c.typeEnv, from, to); ok {
 		value = c.Cast(value, kind, from, to)
 	}
 
@@ -691,6 +802,21 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) 
 
 	case sema.PointerToInt:
 		value = c.emitter.PtrToInt(value, toTyp)
+
+	case sema.PointerToInterface:
+		typ := c.types.Get(to)
+		vtable := c.GetVTable(to.(*types.Interface), from.(*types.Pointer).Pointee)
+
+		value = c.emitter.InsertValue(&ir.Struct{
+			Typ: typ,
+			Fields: []ir.Value{
+				&ir.Null{},
+				vtable,
+			},
+		}, value, 0)
+
+	case sema.InterfaceToPointer:
+		value = c.emitter.ExtractValue(value, 0)
 
 	default:
 		panic("codegen.codegen.Cast() - Invalid cast kind")

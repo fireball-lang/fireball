@@ -1,0 +1,266 @@
+mod tests::interfaces;
+
+// ── Non-generic types ──────────────────────────────────────────────────────────
+
+interface Getter {
+	func get(self) i32
+}
+
+struct Constant {
+	value: i32,
+}
+
+impl Constant : Getter {
+	func get(self) i32 {
+		return self.value;
+	}
+}
+
+struct Addition {
+	left: Getter,
+	right: Getter,
+}
+
+impl Addition : Getter {
+	func get(self) i32 {
+		return self.left.get() + self.right.get();
+	}
+}
+
+// ── Generic interface types ────────────────────────────────────────────────────
+
+interface Number[T] {
+	func get(self) T
+	func valid(self) bool
+}
+
+struct Immediate[T] {
+	value: T,
+	live:  bool,
+}
+
+impl[T] Immediate[T] : Number[T] {
+	// Methods are declared in the opposite order to the interface.
+	func valid(self) bool {
+		return self.live;
+	}
+
+	func get(self) T {
+		return self.value;
+	}
+}
+
+struct Wrapper[T] {
+	inner: Number[T],
+}
+
+impl[T] Wrapper[T] : Number[T] {
+	func valid(self) bool {
+		return self.inner.valid();
+	}
+
+	func get(self) T {
+		return self.inner.get();
+	}
+}
+
+// ── Generic struct / non-generic interface ────────────────────────────────────
+
+interface Printable {
+	func display(self) i32
+}
+
+struct Pair[T] {
+	first:  T,
+	second: T,
+	tag:    i32,
+}
+
+impl[T] Pair[T] : Printable {
+	func display(self) i32 {
+		return self.tag;
+	}
+}
+
+func unwrap[T](n: Number[T]) T {
+	return n.get();
+}
+
+// ── Non-generic tests ──────────────────────────────────────────────────────────
+
+#[test("basic interface dispatch")]
+func testBasicDispatch() bool {
+	var c: Constant;
+	c.value = 42;
+
+	var g: Getter = &c;
+	return g.get() == 42;
+}
+
+#[test("multiple types implementing same interface")]
+func testPolymorphism() bool {
+	var c1: Constant;
+	c1.value = 10;
+
+	var c2: Constant;
+	c2.value = 5;
+
+	var c3: Constant;
+	c3.value = 3;
+
+	var add: Addition;
+	add.left = &c2;
+	add.right = &c3;
+
+	var g: Getter = &c1;
+	var result1 = g.get();
+
+	g = &add;
+	var result2 = g.get();
+
+	return result1 == 10 && result2 == 8;
+}
+
+#[test("interface calling methods on other interfaces")]
+func testNestedDispatch() bool {
+	var c1: Constant;
+	c1.value = 10;
+
+	var c2: Constant;
+	c2.value = 20;
+
+	var add: Addition;
+	add.left = &c1;
+	add.right = &c2;
+
+	var result: Getter = &add;
+	return result.get() == 30;
+}
+
+// ── Generic interface tests ────────────────────────────────────────────────────
+
+#[test("generic interface get i32")]
+func testGenericGetI32() bool {
+	var c: Immediate[i32];
+	c.value = 7;
+	c.live = true;
+
+	var n: Number[i32] = &c;
+	return n.get() == 7;
+}
+
+#[test("generic interface get i64")]
+func testGenericGetI64() bool {
+	var c: Immediate[i64];
+	c.value = 1000000000;
+	c.live = true;
+
+	var n: Number[i64] = &c;
+	return n.get() == 1000000000;
+}
+
+#[test("generic interface valid method")]
+func testGenericValid() bool {
+	var a: Immediate[i32];
+	a.value = 1;
+	a.live = true;
+
+	var b: Immediate[i32];
+	b.value = 2;
+	b.live = false;
+
+	var na: Number[i32] = &a;
+	var nb: Number[i32] = &b;
+
+	return na.valid() == true && nb.valid() == false;
+}
+
+#[test("wrapper forwards get and valid through interface field")]
+func testWrapperDispatch() bool {
+	var a: Immediate[i32];
+	a.value = 11;
+	a.live = true;
+
+	var w: Wrapper[i32];
+	w.inner = &a;
+
+	var n: Number[i32] = &w;
+	return n.get() == 11 && n.valid() == true;
+}
+
+#[test("generic function with generic interface parameter i32")]
+func testUnwrapI32() bool {
+	var c: Immediate[i32];
+	c.value = 55;
+	c.live = true;
+
+	var n: Number[i32] = &c;
+	return unwrap::[i32](n) == 55;
+}
+
+#[test("generic function with generic interface parameter i64")]
+func testUnwrapI64() bool {
+	var c: Immediate[i64];
+	c.value = 9999;
+	c.live = true;
+
+	var n: Number[i64] = &c;
+	return unwrap::[i64](n) == 9999;
+}
+
+// ── Generic struct / non-generic interface tests ──────────────────────────────
+
+#[test("generic struct implementing non-generic interface, i32 type arg")]
+func testGenericStructNonGenericInterfaceI32() bool {
+	var p: Pair[i32];
+	p.first = 1;
+	p.second = 2;
+	p.tag = 99;
+
+	var d: Printable = &p;
+	return d.display() == 99;
+}
+
+#[test("generic struct implementing non-generic interface, bool type arg")]
+func testGenericStructNonGenericInterfaceBool() bool {
+	var p: Pair[bool];
+	p.first = true;
+	p.second = false;
+	p.tag = 7;
+
+	var d: Printable = &p;
+	return d.display() == 7;
+}
+
+// ── Interface method with parameters ─────────────────────────────────────────
+
+interface Scaler {
+	func scale(self, factor: i32) i32
+}
+
+impl Constant : Scaler {
+	func scale(self, factor: i32) i32 {
+		return self.value * factor;
+	}
+}
+
+// ── Explicit interface downcast tests ─────────────────────────────────────────
+
+#[test("explicit downcast from interface to concrete pointer")]
+func testInterfaceDowncast() bool {
+	var c: Constant;
+	c.value = 77;
+
+	var g: Getter = &c;
+	var ptr: *mut Constant = g as *mut Constant;
+	return ptr.value == 77;
+}
+
+#[test("interface method with parameter dispatches correctly")]
+func testInterfaceMethodWithParam() bool {
+	var c: Constant;
+	c.value = 6;
+
+	var s: Scaler = &c;
+	return s.scale(7) == 42;
+}

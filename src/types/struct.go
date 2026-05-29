@@ -10,7 +10,7 @@ type Field struct {
 
 type Struct struct {
 	Name       string
-	ModulePath []string // module path parts, e.g. ["myproject", "utils"]
+	ModulePath []string
 	Packed     bool
 	TypeParams []*Param
 	Fields     []Field

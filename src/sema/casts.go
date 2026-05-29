@@ -1,6 +1,9 @@
 package sema
 
-import "fireball/types"
+import (
+	"fireball/types"
+	"slices"
+)
 
 type CastKind uint8
 
@@ -19,6 +22,9 @@ const (
 
 	IntToPointer
 	PointerToInt
+
+	PointerToInterface
+	InterfaceToPointer
 )
 
 func CommonType(a, b types.Type) types.Type {
@@ -63,8 +69,8 @@ func CommonType(a, b types.Type) types.Type {
 	return nil
 }
 
-func GetExplicitCast(from, to types.Type) (CastKind, bool) {
-	if kind, ok := GetImplicitCast(from, to); ok {
+func GetExplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool) {
+	if kind, ok := GetImplicitCast(env, from, to); ok {
 		return kind, true
 	}
 
@@ -126,12 +132,17 @@ func GetExplicitCast(from, to types.Type) (CastKind, bool) {
 		case *types.Pointer:
 			return Noop, true
 		}
+
+	case *types.Interface:
+		if to, ok := to.(*types.Pointer); ok && slices.Contains(env.GetConformances(to.Pointee), from) {
+			return InterfaceToPointer, true
+		}
 	}
 
 	return Noop, false
 }
 
-func GetImplicitCast(from, to types.Type) (CastKind, bool) {
+func GetImplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool) {
 	if from.Equals(to) {
 		return Noop, true
 	}
@@ -175,6 +186,10 @@ func GetImplicitCast(from, to types.Type) (CastKind, bool) {
 	case *types.Pointer:
 		if to, ok := to.(*types.Pointer); ok && (from.Mutable == to.Mutable || (from.Mutable && !to.Mutable)) {
 			return Noop, true
+		}
+
+		if to, ok := to.(*types.Interface); ok && slices.Contains(env.GetConformances(from.Pointee), to) {
+			return PointerToInterface, true
 		}
 	}
 

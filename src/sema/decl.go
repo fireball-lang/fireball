@@ -58,6 +58,25 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 	}
 }
 
+func (a *analyzer) VisitInterface(i *ast.Interface) {
+	// Type
+	symbol, _ := a.scopes.GetSymbol(i.Name().Token.Text)
+
+	typ := symbol.Type.(*types.Interface)
+	a.nodeTypes[i] = typ
+
+	// Methods
+	for _, method := range i.Methods {
+		if !core.IsNil(method.Body) {
+			a.Error(method.Name_, "interface methods cannot have default implementations")
+		}
+
+		if len(method.TypeParams) > 0 {
+			a.Error(method.Name_, "interface methods cannot have type parameters")
+		}
+	}
+}
+
 func (a *analyzer) VisitImpl(i *ast.Impl) {
 	if prev, ok := a.nodeTypes[i.Type]; ok {
 		if s, ok := prev.(*types.Struct); ok {
@@ -103,7 +122,7 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	}
 
 	// Methods
-	for _, f := range i.Functions {
+	for _, f := range i.Methods {
 		if core.IsNil(f.Body) {
 			a.Error(f.Name_, "methods need to have a body")
 		}
@@ -145,6 +164,109 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 			a.scopes.Pop()
 		}
 	}
+
+	// Interface
+	if i.Interface != nil {
+		inType, ok := a.nodeTypes[i.Interface]
+		if !ok || inType == types.Invalid {
+			return
+		}
+
+		in := inType.(*types.Interface)
+		inNode := a.typeEnv.GetInterfaceNode(in)
+
+		for _, method := range in.InstanceMethods {
+			sym, ok := a.typeEnv.GetInstanceMethod(lookupTyp, method.Name)
+			if !ok {
+				a.Error(i.Type, "type '%s' does not implement interface '%s': missing instance method '%s'", typ, in, method.Name)
+				continue
+			}
+
+			concrete := sym.Type.(*types.Func)
+
+			// Check receiver mutability against the interface AST node
+			if inNode != nil {
+				for _, f := range inNode.Methods {
+					if f.Receiver != nil && f.Name().Token.Text == method.Name {
+						if len(concrete.Params) > 0 {
+							if recv, ok2 := concrete.Params[0].(*types.Pointer); ok2 && recv.Mutable != f.Receiver.Mutable {
+								a.Error(i.Type, "method '%s' receiver mutability does not match interface '%s'", method.Name, in)
+							}
+						}
+
+						break
+					}
+				}
+			}
+
+			if !instanceSignatureMatches(method.Type, concrete) {
+				a.Error(i.Type, "method '%s' has wrong signature for interface '%s'", method.Name, in)
+			}
+		}
+
+		for _, method := range in.StaticMethods {
+			sym, ok := a.typeEnv.GetStaticMethod(lookupTyp, method.Name)
+			if !ok {
+				a.Error(i.Type, "type '%s' does not implement interface '%s': missing static method '%s'", typ, in, method.Name)
+				continue
+			}
+
+			concrete := sym.Type.(*types.Func)
+			if !method.Type.Equals(concrete) {
+				a.Error(i.Type, "static method '%s' has wrong signature for interface '%s'", method.Name, in)
+			}
+		}
+
+		for _, f := range i.Methods {
+			var methods []types.Method
+
+			if f.Receiver != nil {
+				methods = in.InstanceMethods
+			} else {
+				methods = in.StaticMethods
+			}
+
+			name := f.Name().Token.Text
+			found := false
+
+			for _, m := range methods {
+				if m.Name == name {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				a.Error(f.Name_, "method '%s' is not part of interface '%s'", name, in)
+			}
+		}
+
+		inGeneric := in.Generic
+		if inGeneric == nil {
+			inGeneric = in
+		}
+
+		a.typeEnv.RegisterImplNode(lookupTyp, inGeneric, i)
+	}
+}
+
+func instanceSignatureMatches(in *types.Func, concrete *types.Func) bool {
+	concreteParams := concrete.Params
+	if len(concreteParams) > 0 {
+		concreteParams = concreteParams[1:]
+	}
+
+	if len(concreteParams) != len(in.Params) || concrete.VarArgs != in.VarArgs {
+		return false
+	}
+
+	for i, p := range in.Params {
+		if !p.Equals(concreteParams[i]) {
+			return false
+		}
+	}
+
+	return in.Returns.Equals(concrete.Returns)
 }
 
 func (a *analyzer) VisitFunc(f *ast.Func) {

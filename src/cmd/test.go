@@ -158,7 +158,7 @@ func testEntrypoint(module *ir.Module, fun *ir.Function, testFuncs []*ast.Func) 
 	testSignature := &ir.Signature{Returns: ir.I8}
 
 	for i, test := range testFuncs {
-		fun := module.NewFunction(codegen.FuncLinkName(test, nil), testSignature, nil)
+		fun := module.NewFunction(codegen.FuncLinkName(test, nil, nil), testSignature, nil)
 		fun.Flags = ir.Declare
 
 		tests[i] = fun

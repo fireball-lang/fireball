@@ -98,6 +98,14 @@ func (s *Server) findTypeDeclaration(typ types.Type) ast.Node {
 
 		return s.findStructNode(template)
 
+	case *types.Interface:
+		template := t
+		if t.Generic != nil {
+			template = t.Generic
+		}
+
+		return s.findInterfaceNode(template)
+
 	case *types.Func:
 		return s.findFuncNode(t)
 	}
@@ -109,6 +117,18 @@ func (s *Server) findStructNode(st *types.Struct) *ast.Struct {
 	for sym := range s.allSymbols() {
 		if sym.Kind == symbols.Struct && sym.Type == st {
 			if n, ok := sym.Node.(*ast.Struct); ok {
+				return n
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) findInterfaceNode(in *types.Interface) *ast.Interface {
+	for sym := range s.allSymbols() {
+		if sym.Kind == symbols.Interface && sym.Type == in {
+			if n, ok := sym.Node.(*ast.Interface); ok {
 				return n
 			}
 		}

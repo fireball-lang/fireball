@@ -20,7 +20,7 @@ func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 
 	ref := c.module.AddMeta(&ir.SubprogramMeta{
 		Name:     f.Name().Token.Text,
-		LinkName: FuncLinkName(f, typ),
+		LinkName: fun.Name,
 		Type:     c.types.GetMeta(typ),
 		Scope:    c.emitter.PeekScope(),
 		Unit:     c.unitRef,
@@ -135,7 +135,7 @@ func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 
 // Utils
 
-func (c *codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool) *ir.Function {
+func (c *codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool, in *types.Interface) *ir.Function {
 	sig := &ir.Signature{
 		Params:  make([]ir.Type, 0, len(f.Params)+1),
 		VarArgs: f.VarArgs,
@@ -179,7 +179,7 @@ func (c *codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool) *ir
 	}
 
 	// Function
-	fun := c.module.NewFunction(FuncLinkName(f, typ), sig, paramNames)
+	fun := c.module.NewFunction(FuncLinkName(f, typ, in), sig, paramNames)
 
 	if f.IsExtern() || declare {
 		fun.Flags = ir.Declare

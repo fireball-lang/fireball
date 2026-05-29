@@ -39,35 +39,69 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 			}
 		}
 
-	case symbols.Func:
-		f := symbol.Node.(*ast.Func)
-		t := symbol.Type.(*types.Func)
+	case symbols.Interface:
+		in := symbol.Node.(*ast.Interface)
+		inType := symbol.Type.(*types.Interface)
 
-		if len(t.TypeParams) > 0 {
+		a.typeEnv.RegisterInterface(inType, in)
+
+		if len(in.TypeParams) > 0 {
 			a.scopes.Push(&symbols.ParamScope{
-				Params: t.TypeParams,
-				Nodes:  f.TypeParams,
+				Params: inType.TypeParams,
+				Nodes:  in.TypeParams,
 			})
 
 			defer a.scopes.Pop()
 		}
 
-		t.Params = make([]types.Type, len(f.Params))
-		t.VarArgs = f.VarArgs
-
-		for i := 0; i < len(f.Params); i++ {
-			typ := a.AnalyzeType(f.Params[i].Type)
-
-			if typ == types.PrimitiveVoid {
-				typ = types.Invalid
+		for _, f := range in.Methods {
+			m := types.Method{
+				Name: f.Name().Token.Text,
+				Type: &types.Func{},
 			}
 
-			t.Params[i] = typ
+			a.resolveFunc(f, m.Type)
+
+			if f.Receiver != nil {
+				inType.InstanceMethods = append(inType.InstanceMethods, m)
+			} else {
+				inType.StaticMethods = append(inType.StaticMethods, m)
+			}
 		}
 
-		t.Returns = a.AnalyzeType(f.Returns)
+	case symbols.Func:
+		f := symbol.Node.(*ast.Func)
+		t := symbol.Type.(*types.Func)
+
+		a.resolveFunc(f, t)
 
 	default:
 		panic("sema.analyzer.ResolveSymbol() - Invalid symbol kind")
 	}
+}
+
+func (a *analyzer) resolveFunc(f *ast.Func, t *types.Func) {
+	if len(t.TypeParams) > 0 {
+		a.scopes.Push(&symbols.ParamScope{
+			Params: t.TypeParams,
+			Nodes:  f.TypeParams,
+		})
+
+		defer a.scopes.Pop()
+	}
+
+	t.Params = make([]types.Type, len(f.Params))
+	t.VarArgs = f.VarArgs
+
+	for i := 0; i < len(f.Params); i++ {
+		typ := a.AnalyzeType(f.Params[i].Type)
+
+		if typ == types.PrimitiveVoid {
+			typ = types.Invalid
+		}
+
+		t.Params[i] = typ
+	}
+
+	t.Returns = a.AnalyzeType(f.Returns)
 }

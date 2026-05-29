@@ -95,6 +95,26 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 				}
 
 				decls[typ] = id
+
+			case *ast.Interface:
+				typ, ok := file.NodeTypes[decl]
+				if !ok {
+					continue
+				}
+
+				id := symbols.add(symbol{
+					file:           file,
+					kind:           protocol.SymbolKindInterface,
+					name:           getText(decl.Name_),
+					range_:         getRange(decl),
+					selectionRange: getRange(decl.Name_),
+				})
+
+				for _, method := range decl.Methods {
+					addFuncSymbol(symbols, file, method, id)
+				}
+
+				decls[typ] = id
 			}
 		}
 	}
@@ -124,40 +144,38 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 					decls[typ] = id
 				}
 
-				for _, method := range decl.Functions {
-					detail := ""
-
-					if symbols.supportsDetail() {
-						detail = method.String(true)
-					}
-
-					symbols.addChild(id, symbol{
-						file:           file,
-						kind:           protocol.SymbolKindMethod,
-						name:           getText(method.Name_),
-						detail:         detail,
-						range_:         getRange(method),
-						selectionRange: getRange(method.Name_),
-					})
+				for _, method := range decl.Methods {
+					addFuncSymbol(symbols, file, method, id)
 				}
 
 			case *ast.Func:
-				detail := ""
-
-				if symbols.supportsDetail() {
-					detail = decl.String(true)
-				}
-
-				symbols.add(symbol{
-					file:           file,
-					kind:           protocol.SymbolKindFunction,
-					name:           getText(decl.Name_),
-					detail:         detail,
-					range_:         getRange(decl),
-					selectionRange: getRange(decl.Name_),
-				})
+				addFuncSymbol(symbols, file, decl, -1)
 			}
 		}
+	}
+}
+
+func addFuncSymbol(symbols symbolConsumer, file *project.File, f *ast.Func, parent int) {
+	detail := ""
+
+	if symbols.supportsDetail() {
+		detail = f.String(true)
+	}
+
+	sym := symbol{
+		file:           file,
+		kind:           protocol.SymbolKindFunction,
+		name:           getText(f.Name_),
+		detail:         detail,
+		range_:         getRange(f),
+		selectionRange: getRange(f.Name_),
+	}
+
+	if parent != -1 {
+		sym.kind = protocol.SymbolKindMethod
+		symbols.addChild(parent, sym)
+	} else {
+		symbols.add(sym)
 	}
 }
 

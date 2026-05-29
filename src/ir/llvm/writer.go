@@ -161,6 +161,8 @@ func (w *writer) globalVar(gVar *ir.GlobalVar) error {
 		w.string("private ")
 	} else if gVar.Flags&ir.External != 0 {
 		w.string("external ")
+	} else if gVar.Flags&ir.LinkOnce != 0 {
+		w.string("linkonce_odr ")
 	}
 
 	if gVar.Flags&ir.UnnamedAddr != 0 {

@@ -67,7 +67,7 @@ func Build(main *project.Project, projMap map[string]*project.Project, target to
 		}
 
 		name := getBuildFileName(file)
-		module := codegen.Generate(file.Ast, target.Arch, target.CallConv, file.Instantiations, fileDataMap, file.Path, profile.Lto)
+		module := codegen.Generate(file.Ast, target.Arch, target.CallConv, file.Instantiations, file.TypeEnv, fileDataMap, file.Path, profile.Lto)
 
 		if module.IsEmpty() {
 			return nil

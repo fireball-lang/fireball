@@ -36,6 +36,7 @@ const (
 	Import
 
 	Struct
+	Interface
 	Impl
 	Func
 

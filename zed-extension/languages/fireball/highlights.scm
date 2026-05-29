@@ -7,6 +7,7 @@
 "import" @keyword
 
 "struct" @keyword
+"interface" @keyword
 "impl" @keyword
 "func" @keyword.function
 
@@ -44,6 +45,9 @@
 (struct name: (identifier) @type)
 (struct type_param: (identifier) @type.parameter)
 (struct field: (field name: (identifier) @property))
+
+(interface name: (identifier) @type)
+(interface type_param: (identifier) @type.parameter)
 
 (impl type_param: (identifier) @type.parameter)
 

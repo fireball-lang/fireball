@@ -93,6 +93,43 @@ func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) types.Type {
 		a.nodeTypes[i] = result
 		return result
 
+	case symbols.Interface:
+		in := symbol.Type.(*types.Interface)
+
+		// Non-generic
+		if len(i.TypeArgs) == 0 {
+			if len(in.TypeParams) > 0 {
+				a.Error(i, "'%s' is a generic type and requires type arguments", in.Name)
+				return types.Invalid
+			}
+
+			a.nodeTypes[i] = in
+			return in
+		}
+
+		// Check generic parameter count
+		if len(i.TypeArgs) != len(in.TypeParams) {
+			a.Error(i, "'%s' expects %d type argument(s), got %d", in.Name, len(in.TypeParams), len(i.TypeArgs))
+			return types.Invalid
+		}
+
+		// Instantiate
+		subs := make([]types.Substitution, len(in.TypeParams))
+
+		for j, param := range in.TypeParams {
+			argType := a.AnalyzeType(i.TypeArgs[j])
+			if argType == types.Invalid {
+				return types.Invalid
+			}
+
+			subs[j] = types.Substitution{Param: param, Type: argType}
+		}
+
+		result := a.instantiations.Get(in, subs).(*types.Interface)
+
+		a.nodeTypes[i] = result
+		return result
+
 	case symbols.TypeParam:
 		a.nodeTypes[i] = symbol.Type
 		return symbol.Type

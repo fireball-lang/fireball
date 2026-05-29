@@ -7,6 +7,7 @@ const (
 	External
 	UnnamedAddr
 	Constant
+	LinkOnce
 )
 
 type GlobalVar struct {

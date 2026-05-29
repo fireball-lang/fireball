@@ -96,6 +96,43 @@ func (f *Field) Children() iter.Seq[Node] {
 	}
 }
 
+// Interface
+
+type Interface struct {
+	baseNode
+
+	Public bool
+
+	Name_      *Leaf
+	TypeParams []*Leaf
+
+	Methods []*Func
+}
+
+func (i *Interface) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(i.Name_) {
+			return
+		}
+		for _, param := range i.TypeParams {
+			if !yield(param) {
+				return
+			}
+		}
+		for _, method := range i.Methods {
+			if !yield(method) {
+				return
+			}
+		}
+	}
+}
+
+func (i *Interface) Name() *Leaf {
+	return i.Name_
+}
+
+func (i *Interface) _isDecl() {}
+
 // Impl
 
 type Impl struct {
@@ -103,9 +140,10 @@ type Impl struct {
 
 	TypeParams []*Leaf
 
-	Type Type
+	Type      Type
+	Interface *IdentifierType // optional
 
-	Functions []*Func
+	Methods []*Func
 }
 
 func (i *Impl) Children() iter.Seq[Node] {
@@ -118,7 +156,10 @@ func (i *Impl) Children() iter.Seq[Node] {
 		if !yield(i.Type) {
 			return
 		}
-		for _, function := range i.Functions {
+		if i.Interface != nil && !yield(i.Interface) {
+			return
+		}
+		for _, function := range i.Methods {
 			if !yield(function) {
 				return
 			}

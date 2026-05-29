@@ -88,7 +88,7 @@ func parseProject(start time.Time) (*project.Project, map[string]*project.Projec
 
 	// Resolve
 	instantiations := types.NewInstantiationCache()
-	typeEnv := sema.NewTypeEnvironment()
+	typeEnv := sema.NewTypeEnvironment(instantiations)
 
 	for _, proj := range projMap {
 		proj.Resolve(depMap, instantiations, typeEnv)
@@ -158,7 +158,7 @@ outer:
 	return func(module *ir.Module, fun *ir.Function) {
 		typeCache := codegen.TypeCache{Module: module}
 
-		mainFun := module.NewFunction(codegen.FuncLinkName(mainFunc, mainFuncTyp), &ir.Signature{Returns: typeCache.Get(mainFuncTyp.Returns)}, nil)
+		mainFun := module.NewFunction(codegen.FuncLinkName(mainFunc, mainFuncTyp, nil), &ir.Signature{Returns: typeCache.Get(mainFuncTyp.Returns)}, nil)
 		mainFun.Flags = ir.Declare
 
 		emitter := ir.Emitter{Module: module}
