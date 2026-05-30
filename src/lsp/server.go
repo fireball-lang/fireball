@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"path"
 	"slices"
-	"time"
 
 	"github.com/fireball-lang/protocol"
 )
@@ -21,58 +20,10 @@ type Server struct {
 
 	workspaces []*Workspace
 
-	changed chan *project.File
-	stop    chan any
-
 	definitionLinkSupport bool
 }
 
 // Lifecycle
-
-func (s *Server) parseWorker() {
-	var workspaces []*Workspace
-	var files []*project.File
-
-	timer := time.NewTimer(time.Hour)
-	timer.Stop()
-
-	for {
-		select {
-		case file := <-s.changed:
-			// Queue file to be parsed
-			workspace := s.getWorkspace(file)
-
-			if !slices.Contains(workspaces, workspace) {
-				workspace.mutex.Lock()
-				workspaces = append(workspaces, workspace)
-			}
-
-			if !slices.Contains(files, file) {
-				files = append(files, file)
-			}
-
-			timer.Reset(time.Millisecond * 250)
-
-		case <-timer.C:
-			// Parse queued files and analyze the workspace they are in
-			for _, workspace := range workspaces {
-				workspace.parseFiles(files)
-				workspace.mutex.Unlock()
-			}
-
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-			s.publishDiagnostics(ctx)
-			cancel()
-
-			workspaces = workspaces[0:0]
-			files = files[0:0]
-
-		case <-s.stop:
-			// Stop
-			return
-		}
-	}
-}
 
 func (s *Server) Initialize(ctx context.Context, params *protocol.InitializeParams) (*protocol.InitializeResult, error) {
 	s.info(ctx, "Starting")
@@ -117,12 +68,7 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 
 	s.publishDiagnostics(ctx)
 
-	s.changed = make(chan *project.File, 8)
-	s.stop = make(chan any, 1)
-
 	s.definitionLinkSupport = params.Capabilities.TextDocument.Definition.LinkSupport
-
-	go s.parseWorker()
 
 	return &protocol.InitializeResult{
 		Capabilities: protocol.ServerCapabilities{
@@ -185,8 +131,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		s.nativeWatcher.Close()
 	}
 
-	s.stop <- nil
-
 	return nil
 }
 
@@ -248,7 +192,7 @@ func (s *Server) DidCreateFiles(ctx context.Context, params *protocol.CreateFile
 
 		file.Data = &Document{}
 
-		s.changed <- file
+		s.parseAndPublish(ctx, s.getWorkspace(file), []*project.File{file})
 	}
 
 	return nil
@@ -296,10 +240,8 @@ func (s *Server) DidDeleteFiles(ctx context.Context, params *protocol.DeleteFile
 			continue
 		}
 
-		// workaround to re-check the project
-		if len(proj.Files) > 0 {
-			s.changed <- proj.Files[0]
-		}
+		workspace := s.getWorkspaceForProject(proj)
+		s.parseAndPublish(ctx, workspace, nil)
 	}
 
 	return nil
@@ -330,16 +272,21 @@ func (s *Server) reloadWorkspacesIfProjectConfigChanged(ctx context.Context, it 
 
 // Text document sync
 
-func (s *Server) DidOpen(_ context.Context, params *protocol.DidOpenTextDocumentParams) error {
-	// Get file
+func (s *Server) DidOpen(ctx context.Context, params *protocol.DidOpenTextDocumentParams) error {
+	// Get file and its workspace
 	file, _ := s.getFile(uriPath(params.TextDocument.URI))
 	if file == nil {
 		return nil
 	}
 
+	workspace := s.getWorkspace(file)
+
+	// Acquire write lock
+	workspace.mutex.Lock()
+
 	// Set text contents
-	if s, ok := file.Source.(*Source); ok {
-		s.Apply(protocol.TextDocumentContentChangeEvent{Text: params.TextDocument.Text})
+	if src, ok := file.Source.(*Source); ok {
+		src.Apply(protocol.TextDocumentContentChangeEvent{Text: params.TextDocument.Text})
 	} else {
 		file.Source = &Source{
 			lines: bytes.SplitAfter([]byte(params.TextDocument.Text), []byte{'\n'}),
@@ -349,24 +296,34 @@ func (s *Server) DidOpen(_ context.Context, params *protocol.DidOpenTextDocument
 	// Set document version
 	file.Data.(*Document).Version = params.TextDocument.Version
 
+	// Parse and release write lock
+	workspace.parseFiles([]*project.File{file})
+	workspace.mutex.Unlock()
+
+	s.publishDiagnostics(ctx)
+
 	return nil
 }
 
-func (s *Server) DidChange(_ context.Context, params *protocol.DidChangeTextDocumentParams) error {
-	// Get file
+func (s *Server) DidChange(ctx context.Context, params *protocol.DidChangeTextDocumentParams) error {
+	// Get file and its workspace
 	file, _ := s.getFile(uriPath(params.TextDocument.URI))
 	if file == nil {
 		return nil
 	}
 
-	// Create file source
+	workspace := s.getWorkspace(file)
+
+	// Acquire write lock
+	workspace.mutex.Lock()
+
+	// Create file source if needed
 	if _, ok := file.Source.(*Source); !ok {
 		file.Source = NewSource(file.Source)
 	}
 
 	// Apply changes
 	source := file.Source.(*Source)
-
 	for _, change := range params.ContentChanges {
 		source.Apply(change)
 	}
@@ -374,12 +331,23 @@ func (s *Server) DidChange(_ context.Context, params *protocol.DidChangeTextDocu
 	// Set document version
 	file.Data.(*Document).Version = params.TextDocument.Version
 
-	// Mark file as changed
-	s.changed <- file
+	// Parse and release write lock
+	workspace.parseFiles([]*project.File{file})
+	workspace.mutex.Unlock()
+
+	s.publishDiagnostics(ctx)
 
 	return nil
 }
 
 func (s *Server) DidClose(_ context.Context, _ *protocol.DidCloseTextDocumentParams) error {
 	return nil
+}
+
+func (s *Server) parseAndPublish(ctx context.Context, workspace *Workspace, files []*project.File) {
+	workspace.mutex.Lock()
+	workspace.parseFiles(files)
+	workspace.mutex.Unlock()
+
+	s.publishDiagnostics(ctx)
 }

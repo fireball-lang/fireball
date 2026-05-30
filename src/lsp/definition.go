@@ -152,14 +152,30 @@ func (s *Server) findFuncNode(fn *types.Func) *ast.Func {
 func (s *Server) allSymbols() iter.Seq[symbols.Symbol] {
 	return func(yield func(symbols.Symbol) bool) {
 		for _, workspace := range s.workspaces {
+			workspace.mutex.RLock()
+
+			cont := true
 			for _, proj := range workspace.projMap {
 				for _, file := range proj.Files {
 					for _, sym := range file.Symbols {
 						if !yield(sym) {
-							return
+							cont = false
+							break
 						}
 					}
+					if !cont {
+						break
+					}
 				}
+				if !cont {
+					break
+				}
+			}
+
+			workspace.mutex.RUnlock()
+
+			if !cont {
+				return
 			}
 		}
 	}

@@ -60,6 +60,10 @@ func (w *Workspace) reload(s *Server, ctx context.Context) bool {
 		}
 	}
 
+	// Lock the workspace mutex
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
 	// Set maps
 	w.projMap = projMap
 	w.depMap = depMap
@@ -150,6 +154,18 @@ func (s *Server) getProject(file string) *project.Project {
 	}
 
 	return nil
+}
+
+func (s *Server) getWorkspaceForProject(proj *project.Project) *Workspace {
+	for _, workspace := range s.workspaces {
+		for _, p := range workspace.projMap {
+			if p == proj {
+				return workspace
+			}
+		}
+	}
+
+	panic("lsp.Handler.getWorkspaceForProject() - Project doesn't belong to any workspace")
 }
 
 func (s *Server) getWorkspace(file *project.File) *Workspace {

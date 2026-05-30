@@ -54,6 +54,9 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 			defer a.scopes.Pop()
 		}
 
+		inType.InstanceMethods = nil
+		inType.StaticMethods = nil
+
 		for _, f := range in.Methods {
 			m := types.Method{
 				Name: f.Name().Token.Text,
