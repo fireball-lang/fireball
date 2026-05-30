@@ -107,6 +107,22 @@ func (i *IdentifierType) String() string {
 
 func (i *IdentifierType) _isType() {}
 
+// Self
+
+type SelfType struct {
+	baseNode
+}
+
+func (s *SelfType) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {}
+}
+
+func (s *SelfType) String() string {
+	return "Self"
+}
+
+func (s *SelfType) _isType() {}
+
 // Bad
 
 type BadType struct {

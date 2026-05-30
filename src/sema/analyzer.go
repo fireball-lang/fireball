@@ -42,6 +42,8 @@ type analyzer struct {
 
 	stringViewType types.Type
 
+	selfType types.Type
+
 	funcType *types.Func
 	loop     int
 }

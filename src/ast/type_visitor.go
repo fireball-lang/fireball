@@ -5,6 +5,7 @@ type TypeVisitor[T any] interface {
 	VisitArrayType(a *ArrayType) T
 	VisitPointerType(p *PointerType) T
 	VisitIdentifierType(i *IdentifierType) T
+	VisitSelfType(s *SelfType) T
 
 	VisitBadType(b *BadType) T
 }
@@ -19,6 +20,8 @@ func VisitType[V TypeVisitor[T], T any](visitor V, typ Type) T {
 		return visitor.VisitPointerType(typ)
 	case *IdentifierType:
 		return visitor.VisitIdentifierType(typ)
+	case *SelfType:
+		return visitor.VisitSelfType(typ)
 
 	case *BadType:
 		return visitor.VisitBadType(typ)

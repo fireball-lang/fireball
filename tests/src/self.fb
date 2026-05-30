@@ -1,0 +1,167 @@
+mod tests::self_type;
+
+// ── Helper types ───────────────────────────────────────────────────────────────
+
+// Non-generic struct with Self in impl
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl Point {
+    // Static factory returning Self
+    func new(x: i32, y: i32) Self {
+        var p: Self;
+        p.x = x;
+        p.y = y;
+        return p;
+    }
+
+    // Instance method returning Self by value
+    func translate(self, dx: i32, dy: i32) Self {
+        return Point::new(self.x + dx, self.y + dy);
+    }
+
+    // Instance method taking Self as a parameter
+    func add(self, other: Self) Self {
+        return Point::new(self.x + other.x, self.y + other.y);
+    }
+
+    func get_x(self) i32 {
+        return self.x;
+    }
+
+    func get_y(self) i32 {
+        return self.y;
+    }
+}
+
+// Generic struct with Self in impl
+struct Wrapper[T] {
+    value: T,
+    tag:   i32,
+}
+
+impl[T] Wrapper[T] {
+    func with_tag(self, tag: i32) Self {
+        var w: Self;
+        w.value = self.value;
+        w.tag   = tag;
+        return w;
+    }
+
+    func get_tag(self) i32 {
+        return self.tag;
+    }
+}
+
+// ── Interface with Self ────────────────────────────────────────────────────────
+
+interface Resettable {
+    func reset(self) i32     // returns a plain type — safe to dispatch
+    func default_val() Self  // static factory returning Self
+    func clone(self) Self    // instance method returning Self
+}
+
+struct Counter {
+    value: i32,
+}
+
+impl Counter : Resettable {
+    func reset(self) i32 {
+        return 0;
+    }
+
+    func default_val() Self {
+        var c: Self;
+        c.value = 0;
+        return c;
+    }
+
+    func clone(self) Self {
+        var c: Self;
+        c.value = self.value;
+        return c;
+    }
+}
+
+// ── impl block: Self as return type of a static factory ────────────────────────
+
+#[test("Self: static factory")]
+func testSelfStaticFactory() bool {
+    var p = Point::new(3, 7);
+    return p.x == 3 && p.y == 7;
+}
+
+// ── impl block: Self as return type of an instance method ─────────────────────
+
+#[test("Self: instance method returning Self")]
+func testSelfInstanceReturn() bool {
+    var p = Point::new(1, 2);
+    var q = p.translate(10, 20);
+    return q.get_x() == 11 && q.get_y() == 22;
+}
+
+// ── impl block: Self as a parameter type ──────────────────────────────────────
+
+#[test("Self: Self as parameter type")]
+func testSelfParam() bool {
+    var a = Point::new(1, 2);
+    var b = Point::new(3, 4);
+    var c = a.add(b);
+    return c.get_x() == 4 && c.get_y() == 6;
+}
+
+// ── impl block: Self used as a local variable type inside method body ──────────
+
+#[test("Self: local variable of type Self")]
+func testSelfLocalVar() bool {
+    var c: Counter;
+    c.value = 42;
+    var d = c.clone();
+    return d.value == 42;
+}
+
+// ── impl block: chaining Self-returning methods ────────────────────────────────
+
+#[test("Self: chained Self-returning calls")]
+func testSelfChain() bool {
+    var p = Point::new(0, 0);
+    var q = p.translate(1, 0).translate(0, 1).translate(4, 5);
+    return q.get_x() == 5 && q.get_y() == 6;
+}
+
+// ── generic impl: Self as return type ─────────────────────────────────────────
+
+#[test("Self: generic impl returning Self")]
+func testSelfGeneric() bool {
+    var w: Wrapper[i32];
+    w.value = 42;
+    w.tag   = 1;
+    var v = w.with_tag(99);
+    return v.get_tag() == 99;
+}
+
+// ── interface: conformance and dispatch ───────────────────────────────────────
+
+#[test("Self in interface: dispatch non-Self method")]
+func testSelfInterfaceDispatch() bool {
+    var c: Counter;
+    c.value = 55;
+    var r: Resettable = &c;
+    return r.reset() == 0;
+}
+
+#[test("Self in interface: static factory on concrete type")]
+func testSelfInterfaceStaticFactory() bool {
+    var c = Counter::default_val();
+    return c.value == 0;
+}
+
+#[test("Self in interface: instance method on concrete type")]
+func testSelfInterfaceInstance() bool {
+    var c: Counter;
+    c.value = 77;
+    var d = c.clone();
+    return d.value == 77;
+}

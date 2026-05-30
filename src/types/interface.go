@@ -12,6 +12,8 @@ type Interface struct {
 	ModulePath []string
 	TypeParams []*Param
 
+	SelfParam *Param
+
 	InstanceMethods []Method
 	StaticMethods   []Method
 

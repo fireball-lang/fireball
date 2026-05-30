@@ -121,6 +121,11 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		lookupTyp = s.Generic
 	}
 
+	// Self
+	prevSelf := a.selfType
+	a.selfType = lookupTyp
+	defer func() { a.selfType = prevSelf }()
+
 	// Methods
 	for _, f := range i.Methods {
 		if core.IsNil(f.Body) {
@@ -175,6 +180,24 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		in := inType.(*types.Interface)
 		inNode := a.typeEnv.GetInterfaceNode(in)
 
+		inGeneric := in.Generic
+		if inGeneric == nil {
+			inGeneric = in
+		}
+
+		var selfSubs []types.Substitution
+		if inGeneric.SelfParam != nil {
+			selfSubs = []types.Substitution{{Param: inGeneric.SelfParam, Type: lookupTyp}}
+		}
+
+		substituteInMethod := func(t *types.Func) *types.Func {
+			if len(selfSubs) == 0 {
+				return t
+			}
+
+			return a.instantiations.Substitute(t, selfSubs).(*types.Func)
+		}
+
 		for _, method := range in.InstanceMethods {
 			sym, ok := a.typeEnv.GetInstanceMethod(lookupTyp, method.Name)
 			if !ok {
@@ -199,7 +222,7 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 				}
 			}
 
-			if !instanceSignatureMatches(method.Type, concrete) {
+			if !instanceSignatureMatches(substituteInMethod(method.Type), concrete) {
 				a.Error(i.Type, "method '%s' has wrong signature for interface '%s'", method.Name, in)
 			}
 		}
@@ -212,7 +235,7 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 			}
 
 			concrete := sym.Type.(*types.Func)
-			if !method.Type.Equals(concrete) {
+			if !substituteInMethod(method.Type).Equals(concrete) {
 				a.Error(i.Type, "static method '%s' has wrong signature for interface '%s'", method.Name, in)
 			}
 		}
@@ -239,11 +262,6 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 			if !found {
 				a.Error(f.Name_, "method '%s' is not part of interface '%s'", name, in)
 			}
-		}
-
-		inGeneric := in.Generic
-		if inGeneric == nil {
-			inGeneric = in
 		}
 
 		a.typeEnv.RegisterImplNode(lookupTyp, inGeneric, i)

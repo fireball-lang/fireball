@@ -143,6 +143,15 @@ func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) types.Type {
 	}
 }
 
+func (a *analyzer) VisitSelfType(s *ast.SelfType) types.Type {
+	if a.selfType == nil {
+		return a.Error(s, "'Self' can only be used inside an impl or interface block").Type
+	}
+
+	a.nodeTypes[s] = a.selfType
+	return a.selfType
+}
+
 func (a *analyzer) VisitBadType(_ *ast.BadType) types.Type {
 	return types.Invalid
 }

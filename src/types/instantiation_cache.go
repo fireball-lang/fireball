@@ -185,6 +185,7 @@ func (c InstantiationCache) substitute(generic Type, substitutions []Substitutio
 		return &Interface{
 			Name:            generic.Name,
 			ModulePath:      generic.ModulePath,
+			SelfParam:       generic.SelfParam,
 			InstanceMethods: instanceMethods,
 			StaticMethods:   staticMethods,
 			Generic:         generic,

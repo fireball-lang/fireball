@@ -45,6 +45,13 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 
 		a.typeEnv.RegisterInterface(inType, in)
 
+		selfParam := &types.Param{Name: "Self"}
+		inType.SelfParam = selfParam
+
+		prevSelf := a.selfType
+		a.selfType = selfParam
+		defer func() { a.selfType = prevSelf }()
+
 		if len(in.TypeParams) > 0 {
 			a.scopes.Push(&symbols.ParamScope{
 				Params: inType.TypeParams,

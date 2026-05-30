@@ -53,9 +53,18 @@ func (p *parser) parseIdentifierType() (ast.Type, int) {
 	case "f64":
 		return p.primitiveType(types.F64)
 
+	case "Self":
+		return p.selfType()
+
 	default:
 		return p.parseNonPrimitiveIdentifierType()
 	}
+}
+
+func (p *parser) selfType() (*ast.SelfType, int) {
+	t := &ast.SelfType{}
+	t.Range_ = p.advance().Range
+	return t, -1
 }
 
 func (p *parser) parseNonPrimitiveIdentifierType() (i *ast.IdentifierType, recoverId int) {

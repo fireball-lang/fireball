@@ -97,6 +97,10 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 		}
 	}
 
+	prevSelf := a.selfType
+	a.selfType = methodTyp
+	defer func() { a.selfType = prevSelf }()
+
 	for _, f := range impl.Methods {
 		a.resolveMethod(f, ok, typ, methodTyp)
 	}
