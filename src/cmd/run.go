@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fireball/core"
 	"fmt"
 	"os"
 	"os/exec"
@@ -36,23 +37,29 @@ func getRunCmd() *cobra.Command {
 			}
 
 			// Run
-			exeCmd := exec.Command(exePath)
-
-			exeCmd.Stdin = os.Stdin
-			exeCmd.Stdout = os.Stdout
-			exeCmd.Stderr = os.Stderr
-
-			err = exeCmd.Run()
-
-			if exeCmd.ProcessState.ExitCode() != 0 {
-				return nil
-			}
-
-			return err
+			return runProgram(exePath)
 		},
 	}
 
 	cmd.Flags().StringVarP(&profileName, "profile", "p", "debug", "profile to build the project with")
 
 	return cmd
+}
+
+func runProgram(path string) error {
+	defer core.Scope()()
+
+	exeCmd := exec.Command(path)
+
+	exeCmd.Stdin = os.Stdin
+	exeCmd.Stdout = os.Stdout
+	exeCmd.Stderr = os.Stderr
+
+	err := exeCmd.Run()
+
+	if exeCmd.ProcessState.ExitCode() != 0 {
+		return nil
+	}
+
+	return err
 }

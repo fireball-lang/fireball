@@ -17,14 +17,14 @@ import (
 )
 
 func getLspCmd() *cobra.Command {
-	core.EndProfiler()
-
 	var port uint16
 
 	cmd := &cobra.Command{
 		Use:   "lsp",
 		Short: "Starts a language server",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			core.EndProfiler()
+
 			stream, logger, err := getStream(port)
 			if err != nil {
 				return err
