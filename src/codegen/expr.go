@@ -501,11 +501,6 @@ func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 			// Interface dispatch.
 			callee, receiver = c.PrepareInterfaceCall(m)
 
-			syntheticParams := make([]types.Type, 0, 1+len(typ.Params))
-			syntheticParams = append(syntheticParams, &types.Pointer{Mutable: true, Pointee: types.PrimitiveVoid})
-			syntheticParams = append(syntheticParams, typ.Params...)
-			typ = &types.Func{Params: syntheticParams, Returns: typ.Returns, VarArgs: typ.VarArgs}
-
 			sig = c.BuildSignature(typ, true)
 		} else {
 			// Direct method call

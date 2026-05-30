@@ -552,7 +552,7 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 
 		params := f.Params
 
-		if funcNode.IsMethod() && funcNode.Receiver != nil {
+		if funcNode.Receiver != nil {
 			params = params[1:]
 
 			if funcNode.Receiver.Mutable {

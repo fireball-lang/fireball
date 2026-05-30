@@ -45,11 +45,8 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 
 		a.typeEnv.RegisterInterface(inType, in)
 
-		selfParam := &types.Param{Name: "Self"}
-		inType.SelfParam = selfParam
-
 		prevSelf := a.selfType
-		a.selfType = selfParam
+		a.selfType = inType.SelfParam
 		defer func() { a.selfType = prevSelf }()
 
 		if len(in.TypeParams) > 0 {
@@ -73,6 +70,9 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 			a.resolveFunc(f, m.Type)
 
 			if f.Receiver != nil {
+				selfPtr := &types.Pointer{Mutable: f.Receiver.Mutable, Pointee: inType.SelfParam}
+				m.Type.Params = append([]types.Type{selfPtr}, m.Type.Params...)
+
 				inType.InstanceMethods = append(inType.InstanceMethods, m)
 			} else {
 				inType.StaticMethods = append(inType.StaticMethods, m)

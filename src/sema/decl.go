@@ -178,7 +178,6 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		}
 
 		in := inType.(*types.Interface)
-		inNode := a.typeEnv.GetInterfaceNode(in)
 
 		inGeneric := in.Generic
 		if inGeneric == nil {
@@ -206,23 +205,19 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 			}
 
 			concrete := sym.Type.(*types.Func)
+			substituted := substituteInMethod(method.Type)
 
-			// Check receiver mutability against the interface AST node
-			if inNode != nil {
-				for _, f := range inNode.Methods {
-					if f.Receiver != nil && f.Name().Token.Text == method.Name {
-						if len(concrete.Params) > 0 {
-							if recv, ok2 := concrete.Params[0].(*types.Pointer); ok2 && recv.Mutable != f.Receiver.Mutable {
-								a.Error(i.Type, "method '%s' receiver mutability does not match interface '%s'", method.Name, in)
-							}
-						}
+			// Check receiver mutability using the substituted interface method type.
+			if len(substituted.Params) > 0 && len(concrete.Params) > 0 {
+				inRecv, inOk := substituted.Params[0].(*types.Pointer)
+				conRecv, conOk := concrete.Params[0].(*types.Pointer)
 
-						break
-					}
+				if inOk && conOk && inRecv.Mutable != conRecv.Mutable {
+					a.Error(i.Type, "method '%s' receiver mutability does not match interface '%s'", method.Name, in)
 				}
 			}
 
-			if !instanceSignatureMatches(substituteInMethod(method.Type), concrete) {
+			if !instanceSignatureMatches(substituted, concrete) {
 				a.Error(i.Type, "method '%s' has wrong signature for interface '%s'", method.Name, in)
 			}
 		}
@@ -269,16 +264,21 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 }
 
 func instanceSignatureMatches(in *types.Func, concrete *types.Func) bool {
+	inParams := in.Params
+	if len(inParams) > 0 {
+		inParams = inParams[1:]
+	}
+
 	concreteParams := concrete.Params
 	if len(concreteParams) > 0 {
 		concreteParams = concreteParams[1:]
 	}
 
-	if len(concreteParams) != len(in.Params) || concrete.VarArgs != in.VarArgs {
+	if len(inParams) != len(concreteParams) || in.VarArgs != concrete.VarArgs {
 		return false
 	}
 
-	for i, p := range in.Params {
+	for i, p := range inParams {
 		if !p.Equals(concreteParams[i]) {
 			return false
 		}

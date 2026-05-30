@@ -55,12 +55,14 @@ func Collect(file *ast.File) []Symbol {
 				typeParams = append(typeParams, &types.Param{Name: param.Token.Text})
 			}
 
+			selfParam := &types.Param{Name: "Self"}
+
 			symbols = append(symbols, Symbol{
 				Kind:   Interface,
 				Public: decl.Public,
 				Name:   decl.Name().Token.Text,
 				Node:   decl,
-				Type:   &types.Interface{Name: sb.String(), ModulePath: modulePath, TypeParams: typeParams}, // filled in type resolver
+				Type:   &types.Interface{Name: sb.String(), ModulePath: modulePath, TypeParams: typeParams, SelfParam: selfParam}, // filled in type resolver
 			})
 
 		case *ast.Func:
