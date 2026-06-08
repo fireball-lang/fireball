@@ -99,9 +99,9 @@ func (s *Server) findTypeDeclaration(typ types.Type) ast.Node {
 		return s.findStructNode(template)
 
 	case *types.Interface:
-		template := t
-		if t.Generic != nil {
-			template = t.Generic
+		template := t.AsImmutable()
+		if template.Generic != nil {
+			template = template.Generic
 		}
 
 		return s.findInterfaceNode(template)

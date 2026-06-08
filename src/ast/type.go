@@ -84,6 +84,7 @@ func (p *PointerType) _isType() {}
 type IdentifierType struct {
 	baseNode
 
+	Mutable  bool
 	Path     *IdentifierPath
 	TypeArgs []Type
 }
@@ -102,6 +103,10 @@ func (i *IdentifierType) Children() iter.Seq[Node] {
 }
 
 func (i *IdentifierType) String() string {
+	if i.Mutable {
+		return "mut " + i.Path.String()
+	}
+
 	return i.Path.String()
 }
 

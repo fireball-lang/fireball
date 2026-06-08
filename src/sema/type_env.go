@@ -45,16 +45,18 @@ func (e *TypeEnvironment) GetStructNode(t *types.Struct) *ast.Struct {
 }
 
 func (e *TypeEnvironment) RegisterInterface(t *types.Interface, in *ast.Interface) {
-	e.interfaceNodes[t] = in
+	e.interfaceNodes[t.AsImmutable()] = in
 }
 
 func (e *TypeEnvironment) GetInterfaceNode(t *types.Interface) *ast.Interface {
-	if n := e.interfaceNodes[t]; n != nil {
+	canonical := t.AsImmutable()
+
+	if n := e.interfaceNodes[canonical]; n != nil {
 		return n
 	}
 
-	if t.Generic != nil {
-		return e.interfaceNodes[t.Generic]
+	if canonical.Generic != nil {
+		return e.interfaceNodes[canonical.Generic]
 	}
 
 	return nil
@@ -69,6 +71,8 @@ func (e *TypeEnvironment) GetImplNode(structGeneric types.Type, ifaceGeneric *ty
 }
 
 func (e *TypeEnvironment) AddConformance(typ types.Type, in *types.Interface) bool {
+	in = in.AsImmutable()
+
 	for _, in2 := range e.conformances[typ] {
 		if in2 == in {
 			return false

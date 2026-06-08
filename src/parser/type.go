@@ -9,7 +9,7 @@ import (
 
 func (p *parser) parseType() (ast.Type, int) {
 	switch p.current.Kind {
-	case lexer.Identifier:
+	case lexer.Mut, lexer.Identifier:
 		return p.parseIdentifierType()
 	case lexer.LeftBracket:
 		return p.parseArrayType()
@@ -24,41 +24,71 @@ func (p *parser) parseType() (ast.Type, int) {
 }
 
 func (p *parser) parseIdentifierType() (ast.Type, int) {
+	mutable := false
+	var mutableRange core.Range
+
+	if p.current.Kind == lexer.Mut {
+		mutableRange = p.advance().Range
+		mutable = true
+	}
+
+	if p.current.Kind != lexer.Identifier {
+		return p.badType(), p.error("expected an identifier")
+	}
+
+	if p.current.Text == "Self" {
+		if mutable {
+			p.reportError(mutableRange, "'Self' type cannot be mutable")
+		}
+
+		return p.selfType()
+	}
+
+	var kind types.PrimitiveKind
+	ok := true
+
 	switch p.current.Text {
 	case "void":
-		return p.primitiveType(types.Void)
+		kind = types.Void
 	case "bool":
-		return p.primitiveType(types.Bool)
+		kind = types.Bool
 
 	case "u8":
-		return p.primitiveType(types.U8)
+		kind = types.U8
 	case "u16":
-		return p.primitiveType(types.U16)
+		kind = types.U16
 	case "u32":
-		return p.primitiveType(types.U32)
+		kind = types.U32
 	case "u64":
-		return p.primitiveType(types.U64)
+		kind = types.U64
 
 	case "i8":
-		return p.primitiveType(types.I8)
+		kind = types.I8
 	case "i16":
-		return p.primitiveType(types.I16)
+		kind = types.I16
 	case "i32":
-		return p.primitiveType(types.I32)
+		kind = types.I32
 	case "i64":
-		return p.primitiveType(types.I64)
+		kind = types.I64
 
 	case "f32":
-		return p.primitiveType(types.F32)
+		kind = types.F32
 	case "f64":
-		return p.primitiveType(types.F64)
-
-	case "Self":
-		return p.selfType()
+		kind = types.F64
 
 	default:
-		return p.parseNonPrimitiveIdentifierType()
+		ok = false
 	}
+
+	if ok {
+		if mutable {
+			p.reportError(mutableRange, "primitive type cannot be mutable")
+		}
+
+		return p.primitiveType(kind)
+	}
+
+	return p.parseNonPrimitiveIdentifierType(mutable)
 }
 
 func (p *parser) selfType() (*ast.SelfType, int) {
@@ -67,9 +97,10 @@ func (p *parser) selfType() (*ast.SelfType, int) {
 	return t, -1
 }
 
-func (p *parser) parseNonPrimitiveIdentifierType() (i *ast.IdentifierType, recoverId int) {
+func (p *parser) parseNonPrimitiveIdentifierType(mutable bool) (i *ast.IdentifierType, recoverId int) {
 	i = &ast.IdentifierType{}
 	i.Range_.Start = p.current.Range.Start
+	i.Mutable = mutable
 	defer func() {
 		i.Range_.End = p.previous.Range.End
 	}()

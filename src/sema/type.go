@@ -59,6 +59,10 @@ func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) types.Type {
 	case symbols.Struct:
 		s := symbol.Type.(*types.Struct)
 
+		if i.Mutable {
+			a.Error(i, "struct type '%s' cannot be mutable", s.Name)
+		}
+
 		// Non-generic
 		if len(i.TypeArgs) == 0 {
 			if len(s.TypeParams) > 0 {
@@ -103,8 +107,13 @@ func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) types.Type {
 				return types.Invalid
 			}
 
-			a.nodeTypes[i] = in
-			return in
+			result := in
+			if i.Mutable {
+				result = in.AsMutable()
+			}
+
+			a.nodeTypes[i] = result
+			return result
 		}
 
 		// Check generic parameter count
@@ -126,11 +135,18 @@ func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) types.Type {
 		}
 
 		result := a.instantiations.Get(in, subs).(*types.Interface)
+		if i.Mutable {
+			result = result.AsMutable()
+		}
 
 		a.nodeTypes[i] = result
 		return result
 
 	case symbols.TypeParam:
+		if i.Mutable {
+			a.Error(i, "type parameter '%s' cannot be mutable", symbol.Name)
+		}
+
 		a.nodeTypes[i] = symbol.Type
 		return symbol.Type
 

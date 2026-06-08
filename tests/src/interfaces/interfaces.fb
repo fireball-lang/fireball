@@ -244,7 +244,85 @@ impl Constant : Scaler {
 	}
 }
 
-// ── Explicit interface downcast tests ─────────────────────────────────────────
+// ── Mutable interface tests ───────────────────────────────────────────────────
+
+interface Mutator {
+	func set(mut self, v: i32) void
+	func add(mut self, delta: i32) void
+	func get(self) i32
+}
+
+struct Accumulator {
+	total: i32,
+}
+
+impl Accumulator : Mutator {
+	func set(mut self, v: i32) {
+		self.total = v;
+	}
+
+	func add(mut self, delta: i32) {
+		self.total = self.total + delta;
+	}
+
+	func get(self) i32 {
+		return self.total;
+	}
+}
+
+#[test("mut self method via mutable interface mutates underlying struct")]
+func testMutableInterfaceSet() bool {
+	var a: Accumulator;
+	a.total = 0;
+
+	var m: mut Mutator = &a;
+	m.set(42);
+
+	return a.total == 42;
+}
+
+#[test("multiple mut self calls through mutable interface accumulate")]
+func testMutableInterfaceAdd() bool {
+	var a: Accumulator;
+	a.total = 10;
+
+	var m: mut Mutator = &a;
+	m.add(5);
+	m.add(3);
+
+	return a.total == 18;
+}
+
+#[test("immutable method still readable through mutable interface")]
+func testMutableInterfaceGet() bool {
+	var a: Accumulator;
+	a.total = 7;
+
+	var m: mut Mutator = &a;
+	return m.get() == 7;
+}
+
+#[test("mutable interface implicitly downgrades to immutable interface")]
+func testMutableInterfaceDowngrade() bool {
+	var a: Accumulator;
+	a.total = 99;
+
+	var m: mut Mutator = &a;
+	var r: Mutator = m;
+	return r.get() == 99;
+}
+
+#[test("explicit downcast from mutable interface to mutable pointer")]
+func testMutableInterfaceDowncast() bool {
+	var a: Accumulator;
+	a.total = 5;
+
+	var m: mut Mutator = &a;
+	var ptr: *mut Accumulator = m as *mut Accumulator;
+	ptr.total = 10;
+
+	return a.total == 10;
+}
 
 #[test("explicit downcast from interface to concrete pointer")]
 func testInterfaceDowncast() bool {
@@ -252,7 +330,7 @@ func testInterfaceDowncast() bool {
 	c.value = 77;
 
 	var g: Getter = &c;
-	var ptr: *mut Constant = g as *mut Constant;
+	var ptr: *Constant = g as *Constant;
 	return ptr.value == 77;
 }
 

@@ -560,6 +560,9 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 					if p, ok := a.exprInfos[member.Expr].Type.(*types.Pointer); ok && !p.Mutable {
 						a.Error(member.Expr, "cannot call mutable method '%s' on an immutable pointer", funcNode.Name().Token.Text)
 					}
+					if in, ok := a.exprInfos[member.Expr].Type.(*types.Interface); ok && !in.Mutable {
+						a.Error(member.Expr, "cannot call mutable method '%s' on an immutable interface", funcNode.Name().Token.Text)
+					}
 				}
 			}
 		}

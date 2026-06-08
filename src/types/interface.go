@@ -19,6 +19,9 @@ type Interface struct {
 
 	Generic       *Interface
 	Substitutions []Substitution
+
+	Mutable                   bool
+	oppositeMutabilityVariant *Interface
 }
 
 var interfaceUnderlying = &Struct{
@@ -47,15 +50,44 @@ func (i *Interface) Underlying() Type {
 	return interfaceUnderlying
 }
 
+func (i *Interface) AsMutable() *Interface {
+	if i.Mutable {
+		return i
+	}
+
+	if i.oppositeMutabilityVariant == nil {
+		mut := *i
+		mut.Mutable = true
+		mut.oppositeMutabilityVariant = i
+		i.oppositeMutabilityVariant = &mut
+	}
+
+	return i.oppositeMutabilityVariant
+}
+
+func (i *Interface) AsImmutable() *Interface {
+	if !i.Mutable {
+		return i
+	}
+
+	return i.oppositeMutabilityVariant
+}
+
 func (i *Interface) Equals(other Type) bool {
 	return i == other
 }
 
 func (i *Interface) String() string {
+	prefix := ""
+	if i.Mutable {
+		prefix = "mut "
+	}
+
 	// Instantiation
 	if i.Generic != nil {
 		var sb strings.Builder
 
+		sb.WriteString(prefix)
 		sb.WriteString(i.Generic.Name)
 		sb.WriteRune('[')
 
@@ -76,6 +108,7 @@ func (i *Interface) String() string {
 	if len(i.TypeParams) > 0 {
 		var sb strings.Builder
 
+		sb.WriteString(prefix)
 		sb.WriteString(i.Name)
 		sb.WriteRune('[')
 
@@ -93,5 +126,5 @@ func (i *Interface) String() string {
 	}
 
 	// Non-generic
-	return i.Name
+	return prefix + i.Name
 }

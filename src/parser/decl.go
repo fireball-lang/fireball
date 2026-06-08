@@ -315,7 +315,7 @@ func (p *parser) parseImpl() (i *ast.Impl, recoverId int) {
 	if p.current.Kind == lexer.Colon {
 		p.advance()
 
-		if i.Interface, recoverId = p.parseNonPrimitiveIdentifierType(); recoverId >= 0 {
+		if i.Interface, recoverId = p.parseNonPrimitiveIdentifierType(false); recoverId >= 0 {
 			return
 		}
 	}

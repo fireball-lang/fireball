@@ -92,14 +92,20 @@ func (c InstantiationCache) resolve(typ Type, substitutions []Substitution) Type
 		return typ
 
 	case *Interface:
-		if typ.Generic != nil {
-			return c.getRemapped(typ.Generic, typ.Substitutions, substitutions)
-		}
-		if len(typ.TypeParams) > 0 {
-			return c.get(typ, substitutions)
+		canonical := typ.AsImmutable()
+		result := canonical
+
+		if canonical.Generic != nil {
+			result = c.getRemapped(canonical.Generic, canonical.Substitutions, substitutions).(*Interface)
+		} else if len(canonical.TypeParams) > 0 {
+			result = c.get(canonical, substitutions).(*Interface)
 		}
 
-		return typ
+		if typ.Mutable {
+			return result.AsMutable()
+		}
+
+		return result
 
 	case *Func:
 		if typ.Generic != nil {

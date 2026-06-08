@@ -134,7 +134,11 @@ func GetExplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 		}
 
 	case *types.Interface:
-		if to, ok := to.(*types.Pointer); ok && slices.Contains(env.GetConformances(to.Pointee), from) {
+		if to, ok := to.(*types.Pointer); ok && slices.Contains(env.GetConformances(to.Pointee), from.AsImmutable()) {
+			if to.Mutable && !from.Mutable {
+				break
+			}
+
 			return InterfaceToPointer, true
 		}
 	}
@@ -188,8 +192,17 @@ func GetImplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 			return Noop, true
 		}
 
-		if to, ok := to.(*types.Interface); ok && slices.Contains(env.GetConformances(from.Pointee), to) {
+		if to, ok := to.(*types.Interface); ok && slices.Contains(env.GetConformances(from.Pointee), to.AsImmutable()) {
+			if to.Mutable && !from.Mutable {
+				break
+			}
+
 			return PointerToInterface, true
+		}
+
+	case *types.Interface:
+		if to, ok := to.(*types.Interface); ok && !to.Mutable && from.Mutable && from.AsImmutable() == to {
+			return Noop, true
 		}
 	}
 

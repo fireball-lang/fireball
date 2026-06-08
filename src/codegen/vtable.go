@@ -9,6 +9,8 @@ import (
 )
 
 func (c *codegen) GetVTable(in *types.Interface, typ types.Type) ir.Value {
+	// Vtables are keyed on the canonical (non-mutable) interface.
+	in = in.AsImmutable()
 	name := VTableLinkName(in, typ)
 
 	// Summary ref
