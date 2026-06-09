@@ -9,7 +9,12 @@ import (
 
 func (p *parser) parseType() (ast.Type, int) {
 	switch p.current.Kind {
-	case lexer.Mut, lexer.Identifier:
+	case lexer.Mut:
+		if p.next.Kind == lexer.Star {
+			return p.parsePointerType()
+		}
+		return p.parseIdentifierType()
+	case lexer.Identifier:
 		return p.parseIdentifierType()
 	case lexer.LeftBracket:
 		return p.parseArrayType()
@@ -195,15 +200,15 @@ func (p *parser) parsePointerType() (t *ast.PointerType, recoverId int) {
 
 	recoverId = -1
 
-	// '*'
-	if recoverId = p.expect(lexer.Star, "expected '*' before pointee type"); recoverId >= 0 {
-		return
-	}
-
 	// 'mut'
 	if p.current.Kind == lexer.Mut {
 		p.advance()
 		t.Mutable = true
+	}
+
+	// '*'
+	if recoverId = p.expect(lexer.Star, "expected '*' before pointee type"); recoverId >= 0 {
+		return
 	}
 
 	// Pointee

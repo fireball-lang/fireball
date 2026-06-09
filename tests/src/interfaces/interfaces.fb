@@ -318,7 +318,7 @@ func testMutableInterfaceDowncast() bool {
 	a.total = 5;
 
 	var m: mut Mutator = &a;
-	var ptr: *mut Accumulator = m as *mut Accumulator;
+	var ptr: mut *Accumulator = m as mut *Accumulator;
 	ptr.total = 10;
 
 	return a.total == 10;

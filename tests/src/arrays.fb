@@ -14,7 +14,7 @@ func asPtr(p: *i32) *i32 {
 }
 
 // Fills three elements through a pointer parameter
-func fillArr(p: *mut i32, a: i32, b: i32, c: i32) {
+func fillArr(p: mut *i32, a: i32, b: i32, c: i32) {
     p[0] = a;
     p[1] = b;
     p[2] = c;

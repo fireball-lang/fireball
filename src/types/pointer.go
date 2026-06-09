@@ -15,7 +15,7 @@ func (p *Pointer) Equals(other Type) bool {
 
 func (p *Pointer) String() string {
 	if p.Mutable {
-		return "*mut " + p.Pointee.String()
+		return "mut *" + p.Pointee.String()
 	}
 
 	return "*" + p.Pointee.String()

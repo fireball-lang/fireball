@@ -71,7 +71,7 @@ func (p *PointerType) Children() iter.Seq[Node] {
 
 func (p *PointerType) String() string {
 	if p.Mutable {
-		return "*mut " + p.Pointee.String()
+		return "mut *" + p.Pointee.String()
 	}
 
 	return "*" + p.Pointee.String()
