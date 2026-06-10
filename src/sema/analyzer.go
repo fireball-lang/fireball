@@ -243,6 +243,19 @@ func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
 	for i := 0; i < len(path.Entries)-1; i++ {
 		entry := path.Entries[i].Token.Text
 
+		// Handle Self:: inside impl / interface blocks.
+		if entry == "Self" && a.selfType != nil {
+			a.nodeTypes[path.Entries[i]] = a.selfType
+
+			if typeScope := a.typeEnv.GetTypeScope(a.selfType); typeScope != nil {
+				scope = typeScope
+				continue
+			}
+
+			a.Error(path, "method '%s' cannot be found on type 'Self'", path.Entries[i+1].Token.Text)
+			return symbols.Symbol{}, false
+		}
+
 		// Try module scope navigation first.
 		if child, ok := scope.GetScope(entry); ok {
 			crossedModuleBoundary = true

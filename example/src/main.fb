@@ -1,15 +1,47 @@
 mod example;
 
-import foo::{bar};
-
 import example::c::{printf};
-import example::math::{Point};
 
-func main() i32 {
-	printf(bar().ptr);
+interface Number {
+    func add(self, other: Self) Self
+}
 
-	var p = Point::new(5, 5 * 3);
-	p.print();
+interface Default {
+    func default() Self
+}
 
-	return p.y;
+struct I32 {
+    value: i32,
+}
+
+impl I32 {
+    func new(value: i32) Self {
+        var i: Self;
+        i.value = value;
+
+        return i;
+    }
+}
+
+impl I32 : Number {
+    func add(self, other: Self) Self {
+        return I32::new(self.value + other.value);
+    }
+}
+
+impl I32 : Default {
+    func default() Self {
+        return Self::new(1);
+    }
+}
+
+func addDefault[T: Number + Default](number: T) T {
+    return number.add(T::default());
+}
+
+func main() {
+    var two = I32::new(2);
+    var three = addDefault::[I32](two);
+
+    printf("%d\n".ptr, three.value);
 }

@@ -2,6 +2,11 @@ mod tests::constraints;
 
 // ── Helper interfaces ──────────────────────────────────────────────────────────
 
+// Static method returning Self (for Self:: inside impl body tests)
+interface Constructible {
+    func fromValue(value: i32) Self
+}
+
 // Immutable single-method interface
 interface Doubler {
     func doubled(self) i32
@@ -30,6 +35,20 @@ interface Negate {
 
 struct Counter {
     value: i32,
+}
+
+impl Counter {
+    func new(value: i32) Self {
+        var c: Self;
+        c.value = value;
+        return c;
+    }
+}
+
+impl Counter : Constructible {
+    func fromValue(value: i32) Self {
+        return Self::new(value);
+    }
 }
 
 impl Counter : Doubler {
@@ -91,9 +110,14 @@ func addThenNegate[T: Adder + Negate](v: T, delta: i32) i32 {
     return v.negate() + v.add(delta);
 }
 
-// Dependent constraint with params in reverse order (T before V)
+// Dependent constraint with reversed declaration order [T: mut Setter[V], V]
 func applySetReversed[T: mut Setter[V], V](target: T, value: V) {
     target.set(value);
+}
+
+// Self:: inside impl body: delegate to a static constructor
+func construct[T: Constructible](v: i32) T {
+    return T::fromValue(v);
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
@@ -138,5 +162,12 @@ func testDependentConstraintReversed() bool {
     h.value = 0;
     applySetReversed::[mut *Holder[i32], i32](&h, 99);
     return h.value == 99;
+}
+
+// Self:: inside impl body: impl method calls Self::new(), exercising Self:: static dispatch
+#[test("Self:: static method call inside impl body")]
+func testSelfStaticInImplBody() bool {
+    var c = construct::[Counter](7);
+    return c.value == 7;
 }
 
