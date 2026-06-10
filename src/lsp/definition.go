@@ -90,6 +90,9 @@ func (s *Server) resolveDefinition(file *project.File, node ast.Node) ast.Node {
 
 func (s *Server) findTypeDeclaration(typ types.Type) ast.Node {
 	switch t := typ.(type) {
+	case *types.Param:
+		return s.findParamNode(t)
+
 	case *types.Struct:
 		template := t
 		if t.Generic != nil {
@@ -149,6 +152,38 @@ func (s *Server) findFuncNode(fn *types.Func) *ast.Func {
 	return nil
 }
 
+func (s *Server) findParamNode(p *types.Param) *ast.TypeParam {
+	for _, workspace := range s.workspaces {
+		workspace.mutex.RLock()
+
+		var result *ast.TypeParam
+
+	outer:
+		for _, proj := range workspace.projMap {
+			for _, file := range proj.Files {
+				for node, typ := range file.NodeTypes {
+					if typ != p {
+						continue
+					}
+
+					if tp, ok := node.(*ast.TypeParam); ok {
+						result = tp
+						break outer
+					}
+				}
+			}
+		}
+
+		workspace.mutex.RUnlock()
+
+		if result != nil {
+			return result
+		}
+	}
+
+	return nil
+}
+
 func (s *Server) allSymbols() iter.Seq[symbols.Symbol] {
 	return func(yield func(symbols.Symbol) bool) {
 		for _, workspace := range s.workspaces {
@@ -199,6 +234,8 @@ func (s *Server) buildDefinitionResult(defNode ast.Node) interface{} {
 			link.TargetSelectionRange = toLspRange(n.Name().Range())
 		}
 	case *ast.Field:
+		link.TargetSelectionRange = toLspRange(n.Name.Range())
+	case *ast.TypeParam:
 		link.TargetSelectionRange = toLspRange(n.Name.Range())
 	case *ast.Param:
 		link.TargetSelectionRange = toLspRange(n.Name.Range())

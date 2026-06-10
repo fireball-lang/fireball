@@ -8,7 +8,7 @@ import (
 type ParamScope struct {
 	Names  []string
 	Params []*types.Param
-	Nodes  []*ast.Leaf
+	Nodes  []*ast.TypeParam
 }
 
 func (p *ParamScope) GetScope(_ string) (Scope, bool) {
@@ -28,7 +28,7 @@ func (p *ParamScope) GetSymbol(name string) (Symbol, bool) {
 			return Symbol{
 				Kind: TypeParam,
 				Name: name,
-				Node: p.Nodes[i],
+				Node: p.Nodes[i].Name,
 				Type: p.Params[i],
 			}, true
 		}

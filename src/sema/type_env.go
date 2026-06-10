@@ -21,6 +21,8 @@ type TypeEnvironment struct {
 
 	conformances map[types.Type][]*types.Interface
 
+	paramScopes map[*types.Param]symbols.Scope
+
 	instantiations types.InstantiationCache
 }
 
@@ -32,6 +34,7 @@ func NewTypeEnvironment(instantiations types.InstantiationCache) *TypeEnvironmen
 		interfaceNodes: make(map[*types.Interface]*ast.Interface),
 		implNodes:      make(map[implKey]*ast.Impl),
 		conformances:   make(map[types.Type][]*types.Interface),
+		paramScopes:    make(map[*types.Param]symbols.Scope),
 		instantiations: instantiations,
 	}
 }
@@ -150,6 +153,69 @@ func (e *TypeEnvironment) GetInstanceMethod(typ types.Type, name string) (symbol
 }
 
 func (e *TypeEnvironment) GetTypeScope(typ types.Type) symbols.Scope {
+	// Constrained type parameter: scope is merged static methods from all constraints.
+	if tp, ok := typ.(*types.Param); ok {
+		if len(tp.Constraints) == 0 {
+			return nil
+		}
+
+		if cached, ok := e.paramScopes[tp]; ok {
+			return cached
+		}
+
+		var staticSymbols []symbols.Symbol
+
+		for _, constraint := range tp.Constraints {
+			canonical := constraint.AsImmutable()
+			inNode := e.interfaceNodes[canonical]
+
+			if inNode == nil && canonical.Generic != nil {
+				inNode = e.interfaceNodes[canonical.Generic]
+			}
+			if inNode == nil || len(canonical.StaticMethods) == 0 {
+				continue
+			}
+
+			for _, method := range canonical.StaticMethods {
+				var f *ast.Func
+
+				for _, mf := range inNode.Methods {
+					if mf.Name().Token.Text == method.Name {
+						f = mf
+						break
+					}
+				}
+
+				if f == nil {
+					continue
+				}
+
+				methodType := method.Type
+				if canonical.SelfParam != nil {
+					subs := []types.Substitution{{Param: canonical.SelfParam, Type: tp}}
+					methodType = e.instantiations.Substitute(methodType, subs).(*types.Func)
+				}
+
+				staticSymbols = append(staticSymbols, symbols.Symbol{
+					Kind:   symbols.Func,
+					Public: true,
+					Name:   method.Name,
+					Node:   f,
+					Type:   methodType,
+				})
+			}
+		}
+
+		var scope symbols.Scope
+		if len(staticSymbols) > 0 {
+			scope = symbols.SymbolScope(staticSymbols)
+		}
+
+		e.paramScopes[tp] = scope
+		return scope
+	}
+
+	// Struct: scope is the registered static methods.
 	methods := e.static[typ]
 	if len(methods) == 0 {
 		return nil

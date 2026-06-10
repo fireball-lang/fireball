@@ -43,7 +43,7 @@ type Struct struct {
 	Public     bool
 
 	Name_      *Leaf
-	TypeParams []*Leaf
+	TypeParams []*TypeParam
 	Fields     []*Field
 }
 
@@ -104,7 +104,7 @@ type Interface struct {
 	Public bool
 
 	Name_      *Leaf
-	TypeParams []*Leaf
+	TypeParams []*TypeParam
 
 	Methods []*Func
 }
@@ -138,7 +138,7 @@ func (i *Interface) _isDecl() {}
 type Impl struct {
 	baseNode
 
-	TypeParams []*Leaf
+	TypeParams []*TypeParam
 
 	Type      Type
 	Interface *IdentifierType // optional
@@ -182,7 +182,7 @@ type Func struct {
 	Public     bool
 
 	Name_      *Leaf
-	TypeParams []*Leaf
+	TypeParams []*TypeParam
 
 	Receiver *Receiver // optional
 	Params   []*Param
@@ -353,6 +353,28 @@ func (p *Param) Children() iter.Seq[Node] {
 			return
 		}
 		yield(p.Type)
+	}
+}
+
+// TypeParam
+
+type TypeParam struct {
+	baseNode
+
+	Name        *Leaf
+	Constraints []Type // optional
+}
+
+func (t *TypeParam) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(t.Name) {
+			return
+		}
+		for _, c := range t.Constraints {
+			if !yield(c) {
+				return
+			}
+		}
 	}
 }
 

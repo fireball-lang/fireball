@@ -112,6 +112,67 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 
 // Utils
 
+func (a *analyzer) CheckConstraint(typ types.Type, constraint *types.Interface, node ast.Node) bool {
+	if typ == types.Invalid {
+		return false
+	}
+
+	// Type param
+	if p, ok := typ.(*types.Param); ok {
+		if len(p.Constraints) == 0 {
+			a.Error(node, "type parameter '%s' has no constraint, expected '%s'", p.Name, constraint)
+			return false
+		}
+
+		// Satisfied if any of the param's constraints matches
+		for _, c := range p.Constraints {
+			if c.AsImmutable() == constraint.AsImmutable() {
+				return true
+			}
+		}
+
+		a.Error(node, "type parameter '%s' does not satisfy '%s'", p.Name, constraint)
+		return false
+	}
+
+	// Pointer
+	checkTyp := typ
+
+	if ptr, ok := typ.(*types.Pointer); ok {
+		if constraint.Mutable && !ptr.Mutable {
+			a.Error(node, "type '%s' does not satisfy constraint '%s': pointer must be mutable ('mut %s')", typ, constraint, typ)
+			return false
+		}
+
+		checkTyp = ptr.Pointee
+	}
+
+	// Resolve canonical generic template of the constraint
+	constraintCanon := constraint.AsImmutable()
+	constraintTemplate := constraintCanon
+	if constraintCanon.Generic != nil {
+		constraintTemplate = constraintCanon.Generic
+	}
+
+	// Check interface conformances
+	for _, conf := range a.typeEnv.GetConformances(checkTyp) {
+		conf = conf.AsImmutable()
+		confTemplate := conf
+		if conf.Generic != nil {
+			confTemplate = conf.Generic
+		}
+
+		if constraintTemplate == confTemplate {
+			if constraint.Generic == nil || conf == constraintCanon {
+				return true
+			}
+		}
+	}
+
+	a.Error(node, "type '%s' does not satisfy constraint '%s'", typ, constraint)
+	return false
+}
+
 func (a *analyzer) GetImportsScope(root symbols.Scope, file *ast.File) symbols.Scope {
 	scope := symbols.NewBasicScope()
 
@@ -189,7 +250,7 @@ func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
 			continue
 		}
 
-		// Try type scope (for Struct::staticMethod).
+		// Try type scope (for Struct::staticMethod or constrained type param).
 		if symbol, ok := scope.GetSymbol(entry); ok {
 			a.nodeTypes[path.Entries[i]] = symbol.Type
 

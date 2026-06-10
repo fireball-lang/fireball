@@ -26,7 +26,7 @@ func Collect(file *ast.File) []Symbol {
 			typeParams := make([]*types.Param, 0, len(decl.TypeParams))
 
 			for _, param := range decl.TypeParams {
-				typeParams = append(typeParams, &types.Param{Name: param.Token.Text})
+				typeParams = append(typeParams, &types.Param{Name: param.Name.Token.Text})
 			}
 
 			symbols = append(symbols, Symbol{
@@ -52,7 +52,7 @@ func Collect(file *ast.File) []Symbol {
 			typeParams := make([]*types.Param, 0, len(decl.TypeParams))
 
 			for _, param := range decl.TypeParams {
-				typeParams = append(typeParams, &types.Param{Name: param.Token.Text})
+				typeParams = append(typeParams, &types.Param{Name: param.Name.Token.Text})
 			}
 
 			selfParam := &types.Param{Name: "Self"}
@@ -69,7 +69,7 @@ func Collect(file *ast.File) []Symbol {
 			typeParams := make([]*types.Param, 0, len(decl.TypeParams))
 
 			for _, param := range decl.TypeParams {
-				typeParams = append(typeParams, &types.Param{Name: param.Token.Text})
+				typeParams = append(typeParams, &types.Param{Name: param.Name.Token.Text})
 			}
 
 			symbols = append(symbols, Symbol{

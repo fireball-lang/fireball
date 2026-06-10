@@ -88,8 +88,8 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 			if len(template.TypeParams) > 0 && len(i.TypeParams) == len(template.TypeParams) {
 				implNames := make([]string, len(i.TypeParams))
 
-				for j, leaf := range i.TypeParams {
-					implNames[j] = leaf.Token.Text
+				for j, param := range i.TypeParams {
+					implNames[j] = param.Name.Token.Text
 				}
 
 				a.scopes.Push(&symbols.ParamScope{
@@ -132,19 +132,6 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 			a.Error(f.Name_, "methods need to have a body")
 		}
 
-		if len(f.TypeParams) > 0 {
-			funcTypeParams := make([]*types.Param, 0, len(f.TypeParams))
-
-			for _, param := range f.TypeParams {
-				funcTypeParams = append(funcTypeParams, &types.Param{Name: param.Token.Text})
-			}
-
-			a.scopes.Push(&symbols.ParamScope{
-				Params: funcTypeParams,
-				Nodes:  f.TypeParams,
-			})
-		}
-
 		var fTyp *types.Func
 		var receiverTyp types.Type
 
@@ -156,16 +143,25 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		} else {
 			if sym, ok := a.typeEnv.GetInstanceMethod(lookupTyp, f.Name().Token.Text); ok {
 				fTyp = sym.Type.(*types.Func)
-				if fTyp != nil {
-					receiverTyp = fTyp.Params[0]
-				}
+				receiverTyp = fTyp.Params[0]
 			}
+		}
+
+		if fTyp == nil {
+			panic("sema.analyzer.VisitImpl() - Method typ not found")
+		}
+
+		if len(fTyp.TypeParams) > 0 {
+			a.scopes.Push(&symbols.ParamScope{
+				Params: fTyp.TypeParams,
+				Nodes:  f.TypeParams,
+			})
 		}
 
 		a.nodeTypes[f] = fTyp
 		a.VisitFuncInner(f, fTyp, receiverTyp)
 
-		if len(f.TypeParams) > 0 {
+		if len(fTyp.TypeParams) > 0 {
 			a.scopes.Pop()
 		}
 	}

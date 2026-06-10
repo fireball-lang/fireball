@@ -48,14 +48,10 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 		typeParams := make([]*types.Param, 0, len(impl.TypeParams))
 
 		for _, param := range impl.TypeParams {
-			typeParams = append(typeParams, &types.Param{Name: param.Token.Text})
+			typeParams = append(typeParams, &types.Param{Name: param.Name.Token.Text})
 		}
 
-		a.scopes.Push(&symbols.ParamScope{
-			Params: typeParams,
-			Nodes:  impl.TypeParams,
-		})
-
+		a.resolveTypeParams(impl.TypeParams, typeParams)
 		defer a.scopes.Pop()
 	}
 
@@ -82,8 +78,8 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 				methodTyp = s.Generic
 
 				implNames := make([]string, len(impl.TypeParams))
-				for i, leaf := range impl.TypeParams {
-					implNames[i] = leaf.Token.Text
+				for i, param := range impl.TypeParams {
+					implNames[i] = param.Name.Token.Text
 				}
 
 				a.scopes.Push(&symbols.ParamScope{
@@ -127,14 +123,10 @@ func (a *analyzer) resolveMethod(f *ast.Func, okStruct bool, typ, methodTyp type
 		funcTypeParams = make([]*types.Param, 0, len(f.TypeParams))
 
 		for _, param := range f.TypeParams {
-			funcTypeParams = append(funcTypeParams, &types.Param{Name: param.Token.Text})
+			funcTypeParams = append(funcTypeParams, &types.Param{Name: param.Name.Token.Text})
 		}
 
-		a.scopes.Push(&symbols.ParamScope{
-			Params: funcTypeParams,
-			Nodes:  f.TypeParams,
-		})
-
+		a.resolveTypeParams(f.TypeParams, funcTypeParams)
 		defer a.scopes.Pop()
 	}
 

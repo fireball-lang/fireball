@@ -547,7 +547,7 @@ func (p *parser) parseFuncParam() (param *ast.Param, recoverId int) {
 	return
 }
 
-func (p *parser) parseTypeParams() (params []*ast.Leaf, recoverId int) {
+func (p *parser) parseTypeParams() (params []*ast.TypeParam, recoverId int) {
 	// '['
 	if recoverId = p.expect(lexer.LeftBracket, "expected '[' before type parameters"); recoverId >= 0 {
 		return
@@ -555,7 +555,7 @@ func (p *parser) parseTypeParams() (params []*ast.Leaf, recoverId int) {
 
 	// Type Parameters
 	myRecoverId := p.pushRecoverPoint(lexer.RightBracket)
-	params, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightBracket, p.parseLeaf)
+	params, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightBracket, p.parseTypeParam)
 	p.popRecoverPoint()
 
 	if recoverId >= 0 {
@@ -569,6 +569,50 @@ func (p *parser) parseTypeParams() (params []*ast.Leaf, recoverId int) {
 	// ']'
 	if recoverId = p.expect(lexer.RightBracket, "expected ']' after type parameters"); recoverId >= 0 {
 		return
+	}
+
+	return
+}
+
+func (p *parser) parseTypeParam() (param *ast.TypeParam, recoverId int) {
+	param = &ast.TypeParam{}
+	param.Range_.Start = p.current.Range.Start
+	defer func() {
+		param.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// Name
+	if param.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// ':' Types
+	if p.current.Kind == lexer.Colon {
+		// ':'
+		p.advance()
+
+		// Type
+		var constraint ast.Type
+
+		constraint, recoverId = p.parseType()
+		param.Constraints = append(param.Constraints, constraint)
+		if recoverId >= 0 {
+			return
+		}
+
+		for p.current.Kind == lexer.Plus {
+			// '+'
+			p.advance()
+
+			// Type
+			constraint, recoverId = p.parseType()
+			param.Constraints = append(param.Constraints, constraint)
+			if recoverId >= 0 {
+				return
+			}
+		}
 	}
 
 	return

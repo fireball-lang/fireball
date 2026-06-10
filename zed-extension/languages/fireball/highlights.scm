@@ -43,16 +43,16 @@
 ; Declarations
 
 (struct name: (identifier) @type)
-(struct type_param: (identifier) @type.parameter)
+(struct type_param: (type_param name: (identifier) @type.parameter))
 (struct field: (field name: (identifier) @property))
 
 (interface name: (identifier) @type)
-(interface type_param: (identifier) @type.parameter)
+(interface type_param: (type_param name: (identifier) @type.parameter))
 
-(impl type_param: (identifier) @type.parameter)
+(impl type_param: (type_param name: (identifier) @type.parameter))
 
 (func name: (identifier) @function)
-(func type_param: (identifier) @type.parameter)
+(func type_param: (type_param name: (identifier) @type.parameter))
 (func receiver: (identifier) @keyword)
 (func param: (param name: (identifier) @variable.parameter))
 

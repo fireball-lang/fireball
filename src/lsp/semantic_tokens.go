@@ -53,8 +53,12 @@ func (hi *highlighter) addType(node ast.Node, typ types.Type) {
 	switch typ.(type) {
 	case *types.Struct:
 		hi.add(node, classKind)
+	case *types.Interface:
+		hi.add(node, interfaceKind)
 	case *types.Func:
 		hi.add(node, functionKind)
+	case *types.Param:
+		hi.add(node, genericKind)
 	}
 }
 
@@ -85,8 +89,14 @@ func (hi *highlighter) visit(node ast.Node) {
 				case symbols.Struct:
 					hi.add(entry, classKind)
 
+				case symbols.Interface:
+					hi.add(entry, interfaceKind)
+
 				case symbols.Func:
 					hi.add(entry, functionKind)
+
+				case symbols.TypeParam:
+					hi.add(entry, genericKind)
 
 				case symbols.Param:
 					kind := parameterKind

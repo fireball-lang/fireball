@@ -1,7 +1,8 @@
 package types
 
 type Param struct {
-	Name string
+	Name        string
+	Constraints []*Interface
 }
 
 func (p *Param) Equals(other Type) bool {

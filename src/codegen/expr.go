@@ -503,24 +503,95 @@ func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 
 			sig = c.BuildSignature(typ, true)
 		} else {
-			// Direct method call
+			if _, ok := f.Parent().(*ast.Interface); ok {
+				// Direct constrained method call
+				receiverTyp := c.ExprType(m.Expr)
+				if p, ok := receiverTyp.(*types.Pointer); ok {
+					receiverTyp = p.Pointee
+				}
+
+				// For generic structs, methods live on the template
+				lookupTyp := receiverTyp
+				if s, ok := receiverTyp.(*types.Struct); ok && s.Generic != nil {
+					lookupTyp = s.Generic
+				}
+
+				sym, ok := c.typeEnv.GetInstanceMethod(lookupTyp, m.Name.Token.Text)
+				if !ok {
+					panic(fmt.Sprintf("codegen.codegen.VisitCall() - constraint method '%s' not found on '%s'", m.Name.Token.Text, receiverTyp))
+				}
+
+				concreteFunc := sym.Node.(*ast.Func)
+				concreteTyp := sym.Type.(*types.Func)
+
+				// If the struct is a generic instantiation, substitute into the method type
+				if s, ok := receiverTyp.(*types.Struct); ok && s.Generic != nil {
+					concreteTyp = c.instantiations.Substitute(concreteTyp, s.Substitutions).(*types.Func)
+				}
+
+				in := c.getFuncInterface(concreteFunc)
+
+				callee = c.GetFunction(concreteFunc, concreteTyp, in)
+				sig = callee.(*ir.Function).Signature
+
+				c.AddSummaryCallee(e.Callee, concreteFunc, concreteTyp, in)
+
+				receiver = c.PrepareReceiver(m)
+				typ = concreteTyp // use concrete type for EmitCall parameter matching
+			} else {
+				// Direct method call
+				in := c.getFuncInterface(f)
+
+				callee = c.GetFunction(f, typ, in)
+				sig = callee.(*ir.Function).Signature
+
+				c.AddSummaryCallee(e.Callee, f, typ, in)
+
+				receiver = c.PrepareReceiver(m)
+			}
+		}
+	} else {
+		if _, ok := f.Parent().(*ast.Interface); ok {
+			if ident, ok := e.Callee.(*ast.Identifier); ok && len(ident.Path.Entries) >= 2 {
+				// Static call on a constrained type parameter
+				typeLeaf := ident.Path.Entries[len(ident.Path.Entries)-2]
+				concreteTyp := c.ResolveType(c.nodeTypes[typeLeaf])
+
+				lookupTyp := concreteTyp
+				if s, ok := concreteTyp.(*types.Struct); ok && s.Generic != nil {
+					lookupTyp = s.Generic
+				}
+
+				sym, ok := c.typeEnv.GetStaticMethod(lookupTyp, f.Name().Token.Text)
+				if !ok {
+					panic(fmt.Sprintf("codegen.codegen.VisitCall() - constraint static method '%s' not found on '%s'", f.Name().Token.Text, concreteTyp))
+				}
+
+				concreteFunc := sym.Node.(*ast.Func)
+				concreteTypFunc := sym.Type.(*types.Func)
+
+				if s, ok := concreteTyp.(*types.Struct); ok && s.Generic != nil {
+					concreteTypFunc = c.instantiations.Substitute(concreteTypFunc, s.Substitutions).(*types.Func)
+				}
+
+				in := c.getFuncInterface(concreteFunc)
+
+				callee = c.GetFunction(concreteFunc, concreteTypFunc, in)
+				sig = callee.(*ir.Function).Signature
+
+				c.AddSummaryCallee(e.Callee, concreteFunc, concreteTypFunc, in)
+
+				typ = concreteTypFunc
+			}
+		} else {
+			// Static call
 			in := c.getFuncInterface(f)
 
 			callee = c.GetFunction(f, typ, in)
 			sig = callee.(*ir.Function).Signature
 
 			c.AddSummaryCallee(e.Callee, f, typ, in)
-
-			receiver = c.PrepareReceiver(m)
 		}
-	} else {
-		// Static call
-		in := c.getFuncInterface(f)
-
-		callee = c.GetFunction(f, typ, in)
-		sig = callee.(*ir.Function).Signature
-
-		c.AddSummaryCallee(e.Callee, f, typ, in)
 	}
 
 	return c.EmitCall(callee, sig, typ, receiver, e.Args, c.UnderlyingExprType(e))

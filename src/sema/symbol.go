@@ -14,12 +14,7 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 
 		a.typeEnv.RegisterStruct(t, s)
 
-		if len(t.TypeParams) > 0 {
-			a.scopes.Push(&symbols.ParamScope{
-				Params: t.TypeParams,
-				Nodes:  s.TypeParams,
-			})
-
+		if a.resolveTypeParams(s.TypeParams, t.TypeParams) {
 			defer a.scopes.Pop()
 		}
 
@@ -49,12 +44,7 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 		a.selfType = inType.SelfParam
 		defer func() { a.selfType = prevSelf }()
 
-		if len(in.TypeParams) > 0 {
-			a.scopes.Push(&symbols.ParamScope{
-				Params: inType.TypeParams,
-				Nodes:  in.TypeParams,
-			})
-
+		if a.resolveTypeParams(in.TypeParams, inType.TypeParams) {
 			defer a.scopes.Pop()
 		}
 
@@ -91,12 +81,7 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 }
 
 func (a *analyzer) resolveFunc(f *ast.Func, t *types.Func) {
-	if len(t.TypeParams) > 0 {
-		a.scopes.Push(&symbols.ParamScope{
-			Params: t.TypeParams,
-			Nodes:  f.TypeParams,
-		})
-
+	if a.resolveTypeParams(f.TypeParams, t.TypeParams) {
 		defer a.scopes.Pop()
 	}
 
@@ -114,4 +99,31 @@ func (a *analyzer) resolveFunc(f *ast.Func, t *types.Func) {
 	}
 
 	t.Returns = a.AnalyzeType(f.Returns)
+}
+
+func (a *analyzer) resolveTypeParams(astParams []*ast.TypeParam, typeParams []*types.Param) bool {
+	if len(astParams) == 0 {
+		return false
+	}
+
+	a.scopes.Push(&symbols.ParamScope{
+		Params: typeParams,
+		Nodes:  astParams,
+	})
+
+	for i, param := range astParams {
+		a.nodeTypes[param] = typeParams[i]
+
+		for _, constraintAst := range param.Constraints {
+			constraint := a.AnalyzeType(constraintAst)
+
+			if in, ok := constraint.(*types.Interface); ok {
+				typeParams[i].Constraints = append(typeParams[i].Constraints, in)
+			} else {
+				a.Error(constraintAst, "constraint must be an interface type, got '%s'", constraint)
+			}
+		}
+	}
+
+	return true
 }

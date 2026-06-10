@@ -1,0 +1,142 @@
+mod tests::constraints;
+
+// ── Helper interfaces ──────────────────────────────────────────────────────────
+
+// Immutable single-method interface
+interface Doubler {
+    func doubled(self) i32
+}
+
+// Mutable single-method interface
+interface Setter[T] {
+    func set(mut self, value: T) void
+}
+
+// Static-method interface
+interface Default {
+    func zero() Self
+}
+
+// Two independent interfaces for multiple-constraint tests
+interface Adder {
+    func add(self, other: i32) i32
+}
+
+interface Negate {
+    func negate(self) i32
+}
+
+// ── Helper structs ─────────────────────────────────────────────────────────────
+
+struct Counter {
+    value: i32,
+}
+
+impl Counter : Doubler {
+    func doubled(self) i32 {
+        return self.value * 2;
+    }
+}
+
+impl Counter : Adder {
+    func add(self, other: i32) i32 {
+        return self.value + other;
+    }
+}
+
+impl Counter : Negate {
+    func negate(self) i32 {
+        return -self.value;
+    }
+}
+
+impl Counter : Default {
+    func zero() Self {
+        var c: Counter;
+        c.value = 0;
+        return c;
+    }
+}
+
+// Generic struct to test dependent constraints
+struct Holder[T] {
+    value: T,
+}
+
+impl[T] Holder[T] : Setter[T] {
+    func set(mut self, value: T) {
+        self.value = value;
+    }
+}
+
+// ── Constrained generic functions ──────────────────────────────────────────────
+
+// Immutable constraint: call instance method on T
+func getDoubled[T: Doubler](v: T) i32 {
+    return v.doubled();
+}
+
+// Mutable constraint: call mutable instance method via pointer to T
+func applySet[T: mut Setter[V], V](target: T, value: V) {
+    target.set(value);
+}
+
+// Static method constraint: call T::zero() inside body
+func makeZero[T: Default]() T {
+    return T::zero();
+}
+
+// Multiple constraints: call methods from both interfaces
+func addThenNegate[T: Adder + Negate](v: T, delta: i32) i32 {
+    return v.negate() + v.add(delta);
+}
+
+// Dependent constraint with params in reverse order (T before V)
+func applySetReversed[T: mut Setter[V], V](target: T, value: V) {
+    target.set(value);
+}
+
+// ── Tests ──────────────────────────────────────────────────────────────────────
+
+// Immutable constraint: instance method on constrained T (passed by value)
+#[test("immutable constraint instance method")]
+func testImmutableConstraint() bool {
+    var c: Counter;
+    c.value = 5;
+    return getDoubled::[Counter](c) == 10;
+}
+
+// Mutable constraint: instance method via mut pointer, mutation visible outside
+#[test("mutable constraint instance method mutates through pointer")]
+func testMutableConstraint() bool {
+    var h: Holder[i32];
+    h.value = 0;
+    applySet::[mut *Holder[i32], i32](&h, 42);
+    return h.value == 42;
+}
+
+// Static method constraint: T::zero() returns correct zero value
+#[test("static method constraint produces zero value")]
+func testStaticConstraint() bool {
+    var z = makeZero::[Counter]();
+    return z.value == 0;
+}
+
+// Multiple constraints: both interface methods callable on the same T
+#[test("multiple constraints both methods callable")]
+func testMultipleConstraints() bool {
+    var c: Counter;
+    c.value = 10;
+    // negate() = -10, add(3) = 13, result = -10 + 13 = 3
+    return addThenNegate::[Counter](c, 3) == 3;
+}
+
+// Dependent constraint with reversed declaration order [T: mut Setter[V], V]
+#[test("dependent constraint reversed param order")]
+func testDependentConstraintReversed() bool {
+    var h: Holder[i32];
+    h.value = 0;
+    applySetReversed::[mut *Holder[i32], i32](&h, 99);
+    return h.value == 99;
+}
+

@@ -80,7 +80,6 @@ func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) types.Type {
 			return types.Invalid
 		}
 
-		// Instantiate
 		subs := make([]types.Substitution, len(s.TypeParams))
 
 		for j, param := range s.TypeParams {
@@ -90,6 +89,16 @@ func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) types.Type {
 			}
 
 			subs[j] = types.Substitution{Param: param, Type: argType}
+		}
+
+		for j, param := range s.TypeParams {
+			if len(param.Constraints) > 0 {
+				for _, c := range param.Constraints {
+					if in, ok := a.instantiations.Substitute(c, subs).(*types.Interface); ok {
+						a.CheckConstraint(subs[j].Type, in, i.TypeArgs[j])
+					}
+				}
+			}
 		}
 
 		result := a.instantiations.Get(s, subs).(*types.Struct)
@@ -122,7 +131,6 @@ func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) types.Type {
 			return types.Invalid
 		}
 
-		// Instantiate
 		subs := make([]types.Substitution, len(in.TypeParams))
 
 		for j, param := range in.TypeParams {
@@ -132,6 +140,16 @@ func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) types.Type {
 			}
 
 			subs[j] = types.Substitution{Param: param, Type: argType}
+		}
+
+		for j, param := range in.TypeParams {
+			if len(param.Constraints) > 0 {
+				for _, c := range param.Constraints {
+					if in, ok := a.instantiations.Substitute(c, subs).(*types.Interface); ok {
+						a.CheckConstraint(subs[j].Type, in, i.TypeArgs[j])
+					}
+				}
+			}
 		}
 
 		result := a.instantiations.Get(in, subs).(*types.Interface)

@@ -8,6 +8,7 @@ import (
 	"fireball/types"
 	"math"
 	"slices"
+	"strings"
 )
 
 // Visitor
@@ -418,6 +419,58 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		return a.Error(m.Name, "method '%s' doesn't exist on interface '%s'", m.Name.Token.Text, t)
 	}
 
+	// Constrained type parameter
+	if t, ok := typ.(*types.Param); ok {
+		if len(t.Constraints) == 0 {
+			return a.Error(m.Expr, "cannot call method '%s' on unconstrained type parameter '%s'", m.Name.Token.Text, t.Name)
+		}
+
+		for _, constraint := range t.Constraints {
+			for _, method := range constraint.InstanceMethods {
+				if method.Name != m.Name.Token.Text {
+					continue
+				}
+
+				in := a.typeEnv.GetInterfaceNode(constraint)
+				if in == nil {
+					return ExprInfo{Type: types.Invalid}
+				}
+
+				var f *ast.Func
+
+				for _, mf := range in.Methods {
+					if mf.Name().Token.Text == method.Name {
+						f = mf
+						break
+					}
+				}
+
+				if f == nil {
+					panic("sema.analyzer.VisitMember() - missing interface method AST node")
+				}
+
+				methodType := method.Type
+				subs := []types.Substitution{{Param: constraint.SelfParam, Type: t}}
+				methodType = a.instantiations.Substitute(methodType, subs).(*types.Func)
+
+				a.nodeTypes[f] = methodType
+				return ExprInfo{Type: methodType, Node: f}
+			}
+		}
+
+		// Build constraint list for error message
+		sb := strings.Builder{}
+
+		for i, c := range t.Constraints {
+			if i > 0 {
+				sb.WriteString(" + ")
+			}
+			sb.WriteString(c.String())
+		}
+
+		return a.Error(m.Name, "method '%s' does not exist on constraint '%s'", m.Name.Token.Text, sb.String())
+	}
+
 	// Pointer
 	if p, ok := typ.(*types.Pointer); ok {
 		address = true
@@ -531,14 +584,30 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 				return ExprInfo{Type: types.Invalid}
 			}
 
+			funcSubs := make([]types.Substitution, len(c.TypeArgs))
+
 			for i, typeArg := range c.TypeArgs {
 				argType := a.AnalyzeType(typeArg)
 				if argType == types.Invalid {
 					return ExprInfo{Type: types.Invalid}
 				}
 
-				subs = append(subs, types.Substitution{Param: f.TypeParams[i], Type: argType})
+				funcSubs[i] = types.Substitution{Param: f.TypeParams[i], Type: argType}
 			}
+
+			allSubs := append(subs, funcSubs...)
+
+			for i, typeArg := range c.TypeArgs {
+				param := f.TypeParams[i]
+
+				for _, constraint := range param.Constraints {
+					if in, ok := a.instantiations.Substitute(constraint, allSubs).(*types.Interface); ok {
+						a.CheckConstraint(funcSubs[i].Type, in, typeArg)
+					}
+				}
+			}
+
+			subs = allSubs
 		} else if len(c.TypeArgs) > 0 {
 			a.Error(c.Callee, "function '%s' is not generic", funcNode.Name().Token.Text)
 		}
@@ -562,6 +631,17 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 					}
 					if in, ok := a.exprInfos[member.Expr].Type.(*types.Interface); ok && !in.Mutable {
 						a.Error(member.Expr, "cannot call mutable method '%s' on an immutable interface", funcNode.Name().Token.Text)
+					}
+					if tp, ok := a.exprInfos[member.Expr].Type.(*types.Param); ok {
+						// Find which constraint owns this method and check its mutability
+						if parentIface, ok := funcNode.Parent().(*ast.Interface); ok {
+							for _, constraint := range tp.Constraints {
+								if a.typeEnv.GetInterfaceNode(constraint) == parentIface && !constraint.Mutable {
+									a.Error(member.Expr, "cannot call mutable method '%s' on type parameter '%s' with immutable constraint '%s'", funcNode.Name().Token.Text, tp.Name, constraint)
+									break
+								}
+							}
+						}
 					}
 				}
 			}
