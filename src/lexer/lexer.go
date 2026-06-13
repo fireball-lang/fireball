@@ -331,6 +331,8 @@ func (l *Lexer) keywordIdentifier() Token {
 
 	case "struct":
 		token.Kind = Struct
+	case "enum":
+		token.Kind = Enum
 	case "interface":
 		token.Kind = Interface
 	case "impl":

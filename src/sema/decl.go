@@ -58,6 +58,31 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 	}
 }
 
+func (a *analyzer) VisitEnum(e *ast.Enum) {
+	// Type
+	symbol, _ := a.scopes.GetSymbol(e.Name().Token.Text)
+
+	typ := symbol.Type.(*types.Enum)
+	a.nodeTypes[e] = typ
+
+	// Duplicate values
+	values := make(map[core.Integer]any)
+
+	for i, c := range typ.Cases {
+		if _, ok := values[c.Value]; ok {
+			node := e.Cases[i].Value
+			if node == nil {
+				node = e.Cases[i].Name
+			}
+
+			a.Error(node, "case with value '%s' already exists", c.Value)
+			continue
+		}
+
+		values[c.Value] = nil
+	}
+}
+
 func (a *analyzer) VisitInterface(i *ast.Interface) {
 	// Type
 	symbol, _ := a.scopes.GetSymbol(i.Name().Token.Text)
@@ -110,11 +135,6 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	}
 
 	a.nodeTypes[i] = typ
-
-	if _, ok := typ.(*types.Struct); !ok {
-		a.Error(i.Type, "implementation blocks can only be attached to struct types, not '%s'", typ)
-	}
-
 	lookupTyp := typ
 
 	if s, ok := typ.(*types.Struct); ok && s.Generic != nil && len(i.TypeParams) > 0 {

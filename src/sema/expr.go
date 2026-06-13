@@ -20,7 +20,7 @@ func (a *analyzer) VisitBool(_ *ast.Bool) ExprInfo {
 func (a *analyzer) VisitNumber(n *ast.Number) ExprInfo {
 	switch n.Token.Kind {
 	case lexer.BinaryInteger, lexer.HexInteger, lexer.UnsignedInteger:
-		value := lexer.ParseInteger(n.Token)
+		value := lexer.ParseInteger(n.Token).Raw()
 
 		if value <= math.MaxUint8 {
 			return ExprInfo{Type: types.PrimitiveU8}
@@ -32,7 +32,7 @@ func (a *analyzer) VisitNumber(n *ast.Number) ExprInfo {
 		return ExprInfo{Type: types.PrimitiveU64}
 
 	case lexer.SignedInteger:
-		value := lexer.ParseInteger(n.Token)
+		value := lexer.ParseInteger(n.Token).Raw()
 
 		if value <= math.MaxInt8 {
 			return ExprInfo{Type: types.PrimitiveI8}
@@ -289,9 +289,9 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 		}
 
 		switch left.Type.(type) {
-		case *types.Primitive, *types.Pointer:
+		case *types.Primitive, *types.Pointer, *types.Enum:
 		default:
-			return a.Error(b, "equality operators only work on primitive types or pointers, not %s", left.Type)
+			return a.Error(b, "equality operators only work on primitive types, pointers or enums, not %s", left.Type)
 		}
 
 		return ExprInfo{Type: types.PrimitiveBool}
@@ -325,6 +325,15 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 	a.nodeTypes[symbol.Node] = symbol.Type
 
 	switch symbol.Kind {
+	case symbols.Case:
+		return ExprInfo{
+			Type:    symbol.Type,
+			Node:    symbol.Node,
+			Symbol:  symbol.Kind,
+			Mutable: false,
+			Address: false,
+		}
+
 	case symbols.Param, symbols.Var:
 		return ExprInfo{
 			Type:    symbol.Type,
@@ -341,7 +350,7 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 			Symbol: symbol.Kind,
 		}
 
-	case symbols.Struct:
+	case symbols.Struct, symbols.Enum, symbols.Interface:
 		return a.Error(i, "symbol '%s' is a type and cannot be used as an expression", i.Path.LastName())
 
 	default:
@@ -541,7 +550,21 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		return a.Error(m.Name, "member '%s' doesn't exist on type '%s'", m.Name.Token.Text, t)
 	}
 
-	return a.Error(m.Expr, "expected a struct or a pointer to a struct, got '%s'", expr.Type)
+	if t, ok := typ.(*types.Enum); ok {
+		// Instance method
+		if sym, ok := a.typeEnv.GetInstanceMethod(t, m.Name.Token.Text); ok {
+			if a.checkVisibility && !sym.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
+				a.Error(m.Name, "method '%s' is private", m.Name.Token.Text)
+			}
+
+			a.nodeTypes[sym.Node] = sym.Type
+			return ExprInfo{Type: sym.Type, Node: sym.Node}
+		}
+
+		return a.Error(m.Name, "member '%s' doesn't exist on type '%s'", m.Name.Token.Text, t)
+	}
+
+	return a.Error(m.Expr, "expected a struct, enum or a pointer to a struct, got '%s'", expr.Type)
 }
 
 func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {

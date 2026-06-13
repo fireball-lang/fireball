@@ -263,17 +263,26 @@ func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
 			continue
 		}
 
-		// Try type scope (for Struct::staticMethod or constrained type param).
+		// Try type scope (for Struct::staticMethod, Enum::case or constrained type param).
 		if symbol, ok := scope.GetSymbol(entry); ok {
 			a.nodeTypes[path.Entries[i]] = symbol.Type
 
 			if typeScope := a.typeEnv.GetTypeScope(symbol.Type); typeScope != nil {
 				// Check if this type belongs to a different module.
 				if a.checkVisibility {
-					if s, ok := symbol.Type.(*types.Struct); ok {
-						if !slices.Equal(s.ModulePath, a.fileModPath) {
-							crossedModuleBoundary = true
-						}
+					var modulePath []string
+
+					switch {
+					case symbol.Kind == symbols.Struct:
+						modulePath = symbol.Type.(*types.Struct).ModulePath
+					case symbol.Kind == symbols.Enum:
+						modulePath = symbol.Type.(*types.Enum).ModulePath
+					case symbol.Kind == symbols.Interface:
+						modulePath = symbol.Type.(*types.Interface).ModulePath
+					}
+
+					if len(modulePath) > 0 && !slices.Equal(modulePath, a.fileModPath) {
+						crossedModuleBoundary = true
 					}
 				}
 
@@ -282,7 +291,7 @@ func (a *analyzer) GetSymbol(path *ast.IdentifierPath) (symbols.Symbol, bool) {
 			}
 
 			// Symbol found but has no registered static methods.
-			a.Error(path, "method '%s' cannot be found on type '%s'", path.Entries[i+1].Token.Text, symbol.Type)
+			a.Error(path, "member '%s' cannot be found on type '%s'", path.Entries[i+1].Token.Text, symbol.Type)
 			return symbols.Symbol{}, false
 		}
 

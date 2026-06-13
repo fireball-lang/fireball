@@ -1,0 +1,49 @@
+mod tests::enums;
+
+enum Direction {
+    East,
+    West = 2,
+    North,
+    South,
+}
+
+impl Direction {
+    func default() Self {
+        return Self::North;
+    }
+
+    func opposite(self) Self {
+        if (*self == Self::East) return Self::West;
+        if (*self == Self::West) return Self::East;
+        if (*self == Self::North) return Self::South;
+        return Self::North;
+    }
+}
+
+#[test("enum equality")]
+func equality() bool {
+	return Direction::North != Direction::South;
+}
+
+#[test("enum cast to underlying")]
+func castToUnderlying() bool {
+	var value = Direction::North as u32;
+	return value == 3u;
+}
+
+#[test("underlying cast to enum")]
+func castToEnum() bool {
+	var value = 3 as Direction;
+	return value == Direction::North;
+}
+
+#[test("enum static method")]
+func staticMethod() bool {
+	return Direction::default() == Direction::North;
+}
+
+#[test("enum instance method")]
+func instanceMethod() bool {
+	var dir = Direction::default();
+	return dir.opposite() == Direction::South;
+}

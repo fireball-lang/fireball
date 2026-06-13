@@ -71,7 +71,9 @@ func (t *TypeCache) Get(typ types.Type) ir.Type {
 func (t *TypeCache) GetMeta(typ types.Type) ir.MetaRef {
 	if t, ok := typ.(types.Composed); ok {
 		if _, ok := typ.(*types.Func); !ok {
-			typ = t.Underlying()
+			if _, ok := typ.(*types.Enum); !ok {
+				typ = t.Underlying()
+			}
 		}
 	}
 
@@ -97,6 +99,8 @@ func (t *TypeCache) GetMeta(typ types.Type) ir.MetaRef {
 
 	case *types.Func:
 		ref = t.createFuncMeta(typ)
+	case *types.Enum:
+		ref = t.createEnumMeta(typ)
 
 	default:
 		panic("codegen.TypeCache.GetMeta() - Invalid type")
@@ -274,5 +278,29 @@ func (t *TypeCache) createFuncMeta(typ *types.Func) ir.MetaRef {
 	return t.Module.AddMeta(&ir.SubroutineTypeMeta{
 		Returns: t.GetMeta(typ.Returns),
 		Params:  params,
+	})
+}
+
+// types.Enum
+
+func (t *TypeCache) createEnumMeta(typ *types.Enum) ir.MetaRef {
+	info := t.Arch.Info(typ)
+	cases := make([]ir.MetaRef, len(typ.Cases))
+
+	for i, c := range typ.Cases {
+		cases[i] = t.Module.AddMeta(&ir.EnumeratorMeta{
+			Name:  c.Name,
+			Value: c.Value,
+		})
+	}
+
+	return t.Module.AddMeta(&ir.CompositeTypeMeta{
+		Name:     typ.String(),
+		Kind:     ir.MetaEnumerationType,
+		BaseType: t.GetMeta(typ.CaseType),
+		Elements: cases,
+		File:     t.FileRef,
+		Size:     info.Size * 8,
+		Align:    info.Align * 8,
 	})
 }

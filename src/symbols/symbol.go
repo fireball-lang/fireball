@@ -10,9 +10,11 @@ type Kind uint8
 const (
 	Invalid Kind = iota
 	Struct
+	Enum
 	Interface
 	Func
 	TypeParam
+	Case
 	Param
 	Var
 )

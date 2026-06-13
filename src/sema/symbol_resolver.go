@@ -56,10 +56,15 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 	}
 
 	typ := a.AnalyzeType(impl.Type)
-	_, ok := typ.(*types.Struct)
+	okType := true
 
-	if typ != types.Invalid && !ok {
-		a.Error(impl.Type, "implementation blocks can only be attached to structs, not '%s'", typ)
+	if typ != types.Invalid {
+		if _, ok := typ.(*types.Struct); !ok {
+			if _, ok := typ.(*types.Enum); !ok {
+				a.Error(impl.Type, "implementation blocks can only be attached to structs, not '%s'", typ)
+				okType = false
+			}
+		}
 	}
 
 	// Rebuild the scope using the canonical struct's TypeParams
@@ -98,7 +103,7 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 	defer func() { a.selfType = prevSelf }()
 
 	for _, f := range impl.Methods {
-		a.resolveMethod(f, ok, typ, methodTyp)
+		a.resolveMethod(f, okType, typ, methodTyp)
 	}
 
 	// Interface
@@ -116,7 +121,7 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 	}
 }
 
-func (a *analyzer) resolveMethod(f *ast.Func, okStruct bool, typ, methodTyp types.Type) {
+func (a *analyzer) resolveMethod(f *ast.Func, okType bool, typ, methodTyp types.Type) {
 	var funcTypeParams []*types.Param
 
 	if len(f.TypeParams) > 0 {
@@ -171,7 +176,7 @@ func (a *analyzer) resolveMethod(f *ast.Func, okStruct bool, typ, methodTyp type
 		okAdd = a.typeEnv.AddInstanceMethod(methodTyp, symbol)
 	}
 
-	if okStruct && !okAdd {
+	if okType && !okAdd {
 		a.Error(f.Name_, "method with the name '%s' already exists on type '%s'", f.Name().Token.Text, typ)
 	}
 }

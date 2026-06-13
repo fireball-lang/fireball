@@ -96,6 +96,67 @@ func (f *Field) Children() iter.Seq[Node] {
 	}
 }
 
+// Enum
+
+type Enum struct {
+	baseNode
+
+	Attributes []*Attribute
+	Public     bool
+
+	Name_ *Leaf
+	Type  Type // optional
+
+	Cases []*Case
+}
+
+func (e *Enum) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, attribute := range e.Attributes {
+			if !yield(attribute) {
+				return
+			}
+		}
+		if !yield(e.Name_) {
+			return
+		}
+		if !core.IsNil(e.Type) && !yield(e.Type) {
+			return
+		}
+		for _, c := range e.Cases {
+			if !yield(c) {
+				return
+			}
+		}
+	}
+}
+
+func (e *Enum) Name() *Leaf {
+	return e.Name_
+}
+
+func (e *Enum) _isDecl() {}
+
+// Case
+
+type Case struct {
+	baseNode
+
+	Name  *Leaf
+	Value *Leaf // optional
+}
+
+func (c *Case) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(c.Name) {
+			return
+		}
+		if c.Value != nil && !yield(c.Value) {
+			return
+		}
+	}
+}
+
 // Interface
 
 type Interface struct {

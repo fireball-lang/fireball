@@ -15,7 +15,10 @@ type TypeEnvironment struct {
 	static   map[types.Type][]symbols.Symbol
 	instance map[types.Type][]symbols.Symbol
 
-	structNodes    map[*types.Struct]*ast.Struct
+	structNodes map[*types.Struct]*ast.Struct
+
+	enumStatic map[*types.Enum]symbols.SymbolScope
+
 	interfaceNodes map[*types.Interface]*ast.Interface
 	implNodes      map[implKey]*ast.Impl
 
@@ -31,6 +34,7 @@ func NewTypeEnvironment(instantiations types.InstantiationCache) *TypeEnvironmen
 		static:         make(map[types.Type][]symbols.Symbol),
 		instance:       make(map[types.Type][]symbols.Symbol),
 		structNodes:    make(map[*types.Struct]*ast.Struct),
+		enumStatic:     make(map[*types.Enum]symbols.SymbolScope),
 		interfaceNodes: make(map[*types.Interface]*ast.Interface),
 		implNodes:      make(map[implKey]*ast.Impl),
 		conformances:   make(map[types.Type][]*types.Interface),
@@ -45,6 +49,22 @@ func (e *TypeEnvironment) RegisterStruct(t *types.Struct, n *ast.Struct) {
 
 func (e *TypeEnvironment) GetStructNode(t *types.Struct) *ast.Struct {
 	return e.structNodes[t]
+}
+
+func (e *TypeEnvironment) RegisterEnum(t *types.Enum, n *ast.Enum) {
+	cases := make([]symbols.Symbol, len(t.Cases))
+
+	for i, c := range t.Cases {
+		cases[i] = symbols.Symbol{
+			Kind:   symbols.Case,
+			Public: true,
+			Name:   c.Name,
+			Node:   n.Cases[i],
+			Type:   t,
+		}
+	}
+
+	e.enumStatic[t] = cases
 }
 
 func (e *TypeEnvironment) RegisterInterface(t *types.Interface, in *ast.Interface) {
@@ -111,6 +131,21 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 }
 
 func (e *TypeEnvironment) AddStaticMethod(typ types.Type, symbol symbols.Symbol) bool {
+	if t, ok := typ.(*types.Enum); ok {
+		static := e.enumStatic[t]
+
+		for _, s := range static {
+			if s.Name == symbol.Name {
+				return false
+			}
+		}
+
+		static = append(static, symbol)
+		e.enumStatic[t] = static
+
+		return true
+	}
+
 	for _, m := range e.static[typ] {
 		if m.Name == symbol.Name {
 			return false
@@ -133,6 +168,10 @@ func (e *TypeEnvironment) AddInstanceMethod(typ types.Type, symbol symbols.Symbo
 }
 
 func (e *TypeEnvironment) GetStaticMethod(typ types.Type, name string) (symbols.Symbol, bool) {
+	if t, ok := typ.(*types.Enum); ok {
+		return e.enumStatic[t].GetSymbol(name)
+	}
+
 	for _, m := range e.static[typ] {
 		if m.Name == name {
 			return m, true
@@ -213,6 +252,11 @@ func (e *TypeEnvironment) GetTypeScope(typ types.Type) symbols.Scope {
 
 		e.paramScopes[tp] = scope
 		return scope
+	}
+
+	// Enum: cases
+	if typ, ok := typ.(*types.Enum); ok {
+		return e.enumStatic[typ]
 	}
 
 	// Struct: scope is the registered static methods.

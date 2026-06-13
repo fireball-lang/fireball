@@ -96,6 +96,36 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 
 				decls[typ] = id
 
+			case *ast.Enum:
+				typ, ok := file.NodeTypes[decl]
+				if !ok {
+					continue
+				}
+
+				t := typ.(*types.Enum)
+
+				id := symbols.add(symbol{
+					file:           file,
+					kind:           protocol.SymbolKindEnum,
+					name:           getText(decl.Name_),
+					detail:         typ.String(),
+					range_:         getRange(decl),
+					selectionRange: getRange(decl.Name_),
+				})
+
+				for i, c := range decl.Cases {
+					symbols.addChild(id, symbol{
+						file:           file,
+						kind:           protocol.SymbolKindEnumMember,
+						name:           c.Name.Token.Text,
+						detail:         t.Cases[i].Value.String(),
+						range_:         getRange(c),
+						selectionRange: getRange(c.Name),
+					})
+				}
+
+				decls[typ] = id
+
 			case *ast.Interface:
 				typ, ok := file.NodeTypes[decl]
 				if !ok {

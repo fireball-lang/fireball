@@ -79,24 +79,7 @@ func GetExplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 		switch to := to.(type) {
 		case *types.Primitive:
 			if types.IsInteger(from.Kind) && types.IsInteger(to.Kind) {
-				fromSize := from.Kind.Size()
-				toSize := to.Kind.Size()
-
-				if fromSize == toSize {
-					return Noop, true
-				}
-
-				if fromSize < toSize {
-					if types.IsSigned(from.Kind) {
-						return SignExtend, true
-					}
-
-					return ZeroExtend, true
-				}
-
-				if fromSize > toSize {
-					return Truncate, true
-				}
+				return getCastFromToInteger(from.Kind, to.Kind)
 			}
 
 			if types.IsInteger(from.Kind) && types.IsFloating(to.Kind) {
@@ -120,6 +103,11 @@ func GetExplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 			if from.Kind == types.U64 {
 				return IntToPointer, true
 			}
+
+		case *types.Enum:
+			if types.IsInteger(from.Kind) {
+				return getCastFromToInteger(from.Kind, to.CaseType.(*types.Primitive).Kind)
+			}
 		}
 
 	case *types.Pointer:
@@ -131,6 +119,11 @@ func GetExplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 
 		case *types.Pointer:
 			return Noop, true
+		}
+
+	case *types.Enum:
+		if to, ok := to.(*types.Primitive); ok && types.IsInteger(to.Kind) {
+			return getCastFromToInteger(from.CaseType.(*types.Primitive).Kind, to.Kind)
 		}
 
 	case *types.Interface:
@@ -204,6 +197,29 @@ func GetImplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 		if to, ok := to.(*types.Interface); ok && !to.Mutable && from.Mutable && from.AsImmutable() == to {
 			return Noop, true
 		}
+	}
+
+	return Noop, false
+}
+
+func getCastFromToInteger(from, to types.PrimitiveKind) (CastKind, bool) {
+	fromSize := from.Size()
+	toSize := to.Size()
+
+	if fromSize == toSize {
+		return Noop, true
+	}
+
+	if fromSize < toSize {
+		if types.IsSigned(from) {
+			return SignExtend, true
+		}
+
+		return ZeroExtend, true
+	}
+
+	if fromSize > toSize {
+		return Truncate, true
 	}
 
 	return Noop, false

@@ -1,5 +1,10 @@
 package types
 
+import (
+	"fireball/core"
+	"math"
+)
+
 type PrimitiveKind uint8
 
 const (
@@ -73,6 +78,31 @@ func (p PrimitiveKind) Size() uint32 {
 		return 4
 	case F64:
 		return 8
+
+	default:
+		panic("types.PrimitiveKind.Size() - Invalid kind")
+	}
+}
+
+func (p PrimitiveKind) IntegerRange() (core.Integer, core.Integer) {
+	switch p {
+	case U8:
+		return core.Unsigned(false, 0), core.Unsigned(false, math.MaxUint8)
+	case U16:
+		return core.Unsigned(false, 0), core.Unsigned(false, math.MaxUint16)
+	case U32:
+		return core.Unsigned(false, 0), core.Unsigned(false, math.MaxUint32)
+	case U64:
+		return core.Unsigned(false, 0), core.Unsigned(false, math.MaxUint64)
+
+	case I8:
+		return core.Signed(math.MinInt8), core.Signed(math.MaxInt8)
+	case I16:
+		return core.Signed(math.MinInt16), core.Signed(math.MaxInt16)
+	case I32:
+		return core.Signed(math.MinInt32), core.Signed(math.MaxInt32)
+	case I64:
+		return core.Signed(math.MinInt64), core.Signed(math.MaxInt64)
 
 	default:
 		panic("types.PrimitiveKind.Size() - Invalid kind")

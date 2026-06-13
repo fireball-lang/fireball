@@ -24,15 +24,18 @@ func (a *analyzer) VisitArrayType(t *ast.ArrayType) types.Type {
 	}
 
 	size := lexer.ParseInteger(t.Size)
-	if size == 0 {
+	if size.Negative() {
+		return a.Error(t, "array size cannot be negative").Type
+	}
+	if size.Raw() == 0 {
 		return a.Error(t, "zero-sized arrays are not allowed").Type
 	}
-	if size > math.MaxUint32 {
+	if size.Raw() > math.MaxUint32 {
 		return a.Error(t, "array size cannot be bigger than an unsigned 32-bit integer").Type
 	}
 
 	return &types.Array{
-		Size:    uint32(size),
+		Size:    uint32(size.Raw()),
 		Element: element,
 	}
 }
@@ -105,6 +108,14 @@ func (a *analyzer) VisitIdentifierType(i *ast.IdentifierType) types.Type {
 
 		a.nodeTypes[i] = result
 		return result
+
+	case symbols.Enum:
+		if i.Mutable {
+			a.Error(i, "enum type '%s' cannot be mutable", symbol.Name)
+		}
+
+		a.nodeTypes[i] = symbol.Type
+		return symbol.Type
 
 	case symbols.Interface:
 		in := symbol.Type.(*types.Interface)

@@ -7,6 +7,7 @@ import (
 	"fireball/ir"
 	"fireball/lexer"
 	"fireball/sema"
+	"fireball/symbols"
 	"fireball/types"
 	"fmt"
 	"slices"
@@ -28,7 +29,7 @@ func (c *codegen) VisitNumber(n *ast.Number) ir.Value {
 	if lexer.IsInteger(n.Token.Kind) {
 		return &ir.Integer{
 			Typ:   c.types.Get(c.UnderlyingExprType(n)),
-			Value: core.Unsigned(false, lexer.ParseInteger(n.Token)),
+			Value: lexer.ParseInteger(n.Token),
 		}
 	}
 
@@ -387,6 +388,15 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 		c.AddSummaryCallee(i, node, typ, in)
 		return c.GetFunction(node, typ, in)
 
+	case *ast.Case:
+		typ := c.exprInfos[i].Type.(*types.Enum)
+		value := typ.Cases[slices.Index(node.Parent().(*ast.Enum).Cases, node)].Value
+
+		return &ir.Integer{
+			Typ:   c.types.Get(typ),
+			Value: value,
+		}
+
 	case *ast.Param:
 		return c.scope.Get(node.Name.Token.Text)
 
@@ -563,7 +573,7 @@ func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 				}
 
 				sym, ok := c.typeEnv.GetStaticMethod(lookupTyp, f.Name().Token.Text)
-				if !ok {
+				if !ok || sym.Kind != symbols.Func {
 					panic(fmt.Sprintf("codegen.codegen.VisitCall() - constraint static method '%s' not found on '%s'", f.Name().Token.Text, concreteTyp))
 				}
 
@@ -903,8 +913,10 @@ func (c *codegen) EmitCmp(op ir.CmpOp, left, right ast.Expr) ir.Value {
 	leftV := c.LoadImplicitCast(left, common)
 	rightV := c.LoadImplicitCast(right, common)
 
-	if c, ok := common.(types.Composed); ok {
-		common = c
+	// Enum
+	if t, ok := common.(*types.Enum); ok {
+		signed := types.IsSignedInteger(t.CaseType.(*types.Primitive).Kind)
+		return c.emitter.ICmp(op, signed, leftV, rightV)
 	}
 
 	// Pointer

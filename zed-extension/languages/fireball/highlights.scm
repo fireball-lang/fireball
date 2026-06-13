@@ -7,6 +7,7 @@
 "import" @keyword
 
 "struct" @keyword
+"enum" @keyword
 "interface" @keyword
 "impl" @keyword
 "func" @keyword.function
@@ -45,6 +46,10 @@
 (struct name: (identifier) @type)
 (struct type_param: (type_param name: (identifier) @type.parameter))
 (struct field: (field name: (identifier) @property))
+
+(enum name: (identifier) @enum)
+(case name: (identifier) @variant)
+(case value: (integer) @number)
 
 (interface name: (identifier) @type)
 (interface type_param: (type_param name: (identifier) @type.parameter))

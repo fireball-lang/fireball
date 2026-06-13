@@ -53,6 +53,8 @@ func (hi *highlighter) addType(node ast.Node, typ types.Type) {
 	switch typ.(type) {
 	case *types.Struct:
 		hi.add(node, classKind)
+	case *types.Enum:
+		hi.add(node, enumKind)
 	case *types.Interface:
 		hi.add(node, interfaceKind)
 	case *types.Func:
@@ -69,6 +71,9 @@ func (hi *highlighter) visit(node ast.Node) {
 			last := node.Path.Entries[len(node.Path.Entries)-1]
 			hi.addType(last, hi.file.NodeTypes[node])
 		}
+
+	case *ast.SelfType:
+		hi.addType(node, hi.file.NodeTypes[node])
 
 	case *ast.Identifier:
 		if len(node.Path.Entries) > 0 {
@@ -89,6 +94,9 @@ func (hi *highlighter) visit(node ast.Node) {
 				case symbols.Struct:
 					hi.add(entry, classKind)
 
+				case symbols.Enum:
+					hi.add(entry, enumKind)
+
 				case symbols.Interface:
 					hi.add(entry, interfaceKind)
 
@@ -97,6 +105,9 @@ func (hi *highlighter) visit(node ast.Node) {
 
 				case symbols.TypeParam:
 					hi.add(entry, genericKind)
+
+				case symbols.Case:
+					hi.add(entry, enumMemberKind)
 
 				case symbols.Param:
 					kind := parameterKind

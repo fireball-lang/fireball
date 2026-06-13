@@ -31,6 +31,8 @@ func (p *parser) parseDecl() (ast.Decl, int) {
 	switch p.current.Kind {
 	case lexer.Struct:
 		return p.parseStruct(attributes, public)
+	case lexer.Enum:
+		return p.parseEnum(attributes, public)
 	case lexer.Interface:
 		if len(attributes) != 0 {
 			p.reportError(ast.SliceRange(attributes), "interfaces cannot have attributes")
@@ -136,9 +138,12 @@ func (p *parser) parseStruct(attributes []*ast.Attribute, public bool) (s *ast.S
 	s.Range_.Start = p.current.Range.Start
 	s.Attributes = attributes
 	s.Public = public
-	s.Name_ = emptyLeaf
 	defer func() {
 		s.Range_.End = p.previous.Range.End
+
+		if s.Name_ == nil {
+			s.Name_ = p.badLeaf()
+		}
 	}()
 
 	recoverId = -1
@@ -226,12 +231,113 @@ func (p *parser) parseField() (f *ast.Field, recoverId int) {
 	return
 }
 
+func (p *parser) parseEnum(attributes []*ast.Attribute, public bool) (e *ast.Enum, recoverId int) {
+	e = &ast.Enum{}
+	e.Range_.Start = p.current.Range.Start
+	e.Attributes = attributes
+	e.Public = public
+	defer func() {
+		e.Range_.End = p.previous.Range.End
+
+		if e.Name_ == nil {
+			e.Name_ = p.badLeaf()
+		}
+	}()
+
+	recoverId = -1
+
+	// 'enum'
+	if recoverId = p.expect(lexer.Enum, "expected 'enum'"); recoverId >= 0 {
+		return
+	}
+
+	// Name
+	if e.Name_, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// ':' Type
+	if p.current.Kind == lexer.Colon {
+		// ':'
+		p.advance()
+
+		// Type
+		if e.Type, recoverId = p.parseType(); recoverId >= 0 {
+			return
+		}
+	}
+
+	// '{'
+	if recoverId = p.expect(lexer.LeftBrace, "expected '{' before enum cases"); recoverId >= 0 {
+		return
+	}
+
+	// Cases
+	myRecoverId := p.pushRecoverPoint(lexer.RightBrace)
+	e.Cases, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightBrace, p.parseCase)
+	p.popRecoverPoint()
+
+	if recoverId >= 0 {
+		if recoverId == myRecoverId {
+			recoverId = -1
+		} else {
+			return
+		}
+	}
+
+	// '}'
+	if recoverId = p.expect(lexer.RightBrace, "expected '}' after enum cases"); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseCase() (c *ast.Case, recoverId int) {
+	c = &ast.Case{}
+	c.Range_.Start = p.current.Range.Start
+	defer func() {
+		c.Range_.End = p.previous.Range.End
+
+		if c.Name == nil {
+			c.Name = p.badLeaf()
+		}
+	}()
+
+	recoverId = -1
+
+	// Name
+	if c.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// '=' Value
+	if p.current.Kind == lexer.Equal {
+		// '='
+		p.advance()
+
+		// Value
+		switch p.current.Kind {
+		case lexer.BinaryInteger, lexer.HexInteger, lexer.UnsignedInteger, lexer.SignedInteger:
+			c.Value = &ast.Leaf{Token: p.advance()}
+		default:
+			recoverId = p.error("expected an integer constant")
+		}
+	}
+
+	return
+}
+
 func (p *parser) parseInterface(public bool) (i *ast.Interface, recoverId int) {
 	i = &ast.Interface{}
 	i.Range_.Start = p.current.Range.Start
 	i.Public = public
 	defer func() {
 		i.Range_.End = p.previous.Range.End
+
+		if i.Name_ == nil {
+			i.Name_ = p.badLeaf()
+		}
 	}()
 
 	recoverId = -1

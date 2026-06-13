@@ -36,6 +36,7 @@ const (
 	Import
 
 	Struct
+	Enum
 	Interface
 	Impl
 	Func

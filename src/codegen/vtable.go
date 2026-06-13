@@ -156,15 +156,25 @@ func VTableLinkName(in *types.Interface, typ types.Type) string {
 	sb := strings.Builder{}
 	sb.WriteString("fb$vtable$")
 
+	var name string
+	var substitutions []types.Substitution
+
+	if t, ok := typ.(*types.Struct); ok {
+		name = t.Name
+		substitutions = t.Substitutions
+	} else {
+		t := typ.(*types.Enum)
+		name = t.Name
+	}
+
 	// Concrete type path
-	s := typ.(*types.Struct)
-	sb.WriteString(s.Name)
+	sb.WriteString(name)
 
 	// Concrete type args
-	if s.Generic != nil {
+	if len(substitutions) > 0 {
 		sb.WriteString("::[")
 
-		for i, sub := range s.Substitutions {
+		for i, sub := range substitutions {
 			if i > 0 {
 				sb.WriteRune(',')
 			}

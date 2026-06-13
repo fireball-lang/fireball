@@ -27,6 +27,18 @@ impl Addition : Getter {
 	}
 }
 
+enum Bit {
+	Zero,
+	One,
+}
+
+impl Bit : Getter {
+	func get(self) i32 {
+		if (*self == Bit::Zero) return 0;
+		return 1;
+	}
+}
+
 // ── Generic interface types ────────────────────────────────────────────────────
 
 interface Number[T] {
@@ -88,13 +100,21 @@ func unwrap[T](n: Number[T]) T {
 
 // ── Non-generic tests ──────────────────────────────────────────────────────────
 
-#[test("basic interface dispatch")]
-func testBasicDispatch() bool {
+#[test("basic interface struct dispatch")]
+func testBasicStructDispatch() bool {
 	var c: Constant;
 	c.value = 42;
 
 	var g: Getter = &c;
 	return g.get() == 42;
+}
+
+#[test("basic interface enum dispatch")]
+func testBasicEnumDispatch() bool {
+	var b = Bit::One;
+
+	var g: Getter = &b;
+	return g.get() == 1;
 }
 
 #[test("multiple types implementing same interface")]

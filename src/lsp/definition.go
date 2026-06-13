@@ -101,6 +101,9 @@ func (s *Server) findTypeDeclaration(typ types.Type) ast.Node {
 
 		return s.findStructNode(template)
 
+	case *types.Enum:
+		return s.findEnumNode(t)
+
 	case *types.Interface:
 		template := t.AsImmutable()
 		if template.Generic != nil {
@@ -121,6 +124,18 @@ func (s *Server) findStructNode(st *types.Struct) *ast.Struct {
 		if sym.Kind == symbols.Struct && sym.Type == st {
 			if n, ok := sym.Node.(*ast.Struct); ok {
 				return n
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) findEnumNode(et *types.Enum) *ast.Enum {
+	for sym := range s.allSymbols() {
+		if sym.Kind == symbols.Enum && sym.Type == et {
+			if e, ok := sym.Node.(*ast.Enum); ok {
+				return e
 			}
 		}
 	}

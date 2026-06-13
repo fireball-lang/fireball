@@ -7,6 +7,6 @@
         "label": "Debug (linux)",
         "adapter": "CodeLLDB",
         "request": "launch",
-        "program": "./example/build/linux-amd64/debug/example"
+        "program": "./build/linux-amd64/debug/example/example"
     }
 ]
