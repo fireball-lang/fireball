@@ -8,9 +8,7 @@ struct Counter {
 
 impl Counter {
     func new(start: i32) Counter {
-        var c: Counter;
-        c.value = start;
-        return c;
+        return Self { value: start };
     }
 
     func zero() Counter {

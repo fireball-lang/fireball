@@ -116,6 +116,22 @@ func (c *codegen) VisitNull(_ *ast.Null) ir.Value {
 	return &ir.Null{}
 }
 
+func (c *codegen) VisitStructInitializer(s *ast.StructInitializer) ir.Value {
+	typ := c.ExprType(s).(*types.Struct)
+	t := c.types.Get(typ)
+
+	value := ir.Value(&ir.ZeroInitializer{Typ: t})
+
+	for _, field := range s.Fields {
+		f, i := typ.Field(field.Name.Token.Text)
+		fieldValue := c.LoadImplicitCast(field.Value, f.Type)
+
+		value = c.emitter.InsertValue(value, fieldValue, uint32(i))
+	}
+
+	return value
+}
+
 func (c *codegen) VisitSizeOf(s *ast.SizeOf) ir.Value {
 	typ := c.ResolveType(c.nodeTypes[s.Type])
 	info := c.arch.Info(typ)

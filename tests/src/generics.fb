@@ -108,6 +108,12 @@ func testChooseBoolFalse() bool {
 
 // ── Generic struct: field access and zero-init ─────────────────────────────────
 
+#[test("generic struct initializer")]
+func genericStructInitializer() bool {
+    var b = Box::[i32] { value: 5 };
+    return b.value == 5;
+}
+
 #[test("Box[i32] field write read")]
 func testBoxI32() bool {
     var b: Box[i32];

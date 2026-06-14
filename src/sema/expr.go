@@ -68,6 +68,34 @@ func (a *analyzer) VisitNull(_ *ast.Null) ExprInfo {
 	return ExprInfo{Type: voidPtrType}
 }
 
+func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
+	typ := a.AnalyzeType(s.Type)
+	if typ == types.Invalid {
+		return ExprInfo{Type: types.Invalid}
+	}
+
+	t, ok := typ.(*types.Struct)
+	if !ok {
+		return a.Error(s.Type, "type '%s' is not a struct", typ)
+	}
+
+	a.nodeTypes[s.Type] = typ
+
+	for _, field := range s.Fields {
+		f, i := t.Field(field.Name.Token.Text)
+
+		if i == -1 {
+			a.Error(field.Name, "field '%s' doesn't exist on struct '%s'", field.Name.Token.Text, t)
+			continue
+		}
+
+		value := a.AnalyzeExpr(field.Value)
+		a.ExpectType(f.Type, value, field.Value)
+	}
+
+	return ExprInfo{Type: typ}
+}
+
 func (a *analyzer) VisitSizeOf(s *ast.SizeOf) ExprInfo {
 	typ := a.AnalyzeType(s.Type)
 	if typ == types.Invalid {

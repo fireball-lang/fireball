@@ -619,10 +619,35 @@ func (p *parser) parsePostfixExpr(left ast.Expr) (ast.Expr, int) {
 	switch p.current.Kind {
 	case lexer.PlusPlus, lexer.MinusMinus:
 		return p.parsePostfix(left)
+
 	case lexer.LeftBracket:
 		return p.parseIndex(left)
-	case lexer.LeftParen, lexer.ColonColon:
-		return p.parseCall(left)
+
+	case lexer.LeftParen:
+		return p.parseCall(left, nil)
+
+	case lexer.LeftBrace:
+		return p.parseStructInitializer(left, nil)
+
+	case lexer.ColonColon:
+		var typeArgs []ast.Type
+		recoverId := -1
+
+		if typeArgs, recoverId = p.parseTurbofish(); recoverId >= 0 {
+			return nil, recoverId
+		}
+
+		switch p.current.Kind {
+		case lexer.LeftParen:
+			return p.parseCall(left, typeArgs)
+		case lexer.LeftBrace:
+			return p.parseStructInitializer(left, typeArgs)
+
+		default:
+			b := &ast.BadExpr{}
+			b.Range_ = p.current.Range
+			return b, p.error("expected '(' or '{' after generic arguments")
+		}
 
 	default:
 		b := &ast.BadExpr{}
@@ -694,46 +719,16 @@ func (p *parser) parseIndex(left ast.Expr) (i *ast.Index, recoverId int) {
 	return
 }
 
-func (p *parser) parseCall(left ast.Expr) (c *ast.Call, recoverId int) {
+func (p *parser) parseCall(left ast.Expr, typeArgs []ast.Type) (c *ast.Call, recoverId int) {
 	c = &ast.Call{}
 	c.Callee = left
+	c.TypeArgs = typeArgs
 	c.Range_.Start = left.Range().Start
 	defer func() {
 		c.Range_.End = p.previous.Range.End
 	}()
 
 	recoverId = -1
-
-	// '::' '[' Type Arguments ']'
-	if p.current.Kind == lexer.ColonColon {
-		// '::'
-		if recoverId = p.expect(lexer.ColonColon, "expected '::' before type arguments"); recoverId >= 0 {
-			return
-		}
-
-		// '['
-		if recoverId = p.expect(lexer.LeftBracket, "expected '[' before type arguments"); recoverId >= 0 {
-			return
-		}
-
-		// Type Arguments
-		myRecoverId := p.pushRecoverPoint(lexer.RightBracket)
-		c.TypeArgs, recoverId = parseCommaList(p, lexer.Comma, lexer.RightBracket, p.parseType)
-		p.popRecoverPoint()
-
-		if recoverId >= 0 {
-			if recoverId == myRecoverId {
-				recoverId = -1
-			} else {
-				return
-			}
-		}
-
-		// ']'
-		if recoverId = p.expect(lexer.RightBracket, "expected ']' after type arguments"); recoverId >= 0 {
-			return
-		}
-	}
 
 	// '(' Arguments ')'
 	{
@@ -759,6 +754,121 @@ func (p *parser) parseCall(left ast.Expr) (c *ast.Call, recoverId int) {
 		if recoverId = p.expect(lexer.RightParen, "expected ')' after arguments"); recoverId >= 0 {
 			return
 		}
+	}
+
+	return
+}
+
+func (p *parser) parseStructInitializer(left ast.Expr, typeArgs []ast.Type) (s *ast.StructInitializer, recoverId int) {
+	s = &ast.StructInitializer{}
+	s.Range_.Start = left.Range().Start
+	defer func() {
+		s.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// Type
+	path := left.(*ast.Identifier).Path
+
+	if len(path.Entries) == 1 && path.Entries[0].Token.Text == "Self" && len(typeArgs) == 0 {
+		t := &ast.SelfType{}
+		t.Range_ = left.Range()
+
+		s.Type = t
+	} else {
+		t := &ast.IdentifierType{Path: path, TypeArgs: typeArgs}
+		t.Range_ = left.Range()
+
+		s.Type = t
+	}
+
+	// '{'
+	if recoverId = p.expect(lexer.LeftBrace, "expected '{' before fields"); recoverId >= 0 {
+		return
+	}
+
+	// Fields
+	myRecoverId := p.pushRecoverPoint(lexer.RightBrace)
+	s.Fields, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightBrace, p.parseFieldInitializer)
+	p.popRecoverPoint()
+
+	if recoverId >= 0 {
+		if recoverId == myRecoverId {
+			recoverId = -1
+		} else {
+			return
+		}
+	}
+
+	// '}'
+	if recoverId = p.expect(lexer.RightBrace, "expected '}' after fields"); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseFieldInitializer() (f *ast.FieldInitializer, recoverId int) {
+	f = &ast.FieldInitializer{}
+	f.Range_.Start = p.current.Range.Start
+	defer func() {
+		f.Range_.End = p.previous.Range.End
+
+		if core.IsNil(f.Value) {
+			f.Value = p.badExpr()
+		}
+	}()
+
+	recoverId = -1
+
+	// Name
+	if f.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// ':'
+	if recoverId = p.expect(lexer.Colon, "expected ':' before field value"); recoverId >= 0 {
+		return
+	}
+
+	// Value
+	if f.Value, recoverId = p.parseExpr(); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseTurbofish() (typeArgs []ast.Type, recoverId int) {
+	recoverId = -1
+
+	// '::'
+	if recoverId = p.expect(lexer.ColonColon, "expected '::' before type arguments"); recoverId >= 0 {
+		return
+	}
+
+	// '['
+	if recoverId = p.expect(lexer.LeftBracket, "expected '[' before type arguments"); recoverId >= 0 {
+		return
+	}
+
+	// Type Arguments
+	myRecoverId := p.pushRecoverPoint(lexer.RightBracket)
+	typeArgs, recoverId = parseCommaList(p, lexer.Comma, lexer.RightBracket, p.parseType)
+	p.popRecoverPoint()
+
+	if recoverId >= 0 {
+		if recoverId == myRecoverId {
+			recoverId = -1
+		} else {
+			return
+		}
+	}
+
+	// ']'
+	if recoverId = p.expect(lexer.RightBracket, "expected ']' after type arguments"); recoverId >= 0 {
+		return
 	}
 
 	return
@@ -819,8 +929,8 @@ func init() {
 	prefix(lexer.Minus, lexer.Bang, lexer.PlusPlus, lexer.MinusMinus, lexer.Ampersand, lexer.Star)
 	// x++, x--
 	postfix(lexer.PlusPlus, lexer.MinusMinus)
-	// x[], x(), x::[]()
-	postfix(lexer.LeftBracket, lexer.LeftParen, lexer.ColonColon)
+	// x[], x(), x {}, x::[]
+	postfix(lexer.LeftBracket, lexer.LeftParen, lexer.LeftBrace, lexer.ColonColon)
 	// x.y
 	infix(false, lexer.Dot)
 }

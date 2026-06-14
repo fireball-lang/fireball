@@ -80,6 +80,50 @@ func (n *Null) Children() iter.Seq[Node] {
 
 func (n *Null) _isExpr() {}
 
+// StructInitializer
+
+type StructInitializer struct {
+	baseNode
+
+	Type   Type
+	Fields []*FieldInitializer
+}
+
+func (s *StructInitializer) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(s.Type) {
+			return
+		}
+		for _, field := range s.Fields {
+			if !yield(field) {
+				return
+			}
+		}
+	}
+}
+
+func (s *StructInitializer) _isExpr() {}
+
+// FieldInitializer
+
+type FieldInitializer struct {
+	baseNode
+
+	Name  *Leaf
+	Value Expr
+}
+
+func (f *FieldInitializer) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(f.Name) {
+			return
+		}
+		if !yield(f.Value) {
+			return
+		}
+	}
+}
+
 // SizeOf
 
 type SizeOf struct {

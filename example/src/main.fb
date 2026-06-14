@@ -16,10 +16,7 @@ struct I32 {
 
 impl I32 {
     func new(value: i32) Self {
-        var i: Self;
-        i.value = value;
-
-        return i;
+        return Self { value: value };
     }
 }
 

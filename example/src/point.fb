@@ -9,12 +9,10 @@ pub struct Point {
 
 impl Point {
 	pub func new(x: i32, y: i32) Point {
-		var p: Point;
-
-		p.x = x;
-		p.y = y;
-
-		return p;
+		return Point {
+			x: x,
+			y: y,
+		};
 	}
 
 	pub func print(self) {

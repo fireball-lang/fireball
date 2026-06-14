@@ -33,6 +33,12 @@ func getVecX(v: *Vec2) i32 {
 
 // ── direct struct, addressable ────────────────────────────────────────────────
 
+#[test("struct initializer")]
+func structInitializer() bool {
+    var v = Vec2 { x: 1 };
+    return v.x == 1 && v.y == 0;
+}
+
 #[test("struct field read (direct, addressable)")]
 func testStructFieldRead() bool {
     var v = makeVec(3, 4);

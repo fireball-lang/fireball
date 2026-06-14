@@ -72,6 +72,8 @@
 
 (offsetof field: (identifier) @property)
 
+(struct_initializer field: (field_initializer name: (identifier) @property))
+
 ; Operators
 
 [
