@@ -96,6 +96,27 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 	return ExprInfo{Type: typ}
 }
 
+func (a *analyzer) VisitArrayInitializer(ai *ast.ArrayInitializer) ExprInfo {
+	typ := a.AnalyzeType(ai.Type)
+	if typ == types.Invalid {
+		return ExprInfo{Type: types.Invalid}
+	}
+
+	t := typ.(*types.Array)
+	a.nodeTypes[ai.Type] = t
+
+	if t.Size != uint32(len(ai.Elements)) {
+		a.Error(ai.Type, "mismatched array size, type has size of %d but got %d elements", t.Size, len(ai.Elements))
+	}
+
+	for _, element := range ai.Elements {
+		expr := a.AnalyzeExpr(element)
+		a.ExpectType(t.Element, expr, element)
+	}
+
+	return ExprInfo{Type: t}
+}
+
 func (a *analyzer) VisitSizeOf(s *ast.SizeOf) ExprInfo {
 	typ := a.AnalyzeType(s.Type)
 	if typ == types.Invalid {

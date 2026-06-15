@@ -74,6 +74,9 @@ func (p *parser) parsePrefixExpr() (ast.Expr, int) {
 	case lexer.Identifier:
 		return p.parseIdentifier()
 
+	case lexer.LeftBracket:
+		return p.parseArrayInitializer()
+
 	case lexer.Sizeof:
 		return p.parseSizeOf()
 
@@ -834,6 +837,46 @@ func (p *parser) parseFieldInitializer() (f *ast.FieldInitializer, recoverId int
 
 	// Value
 	if f.Value, recoverId = p.parseExpr(); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseArrayInitializer() (a *ast.ArrayInitializer, recoverId int) {
+	a = &ast.ArrayInitializer{}
+	a.Range_.Start = p.current.Range.Start
+	defer func() {
+		a.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// Type
+	if a.Type, recoverId = p.parseArrayType(); recoverId >= 0 {
+		return
+	}
+
+	// '{'
+	if recoverId = p.expect(lexer.LeftBrace, "expected '{' before elements"); recoverId >= 0 {
+		return
+	}
+
+	// Elements
+	myRecoverId := p.pushRecoverPoint(lexer.RightBrace)
+	a.Elements, recoverId = parseCommaList(p, lexer.Comma, lexer.RightBrace, p.parseExpr)
+	p.popRecoverPoint()
+
+	if recoverId >= 0 {
+		if recoverId == myRecoverId {
+			recoverId = -1
+		} else {
+			return
+		}
+	}
+
+	// '}'
+	if recoverId = p.expect(lexer.RightBrace, "expected '}' after elements"); recoverId >= 0 {
 		return
 	}
 

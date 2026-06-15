@@ -124,6 +124,30 @@ func (f *FieldInitializer) Children() iter.Seq[Node] {
 	}
 }
 
+// ArrayInitializer
+
+type ArrayInitializer struct {
+	baseNode
+
+	Type     *ArrayType
+	Elements []Expr
+}
+
+func (a *ArrayInitializer) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(a.Type) {
+			return
+		}
+		for _, element := range a.Elements {
+			if !yield(element) {
+				return
+			}
+		}
+	}
+}
+
+func (a *ArrayInitializer) _isExpr() {}
+
 // SizeOf
 
 type SizeOf struct {

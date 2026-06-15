@@ -132,6 +132,21 @@ func (c *codegen) VisitStructInitializer(s *ast.StructInitializer) ir.Value {
 	return value
 }
 
+func (c *codegen) VisitArrayInitializer(a *ast.ArrayInitializer) ir.Value {
+	typ := c.ExprType(a).(*types.Array)
+	t := c.types.Get(typ)
+
+	value := ir.Value(&ir.ZeroInitializer{Typ: t})
+
+	for i, element := range a.Elements {
+		elementValue := c.LoadImplicitCast(element, typ.Element)
+
+		value = c.emitter.InsertValue(value, elementValue, uint32(i))
+	}
+
+	return value
+}
+
 func (c *codegen) VisitSizeOf(s *ast.SizeOf) ir.Value {
 	typ := c.ResolveType(c.nodeTypes[s.Type])
 	info := c.arch.Info(typ)
