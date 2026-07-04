@@ -16,6 +16,8 @@ func main() {
 		Short: "An all-in-one binary tooling for the Fireball language",
 	}
 
+	root.AddCommand(getInitCmd())
+	root.AddCommand(getNewCmd())
 	root.AddCommand(getBuildCmd())
 	root.AddCommand(getRunCmd())
 	root.AddCommand(getTestCmd())
