@@ -64,25 +64,34 @@ func ExtractVersionedEmbedFs(path, fsRoot string, fs embed.FS) error {
 		if slices.Equal(found, expected) {
 			return nil
 		}
+
+		// Version mismatch - remove folder and recreate from scratch
+		err = versionInfoFile.Close()
+		if err != nil {
+			return err
+		}
+
+		versionInfoFile = nil
+
+		err = os.RemoveAll(path)
+		if err != nil {
+			return err
+		}
+
+		err = os.MkdirAll(path, 0750)
+		if err != nil {
+			return err
+		}
+
+		return recursiveLoopFolders(path, fsRoot, fs, extractEmbedFsFile)
 	}
 
-	// Remove folder
-	err = os.RemoveAll(path)
-	if err != nil {
-		return err
-	}
-
-	// Create folder
-	err = os.MkdirAll(path, 0750)
-	if err != nil {
-		return err
-	}
-
-	// Copy files
-	return extractEmbedFsFolder(path, fsRoot, fs)
+	// version_info.txt is missing (e.g. first extraction, or an older layout) - instead of
+	// wiping the whole folder, sync files one by one, only overwriting the ones that differ
+	return recursiveLoopFolders(path, fsRoot, fs, syncEmbedFsFile)
 }
 
-func extractEmbedFsFolder(to, from string, fs embed.FS) error {
+func recursiveLoopFolders(to, from string, fs embed.FS, fn func(to, from string, fs embed.FS) error) error {
 	// Create folder
 	err := os.MkdirAll(to, 0750)
 	if err != nil {
@@ -101,13 +110,13 @@ func extractEmbedFsFolder(to, from string, fs embed.FS) error {
 
 		if entry.IsDir() {
 			// Recurse folder
-			err := extractEmbedFsFolder(to, from, fs)
+			err := recursiveLoopFolders(to, from, fs, fn)
 			if err != nil {
 				return err
 			}
 		} else {
-			// Copy file
-			err := extractEmbedFsFile(to, from, fs)
+			// Sync file
+			err := fn(to, from, fs)
 			if err != nil {
 				return err
 			}
@@ -139,4 +148,23 @@ func extractEmbedFsFile(to, from string, fs embed.FS) error {
 	// Copy
 	_, err = io.Copy(toFile, fromFile)
 	return err
+}
+
+func syncEmbedFsFile(to, from string, fs embed.FS) error {
+	// Read expected contents
+	expected, err := fs.ReadFile(from)
+	if err != nil {
+		return err
+	}
+
+	// Read existing contents (if any) and compare, skipping the write if they already match
+	found, err := os.ReadFile(to)
+
+	if err == nil && slices.Equal(found, expected) {
+		return nil
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	return os.WriteFile(to, expected, 0640)
 }
