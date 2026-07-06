@@ -16,7 +16,7 @@ func getRunCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Builds and runs a project",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			start := time.Now()
 
 			// Parse
@@ -38,7 +38,7 @@ func getRunCmd() *cobra.Command {
 
 			// Run
 			return runProgram(exePath)
-		},
+		}),
 	}
 
 	cmd.Flags().StringVarP(&profileName, "profile", "p", "debug", "profile to build the project with")

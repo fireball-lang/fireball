@@ -12,7 +12,7 @@ func getBuildCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "build",
 		Short: "Builds a project",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			start := time.Now()
 
 			// Parse
@@ -28,7 +28,7 @@ func getBuildCmd() *cobra.Command {
 			_, err = buildProject(proj, projMap, profileName, start, normalEntrypointProvider)
 
 			return err
-		},
+		}),
 	}
 
 	cmd.Flags().StringVarP(&profileName, "profile", "p", "debug", "profile to build the project with")

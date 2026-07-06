@@ -7,6 +7,7 @@ require (
 	github.com/fireball-lang/protocol v0.0.0-20260426085844-b1898f38e024
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-git/go-git/v6 v6.0.0-alpha.2
+	github.com/ivanpirog/coloredcobra v1.0.1
 	github.com/pelletier/go-toml/v2 v2.3.0
 	github.com/petermattis/goid v0.0.0-20260330135022-df67b199bc81
 	github.com/spf13/cobra v1.10.2

@@ -19,7 +19,7 @@ func getInitCmd() *cobra.Command {
 		Use:   "init [path]",
 		Short: "Initializes a project in an existing directory",
 		Args:  cobra.MaximumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			// Get path
 			path, err := os.Getwd()
 			if err != nil {
@@ -59,7 +59,7 @@ func getInitCmd() *cobra.Command {
 			}
 
 			return generateProjectTemplate(path, name, initGit)
-		},
+		}),
 	}
 
 	cmd.Flags().StringVarP(&name, "name", "n", "", "name of the project, default is directory name")

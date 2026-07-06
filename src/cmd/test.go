@@ -21,7 +21,7 @@ func getTestCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "test",
 		Short: "Tests a project",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			start := time.Now()
 
 			// Parse
@@ -95,7 +95,7 @@ func getTestCmd() *cobra.Command {
 			}
 
 			return nil
-		},
+		}),
 	}
 
 	return cmd

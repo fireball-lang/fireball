@@ -22,7 +22,7 @@ func getLspCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "lsp",
 		Short: "Starts a language server",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			core.EndProfiler()
 
 			stream, logger, err := getStream(port)
@@ -40,7 +40,7 @@ func getLspCmd() *cobra.Command {
 			<-conn.Done()
 
 			return nil
-		},
+		}),
 	}
 
 	cmd.Flags().Uint16VarP(&port, "port", "p", 0, "use a TCP connection with the specified port instead of STDIO")
