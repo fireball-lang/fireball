@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fireball/project"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -25,7 +26,12 @@ func getBuildCmd() *cobra.Command {
 			}
 
 			// Build
-			_, err = buildProject(proj, projMap, profileName, start, normalEntrypointProvider)
+			entrypointProvider := normalEntrypointProvider
+			if proj.Config.Kind != project.Executable {
+				entrypointProvider = nil
+			}
+
+			_, err = buildProject(proj, projMap, profileName, start, entrypointProvider)
 
 			return err
 		}),

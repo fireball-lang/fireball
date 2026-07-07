@@ -40,8 +40,9 @@ func getTestCmd() *cobra.Command {
 			proj.Config.LibC = true
 
 			exePath, err := buildProject(proj, projMap, "debug", start, func(proj *project.Project) (build.EntrypointFn, error) {
-				return func(module *ir.Module, fun *ir.Function) {
+				return func(module *ir.Module, fun *ir.Function) *project.Project {
 					testEntrypoint(module, fun, testFuncs)
+					return proj
 				}, nil
 			})
 			if err != nil {

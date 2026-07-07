@@ -70,6 +70,8 @@ func getInitCmd() *cobra.Command {
 
 const (
 	templateProjectToml = `name = "{name}"
+type = "executable"
+
 lib-c = true
 `
 

@@ -9,7 +9,6 @@ import (
 	"fireball/ir"
 	"fireball/project"
 	"fireball/sema"
-	"fireball/toolchain"
 	"fireball/types"
 	"fmt"
 	"os"
@@ -18,43 +17,6 @@ import (
 
 	"github.com/fatih/color"
 )
-
-func buildProject(proj *project.Project, projMap map[string]*project.Project, profileName string, start time.Time, entrypointFnProvider func(project2 *project.Project) (build.EntrypointFn, error)) (string, error) {
-	defer core.Scope()()
-
-	// Build
-	entrypointFn, err := entrypointFnProvider(proj)
-	if err != nil {
-		return "", err
-	}
-
-	if err := toolchain.Validate(); err != nil {
-		return "", err
-	}
-
-	target, err := toolchain.GetTarget()
-	if err != nil {
-		return "", err
-	}
-
-	profile, ok := proj.Config.Profiles[profileName]
-	if !ok {
-		return "", fmt.Errorf("unknown profile: '%s'", profileName)
-	}
-
-	exePath, err := build.Build(proj, projMap, target, profile, entrypointFn)
-	if err != nil {
-		return "", err
-	}
-
-	// Print
-	duration := time.Since(start)
-
-	_, _ = color.New(color.FgGreen, color.Bold).Print("Build succeeded\n")
-	color.White("  took %s", duration)
-
-	return exePath, nil
-}
 
 func parseProject(start time.Time) (*project.Project, map[string]*project.Project, error) {
 	defer core.Scope()()
@@ -132,6 +94,63 @@ func parseProject(start time.Time) (*project.Project, map[string]*project.Projec
 	return main, projMap, nil
 }
 
+func buildProject(proj *project.Project, projMap map[string]*project.Project, profileName string, start time.Time, entrypointFnProvider func(project2 *project.Project) (build.EntrypointFn, error)) (string, error) {
+	defer core.Scope()()
+
+	// Initialize build system
+	profile, ok := proj.Config.Profiles[profileName]
+	if !ok {
+		return "", fmt.Errorf("unknown profile: '%s'", profileName)
+	}
+
+	system, err := build.Init(proj.Path, profile)
+	if err != nil {
+		return "", err
+	}
+
+	// Compile project
+	objFilePaths, err := system.CompileProjectHierarchy(projMap)
+	if err != nil {
+		return "", err
+	}
+
+	if entrypointFnProvider == nil {
+		// Print info
+		printBuildSuccessful(start)
+		return "", nil
+	}
+
+	// Compile entrypoint
+	fn, err := entrypointFnProvider(proj)
+	if err != nil {
+		return "", err
+	}
+
+	entrypointObjFilePath, err := system.CompileEntrypoint(fn)
+	if err != nil {
+		return "", err
+	}
+
+	objFilePaths = append(objFilePaths, entrypointObjFilePath)
+
+	// Link executable
+	executablePath, err := system.Link(objFilePaths)
+	if err != nil {
+		return "", err
+	}
+
+	// Print info
+	printBuildSuccessful(start)
+	return executablePath, nil
+}
+
+func printBuildSuccessful(start time.Time) {
+	duration := time.Since(start)
+
+	_, _ = color.New(color.FgGreen, color.Bold).Print("Build successful\n")
+	color.White("  took %s", duration)
+}
+
 func normalEntrypointProvider(proj *project.Project) (build.EntrypointFn, error) {
 	var mainFunc *ast.Func
 	var mainFuncTyp *types.Func
@@ -155,7 +174,7 @@ outer:
 		return nil, errors.New("main function not found")
 	}
 
-	return func(module *ir.Module, fun *ir.Function) {
+	return func(module *ir.Module, fun *ir.Function) *project.Project {
 		typeCache := codegen.TypeCache{Module: module}
 
 		mainFun := module.NewFunction(codegen.FuncLinkName(mainFunc, mainFuncTyp, nil), &ir.Signature{Returns: typeCache.Get(mainFuncTyp.Returns)}, nil)
@@ -223,6 +242,8 @@ outer:
 			Name:  "blockcount",
 			Value: 0,
 		})
+
+		return proj
 	}, nil
 }
 

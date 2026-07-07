@@ -26,9 +26,18 @@ type Dependency struct {
 	Revision string `toml:"revision"`
 }
 
+type Kind uint8
+
+const (
+	Executable Kind = iota
+	Library
+)
+
 type Config struct {
 	Name string `toml:"name"`
-	LibC bool   `toml:"lib-c"`
+	Kind Kind   `toml:"type"`
+
+	LibC bool `toml:"lib-c"`
 
 	Profiles     map[string]Profile `toml:"profile"`
 	Dependencies []Dependency       `toml:"dependency"`
@@ -44,7 +53,9 @@ type rawProfile struct {
 
 type rawConfig struct {
 	Name string `toml:"name"`
-	LibC bool   `toml:"lib-c"`
+	Kind string `toml:"type"`
+
+	LibC bool `toml:"lib-c"`
 
 	Profiles     map[string]rawProfile `toml:"profile"`
 	Dependencies []Dependency          `toml:"dependency"`
@@ -85,6 +96,16 @@ func readConfig(path string) (Config, error) {
 			},
 		},
 		Dependencies: raw.Dependencies,
+	}
+
+	switch raw.Kind {
+	case "executable":
+		config.Kind = Executable
+	case "library":
+		config.Kind = Library
+
+	default:
+		return Config{}, fmt.Errorf("invalid or missing project type, needs to be either 'executable' or 'library'")
 	}
 
 	// Profiles

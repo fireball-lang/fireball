@@ -1,4 +1,6 @@
 name = "tests"
+type = "library"
+
 lib-c = true
 
 [profile.debug]

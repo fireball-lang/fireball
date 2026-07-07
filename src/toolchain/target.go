@@ -3,6 +3,7 @@ package toolchain
 import (
 	"errors"
 	"fireball/abi"
+	"fireball/core"
 	"runtime"
 )
 
@@ -22,6 +23,8 @@ type Target struct {
 }
 
 func GetTarget() (Target, error) {
+	defer core.Scope()()
+
 	if runtime.GOOS == "windows" && runtime.GOARCH == "amd64" {
 		return getTargetWindowsAmd64()
 	}

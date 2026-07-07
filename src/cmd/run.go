@@ -2,6 +2,7 @@ package main
 
 import (
 	"fireball/core"
+	"fireball/project"
 	"fmt"
 	"os"
 	"os/exec"
@@ -29,7 +30,12 @@ func getRunCmd() *cobra.Command {
 			}
 
 			// Build
-			exePath, err := buildProject(proj, projMap, profileName, start, normalEntrypointProvider)
+			entrypointProvider := normalEntrypointProvider
+			if proj.Config.Kind != project.Executable {
+				entrypointProvider = nil
+			}
+
+			exePath, err := buildProject(proj, projMap, profileName, start, entrypointProvider)
 			fmt.Println()
 
 			if err != nil {

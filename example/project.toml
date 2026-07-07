@@ -1,4 +1,6 @@
 name = "example"
+type = "executable"
+
 lib-c = true
 
 [profile.debug]
