@@ -29,6 +29,10 @@ func getRunCmd() *cobra.Command {
 				return nil
 			}
 
+			if proj.Config.Kind != project.Executable {
+				return fmt.Errorf("can only run 'executable' projects, not '%s'", proj.Config.Kind)
+			}
+
 			// Build
 			entrypointProvider := normalEntrypointProvider
 			if proj.Config.Kind != project.Executable {

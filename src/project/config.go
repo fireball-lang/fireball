@@ -33,6 +33,17 @@ const (
 	Library
 )
 
+func (k Kind) String() string {
+	switch k {
+	case Executable:
+		return "executable"
+	case Library:
+		return "library"
+	default:
+		panic("project.Kind.String() - Invalid value")
+	}
+}
+
 type Config struct {
 	Name string `toml:"name"`
 	Kind Kind   `toml:"type"`
