@@ -14,6 +14,8 @@ type Interface struct {
 
 	SelfParam *Param
 
+	AssociatedTypes []*Param
+
 	InstanceMethods []Method
 	StaticMethods   []Method
 

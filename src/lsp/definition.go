@@ -167,11 +167,11 @@ func (s *Server) findFuncNode(fn *types.Func) *ast.Func {
 	return nil
 }
 
-func (s *Server) findParamNode(p *types.Param) *ast.TypeParam {
+func (s *Server) findParamNode(p *types.Param) ast.Node {
 	for _, workspace := range s.workspaces {
 		workspace.mutex.RLock()
 
-		var result *ast.TypeParam
+		var result ast.Node
 
 	outer:
 		for _, proj := range workspace.projMap {
@@ -181,8 +181,9 @@ func (s *Server) findParamNode(p *types.Param) *ast.TypeParam {
 						continue
 					}
 
-					if tp, ok := node.(*ast.TypeParam); ok {
-						result = tp
+					switch node.(type) {
+					case *ast.TypeParam, *ast.AssociatedType:
+						result = node
 						break outer
 					}
 				}
@@ -251,6 +252,8 @@ func (s *Server) buildDefinitionResult(defNode ast.Node) interface{} {
 	case *ast.Field:
 		link.TargetSelectionRange = toLspRange(n.Name.Range())
 	case *ast.TypeParam:
+		link.TargetSelectionRange = toLspRange(n.Name.Range())
+	case *ast.AssociatedType:
 		link.TargetSelectionRange = toLspRange(n.Name.Range())
 	case *ast.Param:
 		link.TargetSelectionRange = toLspRange(n.Name.Range())

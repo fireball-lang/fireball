@@ -719,6 +719,12 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 			}
 		}
 
+		// Return value
+		if p, ok := f.Returns.(*types.Param); ok && p.Associated {
+			return a.Error(c.Callee, "cannot call a function which return type is not fully defined")
+		}
+
+		// Arguments
 		if len(c.Args) != len(params) && (!f.VarArgs || len(c.Args) < len(params)) {
 			a.Error(c.Callee, "expected %d arguments, got %d", len(params), len(c.Args))
 		}

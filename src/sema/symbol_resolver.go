@@ -5,6 +5,7 @@ import (
 	"fireball/core"
 	"fireball/symbols"
 	"fireball/types"
+	"slices"
 )
 
 func ResolveSymbols(file *ast.File, fileSymbols []symbols.Symbol, instantiations types.InstantiationCache, typeEnv *TypeEnvironment, root symbols.Scope, path string) (map[ast.Node]types.Type, []core.Diagnostic) {
@@ -98,14 +99,6 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 		}
 	}
 
-	prevSelf := a.selfType
-	a.selfType = methodTyp
-	defer func() { a.selfType = prevSelf }()
-
-	for _, f := range impl.Methods {
-		a.resolveMethod(f, okType, typ, methodTyp)
-	}
-
 	// Interface
 	if impl.Interface != nil {
 		inRaw := a.AnalyzeType(impl.Interface)
@@ -117,7 +110,49 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 			if !a.typeEnv.AddConformance(methodTyp, in) {
 				a.Error(impl.Type, "type '%s' already implements interface '%s'", typ, in)
 			}
+
+			// Associated types
+			matchedNodes := make([]*ast.AssociatedType, 0, len(impl.AssociatedTypes))
+			aliasTypes := make([]types.Type, 0, len(impl.AssociatedTypes))
+
+			for _, associatedType := range impl.AssociatedTypes {
+				i := slices.IndexFunc(in.AssociatedTypes, func(param *types.Param) bool {
+					return param.Name == associatedType.Name.Token.Text
+				})
+
+				if i == -1 {
+					a.Error(associatedType, "interface '%s' does not have an associated type '%s'", in.String(), associatedType.Name.Token.Text)
+					continue
+				}
+
+				alias := a.AnalyzeType(associatedType.Type)
+
+				matchedNodes = append(matchedNodes, associatedType)
+				aliasTypes = append(aliasTypes, alias)
+			}
+
+			if len(aliasTypes) < len(in.AssociatedTypes) {
+				a.Error(impl.Type, "implementation of interface '%s' for '%s' is missing some associated types", in.String(), typ.String())
+			}
+
+			if a.pushAssociatedTypes(matchedNodes, aliasTypes) {
+				defer a.scopes.Pop()
+			}
 		}
+	} else {
+		// Associated types
+		for _, associatedType := range impl.AssociatedTypes {
+			a.Error(associatedType, "associated types can only be used with interfaces")
+		}
+	}
+
+	// Methods
+	prevSelf := a.selfType
+	a.selfType = methodTyp
+	defer func() { a.selfType = prevSelf }()
+
+	for _, f := range impl.Methods {
+		a.resolveMethod(f, okType, typ, methodTyp)
 	}
 }
 
@@ -179,4 +214,31 @@ func (a *analyzer) resolveMethod(f *ast.Func, okType bool, typ, methodTyp types.
 	if okType && !okAdd {
 		a.Error(f.Name_, "method with the name '%s' already exists on type '%s'", f.Name().Token.Text, typ)
 	}
+}
+
+func (a *analyzer) pushAssociatedTypes(astAssocTypes []*ast.AssociatedType, aliasTypes []types.Type) bool {
+	if len(astAssocTypes) == 0 {
+		return false
+	}
+
+	syms := make([]symbols.Symbol, 0, len(astAssocTypes))
+
+	for i, assocType := range astAssocTypes {
+		if i >= len(aliasTypes) {
+			continue
+		}
+
+		a.nodeTypes[assocType] = aliasTypes[i]
+
+		syms = append(syms, symbols.Symbol{
+			Kind: symbols.TypeParam,
+			Name: assocType.Name.Token.Text,
+			Node: assocType.Type,
+			Type: aliasTypes[i],
+		})
+	}
+
+	a.scopes.Push(symbols.SymbolScope(syms))
+
+	return true
 }

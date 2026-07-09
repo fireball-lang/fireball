@@ -39,6 +39,7 @@ const (
 	Enum
 	Interface
 	Impl
+	Type
 	Func
 
 	Var

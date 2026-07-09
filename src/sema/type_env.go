@@ -192,7 +192,7 @@ func (e *TypeEnvironment) GetInstanceMethod(typ types.Type, name string) (symbol
 }
 
 func (e *TypeEnvironment) GetTypeScope(typ types.Type) symbols.Scope {
-	// Constrained type parameter: scope is merged static methods from all constraints.
+	// Constrained type parameter: scope is merged associated types and static methods from all constraints.
 	if tp, ok := typ.(*types.Param); ok {
 		if len(tp.Constraints) == 0 {
 			return nil
@@ -211,10 +211,35 @@ func (e *TypeEnvironment) GetTypeScope(typ types.Type) symbols.Scope {
 			if inNode == nil && canonical.Generic != nil {
 				inNode = e.interfaceNodes[canonical.Generic]
 			}
-			if inNode == nil || len(canonical.StaticMethods) == 0 {
+			if inNode == nil {
 				continue
 			}
 
+			// Associated types
+			for _, associatedType := range canonical.AssociatedTypes {
+				var a *ast.AssociatedType
+
+				for _, an := range inNode.AssociatedTypes {
+					if an.Name.Token.Text == associatedType.Name {
+						a = an
+						break
+					}
+				}
+
+				if a == nil {
+					continue
+				}
+
+				staticSymbols = append(staticSymbols, symbols.Symbol{
+					Kind:   symbols.TypeParam,
+					Public: true,
+					Name:   associatedType.Name,
+					Node:   a,
+					Type:   associatedType,
+				})
+			}
+
+			// Methods
 			for _, method := range canonical.StaticMethods {
 				var f *ast.Func
 

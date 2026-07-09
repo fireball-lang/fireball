@@ -10,6 +10,7 @@
 "enum" @keyword
 "interface" @keyword
 "impl" @keyword
+"type" @keyword
 "func" @keyword.function
 
 "var" @keyword
@@ -55,6 +56,8 @@
 (interface type_param: (type_param name: (identifier) @type.parameter))
 
 (impl type_param: (type_param name: (identifier) @type.parameter))
+
+(associated_type name: (identifier) @type)
 
 (func name: (identifier) @function)
 (func type_param: (type_param name: (identifier) @type.parameter))

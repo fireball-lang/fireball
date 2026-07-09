@@ -53,10 +53,7 @@ func (c InstantiationCache) resolve(typ Type, substitutions []Substitution) Type
 	case *Param:
 		return getSubstitution(substitutions, typ)
 
-	case *invalid:
-		return typ
-
-	case *Primitive:
+	case *invalid, *Primitive:
 		return typ
 
 	case *Pointer:
@@ -192,6 +189,7 @@ func (c InstantiationCache) substitute(generic Type, substitutions []Substitutio
 			Name:            generic.Name,
 			ModulePath:      generic.ModulePath,
 			SelfParam:       generic.SelfParam,
+			AssociatedTypes: generic.AssociatedTypes,
 			InstanceMethods: instanceMethods,
 			StaticMethods:   staticMethods,
 			Generic:         generic,

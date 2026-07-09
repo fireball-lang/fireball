@@ -140,6 +140,16 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 					selectionRange: getRange(decl.Name_),
 				})
 
+				for _, associatedType := range decl.AssociatedTypes {
+					symbols.addChild(id, symbol{
+						file:           file,
+						kind:           protocol.SymbolKindTypeParameter,
+						name:           getText(associatedType.Name),
+						range_:         getRange(associatedType),
+						selectionRange: getRange(associatedType.Name),
+					})
+				}
+
 				for _, method := range decl.Methods {
 					addFuncSymbol(symbols, file, method, id)
 				}
@@ -162,6 +172,10 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 					continue
 				}
 
+				if s, ok := typ.(*types.Struct); ok && s.Generic != nil {
+					typ = s.Generic
+				}
+
 				id, ok := decls[typ]
 
 				if !ok {
@@ -172,6 +186,17 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 					})
 
 					decls[typ] = id
+				}
+
+				for _, associatedType := range decl.AssociatedTypes {
+					symbols.addChild(id, symbol{
+						file:           file,
+						kind:           protocol.SymbolKindTypeParameter,
+						name:           getText(associatedType.Name),
+						detail:         getTypeString(associatedType.Type),
+						range_:         getRange(associatedType),
+						selectionRange: getRange(associatedType.Name),
+					})
 				}
 
 				for _, method := range decl.Methods {

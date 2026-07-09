@@ -143,6 +143,9 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 		if a.resolveTypeParams(in.TypeParams, inType.TypeParams) {
 			defer a.scopes.Pop()
 		}
+		if a.resolveAssociatedTypeParams(in.AssociatedTypes, inType.AssociatedTypes) {
+			defer a.scopes.Pop()
+		}
 
 		inType.InstanceMethods = nil
 		inType.StaticMethods = nil
@@ -220,6 +223,29 @@ func (a *analyzer) resolveTypeParams(astParams []*ast.TypeParam, typeParams []*t
 			}
 		}
 	}
+
+	return true
+}
+
+func (a *analyzer) resolveAssociatedTypeParams(astAssocTypes []*ast.AssociatedType, typeAssocTypes []*types.Param) bool {
+	if len(astAssocTypes) == 0 {
+		return false
+	}
+
+	syms := make([]symbols.Symbol, 0, len(astAssocTypes))
+
+	for i, assocType := range astAssocTypes {
+		a.nodeTypes[assocType] = typeAssocTypes[i]
+
+		syms = append(syms, symbols.Symbol{
+			Kind: symbols.TypeParam,
+			Name: assocType.Name.Token.Text,
+			Node: assocType.Type,
+			Type: typeAssocTypes[i],
+		})
+	}
+
+	a.scopes.Push(symbols.SymbolScope(syms))
 
 	return true
 }

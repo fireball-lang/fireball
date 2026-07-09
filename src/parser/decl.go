@@ -366,11 +366,22 @@ func (p *parser) parseInterface(public bool) (i *ast.Interface, recoverId int) {
 
 	// Methods
 	for p.current.Kind != lexer.RightBrace && p.current.Kind != lexer.EOF {
-		myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Func)
+		myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Type, lexer.Func)
 
-		var f *ast.Func
-		f, recoverId = p.parseFunc(nil, true, true)
-		i.Methods = append(i.Methods, f)
+		if p.current.Kind == lexer.Type {
+			// Associate type
+			var a *ast.AssociatedType
+			a, recoverId = p.parseAssociatedType(false)
+			i.AssociatedTypes = append(i.AssociatedTypes, a)
+		} else if p.current.Kind == lexer.Func {
+			// Method
+			var f *ast.Func
+			f, recoverId = p.parseFunc(nil, true, true)
+			i.Methods = append(i.Methods, f)
+		} else {
+			// Invalid
+			recoverId = p.error("expected 'type' or 'func'")
+		}
 
 		p.popRecoverPoint()
 
@@ -433,18 +444,29 @@ func (p *parser) parseImpl() (i *ast.Impl, recoverId int) {
 
 	// Methods
 	for p.current.Kind != lexer.RightBrace && p.current.Kind != lexer.EOF {
-		myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Pub, lexer.Func)
+		myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Type, lexer.Pub, lexer.Func)
 
-		public := false
+		if p.current.Kind == lexer.Type {
+			// Associate type
+			var a *ast.AssociatedType
+			a, recoverId = p.parseAssociatedType(true)
+			i.AssociatedTypes = append(i.AssociatedTypes, a)
+		} else if p.current.Kind == lexer.Pub || p.current.Kind == lexer.Func {
+			// Method
+			public := false
 
-		if p.current.Kind == lexer.Pub {
-			p.advance()
-			public = true
+			if p.current.Kind == lexer.Pub {
+				p.advance()
+				public = true
+			}
+
+			var f *ast.Func
+			f, recoverId = p.parseFunc(nil, public, true)
+			i.Methods = append(i.Methods, f)
+		} else {
+			// Invalid
+			recoverId = p.error("expected 'type', 'pub' or 'func'")
 		}
-
-		var f *ast.Func
-		f, recoverId = p.parseFunc(nil, public, true)
-		i.Methods = append(i.Methods, f)
 
 		p.popRecoverPoint()
 
@@ -460,6 +482,42 @@ func (p *parser) parseImpl() (i *ast.Impl, recoverId int) {
 	// '}'
 	if recoverId = p.expect(lexer.RightBrace, "expected '}' after members"); recoverId >= 0 {
 		return
+	}
+
+	return
+}
+
+func (p *parser) parseAssociatedType(hasType bool) (a *ast.AssociatedType, recoverId int) {
+	a = &ast.AssociatedType{}
+	a.Range_.Start = p.current.Range.Start
+	a.Name = emptyLeaf
+	defer func() {
+		a.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'type'
+	if recoverId = p.expect(lexer.Type, "expected 'type'"); recoverId >= 0 {
+		return
+	}
+
+	// Name
+	if a.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// '=' Type
+	if hasType {
+		// '='
+		if recoverId = p.expect(lexer.Equal, "expected '=' before type"); recoverId >= 0 {
+			return
+		}
+
+		// Type
+		if a.Type, recoverId = p.parseType(); recoverId >= 0 {
+			return
+		}
 	}
 
 	return

@@ -75,6 +75,12 @@ func Collect(file *ast.File) []Symbol {
 				typeParams = append(typeParams, &types.Param{Name: param.Name.Token.Text})
 			}
 
+			associatedTypes := make([]*types.Param, 0, len(decl.AssociatedTypes))
+
+			for _, associatedType := range decl.AssociatedTypes {
+				associatedTypes = append(associatedTypes, &types.Param{Name: associatedType.Name.Token.Text, Associated: true})
+			}
+
 			selfParam := &types.Param{Name: "Self"}
 
 			symbols = append(symbols, Symbol{
@@ -82,7 +88,7 @@ func Collect(file *ast.File) []Symbol {
 				Public: decl.Public,
 				Name:   decl.Name().Token.Text,
 				Node:   decl,
-				Type:   &types.Interface{Name: sb.String(), ModulePath: modulePath, TypeParams: typeParams, SelfParam: selfParam}, // filled in type resolver
+				Type:   &types.Interface{Name: sb.String(), ModulePath: modulePath, TypeParams: typeParams, SelfParam: selfParam, AssociatedTypes: associatedTypes}, // filled in type resolver
 			})
 
 		case *ast.Func:

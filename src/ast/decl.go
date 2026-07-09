@@ -167,7 +167,8 @@ type Interface struct {
 	Name_      *Leaf
 	TypeParams []*TypeParam
 
-	Methods []*Func
+	AssociatedTypes []*AssociatedType
+	Methods         []*Func
 }
 
 func (i *Interface) Children() iter.Seq[Node] {
@@ -177,6 +178,11 @@ func (i *Interface) Children() iter.Seq[Node] {
 		}
 		for _, param := range i.TypeParams {
 			if !yield(param) {
+				return
+			}
+		}
+		for _, assocType := range i.AssociatedTypes {
+			if !yield(assocType) {
 				return
 			}
 		}
@@ -204,7 +210,8 @@ type Impl struct {
 	Type      Type
 	Interface *IdentifierType // optional
 
-	Methods []*Func
+	AssociatedTypes []*AssociatedType
+	Methods         []*Func
 }
 
 func (i *Impl) Children() iter.Seq[Node] {
@@ -220,8 +227,13 @@ func (i *Impl) Children() iter.Seq[Node] {
 		if i.Interface != nil && !yield(i.Interface) {
 			return
 		}
-		for _, function := range i.Methods {
-			if !yield(function) {
+		for _, assocType := range i.AssociatedTypes {
+			if !yield(assocType) {
+				return
+			}
+		}
+		for _, method := range i.Methods {
+			if !yield(method) {
 				return
 			}
 		}
@@ -233,6 +245,26 @@ func (i *Impl) Name() *Leaf {
 }
 
 func (i *Impl) _isDecl() {}
+
+// AssociatedType
+
+type AssociatedType struct {
+	baseNode
+
+	Name *Leaf
+	Type Type // nil for interface, non-nil for implementation block
+}
+
+func (a *AssociatedType) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(a.Name) {
+			return
+		}
+		if !core.IsNil(a.Type) && !yield(a.Type) {
+			return
+		}
+	}
+}
 
 // Func
 

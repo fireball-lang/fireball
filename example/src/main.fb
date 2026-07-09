@@ -2,43 +2,28 @@ mod example;
 
 import example::c::{printf};
 
-interface Number {
-    func add(self, other: Self) Self
+interface Index[T] {
+    type Result
+
+    func get(self, index: T) Result
 }
 
-interface Default {
-    func default() Self
+struct Slice[T] {
+    ptr: *T,
+    size: u64,
 }
 
-struct I32 {
-    value: i32,
-}
+impl[T] Slice[T] : Index[u64] {
+    type Result = T
 
-impl I32 {
-    func new(value: i32) Self {
-        return Self { value: value };
+    func get(self, index: u64) T {
+        return self.ptr[index];
     }
-}
-
-impl I32 : Number {
-    func add(self, other: Self) Self {
-        return I32::new(self.value + other.value);
-    }
-}
-
-impl I32 : Default {
-    func default() Self {
-        return Self::new(1);
-    }
-}
-
-func addDefault[T: Number + Default](number: T) T {
-    return number.add(T::default());
 }
 
 func main() {
-    var two = I32::new(2);
-    var three = addDefault::[I32](two);
+    var array = [3]i32{ 1, 3, 6 };
+    var slice = Slice::[i32] { ptr: &array[0], size: 3u };
 
-    printf("%d\n".ptr, three.value);
+    printf("slice[1] = %d\n".ptr, slice.get(1u));
 }

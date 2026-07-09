@@ -200,20 +200,36 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 			inGeneric = in
 		}
 
-		var selfSubs []types.Substitution
+		var methodSubs []types.Substitution
+		methodSubs = append(methodSubs, in.Substitutions...)
+
 		if inGeneric.SelfParam != nil {
-			selfSubs = []types.Substitution{{Param: inGeneric.SelfParam, Type: lookupTyp}}
+			methodSubs = append(methodSubs, types.Substitution{Param: inGeneric.SelfParam, Type: lookupTyp})
+		}
+
+		for _, assocParam := range inGeneric.AssociatedTypes {
+			for _, implAssoc := range i.AssociatedTypes {
+				if implAssoc.Name.Token.Text != assocParam.Name {
+					continue
+				}
+
+				if alias, ok := a.nodeTypes[implAssoc]; ok {
+					methodSubs = append(methodSubs, types.Substitution{Param: assocParam, Type: alias})
+				}
+
+				break
+			}
 		}
 
 		substituteInMethod := func(t *types.Func) *types.Func {
-			if len(selfSubs) == 0 {
+			if len(methodSubs) == 0 {
 				return t
 			}
 
-			return a.instantiations.Substitute(t, selfSubs).(*types.Func)
+			return a.instantiations.Substitute(t, methodSubs).(*types.Func)
 		}
 
-		for _, method := range in.InstanceMethods {
+		for _, method := range inGeneric.InstanceMethods {
 			sym, ok := a.typeEnv.GetInstanceMethod(lookupTyp, method.Name)
 			if !ok {
 				a.Error(i.Type, "type '%s' does not implement interface '%s': missing instance method '%s'", typ, in, method.Name)
@@ -238,7 +254,7 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 			}
 		}
 
-		for _, method := range in.StaticMethods {
+		for _, method := range inGeneric.StaticMethods {
 			sym, ok := a.typeEnv.GetStaticMethod(lookupTyp, method.Name)
 			if !ok {
 				a.Error(i.Type, "type '%s' does not implement interface '%s': missing static method '%s'", typ, in, method.Name)

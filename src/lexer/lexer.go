@@ -337,6 +337,8 @@ func (l *Lexer) keywordIdentifier() Token {
 		token.Kind = Interface
 	case "impl":
 		token.Kind = Impl
+	case "type":
+		token.Kind = Type
 	case "func":
 		token.Kind = Func
 

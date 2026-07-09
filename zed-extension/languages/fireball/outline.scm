@@ -10,6 +10,15 @@
   "interface" @context
   name: (identifier) @name) @item
 
+(associated_type
+    "type" @context
+    name: (identifier) @name
+    type: (type) @context) @item
+
+(impl
+  "impl" @context
+  type: (type) @name) @item
+
 (func
   "func" @context
   name: (identifier) @name) @item
