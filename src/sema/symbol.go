@@ -15,7 +15,7 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 		s := symbol.Node.(*ast.Struct)
 		t := symbol.Type.(*types.Struct)
 
-		a.typeEnv.RegisterStruct(t, s)
+		a.typeEnv.RegisterTypeDeclNode(t, s)
 
 		if a.resolveTypeParams(s.TypeParams, t.TypeParams) {
 			defer a.scopes.Pop()
@@ -128,13 +128,13 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 			}
 		}
 
-		a.typeEnv.RegisterEnum(t, e)
+		a.typeEnv.RegisterTypeDeclNode(t, e)
 
 	case symbols.Interface:
 		in := symbol.Node.(*ast.Interface)
 		inType := symbol.Type.(*types.Interface)
 
-		a.typeEnv.RegisterInterface(inType, in)
+		a.typeEnv.RegisterTypeDeclNode(inType, in)
 
 		prevSelf := a.selfType
 		a.selfType = inType.SelfParam
