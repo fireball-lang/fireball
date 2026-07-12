@@ -1,0 +1,66 @@
+mod core;
+
+// Eq
+
+pub interface Eq {
+    func eq(self, rhs: Self) bool
+}
+
+impl bool : Eq {
+    pub func eq(self, rhs: Self) bool {
+        return *self == rhs;
+    }
+}
+
+impl u8 : Eq {
+    pub func eq(self, rhs: Self) bool {
+        return *self == rhs;
+    }
+}
+impl u16 : Eq {
+    pub func eq(self, rhs: Self) bool {
+        return *self == rhs;
+    }
+}
+impl u32 : Eq {
+    pub func eq(self, rhs: Self) bool {
+        return *self == rhs;
+    }
+}
+impl u64 : Eq {
+    pub func eq(self, rhs: Self) bool {
+        return *self == rhs;
+    }
+}
+
+impl i8 : Eq {
+    pub func eq(self, rhs: Self) bool {
+        return *self == rhs;
+    }
+}
+impl i16 : Eq {
+    pub func eq(self, rhs: Self) bool {
+        return *self == rhs;
+    }
+}
+impl i32 : Eq {
+    pub func eq(self, rhs: Self) bool {
+        return *self == rhs;
+    }
+}
+impl i64 : Eq {
+    pub func eq(self, rhs: Self) bool {
+        return *self == rhs;
+    }
+}
+
+impl f32 : Eq {
+    pub func eq(self, rhs: Self) bool {
+        return *self == rhs;
+    }
+}
+impl f64 : Eq {
+    pub func eq(self, rhs: Self) bool {
+        return *self == rhs;
+    }
+}

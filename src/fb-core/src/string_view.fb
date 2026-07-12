@@ -9,13 +9,13 @@ impl StringView {
 	pub func starts_with(self, other: StringView) bool {
 		if (self.size < other.size) return false;
 
-		return self.slice(0u, other.size).equals(other);
+		return self.slice(0u, other.size).eq(other);
 	}
 
 	pub func ends_with(self, other: StringView) bool {
 		if (self.size < other.size) return false;
 
-		return self.slice(self.size - other.size, self.size).equals(other);
+		return self.slice(self.size - other.size, self.size).eq(other);
 	}
 
 	pub func contains(self, other: StringView) bool {
@@ -44,7 +44,7 @@ impl StringView {
 		var last = self.size - other.size;
 
 		for (var i = 0u; i <= last; i++) {
-			if (self.slice(i, i + other.size).equals(other)) {
+			if (self.slice(i, i + other.size).eq(other)) {
 				return (i as i32);
 			}
 		}
@@ -59,7 +59,7 @@ impl StringView {
 		var last = self.size - other.size;
 
 		for (var i = last; ; i--) {
-			if (self.slice(i, i + other.size).equals(other)) {
+			if (self.slice(i, i + other.size).eq(other)) {
 				return (i as i32);
 			}
 
@@ -78,12 +78,14 @@ impl StringView {
 
 		return view;
 	}
+}
 
-	pub func equals(self, other: StringView) bool {
-		if (self.size != other.size) return false;
+impl StringView : Eq {
+    pub func eq(self, rhs: StringView) bool {
+		if (self.size != rhs.size) return false;
 
-		for (var i = 0u; i < other.size; i++) {
-			if (self.ptr[i] != other.ptr[i]) return false;
+		for (var i = 0u; i < rhs.size; i++) {
+			if (self.ptr[i] != rhs.ptr[i]) return false;
 		}
 
 		return true;
