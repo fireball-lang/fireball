@@ -285,10 +285,16 @@ func FuncLinkName(f *ast.Func, typ *types.Func, in *types.Interface) string {
 	}
 
 	if i, ok := f.Parent().(*ast.Impl); ok {
-		t := i.Type.(*ast.IdentifierType)
+		name := ""
+
+		if p, ok := i.Type.(*ast.PrimitiveType); ok {
+			name = p.Kind.String()
+		} else {
+			name = i.Type.(*ast.IdentifierType).Path.LastName()
+		}
 
 		sb.WriteString("::")
-		sb.WriteString(t.Path.LastName())
+		sb.WriteString(name)
 		sb.WriteRune('$')
 
 		// Interface disambiguation

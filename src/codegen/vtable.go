@@ -86,7 +86,15 @@ func (c *codegen) CreateVTable(impl *ast.Impl) ir.Value {
 	}
 
 	// Create
-	name := VTableLinkName(in, c.nodeTypes[impl.Type])
+	var typ types.Type
+
+	if p, ok := impl.Type.(*ast.PrimitiveType); ok {
+		typ = types.GetPrimitive(p.Kind)
+	} else {
+		typ = c.nodeTypes[impl.Type]
+	}
+
+	name := VTableLinkName(in, typ)
 	return c.CreateVTableVar(name, methods, methodNodes, false)
 }
 
@@ -159,12 +167,15 @@ func VTableLinkName(in *types.Interface, typ types.Type) string {
 	var name string
 	var substitutions []types.Substitution
 
-	if t, ok := typ.(*types.Struct); ok {
+	if t, ok := typ.(*types.Primitive); ok {
+		name = t.Kind.String()
+	} else if t, ok := typ.(*types.Enum); ok {
+		name = t.Name
+	} else if t, ok := typ.(*types.Struct); ok {
 		name = t.Name
 		substitutions = t.Substitutions
 	} else {
-		t := typ.(*types.Enum)
-		name = t.Name
+		panic("codegen.VTableLinkName() - Invalid type")
 	}
 
 	// Concrete type path

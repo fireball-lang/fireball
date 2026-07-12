@@ -60,10 +60,12 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 	okType := true
 
 	if typ != types.Invalid {
-		if _, ok := typ.(*types.Struct); !ok {
+		if _, ok := typ.(*types.Primitive); !ok {
 			if _, ok := typ.(*types.Enum); !ok {
-				a.Error(impl.Type, "implementation blocks can only be attached to structs, not '%s'", typ)
-				okType = false
+				if _, ok := typ.(*types.Struct); !ok {
+					a.Error(impl.Type, "implementation blocks can only be attached to primitives, enums and structs, not '%s'", typ)
+					okType = false
+				}
 			}
 		}
 	}
