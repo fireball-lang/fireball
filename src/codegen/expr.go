@@ -414,7 +414,7 @@ func (c *codegen) VisitCompoundBaseBinaryOp(b *ast.Binary, left, right ir.Value,
 func (c *codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 	switch node := c.exprInfos[i].Node.(type) {
 	case *ast.Func:
-		typ := c.exprInfos[i].Type.(*types.Func)
+		typ := c.ExprType(i).(*types.Func)
 		in := c.getFuncInterface(node)
 		c.AddSummaryCallee(i, node, typ, in)
 		return c.GetFunction(node, typ, in)
@@ -499,7 +499,7 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 	// Method
 	if index == -1 {
 		f := c.exprInfos[m].Node.(*ast.Func)
-		typ := c.exprInfos[m].Type.(*types.Func)
+		typ := c.ExprType(m).(*types.Func)
 		in := c.getFuncInterface(f)
 
 		c.AddSummaryCallee(m, f, typ, in)
@@ -527,10 +527,10 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 
 func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 	f := c.exprInfos[e.Callee].Node.(*ast.Func)
-	typ := c.ResolveType(c.exprInfos[e.Callee].Type).(*types.Func)
+	typ := c.ExprType(e.Callee).(*types.Func)
 
 	if instTyp, ok := c.nodeTypes[e].(*types.Func); ok {
-		typ = instTyp
+		typ = c.ResolveType(instTyp).(*types.Func)
 	}
 
 	var callee ir.Value
