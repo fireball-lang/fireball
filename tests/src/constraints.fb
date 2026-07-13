@@ -88,6 +88,17 @@ impl[T] Holder[T] : Setter[T] {
     }
 }
 
+// These two structs ensure that generic interface conformance is checked after symbol resolution
+// and not at the same time
+
+struct DefaultHolder[T: Default] {
+	default: T,
+}
+
+struct DefaultHolderHolder {
+	default_holder: DefaultHolder[Counter],
+}
+
 // ── Constrained generic functions ──────────────────────────────────────────────
 
 // Immutable constraint: call instance method on T

@@ -9,22 +9,23 @@ import (
 	"math"
 )
 
-func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
+func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 	switch symbol.Kind {
 	case symbols.Struct:
 		s := symbol.Node.(*ast.Struct)
 		t := symbol.Type.(*types.Struct)
 
-		a.typeEnv.RegisterTypeDeclNode(t, s)
+		r.typeEnv.RegisterTypeDeclNode(t, s)
+		r.nodeTypes[s] = t
 
-		if a.resolveTypeParams(s.TypeParams, t.TypeParams) {
-			defer a.scopes.Pop()
+		if r.ResolveTypeParams(s.TypeParams, t.TypeParams) {
+			defer r.scopes.Pop()
 		}
 
 		t.Fields = make([]types.Field, len(s.Fields))
 
 		for i := 0; i < len(s.Fields); i++ {
-			typ := a.AnalyzeType(s.Fields[i].Type)
+			typ := r.ResolveAndAnalyzeType(s.Fields[i].Type)
 
 			if typ == types.PrimitiveVoid {
 				typ = types.Invalid
@@ -46,11 +47,11 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 
 		// Custom case type
 		if !core.IsNil(e.Type) {
-			typ := a.AnalyzeType(e.Type)
+			typ := r.ResolveAndAnalyzeType(e.Type)
 
 			if typ != types.Invalid {
 				if p, ok := typ.(*types.Primitive); !ok || !types.IsInteger(p.Kind) {
-					a.Error(e.Type, "the underlying type of an enum can only be an integer type, not '%s'", typ)
+					r.Error(e.Type, "the underlying type of an enum can only be an integer type, not '%s'", typ)
 					typ = types.Invalid
 				}
 			}
@@ -86,7 +87,7 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 					node = c.Name
 				}
 
-				a.Error(node, "value '%s' doesn't fit inside type '%s'", current, t.CaseType)
+				r.Error(node, "value '%s' doesn't fit inside type '%s'", current, t.CaseType)
 			}
 
 			valueMin = valueMin.Min(current)
@@ -124,27 +125,29 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 			}
 
 			if t.CaseType == types.Invalid {
-				a.Error(e.Name(), "failed to infer enum case type for '%s'", e.Name().Token.Text)
+				r.Error(e.Name(), "failed to infer enum case type for '%s'", e.Name().Token.Text)
 			}
 		}
 
-		a.typeEnv.RegisterTypeDeclNode(t, e)
+		r.typeEnv.RegisterTypeDeclNode(t, e)
+		r.nodeTypes[e] = t
 
 	case symbols.Interface:
 		in := symbol.Node.(*ast.Interface)
 		inType := symbol.Type.(*types.Interface)
 
-		a.typeEnv.RegisterTypeDeclNode(inType, in)
+		r.typeEnv.RegisterTypeDeclNode(inType, in)
+		r.nodeTypes[in] = inType
 
-		prevSelf := a.selfType
-		a.selfType = inType.SelfParam
-		defer func() { a.selfType = prevSelf }()
+		prevSelf := r.selfType
+		r.selfType = inType.SelfParam
+		defer func() { r.selfType = prevSelf }()
 
-		if a.resolveTypeParams(in.TypeParams, inType.TypeParams) {
-			defer a.scopes.Pop()
+		if r.ResolveTypeParams(in.TypeParams, inType.TypeParams) {
+			defer r.scopes.Pop()
 		}
-		if a.resolveAssociatedTypeParams(in.AssociatedTypes, inType.AssociatedTypes) {
-			defer a.scopes.Pop()
+		if r.ResolveAssociatedTypeParams(in.AssociatedTypes, inType.AssociatedTypes) {
+			defer r.scopes.Pop()
 		}
 
 		inType.InstanceMethods = nil
@@ -156,7 +159,7 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 				Type: &types.Func{},
 			}
 
-			a.resolveFunc(f, m.Type)
+			r.ResolveFunc(f, m.Type)
 
 			if f.Receiver != nil {
 				selfPtr := &types.Pointer{Mutable: f.Receiver.Mutable, Pointee: inType.SelfParam}
@@ -172,23 +175,23 @@ func (a *analyzer) ResolveSymbol(symbol *symbols.Symbol) {
 		f := symbol.Node.(*ast.Func)
 		t := symbol.Type.(*types.Func)
 
-		a.resolveFunc(f, t)
+		r.ResolveFunc(f, t)
 
 	default:
 		panic("sema.analyzer.ResolveSymbol() - Invalid symbol kind")
 	}
 }
 
-func (a *analyzer) resolveFunc(f *ast.Func, t *types.Func) {
-	if a.resolveTypeParams(f.TypeParams, t.TypeParams) {
-		defer a.scopes.Pop()
+func (r *resolver) ResolveFunc(f *ast.Func, t *types.Func) {
+	if r.ResolveTypeParams(f.TypeParams, t.TypeParams) {
+		defer r.scopes.Pop()
 	}
 
 	t.Params = make([]types.Type, len(f.Params))
 	t.VarArgs = f.VarArgs
 
 	for i := 0; i < len(f.Params); i++ {
-		typ := a.AnalyzeType(f.Params[i].Type)
+		typ := r.ResolveAndAnalyzeType(f.Params[i].Type)
 
 		if typ == types.PrimitiveVoid {
 			typ = types.Invalid
@@ -197,29 +200,31 @@ func (a *analyzer) resolveFunc(f *ast.Func, t *types.Func) {
 		t.Params[i] = typ
 	}
 
-	t.Returns = a.AnalyzeType(f.Returns)
+	t.Returns = r.ResolveAndAnalyzeType(f.Returns)
+
+	r.nodeTypes[f] = t
 }
 
-func (a *analyzer) resolveTypeParams(astParams []*ast.TypeParam, typeParams []*types.Param) bool {
+func (r *resolver) ResolveTypeParams(astParams []*ast.TypeParam, typeParams []*types.Param) bool {
 	if len(astParams) == 0 {
 		return false
 	}
 
-	a.scopes.Push(&symbols.ParamScope{
+	r.scopes.Push(&symbols.ParamScope{
 		Params: typeParams,
 		Nodes:  astParams,
 	})
 
 	for i, param := range astParams {
-		a.nodeTypes[param] = typeParams[i]
+		r.nodeTypes[param] = typeParams[i]
 
 		for _, constraintAst := range param.Constraints {
-			constraint := a.AnalyzeType(constraintAst)
+			constraint := r.ResolveAndAnalyzeType(constraintAst)
 
 			if in, ok := constraint.(*types.Interface); ok {
 				typeParams[i].Constraints = append(typeParams[i].Constraints, in)
 			} else {
-				a.Error(constraintAst, "constraint must be an interface type, got '%s'", constraint)
+				r.Error(constraintAst, "constraint must be an interface type, got '%s'", constraint)
 			}
 		}
 	}
@@ -227,7 +232,7 @@ func (a *analyzer) resolveTypeParams(astParams []*ast.TypeParam, typeParams []*t
 	return true
 }
 
-func (a *analyzer) resolveAssociatedTypeParams(astAssocTypes []*ast.AssociatedType, typeAssocTypes []*types.Param) bool {
+func (r *resolver) ResolveAssociatedTypeParams(astAssocTypes []*ast.AssociatedType, typeAssocTypes []*types.Param) bool {
 	if len(astAssocTypes) == 0 {
 		return false
 	}
@@ -235,7 +240,7 @@ func (a *analyzer) resolveAssociatedTypeParams(astAssocTypes []*ast.AssociatedTy
 	syms := make([]symbols.Symbol, 0, len(astAssocTypes))
 
 	for i, assocType := range astAssocTypes {
-		a.nodeTypes[assocType] = typeAssocTypes[i]
+		r.nodeTypes[assocType] = typeAssocTypes[i]
 
 		syms = append(syms, symbols.Symbol{
 			Kind: symbols.TypeParam,
@@ -245,7 +250,7 @@ func (a *analyzer) resolveAssociatedTypeParams(astAssocTypes []*ast.AssociatedTy
 		})
 	}
 
-	a.scopes.Push(symbols.SymbolScope(syms))
+	r.scopes.Push(symbols.SymbolScope(syms))
 
 	return true
 }

@@ -8,42 +8,44 @@ import (
 	"slices"
 )
 
-func ResolveSymbols(file *ast.File, fileSymbols []symbols.Symbol, instantiations types.InstantiationCache, typeEnv *TypeEnvironment, root symbols.Scope, path string) (map[ast.Node]types.Type, []core.Diagnostic) {
+type resolver struct {
+	common
+}
+
+func Resolve(file *ast.File, fileSymbols []symbols.Symbol, instantiations types.InstantiationCache, typeEnv *TypeEnvironment, root symbols.Scope, path string) (map[ast.Node]types.Type, []core.Diagnostic) {
 	defer core.Scope()()
 
-	a := analyzer{
-		path:           path,
-		nodeTypes:      make(map[ast.Node]types.Type),
-		instantiations: instantiations,
-		typeEnv:        typeEnv,
+	r := resolver{
+		common: setupCommon(file, fileSymbols, root, instantiations, typeEnv, make(map[ast.Node]types.Type), path),
 	}
 
-	a.scopes.Push(root)
-	a.scopes.Push(a.GetImportsScope(root, file))
-	a.scopes.Push(symbols.SymbolScope(fileSymbols))
+	r.checkTypeConstraints = false
+
+	// Resolve
 
 	for i := range fileSymbols {
-		a.ResolveSymbol(&fileSymbols[i])
+		r.ResolveSymbol(&fileSymbols[i])
 	}
 
 	for _, decl := range file.Decls {
-		if impl, ok := decl.(*ast.Impl); ok {
-			a.resolveImpl(impl)
+		switch decl := decl.(type) {
+		case *ast.Impl:
+			r.ResolveImpl(decl)
 		}
 	}
 
 	// Cleanup
 
 	for i := 0; i < 3; i++ {
-		a.scopes.Pop()
+		r.scopes.Pop()
 	}
 
-	a.scopes.ValidateEmpty()
+	r.scopes.ValidateEmpty()
 
-	return a.nodeTypes, a.diagnostics
+	return r.nodeTypes, r.diagnostics
 }
 
-func (a *analyzer) resolveImpl(impl *ast.Impl) {
+func (r *resolver) ResolveImpl(impl *ast.Impl) {
 	// Temporarily push impl type params so the impl type itself can resolve
 	if len(impl.TypeParams) > 0 {
 		typeParams := make([]*types.Param, 0, len(impl.TypeParams))
@@ -52,18 +54,18 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 			typeParams = append(typeParams, &types.Param{Name: param.Name.Token.Text})
 		}
 
-		a.resolveTypeParams(impl.TypeParams, typeParams)
-		defer a.scopes.Pop()
+		r.ResolveTypeParams(impl.TypeParams, typeParams)
+		defer r.scopes.Pop()
 	}
 
-	typ := a.AnalyzeType(impl.Type)
+	typ := r.ResolveAndAnalyzeType(impl.Type)
 	okType := true
 
 	if typ != types.Invalid {
 		if _, ok := typ.(*types.Primitive); !ok {
 			if _, ok := typ.(*types.Enum); !ok {
 				if _, ok := typ.(*types.Struct); !ok {
-					a.Error(impl.Type, "implementation blocks can only be attached to primitives, enums and structs, not '%s'", typ)
+					r.Error(impl.Type, "implementation blocks can only be attached to primitives, enums and structs, not '%s'", typ)
 					okType = false
 				}
 			}
@@ -81,7 +83,7 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 
 		if len(template.TypeParams) > 0 && len(impl.TypeParams) > 0 {
 			if len(impl.TypeParams) != len(template.TypeParams) {
-				a.Error(impl.Type, "implementation of generic struct '%s' must declare %d type parameter(s), got %d", template.Name, len(template.TypeParams), len(impl.TypeParams))
+				r.Error(impl.Type, "implementation of generic struct '%s' must declare %d type parameter(s), got %d", template.Name, len(template.TypeParams), len(impl.TypeParams))
 			} else {
 				methodTyp = s.Generic
 
@@ -90,27 +92,27 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 					implNames[i] = param.Name.Token.Text
 				}
 
-				a.scopes.Push(&symbols.ParamScope{
+				r.scopes.Push(&symbols.ParamScope{
 					Names:  implNames,
 					Params: template.TypeParams,
 					Nodes:  impl.TypeParams,
 				})
 
-				defer a.scopes.Pop()
+				defer r.scopes.Pop()
 			}
 		}
 	}
 
 	// Interface
 	if impl.Interface != nil {
-		inRaw := a.AnalyzeType(impl.Interface)
+		inRaw := r.ResolveAndAnalyzeType(impl.Interface)
 		in, ok := inRaw.(*types.Interface)
 
 		if inRaw != types.Invalid && !ok {
-			a.Error(impl.Interface, "'%s' is not an interface", impl.Interface)
+			r.Error(impl.Interface, "'%s' is not an interface", impl.Interface)
 		} else if ok {
-			if !a.typeEnv.AddConformance(methodTyp, in) {
-				a.Error(impl.Type, "type '%s' already implements interface '%s'", typ, in)
+			if !r.typeEnv.AddConformance(methodTyp, in) {
+				r.Error(impl.Type, "type '%s' already implements interface '%s'", typ, in)
 			}
 
 			// Associated types
@@ -123,42 +125,42 @@ func (a *analyzer) resolveImpl(impl *ast.Impl) {
 				})
 
 				if i == -1 {
-					a.Error(associatedType, "interface '%s' does not have an associated type '%s'", in.String(), associatedType.Name.Token.Text)
+					r.Error(associatedType, "interface '%s' does not have an associated type '%s'", in.String(), associatedType.Name.Token.Text)
 					continue
 				}
 
-				alias := a.AnalyzeType(associatedType.Type)
+				alias := r.ResolveAndAnalyzeType(associatedType.Type)
 
 				matchedNodes = append(matchedNodes, associatedType)
 				aliasTypes = append(aliasTypes, alias)
 			}
 
 			if len(aliasTypes) < len(in.AssociatedTypes) {
-				a.Error(impl.Type, "implementation of interface '%s' for '%s' is missing some associated types", in.String(), typ.String())
+				r.Error(impl.Type, "implementation of interface '%s' for '%s' is missing some associated types", in.String(), typ.String())
 			}
 
-			if a.pushAssociatedTypes(matchedNodes, aliasTypes) {
-				defer a.scopes.Pop()
+			if r.PushAssociatedTypes(matchedNodes, aliasTypes) {
+				defer r.scopes.Pop()
 			}
 		}
 	} else {
 		// Associated types
 		for _, associatedType := range impl.AssociatedTypes {
-			a.Error(associatedType, "associated types can only be used with interfaces")
+			r.Error(associatedType, "associated types can only be used with interfaces")
 		}
 	}
 
 	// Methods
-	prevSelf := a.selfType
-	a.selfType = methodTyp
-	defer func() { a.selfType = prevSelf }()
+	prevSelf := r.selfType
+	r.selfType = methodTyp
+	defer func() { r.selfType = prevSelf }()
 
 	for _, f := range impl.Methods {
-		a.resolveMethod(f, okType, typ, methodTyp)
+		r.ResolveMethod(f, okType, typ, methodTyp)
 	}
 }
 
-func (a *analyzer) resolveMethod(f *ast.Func, okType bool, typ, methodTyp types.Type) {
+func (r *resolver) ResolveMethod(f *ast.Func, okType bool, typ, methodTyp types.Type) {
 	var funcTypeParams []*types.Param
 
 	if len(f.TypeParams) > 0 {
@@ -168,8 +170,8 @@ func (a *analyzer) resolveMethod(f *ast.Func, okType bool, typ, methodTyp types.
 			funcTypeParams = append(funcTypeParams, &types.Param{Name: param.Name.Token.Text})
 		}
 
-		a.resolveTypeParams(f.TypeParams, funcTypeParams)
-		defer a.scopes.Pop()
+		r.ResolveTypeParams(f.TypeParams, funcTypeParams)
+		defer r.scopes.Pop()
 	}
 
 	// Create type
@@ -186,7 +188,7 @@ func (a *analyzer) resolveMethod(f *ast.Func, okType bool, typ, methodTyp types.
 	}
 
 	for _, param := range f.Params {
-		typ := a.AnalyzeType(param.Type)
+		typ := r.ResolveAndAnalyzeType(param.Type)
 
 		if typ == types.PrimitiveVoid {
 			typ = types.Invalid
@@ -195,7 +197,7 @@ func (a *analyzer) resolveMethod(f *ast.Func, okType bool, typ, methodTyp types.
 		t.Params = append(t.Params, typ)
 	}
 
-	t.Returns = a.AnalyzeType(f.Returns)
+	t.Returns = r.ResolveAndAnalyzeType(f.Returns)
 
 	symbol := symbols.Symbol{
 		Kind:   symbols.Func,
@@ -208,17 +210,17 @@ func (a *analyzer) resolveMethod(f *ast.Func, okType bool, typ, methodTyp types.
 	var okAdd bool
 
 	if f.Receiver == nil {
-		okAdd = a.typeEnv.AddStaticMethod(methodTyp, symbol)
+		okAdd = r.typeEnv.AddStaticMethod(methodTyp, symbol)
 	} else {
-		okAdd = a.typeEnv.AddInstanceMethod(methodTyp, symbol)
+		okAdd = r.typeEnv.AddInstanceMethod(methodTyp, symbol)
 	}
 
 	if okType && !okAdd {
-		a.Error(f.Name_, "method with the name '%s' already exists on type '%s'", f.Name().Token.Text, typ)
+		r.Error(f.Name_, "method with the name '%s' already exists on type '%s'", f.Name().Token.Text, typ)
 	}
 }
 
-func (a *analyzer) pushAssociatedTypes(astAssocTypes []*ast.AssociatedType, aliasTypes []types.Type) bool {
+func (r *resolver) PushAssociatedTypes(astAssocTypes []*ast.AssociatedType, aliasTypes []types.Type) bool {
 	if len(astAssocTypes) == 0 {
 		return false
 	}
@@ -230,7 +232,7 @@ func (a *analyzer) pushAssociatedTypes(astAssocTypes []*ast.AssociatedType, alia
 			continue
 		}
 
-		a.nodeTypes[assocType] = aliasTypes[i]
+		r.nodeTypes[assocType] = aliasTypes[i]
 
 		syms = append(syms, symbols.Symbol{
 			Kind: symbols.TypeParam,
@@ -240,7 +242,7 @@ func (a *analyzer) pushAssociatedTypes(astAssocTypes []*ast.AssociatedType, alia
 		})
 	}
 
-	a.scopes.Push(symbols.SymbolScope(syms))
+	r.scopes.Push(symbols.SymbolScope(syms))
 
 	return true
 }

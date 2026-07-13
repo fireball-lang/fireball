@@ -69,7 +69,7 @@ func (a *analyzer) VisitNull(_ *ast.Null) ExprInfo {
 }
 
 func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
-	typ := a.AnalyzeType(s.Type)
+	typ := a.ResolveAndAnalyzeType(s.Type)
 	if typ == types.Invalid {
 		return ExprInfo{Type: types.Invalid}
 	}
@@ -78,8 +78,6 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 	if !ok {
 		return a.Error(s.Type, "type '%s' is not a struct", typ)
 	}
-
-	a.nodeTypes[s.Type] = typ
 
 	for _, field := range s.Fields {
 		f, i := t.Field(field.Name.Token.Text)
@@ -97,13 +95,12 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 }
 
 func (a *analyzer) VisitArrayInitializer(ai *ast.ArrayInitializer) ExprInfo {
-	typ := a.AnalyzeType(ai.Type)
+	typ := a.ResolveAndAnalyzeType(ai.Type)
 	if typ == types.Invalid {
 		return ExprInfo{Type: types.Invalid}
 	}
 
 	t := typ.(*types.Array)
-	a.nodeTypes[ai.Type] = t
 
 	if t.Size != uint32(len(ai.Elements)) {
 		a.Error(ai.Type, "mismatched array size, type has size of %d but got %d elements", t.Size, len(ai.Elements))
@@ -118,32 +115,28 @@ func (a *analyzer) VisitArrayInitializer(ai *ast.ArrayInitializer) ExprInfo {
 }
 
 func (a *analyzer) VisitSizeOf(s *ast.SizeOf) ExprInfo {
-	typ := a.AnalyzeType(s.Type)
+	typ := a.ResolveAndAnalyzeType(s.Type)
 	if typ == types.Invalid {
 		return ExprInfo{Type: types.Invalid}
 	}
 
-	a.nodeTypes[s.Type] = typ
 	return ExprInfo{Type: types.PrimitiveU32}
 }
 
 func (a *analyzer) VisitAlignOf(e *ast.AlignOf) ExprInfo {
-	typ := a.AnalyzeType(e.Type)
+	typ := a.ResolveAndAnalyzeType(e.Type)
 	if typ == types.Invalid {
 		return ExprInfo{Type: types.Invalid}
 	}
 
-	a.nodeTypes[e.Type] = typ
 	return ExprInfo{Type: types.PrimitiveU32}
 }
 
 func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) ExprInfo {
-	typ := a.AnalyzeType(o.Type)
+	typ := a.ResolveAndAnalyzeType(o.Type)
 	if typ == types.Invalid {
 		return ExprInfo{Type: types.Invalid}
 	}
-
-	a.nodeTypes[o.Type] = typ
 
 	if s, ok := typ.(*types.Struct); ok {
 		if _, index := s.Field(o.Field.Token.Text); index == -1 {
@@ -659,7 +652,7 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 			funcSubs := make([]types.Substitution, len(c.TypeArgs))
 
 			for i, typeArg := range c.TypeArgs {
-				argType := a.AnalyzeType(typeArg)
+				argType := a.ResolveAndAnalyzeType(typeArg)
 				if argType == types.Invalid {
 					return ExprInfo{Type: types.Invalid}
 				}
@@ -754,7 +747,7 @@ func (a *analyzer) VisitCast(c *ast.Cast) ExprInfo {
 		return ExprInfo{Type: types.Invalid}
 	}
 
-	to := a.AnalyzeType(c.Type)
+	to := a.ResolveAndAnalyzeType(c.Type)
 	if to == types.Invalid {
 		return ExprInfo{Type: types.Invalid}
 	}

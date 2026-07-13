@@ -27,7 +27,7 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 	var typ types.Type
 
 	if !core.IsNil(v.Type) {
-		typ = a.AnalyzeType(v.Type)
+		typ = a.ResolveAndAnalyzeType(v.Type)
 	}
 
 	if !core.IsNil(v.Initializer) {

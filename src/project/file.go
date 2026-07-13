@@ -58,7 +58,7 @@ func (f *File) parse() {
 func (f *File) resolve(root symbols.Scope, instantiations types.InstantiationCache, typeEnv *sema.TypeEnvironment) {
 	f.Instantiations = instantiations
 	f.TypeEnv = typeEnv
-	f.NodeTypes, f.resolveDiagnostics = sema.ResolveSymbols(f.Ast, f.Symbols, instantiations, typeEnv, root, f.Path)
+	f.NodeTypes, f.resolveDiagnostics = sema.Resolve(f.Ast, f.Symbols, instantiations, typeEnv, root, f.Path)
 }
 
 func (f *File) analyze(root symbols.Scope, instantiations types.InstantiationCache, typeEnv *sema.TypeEnvironment) {

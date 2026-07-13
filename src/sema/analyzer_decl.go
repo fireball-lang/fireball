@@ -129,7 +129,7 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	}
 
 	// Type
-	typ := a.AnalyzeType(i.Type)
+	typ := a.ResolveAndAnalyzeType(i.Type)
 	if typ == types.Invalid {
 		return
 	}
