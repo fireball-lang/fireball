@@ -29,6 +29,9 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 
 			if typ == types.PrimitiveVoid {
 				typ = types.Invalid
+			} else if typ == t {
+				r.Error(s.Fields[i].Type, "recursive structs are not allowed without pointers")
+				typ = types.Invalid
 			}
 
 			t.Fields[i] = types.Field{

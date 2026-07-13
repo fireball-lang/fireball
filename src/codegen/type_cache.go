@@ -85,28 +85,24 @@ func (t *TypeCache) GetMeta(typ types.Type) ir.MetaRef {
 	}
 
 	// Create
-	var ref ir.MetaRef
-
 	switch typ := typ.(type) {
 	case *types.Primitive:
-		ref = t.createPrimitiveMeta(typ)
+		return t.createPrimitiveMeta(typ)
 	case *types.Pointer:
-		ref = t.createPointerMeta(typ)
+		return t.createPointerMeta(typ)
 	case *types.Array:
-		ref = t.createArrayMeta(typ)
+		return t.createArrayMeta(typ)
 	case *types.Struct:
-		ref = t.createStructMeta(typ)
+		return t.createStructMeta(typ)
 
 	case *types.Func:
-		ref = t.createFuncMeta(typ)
+		return t.createFuncMeta(typ)
 	case *types.Enum:
-		ref = t.createEnumMeta(typ)
+		return t.createEnumMeta(typ)
 
 	default:
 		panic("codegen.TypeCache.GetMeta() - Invalid type")
 	}
-
-	return t.AddMeta(typ, ref)
 }
 
 // types.Primitive
@@ -172,12 +168,12 @@ func (t *TypeCache) createPrimitiveMeta(typ *types.Primitive) ir.MetaRef {
 		panic("codegen.TypeCache.createPrimitiveMeta() - Invalid primitive kind")
 	}
 
-	return t.Module.AddMeta(&ir.BasicTypeMeta{
+	return t.AddMeta(typ, t.Module.AddMeta(&ir.BasicTypeMeta{
 		Name:     typ.String(),
 		Encoding: encoding,
 		Size:     info.Size * 8,
 		Align:    info.Align * 8,
-	})
+	}))
 }
 
 // types.Pointer
@@ -189,13 +185,18 @@ func (t *TypeCache) createPointerType(_ *types.Pointer) ir.Type {
 func (t *TypeCache) createPointerMeta(typ *types.Pointer) ir.MetaRef {
 	info := t.Arch.Info(typ)
 
-	return t.Module.AddMeta(&ir.DerivedTypeMeta{
+	node := &ir.DerivedTypeMeta{
 		Name:  typ.String(),
 		Kind:  ir.MetaPointerType,
-		Base:  t.GetMeta(typ.Pointee),
 		Size:  info.Size * 8,
 		Align: info.Align * 8,
-	})
+	}
+
+	ref := t.AddMeta(typ, t.Module.AddMeta(node))
+
+	node.Base = t.GetMeta(typ.Pointee)
+
+	return ref
 }
 
 // types.Array
@@ -209,17 +210,22 @@ func (t *TypeCache) createArrayType(typ *types.Array) ir.Type {
 
 func (t *TypeCache) createArrayMeta(typ *types.Array) ir.MetaRef {
 	info := t.Arch.Info(typ)
-	subrange := t.Module.AddMeta(&ir.SubrangeMeta{Count: typ.Size})
 
-	return t.Module.AddMeta(&ir.CompositeTypeMeta{
-		Name:     typ.String(),
-		Kind:     ir.MetaArrayType,
-		BaseType: t.GetMeta(typ.Element),
-		Elements: []ir.MetaRef{subrange},
-		File:     t.FileRef,
-		Size:     info.Size * 8,
-		Align:    info.Align * 8,
-	})
+	node := &ir.CompositeTypeMeta{
+		Name:  typ.String(),
+		Kind:  ir.MetaArrayType,
+		File:  t.FileRef,
+		Size:  info.Size * 8,
+		Align: info.Align * 8,
+	}
+
+	ref := t.AddMeta(typ, t.Module.AddMeta(node))
+
+	subrange := t.Module.AddMeta(&ir.SubrangeMeta{Count: typ.Size})
+	node.BaseType = t.GetMeta(typ.Element)
+	node.Elements = []ir.MetaRef{subrange}
+
+	return ref
 }
 
 // types.Struct
@@ -241,6 +247,17 @@ func (t *TypeCache) createStructType(typ *types.Struct) ir.Type {
 
 func (t *TypeCache) createStructMeta(typ *types.Struct) ir.MetaRef {
 	info := t.Arch.Info(typ)
+
+	node := &ir.CompositeTypeMeta{
+		Name:  typ.String(),
+		Kind:  ir.MetaStructureType,
+		File:  t.FileRef,
+		Size:  info.Size * 8,
+		Align: info.Align * 8,
+	}
+
+	ref := t.AddMeta(typ, t.Module.AddMeta(node))
+
 	fields := make([]ir.MetaRef, len(typ.Fields))
 
 	for i, field := range typ.Fields {
@@ -256,35 +273,45 @@ func (t *TypeCache) createStructMeta(typ *types.Struct) ir.MetaRef {
 		})
 	}
 
-	return t.Module.AddMeta(&ir.CompositeTypeMeta{
-		Name:     typ.String(),
-		Kind:     ir.MetaStructureType,
-		Elements: fields,
-		File:     t.FileRef,
-		Size:     info.Size * 8,
-		Align:    info.Align * 8,
-	})
+	node.Elements = fields
+
+	return ref
 }
 
 // types.Func
 
 func (t *TypeCache) createFuncMeta(typ *types.Func) ir.MetaRef {
+	node := &ir.SubroutineTypeMeta{}
+
+	ref := t.AddMeta(typ, t.Module.AddMeta(node))
+
 	params := make([]ir.MetaRef, len(typ.Params))
 
 	for i, param := range typ.Params {
 		params[i] = t.GetMeta(param)
 	}
 
-	return t.Module.AddMeta(&ir.SubroutineTypeMeta{
-		Returns: t.GetMeta(typ.Returns),
-		Params:  params,
-	})
+	node.Returns = t.GetMeta(typ.Returns)
+	node.Params = params
+
+	return ref
 }
 
 // types.Enum
 
 func (t *TypeCache) createEnumMeta(typ *types.Enum) ir.MetaRef {
 	info := t.Arch.Info(typ)
+
+	node := &ir.CompositeTypeMeta{
+		Name:  typ.String(),
+		Kind:  ir.MetaEnumerationType,
+		File:  t.FileRef,
+		Size:  info.Size * 8,
+		Align: info.Align * 8,
+	}
+
+	ref := t.AddMeta(typ, t.Module.AddMeta(node))
+
 	cases := make([]ir.MetaRef, len(typ.Cases))
 
 	for i, c := range typ.Cases {
@@ -294,13 +321,8 @@ func (t *TypeCache) createEnumMeta(typ *types.Enum) ir.MetaRef {
 		})
 	}
 
-	return t.Module.AddMeta(&ir.CompositeTypeMeta{
-		Name:     typ.String(),
-		Kind:     ir.MetaEnumerationType,
-		BaseType: t.GetMeta(typ.CaseType),
-		Elements: cases,
-		File:     t.FileRef,
-		Size:     info.Size * 8,
-		Align:    info.Align * 8,
-	})
+	node.BaseType = t.GetMeta(typ.CaseType)
+	node.Elements = cases
+
+	return ref
 }
