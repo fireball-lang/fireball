@@ -43,8 +43,11 @@ func parseProject(start time.Time) (*project.Project, map[string]*project.Projec
 		return nil, nil, err
 	}
 
+	// Order projects by dependency (dependencies before dependents).
+	ordered := project.OrderProjects(projMap, depMap)
+
 	// Parse
-	for _, proj := range projMap {
+	for _, proj := range ordered {
 		proj.Parse(nil)
 	}
 
@@ -52,12 +55,12 @@ func parseProject(start time.Time) (*project.Project, map[string]*project.Projec
 	instantiations := types.NewInstantiationCache()
 	typeEnv := sema.NewTypeEnvironment(instantiations)
 
-	for _, proj := range projMap {
+	for _, proj := range ordered {
 		proj.Resolve(depMap, instantiations, typeEnv)
 	}
 
 	// Analyze
-	for _, proj := range projMap {
+	for _, proj := range ordered {
 		proj.Analyze(depMap, instantiations, typeEnv)
 	}
 

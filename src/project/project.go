@@ -97,7 +97,7 @@ func (p *Project) Parse(files []*File) {
 	}
 }
 
-func (p *Project) Resolve(depMap map[Dependency]*Project, instantiations types.InstantiationCache, typeEnv *sema.TypeEnvironment) {
+func (p *Project) Resolve(depMap map[Dependency]*Project, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment) {
 	defer core.Scope()()
 
 	root := p.getRootScope(depMap)
@@ -107,7 +107,7 @@ func (p *Project) Resolve(depMap map[Dependency]*Project, instantiations types.I
 	}
 }
 
-func (p *Project) Analyze(depMap map[Dependency]*Project, instantiations types.InstantiationCache, typeEnv *sema.TypeEnvironment) {
+func (p *Project) Analyze(depMap map[Dependency]*Project, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment) {
 	defer core.Scope()()
 
 	root := p.getRootScope(depMap)

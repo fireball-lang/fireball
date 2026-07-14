@@ -16,7 +16,7 @@ type common struct {
 	path        string
 	fileModPath []string
 
-	instantiations types.InstantiationCache
+	instantiations *types.InstantiationCache
 	typeEnv        *TypeEnvironment
 
 	checkVisibility      bool
@@ -27,7 +27,7 @@ type common struct {
 	diagnostics []core.Diagnostic
 }
 
-func setupCommon(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations types.InstantiationCache, typeEnv *TypeEnvironment, nodeTypes map[ast.Node]types.Type, path string) common {
+func setupCommon(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, nodeTypes map[ast.Node]types.Type, path string) common {
 	fileModPath := make([]string, 0, len(file.Mod.Path.Entries))
 	for _, entry := range file.Mod.Path.Entries {
 		fileModPath = append(fileModPath, entry.Token.Text)

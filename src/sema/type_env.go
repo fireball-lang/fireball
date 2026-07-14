@@ -22,10 +22,10 @@ type TypeEnvironment struct {
 
 	paramScopes map[*types.Param]symbols.Scope
 
-	instantiations types.InstantiationCache
+	instantiations *types.InstantiationCache
 }
 
-func NewTypeEnvironment(instantiations types.InstantiationCache) *TypeEnvironment {
+func NewTypeEnvironment(instantiations *types.InstantiationCache) *TypeEnvironment {
 	return &TypeEnvironment{
 		static:         make(map[types.Type][]symbols.Symbol),
 		instance:       make(map[types.Type][]symbols.Symbol),

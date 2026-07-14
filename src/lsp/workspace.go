@@ -90,18 +90,20 @@ func (w *Workspace) removeWatchers(s *Server) {
 }
 
 func (w *Workspace) parseFiles(files []*project.File) {
-	for _, proj := range w.projMap {
+	ordered := project.OrderProjects(w.projMap, w.depMap)
+
+	for _, proj := range ordered {
 		proj.Parse(files)
 	}
 
 	instantiations := types.NewInstantiationCache()
 	typeEnv := sema.NewTypeEnvironment(instantiations)
 
-	for _, proj := range w.projMap {
+	for _, proj := range ordered {
 		proj.Resolve(w.depMap, instantiations, typeEnv)
 	}
 
-	for _, proj := range w.projMap {
+	for _, proj := range ordered {
 		proj.Analyze(w.depMap, instantiations, typeEnv)
 	}
 }

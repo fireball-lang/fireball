@@ -12,7 +12,7 @@ type resolver struct {
 	common
 }
 
-func Resolve(file *ast.File, fileSymbols []symbols.Symbol, instantiations types.InstantiationCache, typeEnv *TypeEnvironment, root symbols.Scope, path string) (map[ast.Node]types.Type, []core.Diagnostic) {
+func Resolve(file *ast.File, fileSymbols []symbols.Symbol, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, root symbols.Scope, path string) (map[ast.Node]types.Type, []core.Diagnostic) {
 	defer core.Scope()()
 
 	r := resolver{

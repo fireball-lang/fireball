@@ -57,13 +57,13 @@ type codegen struct {
 	summaryCalls []ir.FunctionSummaryCall
 	summaryRefs  []ir.SummaryRef
 
-	instantiations        types.InstantiationCache
+	instantiations        *types.InstantiationCache
 	pendingInstantiations []pendingInstantiation
 
 	fileDataMap map[*ast.File]FileData
 }
 
-func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiations types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]FileData, path string, summary bool) *ir.Module {
+func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]FileData, path string, summary bool) *ir.Module {
 	defer core.Scope()()
 
 	module := ir.NewModule()

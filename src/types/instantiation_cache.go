@@ -1,7 +1,10 @@
 package types
 
+import "sync"
+
 type InstantiationCache struct {
 	types map[Type][]cacheEntry
+	mu    sync.Mutex
 }
 
 type cacheEntry struct {
@@ -14,21 +17,27 @@ type Substitution struct {
 	Type  Type
 }
 
-func NewInstantiationCache() InstantiationCache {
-	return InstantiationCache{types: make(map[Type][]cacheEntry)}
+func NewInstantiationCache() *InstantiationCache {
+	return &InstantiationCache{types: make(map[Type][]cacheEntry)}
 }
 
 // Get creates or retrieves the instantiation of a generic *Struct or *Func.
-func (c InstantiationCache) Get(generic Type, substitutions []Substitution) Type {
+func (c *InstantiationCache) Get(generic Type, substitutions []Substitution) Type {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	return c.get(generic, substitutions)
 }
 
 // Substitute resolves type params within typ using substitutions.
-func (c InstantiationCache) Substitute(typ Type, substitutions []Substitution) Type {
+func (c *InstantiationCache) Substitute(typ Type, substitutions []Substitution) Type {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	return c.resolve(typ, substitutions)
 }
 
-func (c InstantiationCache) get(generic Type, substitutions []Substitution) Type {
+func (c *InstantiationCache) get(generic Type, substitutions []Substitution) Type {
 	entries := c.types[generic]
 
 	for _, entry := range entries {
@@ -48,7 +57,7 @@ func (c InstantiationCache) get(generic Type, substitutions []Substitution) Type
 	}
 }
 
-func (c InstantiationCache) resolve(typ Type, substitutions []Substitution) Type {
+func (c *InstantiationCache) resolve(typ Type, substitutions []Substitution) Type {
 	switch typ := typ.(type) {
 	case *Param:
 		return getSubstitution(substitutions, typ)
@@ -145,7 +154,7 @@ func (c InstantiationCache) resolve(typ Type, substitutions []Substitution) Type
 	}
 }
 
-func (c InstantiationCache) substitute(generic Type, substitutions []Substitution) Type {
+func (c *InstantiationCache) substitute(generic Type, substitutions []Substitution) Type {
 	switch generic := generic.(type) {
 	case *Struct:
 		fields := make([]Field, len(generic.Fields))
@@ -217,7 +226,7 @@ func (c InstantiationCache) substitute(generic Type, substitutions []Substitutio
 	}
 }
 
-func (c InstantiationCache) getRemapped(generic Type, stored []Substitution, outer []Substitution) Type {
+func (c *InstantiationCache) getRemapped(generic Type, stored []Substitution, outer []Substitution) Type {
 	remapped := make([]Substitution, len(stored))
 
 	for i, s := range stored {
