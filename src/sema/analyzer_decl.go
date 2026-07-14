@@ -65,20 +65,24 @@ func (a *analyzer) VisitEnum(e *ast.Enum) {
 	typ := symbol.Type.(*types.Enum)
 	a.nodeTypes[e] = typ
 
-	// Duplicate values
+	// Duplicate names and values
+	names := make(map[string]any)
 	values := make(map[core.Integer]any)
 
 	for i, c := range typ.Cases {
-		if _, ok := values[c.Value]; ok {
-			node := e.Cases[i].Value
-			if node == nil {
-				node = e.Cases[i].Name
-			}
-
-			a.Error(node, "case with value '%s' already exists", c.Value)
-			continue
+		node := e.Cases[i].Value
+		if node == nil {
+			node = e.Cases[i].Name
 		}
 
+		if _, ok := names[c.Name]; ok {
+			a.Error(node, "case with name '%s' already exists", c.Name)
+		}
+		names[c.Name] = nil
+
+		if _, ok := values[c.Value]; ok {
+			a.Error(node, "case with value '%s' already exists", c.Value)
+		}
 		values[c.Value] = nil
 	}
 }
