@@ -181,7 +181,7 @@ func GetImplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 		}
 
 	case *types.Pointer:
-		if to, ok := to.(*types.Pointer); ok && (from.Mutable == to.Mutable || (from.Mutable && !to.Mutable)) {
+		if to, ok := to.(*types.Pointer); ok && (from.Pointee.Equals(to.Pointee) || to.Pointee == types.PrimitiveVoid) && (from.Mutable == to.Mutable || (from.Mutable && !to.Mutable)) {
 			return Noop, true
 		}
 

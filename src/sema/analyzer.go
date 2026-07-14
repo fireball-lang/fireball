@@ -103,6 +103,12 @@ func (a *analyzer) ExpectPrimitiveClass(predicate func(kind types.PrimitiveKind)
 
 func (a *analyzer) ExpectType(typ types.Type, expr ExprInfo, node ast.Node) {
 	if typ != types.Invalid && !expr.Invalid() {
+		if _, ok := typ.(*types.Pointer); ok {
+			if _, ok := node.(*ast.Null); ok {
+				return
+			}
+		}
+
 		_, ok := GetImplicitCast(a.typeEnv, expr.Type, typ)
 
 		if !ok {

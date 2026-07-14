@@ -50,6 +50,12 @@ func testImplicitF32ToF64Var() bool {
     return x == 1.0;
 }
 
+#[test("implicit: null -> *<any> (var)")]
+func testImplicitNullToAnyPointerVar() bool {
+	var x: *i32 = null;
+	return x == null;
+}
+
 // --- Implicit casts: assignment ---
 
 #[test("implicit: i8 -> i32 (assign)")]
