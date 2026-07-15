@@ -113,10 +113,10 @@
 
 ; Literals
 
-(bool)   @boolean
+(bool) @boolean
 ((number) @number.float (#match? @number.float "[0-9]+\\.[0-9]+"))
 (number) @number
-(char)   @character
+(char) @string
 (string) @string
 (null_expr) @constant.builtin
 
