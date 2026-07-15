@@ -254,9 +254,15 @@ func (s *Server) DidDeleteFiles(ctx context.Context, params *protocol.DeleteFile
 			continue
 		}
 
+		file, _ := s.getFile(fullPath)
+
 		if !proj.RemoveFile(fullPath) {
 			s.warn(ctx, "Failed to remove file from project: '%s'", fileDelete.URI)
 			continue
+		}
+
+		if file != nil {
+			s.clearFileDiagnostics(ctx, file)
 		}
 
 		workspace := s.getWorkspaceForProject(proj)
@@ -278,6 +284,7 @@ func (s *Server) deleteFilesUnder(ctx context.Context, dir string) {
 			}
 
 			for _, file := range removed {
+				s.clearFileDiagnostics(ctx, file)
 				proj.RemoveFile(file.Path)
 			}
 
@@ -335,7 +342,10 @@ func (s *Server) DidOpen(ctx context.Context, params *protocol.DidOpenTextDocume
 	}
 
 	// Set document version
-	file.Data.(*Document).Version = params.TextDocument.Version
+	document := file.Data.(*Document)
+	document.mu.Lock()
+	document.Version = params.TextDocument.Version
+	document.mu.Unlock()
 
 	// Parse and release write lock
 	workspace.parseFiles([]*project.File{file})
@@ -370,7 +380,10 @@ func (s *Server) DidChange(ctx context.Context, params *protocol.DidChangeTextDo
 	}
 
 	// Set document version
-	file.Data.(*Document).Version = params.TextDocument.Version
+	document := file.Data.(*Document)
+	document.mu.Lock()
+	document.Version = params.TextDocument.Version
+	document.mu.Unlock()
 
 	// Parse and release write lock
 	workspace.parseFiles([]*project.File{file})

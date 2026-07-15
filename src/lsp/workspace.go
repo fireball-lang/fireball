@@ -62,7 +62,6 @@ func (w *Workspace) reload(s *Server, ctx context.Context) bool {
 
 	// Lock the workspace mutex
 	w.mutex.Lock()
-	defer w.mutex.Unlock()
 
 	// Set maps
 	w.projMap = projMap
@@ -77,6 +76,9 @@ func (w *Workspace) reload(s *Server, ctx context.Context) bool {
 
 	// Initial parse
 	w.parseFiles(nil)
+	w.mutex.Unlock()
+
+	s.publishDiagnostics(ctx)
 
 	return true
 }

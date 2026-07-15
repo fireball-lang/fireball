@@ -4,13 +4,18 @@ import (
 	"context"
 	"fireball/core"
 	"fireball/project"
+	"reflect"
+	"sync"
 
 	"github.com/fireball-lang/protocol"
 )
 
 type Document struct {
-	Version        int32
-	HasDiagnostics bool
+	mu sync.Mutex
+
+	Version int32
+
+	lastDiagnostics []protocol.Diagnostic
 }
 
 // Diagnostics
@@ -56,13 +61,31 @@ func (s *Server) publishFileDiagnostics(ctx context.Context, file *project.File)
 		})
 	}
 
-	if len(diagnostics) > 0 || document.HasDiagnostics {
+	document.mu.Lock()
+	defer document.mu.Unlock()
+
+	if document.lastDiagnostics == nil || !reflect.DeepEqual(document.lastDiagnostics, diagnostics) {
 		_ = s.Client.PublishDiagnostics(ctx, &protocol.PublishDiagnosticsParams{
 			URI:         protocol.DocumentURI("file://" + file.Path),
 			Version:     uint32(document.Version),
 			Diagnostics: diagnostics,
 		})
 
-		document.HasDiagnostics = len(diagnostics) > 0
+		document.lastDiagnostics = diagnostics
 	}
+}
+
+func (s *Server) clearFileDiagnostics(ctx context.Context, file *project.File) {
+	document := file.Data.(*Document)
+
+	document.mu.Lock()
+	defer document.mu.Unlock()
+
+	_ = s.Client.PublishDiagnostics(ctx, &protocol.PublishDiagnosticsParams{
+		URI:         protocol.DocumentURI("file://" + file.Path),
+		Version:     uint32(document.Version),
+		Diagnostics: emptyDiagnostics,
+	})
+
+	document.lastDiagnostics = emptyDiagnostics
 }
