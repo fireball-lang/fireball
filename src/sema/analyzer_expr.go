@@ -54,8 +54,19 @@ func (a *analyzer) VisitNumber(n *ast.Number) ExprInfo {
 	}
 }
 
-func (a *analyzer) VisitCharacter(_ *ast.Character) ExprInfo {
-	return ExprInfo{Type: types.PrimitiveU32}
+func (a *analyzer) VisitCharacter(c *ast.Character) ExprInfo {
+	v := uint64(c.Rune)
+	var typ *types.Primitive
+
+	if v <= math.MaxUint8 {
+		typ = types.PrimitiveU8
+	} else if v <= math.MaxUint16 {
+		typ = types.PrimitiveU16
+	} else {
+		typ = types.PrimitiveU32
+	}
+
+	return ExprInfo{Type: typ}
 }
 
 func (a *analyzer) VisitString(_ *ast.String) ExprInfo {

@@ -59,7 +59,7 @@ func (c *codegen) VisitNumber(n *ast.Number) ir.Value {
 
 func (c *codegen) VisitCharacter(e *ast.Character) ir.Value {
 	return &ir.Integer{
-		Typ:   ir.I32,
+		Typ:   c.types.Get(c.ExprType(e)),
 		Value: core.Unsigned(false, uint64(e.Rune)),
 	}
 }

@@ -15,6 +15,12 @@ func testCharLit() bool {
 	return 'A' == 65u;
 }
 
+#[test("char literal fits in u8")]
+func testCharLitU8() bool {
+	var ch: u8 = 'a';
+	return ch == 'a';
+}
+
 #[test("f32 literal")]
 func testF32Lit() bool {
 	return 1.0f == 1.0f;
