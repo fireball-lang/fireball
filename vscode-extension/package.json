@@ -1,0 +1,72 @@
+{
+  "name": "fireball",
+  "displayName": "Fireball",
+  "description": "Fireball language support",
+  "version": "0.1.0",
+  "icon": "./icons/logo.png",
+  "repository": "https://github.com/MineGame159/fireball",
+  "engines": {
+    "vscode": "^1.125.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "workspaceContains:project.toml"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configurationDefaults": {
+        "[fireball]": {
+            "editor.semanticHighlighting.enabled": true
+        }
+    },
+    "languages": [
+      {
+        "id": "fireball",
+        "extensions": [
+          ".fb"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "dark": "./icons/logo.svg",
+          "light": "./icons/logo.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "fireball",
+        "scopeName": "source.fb",
+        "path": "./syntaxes/fireball.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^10.1.0",
+    "which": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "@types/vscode": "^1.125.0",
+    "@types/which": "^3.0.4",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.0.0",
+    "eslint": "^10.5.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1"
+  },
+  "overrides": {
+    "diff": "^8.0.4",
+    "serialize-javascript": "^7.0.6"
+  }
+}

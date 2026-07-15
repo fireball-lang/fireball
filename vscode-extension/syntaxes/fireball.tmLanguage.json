@@ -1,0 +1,168 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Fireball",
+	"scopeName": "source.fb",
+	"patterns": [
+		{
+			"include": "#lineComment"
+		},
+		{
+			"include": "#blockComment"
+		},
+		{
+			"include": "#operator"
+		},
+		{
+			"include": "#terminator"
+		},
+		{
+			"include": "#dot"
+		},
+		{
+			"include": "#comma"
+		},
+		{
+			"include": "#leftParen"
+		},
+		{
+			"include": "#rightParen"
+		},
+		{
+			"include": "#leftBrace"
+		},
+		{
+			"include": "#rightBrace"
+		},
+		{
+			"include": "#leftBracket"
+		},
+		{
+			"include": "#rightBracket"
+		},
+        {
+            "include": "#bool"
+        },
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#strings"
+		},
+		{
+			"include": "#number"
+		},
+		{
+			"include": "#character"
+		},
+		{
+			"include": "#string"
+		},
+		{
+			"include": "#keyword"
+		},
+		{
+			"include": "#attribute"
+		}
+	],
+	"repository": {
+		"lineComment": {
+			"begin": "//",
+			"end": "\n",
+			"name": "comment.line.fb"
+		},
+		"blockComment": {
+			"begin": "/\\*",
+			"end": "\\*/",
+			"name": "comment.block.fb"
+		},
+		"operator": {
+            "match": "=|\\+=|-=|\\*=|\\/=|%=|<<=|>>=|>>>=|\\|=|\\^=|&=|\\+|-|\\*|\\/|%|\\+\\+|--|<<|>>|>>>|\\&|\\|\\^|!|&&|\\|\\||==|!=|<|<=|>|>=",
+			"name": "keyword.operator.fb"
+		},
+		"terminator": {
+			"match": ";",
+			"name": "punctuation.terminator.fb"
+		},
+		"dot": {
+			"match": "\\.",
+			"name": "punctuation.other.period.fb"
+		},
+		"comma": {
+			"match": ",",
+			"name": "punctuation.other.comma.fb"
+		},
+		"leftParen": {
+			"match": "\\(",
+			"name": "punctuation.definition.begin.bracket.round.fb"
+		},
+		"rightParen": {
+			"match": "\\)",
+			"name": "punctuation.definition.end.bracket.round.fb"
+		},
+		"leftBrace": {
+			"match": "{",
+			"name": "punctuation.definition.begin.bracket.curly.fb"
+		},
+		"rightBrace": {
+			"match": "}",
+			"name": "punctuation.definition.end.bracket.curly.fb"
+		},
+		"leftBracket": {
+			"match": "\\[",
+			"name": "punctuation.definition.begin.bracket.square.fb"
+		},
+		"rightBracket": {
+			"match": "\\]",
+			"name": "punctuation.definition.end.bracket.square.fb"
+		},
+        "bool": {
+            "match": "\\b(true|false)\\b",
+            "name": "constant.other"
+        },
+		"number": {
+			"match": "\\b(0[bB](?:0|1)+)|(0[xX][0-9a-zA-Z]+)|(-?[0-9]+(\\.[0-9]*)?[uUfF]?)\\b",
+			"name": "constant.numeric.fb"
+		},
+		"character": {
+			"begin": "'",
+			"end": "'",
+			"name": "string.quoted.single.fb"
+		},
+		"string": {
+			"begin": "\"",
+			"end": "\"",
+			"name": "string.quoted.double.fb"
+		},
+		"keyword": {
+			"match": "\\b(pub|mut|mod|import|struct|enum|interface|impl|type|func|var|if|else|while|for|return|break|continue|as|sizeof|alignof|offsetof)\\b",
+			"name": "keyword.fb"
+		},
+		"attribute": {
+			"begin": "#\\[",
+			"end": "]",
+			"captures": {
+				"0": {
+					"name": "keyword.fb"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#string"
+				},
+				{
+					"include": "#attribute-name"
+				},
+				{
+					"include": "#lineComment"
+				},
+				{
+					"include": "#blockComment"
+				}
+			]
+		},
+		"attribute-name": {
+			"match": "[a-zA-Z_][a-zA-Z_0-9]*",
+			"name": "entity.name.type.class.fb"
+		}
+	}
+}
