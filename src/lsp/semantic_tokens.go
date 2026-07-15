@@ -6,8 +6,6 @@ import (
 	"fireball/ast"
 	"fireball/core"
 	"fireball/project"
-	"fireball/symbols"
-	"fireball/types"
 	"slices"
 
 	"github.com/fireball-lang/protocol"
@@ -25,115 +23,43 @@ func (s *Server) SemanticTokensFull(_ context.Context, params *protocol.Semantic
 	defer locker.Unlock()
 
 	// Highlighter
-	hi := highlighter{file: file}
+	hi := highlighter{
+		fullSemanticTokens: s.fullSemanticTokens,
+		file:               file,
+	}
+
+	// Mod
+	for _, entry := range file.Ast.Mod.Path.Entries {
+		hi.AddFull(entry, namespaceKind)
+	}
 
 	// Imports
-	for _, i := range file.Ast.Imports {
-		for _, symbol := range i.Symbols {
-			hi.addType(symbol, file.NodeTypes[symbol])
+	for _, im := range file.Ast.Imports {
+		for _, entry := range im.Path.Entries {
+			hi.AddFull(entry, namespaceKind)
+		}
+
+		for _, symbol := range im.Symbols {
+			hi.AddType(symbol, file.NodeTypes[symbol])
 		}
 	}
 
 	// Declarations
 	for _, decl := range file.Ast.Decls {
-		hi.visit(decl)
+		ast.VisitDecl(&hi, decl)
 	}
 
-	return &protocol.SemanticTokens{Data: hi.data()}, nil
+	return &protocol.SemanticTokens{Data: hi.Data()}, nil
 }
 
 // Highlighter
 
 type highlighter struct {
-	file   *project.File
+	fullSemanticTokens bool
+	file               *project.File
+
 	tokens []semantic
 }
-
-func (hi *highlighter) addType(node ast.Node, typ types.Type) {
-	switch typ.(type) {
-	case *types.Struct:
-		hi.add(node, classKind)
-	case *types.Enum:
-		hi.add(node, enumKind)
-	case *types.Interface:
-		hi.add(node, interfaceKind)
-	case *types.Func:
-		hi.add(node, functionKind)
-	case *types.Param:
-		hi.add(node, genericKind)
-	}
-}
-
-func (hi *highlighter) visit(node ast.Node) {
-	switch node := node.(type) {
-	case *ast.IdentifierType:
-		if len(node.Path.Entries) > 0 {
-			last := node.Path.Entries[len(node.Path.Entries)-1]
-			hi.addType(last, hi.file.NodeTypes[node])
-		}
-
-	case *ast.SelfType:
-		hi.addType(node, hi.file.NodeTypes[node])
-
-	case *ast.Identifier:
-		if len(node.Path.Entries) > 0 {
-			// Entries before last one
-			for _, entry := range node.Path.Entries[:len(node.Path.Entries)-1] {
-				if typ, ok := hi.file.NodeTypes[entry]; ok {
-					hi.addType(entry, typ)
-				}
-			}
-
-			// Last entry
-			if info, ok := hi.file.ExprInfos[node]; ok {
-				entry := node.Path.Entries[len(node.Path.Entries)-1]
-
-				switch info.Symbol {
-				case symbols.Invalid:
-
-				case symbols.Struct:
-					hi.add(entry, classKind)
-
-				case symbols.Enum:
-					hi.add(entry, enumKind)
-
-				case symbols.Interface:
-					hi.add(entry, interfaceKind)
-
-				case symbols.Func:
-					hi.add(entry, functionKind)
-
-				case symbols.TypeParam:
-					hi.add(entry, genericKind)
-
-				case symbols.Case:
-					hi.add(entry, enumMemberKind)
-
-				case symbols.Param:
-					kind := parameterKind
-
-					if len(node.Path.Entries) == 1 && entry.Token.Text == "self" {
-						if f := ast.GetClosestParent[*ast.Func](node); f != nil && f.Receiver != nil {
-							kind = keywordKind
-						}
-					}
-
-					hi.add(entry, kind)
-
-				case symbols.Var:
-					hi.add(entry, variableKind)
-				}
-			}
-		}
-
-	default:
-		for child := range node.Children() {
-			hi.visit(child)
-		}
-	}
-}
-
-// Tokens
 
 type semanticKind uint8
 
@@ -169,14 +95,20 @@ func newSemantic(line, column, length uint32, kind semanticKind) semantic {
 	}
 }
 
-func (hi *highlighter) add(node ast.Node, kind semanticKind) {
+func (hi *highlighter) AddFull(node ast.Node, kind semanticKind) {
+	if hi.fullSemanticTokens {
+		hi.Add(node, kind)
+	}
+}
+
+func (hi *highlighter) Add(node ast.Node, kind semanticKind) {
 	if !core.IsNil(node) && node.Range().Start.Column < 256 {
 		range_ := node.Range()
 		hi.tokens = append(hi.tokens, newSemantic(range_.Start.Line, range_.Start.Column-1, range_.End.Column-range_.Start.Column, kind))
 	}
 }
 
-func (hi *highlighter) data() []uint32 {
+func (hi *highlighter) Data() []uint32 {
 	// Sort tokens
 	slices.SortFunc(hi.tokens, func(a, b semantic) int {
 		if a.line == b.line {

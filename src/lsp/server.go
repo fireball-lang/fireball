@@ -22,6 +22,7 @@ type Server struct {
 
 	workspaces []*Workspace
 
+	fullSemanticTokens    bool
 	definitionLinkSupport bool
 }
 
@@ -32,7 +33,7 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 
 	var filters []protocol.FileOperationFilter
 
-	if params.Capabilities.Workspace.FileOperations.DidCreate && params.Capabilities.Workspace.FileOperations.DidDelete && params.Capabilities.Workspace.FileOperations.DidRename {
+	if params.Capabilities.Workspace != nil && params.Capabilities.Workspace.FileOperations != nil && params.Capabilities.Workspace.FileOperations.DidCreate && params.Capabilities.Workspace.FileOperations.DidDelete && params.Capabilities.Workspace.FileOperations.DidRename {
 		filters = []protocol.FileOperationFilter{
 			{
 				Scheme: "file",
@@ -66,11 +67,21 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 		s.openWorkspace(ctx, uriPath(protocol.DocumentURI(folder.URI)))
 	}
 
-	s.info(ctx, "%#v", params.Capabilities.Workspace.FileOperations)
+	if params.Capabilities.Workspace != nil && params.Capabilities.Workspace.FileOperations != nil {
+		s.info(ctx, "%#v", params.Capabilities.Workspace.FileOperations)
+	}
 
 	s.publishDiagnostics(ctx)
 
-	s.definitionLinkSupport = params.Capabilities.TextDocument.Definition.LinkSupport
+	if opts, ok := params.InitializationOptions.(map[string]any); ok {
+		if fullSemanticTokens, ok := opts["fullSemanticTokens"].(bool); ok {
+			s.fullSemanticTokens = fullSemanticTokens
+		}
+	}
+
+	if params.Capabilities.TextDocument != nil && params.Capabilities.TextDocument.Definition != nil {
+		s.definitionLinkSupport = params.Capabilities.TextDocument.Definition.LinkSupport
+	}
 
 	return &protocol.InitializeResult{
 		Capabilities: protocol.ServerCapabilities{
