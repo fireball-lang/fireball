@@ -54,21 +54,21 @@ jobs:
         with:
           node-version: "26.x"
           cache: "npm"
-          cache-dependency-path: "vscode/package-lock.json"
+          cache-dependency-path: "vscode-extension/package-lock.json"
 
       - name: Install VSCE
         run: npm install -g @vscode/vsce
 
       - name: Build VSCode extension
         run: |
-          cd vscode
+          cd vscode-extension
           npm install
           vsce package
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          path: vscode/*.vsix
+          path: vscode-extension/*.vsix
 
   test-windows:
     runs-on: windows-latest
