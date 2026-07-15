@@ -3,6 +3,7 @@ package lsp
 import (
 	"bytes"
 	"context"
+	"fireball/core"
 	"fireball/project"
 	"iter"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"slices"
 
 	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/uri"
 )
 
 type Server struct {
@@ -219,15 +221,32 @@ func (s *Server) DidDeleteFiles(ctx context.Context, params *protocol.DeleteFile
 			if !yield(file.URI) {
 				return
 			}
+
+			// A deleted directory may contain a project.toml
+			fullPath := uriPath(protocol.DocumentURI(file.URI))
+
+			if path.Ext(fullPath) != ".fb" && path.Base(fullPath) != "project.toml" {
+				for _, workspace := range s.workspaces {
+					for _, proj := range workspace.projMap {
+						if core.IsFilepathInside(fullPath, path.Join(proj.Path, "project.toml")) {
+							if !yield(string(uri.File(path.Join(proj.Path, "project.toml")))) {
+								return
+							}
+						}
+					}
+				}
+			}
 		}
 	})
 
 	for _, fileDelete := range params.Files {
-		if path.Ext(fileDelete.URI) != ".fb" {
+		fullPath := uriPath(protocol.DocumentURI(fileDelete.URI))
+
+		if path.Ext(fullPath) != ".fb" && path.Base(fullPath) != "project.toml" {
+			s.deleteFilesUnder(ctx, fullPath)
 			continue
 		}
 
-		fullPath := uriPath(protocol.DocumentURI(fileDelete.URI))
 		proj := s.getProject(fullPath)
 
 		if proj == nil {
@@ -247,15 +266,37 @@ func (s *Server) DidDeleteFiles(ctx context.Context, params *protocol.DeleteFile
 	return nil
 }
 
+func (s *Server) deleteFilesUnder(ctx context.Context, dir string) {
+	for _, workspace := range s.workspaces {
+		for _, proj := range workspace.projMap {
+			var removed []*project.File
+
+			for _, file := range proj.Files {
+				if core.IsFilepathInside(dir, file.Path) {
+					removed = append(removed, file)
+				}
+			}
+
+			for _, file := range removed {
+				proj.RemoveFile(file.Path)
+			}
+
+			if len(removed) > 0 {
+				s.parseAndPublish(ctx, workspace, nil)
+			}
+		}
+	}
+}
+
 func (s *Server) reloadWorkspacesIfProjectConfigChanged(ctx context.Context, it iter.Seq[string]) {
 	var workspaces []*Workspace
 
-	for uri := range it {
-		if path.Base(uri) == "project.toml" {
-			workspace := s.getWorkspaceForProjectConfig(uriPath(protocol.DocumentURI(uri)))
+	for uri_ := range it {
+		if path.Base(uri_) == "project.toml" {
+			workspace := s.getWorkspaceForProjectConfig(uriPath(protocol.DocumentURI(uri_)))
 
 			if workspace == nil {
-				s.warn(ctx, "failed to find workspace for project config file: '%s'", uri)
+				s.warn(ctx, "failed to find workspace for project config file: '%s'", uri_)
 				continue
 			}
 

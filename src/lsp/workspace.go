@@ -56,7 +56,7 @@ func (w *Workspace) reload(s *Server, ctx context.Context) bool {
 		w.removeWatchers(s)
 
 		for _, proj := range projMap {
-			s.nativeWatcher.Add(filepath.Join(proj.Path, "src"))
+			s.nativeWatcher.AddRecursive(filepath.Join(proj.Path, "src"))
 		}
 	}
 

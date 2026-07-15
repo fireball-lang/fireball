@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/fireball-lang/protocol"
 	"github.com/fsnotify/fsnotify"
@@ -51,14 +52,38 @@ func (n *NativeWatcher) process() {
 				}
 
 				if info.IsDir() {
-					n.Add(ev.Name)
+					n.AddRecursive(ev.Name)
+
+					if n.Create != nil {
+						files := make([]protocol.FileCreate, 0)
+
+						_ = filepath.WalkDir(ev.Name, func(path string, d os.DirEntry, walkErr error) error {
+							if walkErr != nil {
+								return walkErr
+							}
+
+							if d.IsDir() {
+								return nil
+							}
+
+							files = append(files, protocol.FileCreate{URI: string(uri.File(path))})
+
+							return nil
+						})
+
+						if len(files) > 0 {
+							_ = n.Create(context.Background(), &protocol.CreateFilesParams{Files: files})
+						}
+					}
 				} else {
 					if n.Create != nil {
 						_ = n.Create(context.Background(), &protocol.CreateFilesParams{Files: []protocol.FileCreate{{URI: string(uri.File(ev.Name))}}})
 					}
 				}
 			} else if ev.Op.Has(fsnotify.Remove) || ev.Op.Has(fsnotify.Rename) {
-				if !n.Remove(ev.Name) && n.Delete != nil {
+				n.Remove(ev.Name)
+
+				if n.Delete != nil {
 					_ = n.Delete(context.Background(), &protocol.DeleteFilesParams{Files: []protocol.FileDelete{{URI: string(uri.File(ev.Name))}}})
 				}
 			}
@@ -78,8 +103,22 @@ func (n *NativeWatcher) process() {
 func (n *NativeWatcher) Add(path string) {
 	err := n.watcher.Add(path)
 	if err != nil {
-		panic(err.Error())
+		n.log.Error("fsnotify: failed to add watch", "path", path, "error", err.Error())
 	}
+}
+
+func (n *NativeWatcher) AddRecursive(root string) {
+	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			n.Add(path)
+		}
+
+		return nil
+	})
 }
 
 func (n *NativeWatcher) Remove(path string) bool {
