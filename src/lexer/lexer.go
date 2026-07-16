@@ -169,21 +169,9 @@ func (l *Lexer) Next() Token {
 }
 
 func (l *Lexer) binaryInteger() Token {
-	digits := false
-
-	for {
-		ch := l.peek(0)
-
-		if ch == '0' || ch == '1' {
-			l.advance()
-			digits = true
-		} else {
-			break
-		}
-	}
-
-	if !digits {
-		return l.makeError("binary number has no digits")
+	err := l.digitSequence(false, isBinaryDigit)
+	if err != "" {
+		return l.makeError(err)
 	}
 
 	if isIdentifier(l.peek(0)) {
@@ -194,21 +182,9 @@ func (l *Lexer) binaryInteger() Token {
 }
 
 func (l *Lexer) hexInteger() Token {
-	digits := false
-
-	for {
-		ch := l.peek(0)
-
-		if isDigit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F') {
-			l.advance()
-			digits = true
-		} else {
-			break
-		}
-	}
-
-	if !digits {
-		return l.makeError("hexadecimal number has no digits")
+	err := l.digitSequence(false, isHexDigit)
+	if err != "" {
+		return l.makeError(err)
 	}
 
 	if isIdentifier(l.peek(0)) {
@@ -219,16 +195,18 @@ func (l *Lexer) hexInteger() Token {
 }
 
 func (l *Lexer) number() Token {
-	for isDigit(l.peek(0)) {
-		l.advance()
+	err := l.digitSequence(true, isDigit)
+	if err != "" {
+		return l.makeError(err)
 	}
 
 	// Decimal
 	if l.peek(0) == '.' && isDigit(l.peek(1)) {
 		l.advance()
 
-		for isDigit(l.peek(0)) {
-			l.advance()
+		err := l.digitSequence(true, isDigit)
+		if err != "" {
+			return l.makeError(err)
 		}
 
 		kind := Decimal
@@ -256,6 +234,39 @@ func (l *Lexer) number() Token {
 	}
 
 	return l.make(kind)
+}
+
+func (l *Lexer) digitSequence(hasDigits bool, digitPredicate func(ch rune) bool) string {
+	last := '\000'
+
+	for {
+		ch := l.peek(0)
+
+		if digitPredicate(ch) {
+			last = l.advance()
+			hasDigits = true
+		} else if ch == '_' {
+			if !hasDigits {
+				return "digit separator can't be the first character in a number"
+			}
+			if last == '_' {
+				return "digit separator can't be repeated"
+			}
+
+			last = l.advance()
+		} else {
+			break
+		}
+	}
+
+	if !hasDigits {
+		return "number has no digits"
+	}
+	if last == '_' {
+		return "digit separator can't be the last character in a number"
+	}
+
+	return ""
 }
 
 func (l *Lexer) character() Token {
@@ -525,6 +536,14 @@ func (l *Lexer) advance() rune {
 
 func isDigit(ch rune) bool {
 	return ch >= '0' && ch <= '9'
+}
+
+func isBinaryDigit(ch rune) bool {
+	return ch == '0' || ch == '1'
+}
+
+func isHexDigit(ch rune) bool {
+	return isDigit(ch) || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')
 }
 
 func isAlpha(ch rune) bool {

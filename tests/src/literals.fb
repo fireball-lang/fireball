@@ -2,17 +2,17 @@ mod tests::literals;
 
 #[test("binary literal")]
 func testBinLit() bool {
-	return 0b1010 == 10u;
+	return 0b10_10 == 10u;
 }
 
 #[test("hex literal")]
 func testHexLit() bool {
-	return 0xFF == 255u;
+	return 0xF_F == 255u;
 }
 
 #[test("char literal")]
 func testCharLit() bool {
-	return 'A' == 65u;
+	return 'A' == 6_5u;
 }
 
 #[test("char literal fits in u8")]
@@ -23,7 +23,7 @@ func testCharLitU8() bool {
 
 #[test("f32 literal")]
 func testF32Lit() bool {
-	return 1.0f == 1.0f;
+	return 1.0f == 1.0_0f;
 }
 
 #[test("null pointer")]

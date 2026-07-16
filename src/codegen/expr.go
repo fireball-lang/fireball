@@ -11,7 +11,6 @@ import (
 	"fireball/types"
 	"fmt"
 	"slices"
-	"strconv"
 )
 
 // Visitor
@@ -35,7 +34,7 @@ func (c *codegen) VisitNumber(n *ast.Number) ir.Value {
 
 	// Float
 	if n.Token.Kind == lexer.Decimal32bit {
-		value, err := strconv.ParseFloat(n.Token.Text[:len(n.Token.Text)-1], 32)
+		value, err := lexer.ParseDecimal(n.Token)
 		if err != nil {
 			panic("codegen.codegen.VisitNumber() - Failed to parse float '" + n.Token.Text + "'")
 		}
@@ -45,7 +44,7 @@ func (c *codegen) VisitNumber(n *ast.Number) ir.Value {
 
 	// Double
 	if n.Token.Kind == lexer.Decimal {
-		value, err := strconv.ParseFloat(n.Token.Text, 64)
+		value, err := lexer.ParseDecimal(n.Token)
 		if err != nil {
 			panic("codegen.codegen.VisitNumber() - Failed to parse double '" + n.Token.Text + "'")
 		}

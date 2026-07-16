@@ -92,6 +92,11 @@ func (p *parser) parsePrefixExpr() (ast.Expr, int) {
 		if rightPower == -1 {
 			b := &ast.BadExpr{}
 			b.Range_ = p.current.Range
+
+			if p.current.Kind == lexer.Error {
+				return b, p.error(p.current.Text)
+			}
+
 			return b, p.error("expected expression")
 		}
 
@@ -655,6 +660,11 @@ func (p *parser) parsePostfixExpr(left ast.Expr) (ast.Expr, int) {
 	default:
 		b := &ast.BadExpr{}
 		b.Range_ = p.current.Range
+
+		if p.current.Kind == lexer.Error {
+			return b, p.error(p.current.Text)
+		}
+
 		return b, p.error("expected expression")
 	}
 }
