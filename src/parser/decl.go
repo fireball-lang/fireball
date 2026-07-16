@@ -9,7 +9,7 @@ import (
 )
 
 func (p *parser) parseDecl() (ast.Decl, int) {
-	var attributes []*ast.Attribute
+	var attributes []ast.Attribute
 
 	public := false
 	var publicToken lexer.Token
@@ -34,18 +34,12 @@ func (p *parser) parseDecl() (ast.Decl, int) {
 	case lexer.Enum:
 		return p.parseEnum(attributes, public)
 	case lexer.Interface:
-		if len(attributes) != 0 {
-			p.reportError(ast.SliceRange(attributes), "interfaces cannot have attributes")
-		}
-		return p.parseInterface(public)
+		return p.parseInterface(attributes, public)
 	case lexer.Impl:
-		if len(attributes) != 0 {
-			p.reportError(ast.SliceRange(attributes), "implementation blocks cannot have attributes")
-		}
 		if public {
 			p.reportError(publicToken.Range, "implementation blocks cannot be marked as public")
 		}
-		return p.parseImpl()
+		return p.parseImpl(attributes)
 	case lexer.Func:
 		return p.parseFunc(attributes, public, false)
 
@@ -56,87 +50,10 @@ func (p *parser) parseDecl() (ast.Decl, int) {
 	}
 }
 
-func (p *parser) parseAttributeGroup() (attributes []*ast.Attribute, recoverId int) {
-	recoverId = -1
-
-	// '#'
-	if recoverId = p.expect(lexer.Hashtag, "expected '#' before attribute group"); recoverId >= 0 {
-		return
-	}
-
-	// '['
-	if recoverId = p.expect(lexer.LeftBracket, "expected '[' before attributes"); recoverId >= 0 {
-		return
-	}
-
-	// Attributes
-	myRecoverId := p.pushRecoverPoint(lexer.RightBracket)
-	attributes, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightBracket, p.parseAttribute)
-	p.popRecoverPoint()
-
-	if recoverId >= 0 {
-		if recoverId == myRecoverId {
-			recoverId = -1
-		} else {
-			return
-		}
-	}
-
-	// ']'
-	if recoverId = p.expect(lexer.RightBracket, "expected ']' after attributes"); recoverId >= 0 {
-		return
-	}
-
-	return
-}
-
-func (p *parser) parseAttribute() (a *ast.Attribute, recoverId int) {
-	a = &ast.Attribute{}
-	a.Range_.Start = p.current.Range.Start
-	defer func() {
-		a.Range_.End = p.previous.Range.End
-	}()
-
-	recoverId = -1
-
-	// Name
-	if a.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
-		return
-	}
-
-	// '(' Arguments ')'
-	if p.current.Kind == lexer.LeftParen {
-		// '('
-		if recoverId = p.expect(lexer.LeftParen, "expected '(' before attribute arguments"); recoverId >= 0 {
-			return
-		}
-
-		// Arguments
-		myRecoverId := p.pushRecoverPoint(lexer.RightParen)
-		a.Arguments, recoverId = parseCommaList(p, lexer.Comma, lexer.RightParen, p.parseExpr)
-		p.popRecoverPoint()
-
-		if recoverId >= 0 {
-			if recoverId == myRecoverId {
-				recoverId = -1
-			} else {
-				return
-			}
-		}
-
-		// ')'
-		if recoverId = p.expect(lexer.RightParen, "expected ')' after attribute arguments"); recoverId >= 0 {
-			return
-		}
-	}
-
-	return
-}
-
-func (p *parser) parseStruct(attributes []*ast.Attribute, public bool) (s *ast.Struct, recoverId int) {
+func (p *parser) parseStruct(attributes []ast.Attribute, public bool) (s *ast.Struct, recoverId int) {
 	s = &ast.Struct{}
 	s.Range_.Start = p.current.Range.Start
-	s.Attributes = attributes
+	s.Attributes_ = attributes
 	s.Public = public
 	defer func() {
 		s.Range_.End = p.previous.Range.End
@@ -231,10 +148,10 @@ func (p *parser) parseField() (f *ast.Field, recoverId int) {
 	return
 }
 
-func (p *parser) parseEnum(attributes []*ast.Attribute, public bool) (e *ast.Enum, recoverId int) {
+func (p *parser) parseEnum(attributes []ast.Attribute, public bool) (e *ast.Enum, recoverId int) {
 	e = &ast.Enum{}
 	e.Range_.Start = p.current.Range.Start
-	e.Attributes = attributes
+	e.Attributes_ = attributes
 	e.Public = public
 	defer func() {
 		e.Range_.End = p.previous.Range.End
@@ -328,9 +245,10 @@ func (p *parser) parseCase() (c *ast.Case, recoverId int) {
 	return
 }
 
-func (p *parser) parseInterface(public bool) (i *ast.Interface, recoverId int) {
+func (p *parser) parseInterface(attributes []ast.Attribute, public bool) (i *ast.Interface, recoverId int) {
 	i = &ast.Interface{}
 	i.Range_.Start = p.current.Range.Start
+	i.Attributes_ = attributes
 	i.Public = public
 	defer func() {
 		i.Range_.End = p.previous.Range.End
@@ -402,9 +320,10 @@ func (p *parser) parseInterface(public bool) (i *ast.Interface, recoverId int) {
 	return
 }
 
-func (p *parser) parseImpl() (i *ast.Impl, recoverId int) {
+func (p *parser) parseImpl(attributes []ast.Attribute) (i *ast.Impl, recoverId int) {
 	i = &ast.Impl{}
 	i.Range_.Start = p.current.Range.Start
+	i.Attributes_ = attributes
 	defer func() {
 		i.Range_.End = p.previous.Range.End
 	}()
@@ -523,10 +442,10 @@ func (p *parser) parseAssociatedType(hasType bool) (a *ast.AssociatedType, recov
 	return
 }
 
-func (p *parser) parseFunc(attributes []*ast.Attribute, public bool, allowReceiver bool) (f *ast.Func, recoverId int) {
+func (p *parser) parseFunc(attributes []ast.Attribute, public bool, allowReceiver bool) (f *ast.Func, recoverId int) {
 	f = &ast.Func{}
 	f.Range_.Start = p.current.Range.Start
-	f.Attributes = attributes
+	f.Attributes_ = attributes
 	f.Public = public
 	f.Name_ = emptyLeaf
 	defer func() {

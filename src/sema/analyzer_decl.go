@@ -5,31 +5,19 @@ import (
 	"fireball/core"
 	"fireball/symbols"
 	"fireball/types"
+	"reflect"
+	"slices"
+	"strings"
+	"unicode"
 )
 
 // Visitor
 
+var structAllowedAttributes []reflect.Type
+
 func (a *analyzer) VisitStruct(s *ast.Struct) {
 	// Attributes
-	attributes := make(map[string]any)
-
-	for _, attribute := range s.Attributes {
-		name := attribute.Name.Token.Text
-		if name == "" {
-			continue
-		}
-
-		if _, ok := attributes[name]; ok {
-			a.Error(attribute.Name, "attribute with the name '%s' already exists", name)
-			continue
-		}
-		attributes[name] = nil
-
-		switch name {
-		default:
-			a.Error(attribute.Name, "unknown struct attribute '%s'", name)
-		}
-	}
+	a.CheckAttributes(s.Attributes(), structAllowedAttributes)
 
 	// Type
 	symbol, _ := a.scopes.GetSymbol(s.Name().Token.Text)
@@ -58,7 +46,12 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 	}
 }
 
+var enumAllowedAttributes []reflect.Type
+
 func (a *analyzer) VisitEnum(e *ast.Enum) {
+	// Attributes
+	a.CheckAttributes(e.Attributes(), enumAllowedAttributes)
+
 	// Type
 	symbol, _ := a.scopes.GetSymbol(e.Name().Token.Text)
 
@@ -87,7 +80,12 @@ func (a *analyzer) VisitEnum(e *ast.Enum) {
 	}
 }
 
+var interfaceAllowedAttributes []reflect.Type
+
 func (a *analyzer) VisitInterface(i *ast.Interface) {
+	// Attributes
+	a.CheckAttributes(i.Attributes(), interfaceAllowedAttributes)
+
 	// Type
 	symbol, _ := a.scopes.GetSymbol(i.Name().Token.Text)
 
@@ -106,7 +104,13 @@ func (a *analyzer) VisitInterface(i *ast.Interface) {
 	}
 }
 
+var implAllowedAttributes []reflect.Type
+var methodAllowedAttributes []reflect.Type
+
 func (a *analyzer) VisitImpl(i *ast.Impl) {
+	// Attributes
+	a.CheckAttributes(i.Attributes(), implAllowedAttributes)
+
 	if prev, ok := a.nodeTypes[i.Type]; ok {
 		if s, ok := prev.(*types.Struct); ok {
 			template := s
@@ -181,6 +185,8 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 				Nodes:  f.TypeParams,
 			})
 		}
+
+		a.CheckAttributes(f.Attributes(), methodAllowedAttributes)
 
 		a.nodeTypes[f] = fTyp
 		a.VisitFuncInner(f, fTyp, receiverTyp)
@@ -323,69 +329,18 @@ func instanceSignatureMatches(in *types.Func, concrete *types.Func) bool {
 	return in.Returns.Equals(concrete.Returns)
 }
 
+var funcAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Test](),
+	reflect.TypeFor[ast.Extern](),
+	reflect.TypeFor[ast.LinkName](),
+}
+
 func (a *analyzer) VisitFunc(f *ast.Func) {
 	// Attributes
-	attributes := make(map[string]any)
+	a.CheckAttributes(f.Attributes(), funcAllowedAttributes)
 
-	test := false
-	extern := false
-
-	for _, attribute := range f.Attributes {
-		name := attribute.Name.Token.Text
-		if name == "" {
-			continue
-		}
-
-		if _, ok := attributes[name]; ok {
-			a.Error(attribute.Name, "attribute with the name '%s' already exists", name)
-			continue
-		}
-		attributes[name] = nil
-
-		switch name {
-		case "test":
-			test = true
-
-			if len(attribute.Arguments) > 1 {
-				a.Error(attribute.Name, "too many attribute arguments for 'test' attribute")
-			}
-
-			if len(attribute.Arguments) == 1 {
-				arg := attribute.Arguments[0]
-
-				if _, ok := arg.(*ast.String); !ok {
-					if _, ok := arg.(*ast.BadExpr); !ok {
-						a.Error(arg, "expected a string")
-					}
-				}
-			}
-
-		case "extern":
-			extern = true
-
-			if len(attribute.Arguments) > 0 {
-				a.Error(attribute.Name, "too many attribute arguments for 'extern' attribute")
-			}
-
-		case "link_name":
-			if len(attribute.Arguments) != 1 {
-				a.Error(attribute.Name, "'link_name' attribute needs 1 argument, got %d", len(attribute.Arguments))
-			}
-
-			if len(attribute.Arguments) == 1 {
-				arg := attribute.Arguments[0]
-
-				if _, ok := arg.(*ast.String); !ok {
-					if _, ok := arg.(*ast.BadExpr); !ok {
-						a.Error(arg, "expected a string")
-					}
-				}
-			}
-
-		default:
-			a.Error(attribute.Name, "unknown function attribute '%s'", name)
-		}
-	}
+	test := ast.GetAttribute[*ast.Test](f) != nil
+	extern := ast.GetAttribute[*ast.Extern](f) != nil
 
 	// Type
 	symbol, _ := a.scopes.GetSymbol(f.Name().Token.Text)
@@ -507,3 +462,45 @@ func (a *analyzer) VisitFuncInner(f *ast.Func, typ *types.Func, receiverTyp type
 }
 
 func (a *analyzer) VisitBadDecl(_ *ast.BadDecl) {}
+
+// Utils
+
+func (a *analyzer) CheckAttributes(attributes []ast.Attribute, allowed []reflect.Type) {
+	seen := make(map[reflect.Type]any)
+
+	for _, attribute := range attributes {
+		typ := reflect.TypeOf(attribute).Elem()
+
+		if typ == reflect.TypeFor[ast.BadAttribute]() {
+			continue
+		}
+
+		if _, ok := seen[typ]; ok {
+			a.Error(attribute, "duplicate attribute '%s'", snakeCase(typ.Name()))
+		}
+
+		seen[typ] = nil
+
+		if !slices.Contains(allowed, typ) {
+			a.Error(attribute, "attribute '%s' is not allowed here", snakeCase(typ.Name()))
+		}
+	}
+}
+
+func snakeCase(str string) string {
+	var sb strings.Builder
+
+	for i, ch := range str {
+		if unicode.IsUpper(ch) {
+			if i > 0 {
+				sb.WriteRune('_')
+			}
+
+			ch = unicode.ToLower(ch)
+		}
+
+		sb.WriteRune(ch)
+	}
+
+	return sb.String()
+}

@@ -199,7 +199,11 @@ func (p *parser) parseString() (s *ast.String, recoverId int) {
 
 	recoverId = -1
 
-	raw := []rune(p.advance().Text)
+	if recoverId = p.expect(lexer.String, "expected a string"); recoverId >= 0 {
+		return
+	}
+
+	raw := []rune(p.previous.Text)
 	s.Runes = make([]rune, 0, len(raw))
 
 	pos := s.Range_.Start

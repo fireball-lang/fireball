@@ -29,18 +29,17 @@
 "alignof" @keyword
 "offsetof" @keyword
 
-; Attributes
+; Mod
 
 (mod path: (identifier_path (identifier) @namespace))
+
+; Import
 
 (import path: (identifier) @namespace)
 (import name: (identifier) @namespace)
 
 (import symbol: (identifier) @variable)
 ((import symbol: (identifier) @type) (#match? @type "^[A-Z]"))
-
-(attribute_group "#" @punctuation.special)
-(attribute name: (identifier) @attribute)
 
 ; Declarations
 
@@ -110,6 +109,14 @@
 (identifier_path (identifier) @namespace . "::")
 
 (call_expr callee: (identifier_path (identifier) @type . "::") (#match? @type "^[A-Z]"))
+
+; Attributes
+
+(attribute_group "#" @punctuation.special)
+
+(test_attribute "test" @attribute)
+(extern_attribute) @attribute
+(link_name_attribute "link_name" @attribute)
 
 ; Literals
 

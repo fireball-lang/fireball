@@ -9,29 +9,21 @@ import (
 type Decl interface {
 	Node
 
+	Attributes() []Attribute
 	Name() *Leaf
 
 	_isDecl()
 }
 
-type Attribute struct {
-	baseNode
-
-	Name      *Leaf
-	Arguments []Expr
-}
-
-func (a *Attribute) Children() iter.Seq[Node] {
-	return func(yield func(Node) bool) {
-		if !yield(a.Name) {
-			return
-		}
-		for _, argument := range a.Arguments {
-			if !yield(argument) {
-				return
-			}
+func GetAttribute[T Attribute](decl Decl) T {
+	for _, attribute := range decl.Attributes() {
+		if attr, ok := attribute.(T); ok {
+			return attr
 		}
 	}
+
+	var empty T
+	return empty
 }
 
 // Struct
@@ -39,8 +31,8 @@ func (a *Attribute) Children() iter.Seq[Node] {
 type Struct struct {
 	baseNode
 
-	Attributes []*Attribute
-	Public     bool
+	Attributes_ []Attribute
+	Public      bool
 
 	Name_      *Leaf
 	TypeParams []*TypeParam
@@ -49,7 +41,7 @@ type Struct struct {
 
 func (s *Struct) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		for _, attribute := range s.Attributes {
+		for _, attribute := range s.Attributes_ {
 			if !yield(attribute) {
 				return
 			}
@@ -68,6 +60,10 @@ func (s *Struct) Children() iter.Seq[Node] {
 			}
 		}
 	}
+}
+
+func (s *Struct) Attributes() []Attribute {
+	return s.Attributes_
 }
 
 func (s *Struct) Name() *Leaf {
@@ -101,8 +97,8 @@ func (f *Field) Children() iter.Seq[Node] {
 type Enum struct {
 	baseNode
 
-	Attributes []*Attribute
-	Public     bool
+	Attributes_ []Attribute
+	Public      bool
 
 	Name_ *Leaf
 	Type  Type // optional
@@ -112,7 +108,7 @@ type Enum struct {
 
 func (e *Enum) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		for _, attribute := range e.Attributes {
+		for _, attribute := range e.Attributes_ {
 			if !yield(attribute) {
 				return
 			}
@@ -129,6 +125,10 @@ func (e *Enum) Children() iter.Seq[Node] {
 			}
 		}
 	}
+}
+
+func (e *Enum) Attributes() []Attribute {
+	return e.Attributes_
 }
 
 func (e *Enum) Name() *Leaf {
@@ -162,7 +162,8 @@ func (c *Case) Children() iter.Seq[Node] {
 type Interface struct {
 	baseNode
 
-	Public bool
+	Attributes_ []Attribute
+	Public      bool
 
 	Name_      *Leaf
 	TypeParams []*TypeParam
@@ -173,6 +174,11 @@ type Interface struct {
 
 func (i *Interface) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
+		for _, attribute := range i.Attributes_ {
+			if !yield(attribute) {
+				return
+			}
+		}
 		if !yield(i.Name_) {
 			return
 		}
@@ -194,6 +200,10 @@ func (i *Interface) Children() iter.Seq[Node] {
 	}
 }
 
+func (i *Interface) Attributes() []Attribute {
+	return i.Attributes_
+}
+
 func (i *Interface) Name() *Leaf {
 	return i.Name_
 }
@@ -204,6 +214,8 @@ func (i *Interface) _isDecl() {}
 
 type Impl struct {
 	baseNode
+
+	Attributes_ []Attribute
 
 	TypeParams []*TypeParam
 
@@ -216,6 +228,11 @@ type Impl struct {
 
 func (i *Impl) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
+		for _, attribute := range i.Attributes_ {
+			if !yield(attribute) {
+				return
+			}
+		}
 		for _, param := range i.TypeParams {
 			if !yield(param) {
 				return
@@ -238,6 +255,10 @@ func (i *Impl) Children() iter.Seq[Node] {
 			}
 		}
 	}
+}
+
+func (i *Impl) Attributes() []Attribute {
+	return i.Attributes_
 }
 
 func (i *Impl) Name() *Leaf {
@@ -271,8 +292,8 @@ func (a *AssociatedType) Children() iter.Seq[Node] {
 type Func struct {
 	baseNode
 
-	Attributes []*Attribute
-	Public     bool
+	Attributes_ []Attribute
+	Public      bool
 
 	Name_      *Leaf
 	TypeParams []*TypeParam
@@ -288,7 +309,7 @@ type Func struct {
 
 func (f *Func) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		for _, attribute := range f.Attributes {
+		for _, attribute := range f.Attributes_ {
 			if !yield(attribute) {
 				return
 			}
@@ -318,6 +339,10 @@ func (f *Func) Children() iter.Seq[Node] {
 	}
 }
 
+func (f *Func) Attributes() []Attribute {
+	return f.Attributes_
+}
+
 func (f *Func) Name() *Leaf {
 	return f.Name_
 }
@@ -330,50 +355,30 @@ func (f *Func) IsMethod() bool {
 }
 
 func (f *Func) GetTestName() string {
-	for _, attribute := range f.Attributes {
-		if attribute.Name.Token.Text == "test" {
-			name := ""
+	if test := GetAttribute[*Test](f); test != nil {
+		name := ""
 
-			if len(attribute.Arguments) > 0 {
-				if s, ok := attribute.Arguments[0].(*String); ok {
-					name = string(s.Runes)
-				}
-			}
-
-			if name == "" {
-				name = f.Name_.Token.Text
-			}
-
-			return name
+		if test.Name != nil {
+			name = string(test.Name.Runes)
 		}
+
+		if name == "" {
+			name = f.Name_.Token.Text
+		}
+
+		return name
 	}
 
 	return ""
 }
 
 func (f *Func) IsExtern() bool {
-	for _, attribute := range f.Attributes {
-		if attribute.Name.Token.Text == "extern" {
-			return true
-		}
-	}
-
-	return false
+	return GetAttribute[*Extern](f) != nil
 }
 
 func (f *Func) GetLinkName() string {
-	for _, attribute := range f.Attributes {
-		if attribute.Name.Token.Text == "link_name" {
-			name := ""
-
-			if len(attribute.Arguments) > 0 {
-				if s, ok := attribute.Arguments[0].(*String); ok {
-					name = string(s.Runes)
-				}
-			}
-
-			return name
-		}
+	if link := GetAttribute[*LinkName](f); link != nil {
+		return string(link.Name.Runes)
 	}
 
 	return ""
@@ -479,6 +484,10 @@ type BadDecl struct {
 
 func (b *BadDecl) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {}
+}
+
+func (b *BadDecl) Attributes() []Attribute {
+	return nil
 }
 
 func (b *BadDecl) Name() *Leaf {
