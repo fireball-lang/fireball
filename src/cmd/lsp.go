@@ -40,6 +40,7 @@ func getLspCmd() *cobra.Command {
 
 			server.Env = cfg.GetHost()
 			server.Env.TargetOs = targetOs.Value
+			server.Env.ComputeDerived()
 
 			logger.Info("Connected")
 			<-conn.Done()

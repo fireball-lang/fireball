@@ -10,6 +10,18 @@ type Env struct {
 	TargetFamily ast.TargetFamilyKind
 }
 
+func (e *Env) ComputeDerived() {
+	// TargetFamily
+	switch e.TargetOs {
+	case ast.WindowsOs:
+		e.TargetFamily = ast.WindowsFamily
+	case ast.Linux:
+		e.TargetFamily = ast.Unix
+	case ast.MacOS:
+		e.TargetFamily = ast.Unix
+	}
+}
+
 func GetHost() Env {
 	var env Env
 
@@ -26,15 +38,8 @@ func GetHost() Env {
 		panic("cfg.GetHost() - Unsupported OS")
 	}
 
-	// TargetFamily
-	switch env.TargetOs {
-	case ast.WindowsOs:
-		env.TargetFamily = ast.WindowsFamily
-	case ast.Linux:
-		env.TargetFamily = ast.Unix
-	case ast.MacOS:
-		env.TargetFamily = ast.Unix
-	}
+	// derived
+	env.ComputeDerived()
 
 	return env
 }

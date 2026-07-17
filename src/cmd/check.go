@@ -15,6 +15,7 @@ func getCheckCmd() *cobra.Command {
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			env := cfg.GetHost()
 			env.TargetOs = targetOs.Value
+			env.ComputeDerived()
 
 			_, _, err := parseProject(env, nil)
 			if err != nil {

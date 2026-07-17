@@ -45,6 +45,8 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 			case "macos":
 				s.Env.TargetOs = ast.MacOS
 			}
+
+			s.Env.ComputeDerived()
 		}
 
 		if fullSemanticTokens, ok := opts["full_semantic_tokens"].(bool); ok {
