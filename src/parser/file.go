@@ -16,7 +16,14 @@ func (p *parser) parseFile() (f *ast.File) {
 	recoverId := -1
 	p.pushRecoverPoint(lexer.Hashtag, lexer.Mod, lexer.Import, lexer.Pub, lexer.Struct, lexer.Enum, lexer.Interface, lexer.Impl, lexer.Func)
 
+	// Attributes
+
+	if p.current.Kind == lexer.Hashtag {
+		f.Attributes_, _ = p.parseAttributes()
+	}
+
 	// Mod
+
 	if f.Mod, recoverId = p.parseMod(); recoverId >= 0 && p.current.Kind == lexer.EOF {
 		return
 	}
@@ -24,11 +31,19 @@ func (p *parser) parseFile() (f *ast.File) {
 	// Imports / Declarations
 
 	for p.current.Kind != lexer.EOF {
+		var attributes []ast.Attribute
+
+		if p.current.Kind == lexer.Hashtag {
+			attributes, _ = p.parseAttributes()
+		}
+
 		if p.current.Kind == lexer.Import {
 			i, _ := p.parseImport()
+			i.Attributes_ = attributes
+
 			f.Imports = append(f.Imports, i)
 		} else {
-			decl, _ := p.parseDecl()
+			decl, _ := p.parseDecl(attributes)
 			f.Decls = append(f.Decls, decl)
 		}
 	}

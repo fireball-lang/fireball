@@ -19,6 +19,25 @@ let process: ChildProcess | undefined;
 let client: LanguageClient | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
+    startServer();
+
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async (e) => {
+        if (e.affectsConfiguration("fireball.targetOs")) {
+            await stopServer();
+            await startServer();
+        }
+    }));
+}
+
+export async function deactivate() {
+    await stopServer();
+}
+
+async function startServer() {
+    if (client !== undefined) {
+        return;
+    }
+
     let path = await which("fireball", { nothrow: true });
 
     if (path === null) {
@@ -61,7 +80,8 @@ export async function activate(context: vscode.ExtensionContext) {
             }
         ],
         initializationOptions: {
-            fullSemanticTokens: true
+            full_semantic_tokens: true,
+            target_os: vscode.workspace.getConfiguration("fireball").get("targetOs")
         }
     };
 
@@ -76,7 +96,11 @@ export async function activate(context: vscode.ExtensionContext) {
     await client.start();
 }
 
-export async function deactivate() {
+async function stopServer() {
+    if (client === undefined) {
+        return;
+    }
+
     console.log("Stopping LSP");
 
     await client?.dispose();

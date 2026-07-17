@@ -15,14 +15,14 @@ type Decl interface {
 	_isDecl()
 }
 
-func GetAttribute[T Attribute](decl Decl) T {
-	for _, attribute := range decl.Attributes() {
-		if attr, ok := attribute.(T); ok {
+func GetAttribute[A Attribute, N interface{ Attributes() []Attribute }](node N) A {
+	for _, attribute := range node.Attributes() {
+		if attr, ok := attribute.(A); ok {
 			return attr
 		}
 	}
 
-	var empty T
+	var empty A
 	return empty
 }
 

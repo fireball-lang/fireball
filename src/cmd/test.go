@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fireball/ast"
 	"fireball/build"
+	"fireball/cfg"
 	"fireball/codegen"
 	"fireball/core"
 	"fireball/ir"
@@ -25,7 +26,7 @@ func getTestCmd() *cobra.Command {
 			start := time.Now()
 
 			// Parse
-			proj, projMap, err := parseProject(start)
+			proj, projMap, err := parseProject(cfg.GetHost(), &start)
 			if err != nil {
 				return err
 			}

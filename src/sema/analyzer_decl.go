@@ -13,7 +13,9 @@ import (
 
 // Visitor
 
-var structAllowedAttributes []reflect.Type
+var structAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Cfg](),
+}
 
 func (a *analyzer) VisitStruct(s *ast.Struct) {
 	// Attributes
@@ -46,7 +48,9 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 	}
 }
 
-var enumAllowedAttributes []reflect.Type
+var enumAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Cfg](),
+}
 
 func (a *analyzer) VisitEnum(e *ast.Enum) {
 	// Attributes
@@ -80,7 +84,9 @@ func (a *analyzer) VisitEnum(e *ast.Enum) {
 	}
 }
 
-var interfaceAllowedAttributes []reflect.Type
+var interfaceAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Cfg](),
+}
 
 func (a *analyzer) VisitInterface(i *ast.Interface) {
 	// Attributes
@@ -104,8 +110,13 @@ func (a *analyzer) VisitInterface(i *ast.Interface) {
 	}
 }
 
-var implAllowedAttributes []reflect.Type
-var methodAllowedAttributes []reflect.Type
+var implAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Cfg](),
+}
+
+var methodAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Cfg](),
+}
 
 func (a *analyzer) VisitImpl(i *ast.Impl) {
 	// Attributes
@@ -333,6 +344,7 @@ var funcAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Test](),
 	reflect.TypeFor[ast.Extern](),
 	reflect.TypeFor[ast.LinkName](),
+	reflect.TypeFor[ast.Cfg](),
 }
 
 func (a *analyzer) VisitFunc(f *ast.Func) {

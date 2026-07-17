@@ -21,6 +21,24 @@
             "editor.semanticHighlighting.enabled": true
         }
     },
+    "configuration": [
+        {
+            "title": "Fireball",
+            "properties": {
+                "fireball.targetOs": {
+                    "type": "string",
+                    "enum": [ "windows", "linux", "macos" ],
+                    "enumDescriptions": [
+                        "Override target_os to windows",
+                        "Override target_os to linux",
+                        "Override target_os to macos"
+                    ],
+                    "description": "Override the target_os used by the Fireball language server.",
+                    "default": null
+                }
+            }
+        }
+    ],
     "languages": [
       {
         "id": "fireball",

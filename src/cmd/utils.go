@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fireball/ast"
 	"fireball/build"
+	"fireball/cfg"
 	"fireball/codegen"
 	"fireball/core"
 	"fireball/ir"
@@ -18,7 +19,46 @@ import (
 	"github.com/fatih/color"
 )
 
-func parseProject(start time.Time) (*project.Project, map[string]*project.Project, error) {
+type TargetOsValue struct {
+	Value ast.TargetOsKind
+}
+
+func (t *TargetOsValue) String() string {
+	switch t.Value {
+	case ast.WindowsOs:
+		return "windows"
+	case ast.Linux:
+		return "linux"
+	case ast.MacOS:
+		return "macos"
+
+	default:
+		panic("cmd.TargetOsValue.String() - Invalid value")
+	}
+}
+
+func (t *TargetOsValue) Set(s string) error {
+	switch s {
+	case "windows":
+		t.Value = ast.WindowsOs
+		return nil
+	case "linux":
+		t.Value = ast.Linux
+		return nil
+	case "macos":
+		t.Value = ast.MacOS
+		return nil
+
+	default:
+		return fmt.Errorf("expected 'windows', 'linux' or 'macos'")
+	}
+}
+
+func (t *TargetOsValue) Type() string {
+	return "TargetOs"
+}
+
+func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*project.Project, error) {
 	defer core.Scope()()
 
 	main, err := project.Open(".")
@@ -48,7 +88,7 @@ func parseProject(start time.Time) (*project.Project, map[string]*project.Projec
 
 	// Parse
 	for _, proj := range ordered {
-		proj.Parse(nil)
+		proj.Parse(nil, env)
 	}
 
 	// Resolve
@@ -85,11 +125,13 @@ func parseProject(start time.Time) (*project.Project, map[string]*project.Projec
 	}
 
 	if hasErrors {
-		duration := time.Since(start)
+		if start != nil {
+			duration := time.Since(*start)
 
-		fmt.Println()
-		_, _ = color.New(color.FgRed, color.Bold).Print("Build failed\n")
-		color.White("  took %s", duration)
+			fmt.Println()
+			_, _ = color.New(color.FgRed, color.Bold).Print("Build failed\n")
+			color.White("  took %s", duration)
+		}
 
 		return nil, nil, nil
 	}

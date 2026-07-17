@@ -2,6 +2,7 @@ package project
 
 import (
 	"fireball/ast"
+	"fireball/cfg"
 	"fireball/core"
 	"fireball/parser"
 	"fireball/sema"
@@ -10,6 +11,7 @@ import (
 	"io"
 	"iter"
 	"os"
+	"unicode/utf8"
 )
 
 type File struct {
@@ -19,6 +21,7 @@ type File struct {
 	Source Source
 	Data   any
 
+	LineTable        []uint32
 	Ast              *ast.File
 	parseDiagnostics []core.Diagnostic
 
@@ -45,13 +48,20 @@ func newFile(proj *Project, path string) *File {
 	}
 }
 
-func (f *File) parse() {
-	reader := f.Source.Get()
+func (f *File) parse(env cfg.Env) {
+	readCloser := f.Source.Get()
 
 	//goland:noinspection GoUnhandledErrorResult
-	defer reader.Close()
+	defer readCloser.Close()
+
+	var builder lineTableBuilder
+	reader := io.TeeReader(readCloser, &builder)
 
 	f.Ast, f.parseDiagnostics = parser.Parse(reader, f.Path)
+	f.LineTable = builder.Finish()
+
+	env.Strip(f.Ast)
+
 	f.Symbols = symbols.Collect(f.Ast)
 }
 
@@ -98,4 +108,38 @@ func (f *fileSource) Get() io.ReadCloser {
 	}
 
 	return file
+}
+
+// lineTableBuilder
+
+type lineTableBuilder struct {
+	table   []uint32
+	current uint32
+}
+
+func (l *lineTableBuilder) Write(p []byte) (n int, err error) {
+	n = len(p)
+
+	for len(p) > 0 {
+		r, size := utf8.DecodeRune(p)
+		p = p[size:]
+
+		if r == '\n' {
+			l.table = append(l.table, l.current)
+			l.current = 0
+		} else {
+			l.current++
+		}
+	}
+
+	return
+}
+
+func (l *lineTableBuilder) Finish() []uint32 {
+	if l.current > 0 {
+		l.table = append(l.table, l.current)
+		l.current = 0
+	}
+
+	return l.table
 }

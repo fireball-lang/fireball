@@ -2,8 +2,26 @@ package parser
 
 import (
 	"fireball/ast"
+	"fireball/core"
 	"fireball/lexer"
 )
+
+func (p *parser) parseAttributes() (attributes []ast.Attribute, recoverId int) {
+	recoverId = -1
+
+	for p.current.Kind == lexer.Hashtag {
+		attrs, rec := p.parseAttributeGroup()
+
+		attributes = append(attributes, attrs...)
+		recoverId = rec
+
+		if recoverId >= 0 {
+			return
+		}
+	}
+
+	return
+}
 
 func (p *parser) parseAttributeGroup() (attributes []ast.Attribute, recoverId int) {
 	recoverId = -1
@@ -53,15 +71,17 @@ func (p *parser) parseAttribute() (ast.Attribute, int) {
 		return p.parseExtern()
 	case "link_name":
 		return p.parseLinkName()
+	case "cfg":
+		return p.parseCfg()
 
 	default:
 		b := &ast.BadAttribute{}
 		b.Range_ = p.current.Range
 
-		recoverId := p.error("unknown attribute '" + p.current.Text + "'")
+		p.reportError(p.current.Range, "unknown attribute '"+p.current.Text+"'")
 		p.advance()
 
-		return b, recoverId
+		return b, p.error("")
 	}
 }
 
@@ -82,7 +102,7 @@ func (p *parser) parseTest() (t *ast.Test, recoverId int) {
 	// '(' Name ')'
 	if p.current.Kind == lexer.LeftParen {
 		// '('
-		if recoverId = p.expect(lexer.LeftParen, "expected '(' before test name"); recoverId >= 0 {
+		if recoverId = p.expect(lexer.LeftParen, "expected '(' before a test name"); recoverId >= 0 {
 			return
 		}
 
@@ -92,7 +112,7 @@ func (p *parser) parseTest() (t *ast.Test, recoverId int) {
 		}
 
 		// ')'
-		if recoverId = p.expect(lexer.RightParen, "expected ')' after test name"); recoverId >= 0 {
+		if recoverId = p.expect(lexer.RightParen, "expected ')' after a test name"); recoverId >= 0 {
 			return
 		}
 	}
@@ -136,7 +156,7 @@ func (p *parser) parseLinkName() (l *ast.LinkName, recoverId int) {
 	}
 
 	// '('
-	if recoverId = p.expect(lexer.LeftParen, "expected '(' before link name"); recoverId >= 0 {
+	if recoverId = p.expect(lexer.LeftParen, "expected '(' before a link name"); recoverId >= 0 {
 		return
 	}
 
@@ -146,7 +166,43 @@ func (p *parser) parseLinkName() (l *ast.LinkName, recoverId int) {
 	}
 
 	// ')'
-	if recoverId = p.expect(lexer.RightParen, "expected ')' after link name"); recoverId >= 0 {
+	if recoverId = p.expect(lexer.RightParen, "expected ')' after a link name"); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseCfg() (c *ast.Cfg, recoverId int) {
+	c = &ast.Cfg{}
+	c.Range_.Start = p.current.Range.Start
+	defer func() {
+		c.Range_.End = p.previous.Range.End
+
+		if core.IsNil(c.Predicate) {
+			c.Predicate = &ast.BadCfg{}
+		}
+	}()
+
+	recoverId = -1
+
+	// 'cfg'
+	if recoverId = p.expect(lexer.Identifier, "expected 'cfg'"); recoverId >= 0 {
+		return
+	}
+
+	// '('
+	if recoverId = p.expect(lexer.LeftParen, "expected '(' before a predicate"); recoverId >= 0 {
+		return
+	}
+
+	// Predicate
+	if c.Predicate, recoverId = p.parseCfgPredicate(); recoverId >= 0 {
+		return
+	}
+
+	// ')'
+	if recoverId = p.expect(lexer.RightParen, "expected ')' after a predicate"); recoverId >= 0 {
 		return
 	}
 

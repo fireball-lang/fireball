@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fireball/core"
 	"iter"
 )
 
@@ -9,13 +10,22 @@ type File struct {
 
 	Path string
 
+	Attributes_ []Attribute
+
 	Mod     *Mod
 	Imports []*Import
 	Decls   []Decl
+
+	Stripped []core.Range
 }
 
 func (f *File) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
+		for _, attribute := range f.Attributes_ {
+			for !yield(attribute) {
+				return
+			}
+		}
 		if !yield(f.Mod) {
 			return
 		}
@@ -30,6 +40,10 @@ func (f *File) Children() iter.Seq[Node] {
 			}
 		}
 	}
+}
+
+func (f *File) Attributes() []Attribute {
+	return f.Attributes_
 }
 
 // Mod
@@ -53,6 +67,8 @@ func (m *Mod) Children() iter.Seq[Node] {
 type Import struct {
 	baseNode
 
+	Attributes_ []Attribute
+
 	Path    *IdentifierPath
 	Symbols []*Leaf // optional
 	Alias   *Leaf   // optional
@@ -60,6 +76,11 @@ type Import struct {
 
 func (i *Import) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
+		for _, attribute := range i.Attributes_ {
+			for !yield(attribute) {
+				return
+			}
+		}
 		if !yield(i.Path) {
 			return
 		}
@@ -72,4 +93,8 @@ func (i *Import) Children() iter.Seq[Node] {
 			return
 		}
 	}
+}
+
+func (i *Import) Attributes() []Attribute {
+	return i.Attributes_
 }

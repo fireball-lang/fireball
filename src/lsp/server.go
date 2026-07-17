@@ -3,6 +3,8 @@ package lsp
 import (
 	"bytes"
 	"context"
+	"fireball/ast"
+	"fireball/cfg"
 	"fireball/core"
 	"fireball/project"
 	"iter"
@@ -18,6 +20,8 @@ type Server struct {
 	Logger *slog.Logger
 	Client protocol.Client
 
+	Env cfg.Env
+
 	nativeWatcher *NativeWatcher
 
 	workspaces []*Workspace
@@ -30,6 +34,23 @@ type Server struct {
 
 func (s *Server) Initialize(ctx context.Context, params *protocol.InitializeParams) (*protocol.InitializeResult, error) {
 	s.info(ctx, "Starting")
+
+	if opts, ok := params.InitializationOptions.(map[string]any); ok {
+		if targetOs, ok := opts["target_os"].(string); ok {
+			switch targetOs {
+			case "windows":
+				s.Env.TargetOs = ast.WindowsOs
+			case "linux":
+				s.Env.TargetOs = ast.Linux
+			case "macos":
+				s.Env.TargetOs = ast.MacOS
+			}
+		}
+
+		if fullSemanticTokens, ok := opts["full_semantic_tokens"].(bool); ok {
+			s.fullSemanticTokens = fullSemanticTokens
+		}
+	}
 
 	var filters []protocol.FileOperationFilter
 
@@ -73,12 +94,6 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 
 	s.publishDiagnostics(ctx)
 
-	if opts, ok := params.InitializationOptions.(map[string]any); ok {
-		if fullSemanticTokens, ok := opts["fullSemanticTokens"].(bool); ok {
-			s.fullSemanticTokens = fullSemanticTokens
-		}
-	}
-
 	if params.Capabilities.TextDocument != nil && params.Capabilities.TextDocument.Definition != nil {
 		s.definitionLinkSupport = params.Capabilities.TextDocument.Definition.LinkSupport
 	}
@@ -115,6 +130,7 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 						protocol.SemanticTokenInterface,
 						protocol.SemanticTokenTypeParameter,
 						protocol.SemanticTokenKeyword,
+						protocol.SemanticTokenComment,
 					},
 					TokenModifiers: []protocol.SemanticTokenModifiers{},
 				},

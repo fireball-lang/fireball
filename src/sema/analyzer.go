@@ -6,6 +6,7 @@ import (
 	"fireball/lexer"
 	"fireball/symbols"
 	"fireball/types"
+	"reflect"
 )
 
 type ExprInfo struct {
@@ -37,8 +38,18 @@ type analyzer struct {
 	loop     int
 }
 
+var fileAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Cfg](),
+}
+
+var importAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Cfg](),
+}
+
 func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, nodeTypes map[ast.Node]types.Type, topLevelModule, path string) (map[ast.Expr]ExprInfo, []core.Diagnostic) {
 	defer core.Scope()()
+
+	// Setup
 
 	a := analyzer{
 		common:         setupCommon(file, fileSymbols, root, instantiations, typeEnv, nodeTypes, path),
@@ -69,6 +80,14 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 		a.Error(file.Mod.Path.Entries[0], "top level module needs to match the project name")
 	}
 
+	// File & Import attributes
+
+	a.CheckAttributes(file.Attributes_, fileAllowedAttributes)
+
+	for _, import_ := range file.Imports {
+		a.CheckAttributes(import_.Attributes_, importAllowedAttributes)
+	}
+
 	// Declarations
 
 	for _, decl := range file.Decls {
@@ -77,7 +96,7 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 
 	// Cleanup
 
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		a.scopes.Pop()
 	}
 

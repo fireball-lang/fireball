@@ -2,28 +2,22 @@ mod example;
 
 import example::c::{printf};
 
-interface Index[T] {
-    type Result
-
-    func get(self, index: T) Result
-}
-
-struct Slice[T] {
-    ptr: *T,
-    size: u64,
-}
-
-impl[T] Slice[T] : Index[u64] {
-    type Result = T
-
-    func get(self, index: u64) T {
-        return self.ptr[index];
-    }
-}
-
 func main() {
-    var array = [3]i32{ 1, 3, 6 };
-    var slice = Slice::[i32] { ptr: &array[0], size: 3u };
+    var os = get_os();
+    printf("Hello from %s!\n".ptr, os.ptr);
+}
 
-    printf("slice[1] = %d\n".ptr, slice.get(1u));
+#[cfg(target_os = "windows")]
+func get_os() StringView {
+    return "Windows";
+}
+
+#[cfg(target_os = "linux")]
+func get_os() StringView {
+    return "Linux";
+}
+
+#[cfg(target_os = "macos")]
+func get_os() StringView {
+    return "MacOS";
 }

@@ -92,7 +92,9 @@ func (p *parser) popRecoverPoint() {
 
 func (p *parser) error(msg string) int {
 	// Report error
-	p.reportError(p.current.Range, msg)
+	if msg != "" {
+		p.reportError(p.current.Range, msg)
+	}
 
 	// Synchronize
 	for p.current.Kind != lexer.EOF {

@@ -13,6 +13,8 @@ import (
 )
 
 type Workspace struct {
+	server *Server
+
 	path  string
 	mutex sync.RWMutex
 
@@ -23,7 +25,8 @@ type Workspace struct {
 func (s *Server) openWorkspace(ctx context.Context, path string) {
 	// Create workspace
 	workspace := &Workspace{
-		path: path,
+		server: s,
+		path:   path,
 	}
 
 	if !workspace.reload(s, ctx) {
@@ -95,7 +98,7 @@ func (w *Workspace) parseFiles(files []*project.File) {
 	ordered := project.OrderProjects(w.projMap, w.depMap)
 
 	for _, proj := range ordered {
-		proj.Parse(files)
+		proj.Parse(files, w.server.Env)
 	}
 
 	instantiations := types.NewInstantiationCache()

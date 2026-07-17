@@ -32,6 +32,7 @@ func main() {
 
 	root.AddCommand(getInitCmd())
 	root.AddCommand(getNewCmd())
+	root.AddCommand(getCheckCmd())
 	root.AddCommand(getBuildCmd())
 	root.AddCommand(getRunCmd())
 	root.AddCommand(getTestCmd())

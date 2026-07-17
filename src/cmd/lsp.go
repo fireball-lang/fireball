@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fireball/cfg"
 	"fireball/core"
 	"fireball/lsp"
 	"log/slog"
@@ -17,7 +18,8 @@ import (
 )
 
 func getLspCmd() *cobra.Command {
-	var port uint16
+	port := uint16(0)
+	targetOs := TargetOsValue{Value: cfg.GetHost().TargetOs}
 
 	cmd := &cobra.Command{
 		Use:   "lsp",
@@ -36,6 +38,9 @@ func getLspCmd() *cobra.Command {
 			server.Logger = logger
 			server.Client = client
 
+			server.Env = cfg.GetHost()
+			server.Env.TargetOs = targetOs.Value
+
 			logger.Info("Connected")
 			<-conn.Done()
 
@@ -44,6 +49,7 @@ func getLspCmd() *cobra.Command {
 	}
 
 	cmd.Flags().Uint16VarP(&port, "port", "p", 0, "use a TCP connection with the specified port instead of STDIO")
+	cmd.Flags().VarP(&targetOs, "target", "t", "override the target OS")
 
 	return cmd
 }

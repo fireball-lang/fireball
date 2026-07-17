@@ -6,6 +6,7 @@ import (
 	"fireball/ast"
 	"fireball/core"
 	"fireball/project"
+	"math"
 	"slices"
 
 	"github.com/fireball-lang/protocol"
@@ -49,6 +50,11 @@ func (s *Server) SemanticTokensFull(_ context.Context, params *protocol.Semantic
 		ast.VisitDecl(&hi, decl)
 	}
 
+	// Stripped
+	for _, range_ := range file.Ast.Stripped {
+		hi.AddRange(range_, commentKind)
+	}
+
 	return &protocol.SemanticTokens{Data: hi.Data()}, nil
 }
 
@@ -76,21 +82,22 @@ const (
 	interfaceKind
 	genericKind
 	keywordKind
+	commentKind
 )
 
 type semantic struct {
 	line   uint16
-	column uint8
+	column uint16
 
-	length uint8
+	length uint16
 	kind   semanticKind
 }
 
 func newSemantic(line, column, length uint32, kind semanticKind) semantic {
 	return semantic{
 		line:   uint16(line) - 1,
-		column: uint8(column),
-		length: uint8(length),
+		column: uint16(column),
+		length: uint16(length),
 		kind:   kind,
 	}
 }
@@ -102,9 +109,37 @@ func (hi *highlighter) AddFull(node ast.Node, kind semanticKind) {
 }
 
 func (hi *highlighter) Add(node ast.Node, kind semanticKind) {
-	if !core.IsNil(node) && node.Range().Start.Column < 256 {
-		range_ := node.Range()
-		hi.tokens = append(hi.tokens, newSemantic(range_.Start.Line, range_.Start.Column-1, range_.End.Column-range_.Start.Column, kind))
+	if !core.IsNil(node) {
+		hi.AddRange(node.Range(), kind)
+	}
+}
+
+func (hi *highlighter) AddRange(range_ core.Range, kind semanticKind) {
+	startL := range_.Start.Line
+	endL := range_.End.Line
+
+	for line := startL; line <= endL; line++ {
+		var column uint32
+		var length uint32
+
+		if line == startL {
+			column = range_.Start.Column - 1
+
+			if startL == endL {
+				length = range_.End.Column - range_.Start.Column
+			} else {
+				length = hi.file.LineTable[startL-1] - (range_.Start.Column - 1)
+			}
+		} else if line == endL {
+			column = 0
+			length = range_.End.Column
+		} else {
+			column = 0
+			length = hi.file.LineTable[line-1]
+		}
+
+		length = min(length, math.MaxUint16)
+		hi.tokens = append(hi.tokens, newSemantic(line, column, length, kind))
 	}
 }
 
@@ -126,7 +161,7 @@ func (hi *highlighter) Data() []uint32 {
 	data := make([]uint32, len(hi.tokens)*5)
 
 	lastLine := uint16(0)
-	lastColumn := uint8(0)
+	lastColumn := uint16(0)
 
 	for i, token := range hi.tokens {
 		if lastLine != token.line {

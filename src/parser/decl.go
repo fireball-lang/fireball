@@ -8,20 +8,9 @@ import (
 	"slices"
 )
 
-func (p *parser) parseDecl() (ast.Decl, int) {
-	var attributes []ast.Attribute
-
+func (p *parser) parseDecl(attributes []ast.Attribute) (decl ast.Decl, recoverId int) {
 	public := false
 	var publicToken lexer.Token
-
-	for p.current.Kind == lexer.Hashtag {
-		attrs, recoverId := p.parseAttributeGroup()
-		attributes = append(attributes, attrs...)
-
-		if recoverId >= 0 {
-			break
-		}
-	}
 
 	if p.current.Kind == lexer.Pub {
 		publicToken = p.advance()

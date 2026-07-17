@@ -58,6 +58,24 @@ func (l *LinkName) Children() iter.Seq[Node] {
 
 func (l *LinkName) _isAttribute() {}
 
+// Cfg
+
+type Cfg struct {
+	baseNode
+
+	Predicate CfgPredicate
+}
+
+func (c *Cfg) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(c.Predicate) {
+			return
+		}
+	}
+}
+
+func (c *Cfg) _isAttribute() {}
+
 // Bad
 
 type BadAttribute struct {

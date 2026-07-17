@@ -117,6 +117,10 @@
 (test_attribute "test" @attribute)
 (extern_attribute) @attribute
 (link_name_attribute "link_name" @attribute)
+(cfg_attribute "cfg" @attribute)
+
+(option_cfg name: (identifier) @attribute)
+(call_cfg name: (identifier) @attribute)
 
 ; Literals
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fireball/cfg"
 	"fireball/core"
 	"fireball/project"
 	"fmt"
@@ -21,7 +22,7 @@ func getRunCmd() *cobra.Command {
 			start := time.Now()
 
 			// Parse
-			proj, projMap, err := parseProject(start)
+			proj, projMap, err := parseProject(cfg.GetHost(), &start)
 			if err != nil {
 				return err
 			}
