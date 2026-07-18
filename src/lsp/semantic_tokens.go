@@ -14,7 +14,7 @@ import (
 
 func (s *Server) SemanticTokensFull(_ context.Context, params *protocol.SemanticTokensParams) (*protocol.SemanticTokens, error) {
 	// Get file
-	file, locker := s.getFile(uriPath(params.TextDocument.URI))
+	file, locker := s.getFile(params.TextDocument.URI.Filename())
 	if file == nil {
 		return nil, nil
 	}

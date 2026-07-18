@@ -31,7 +31,7 @@ type symbolConsumer interface {
 
 func (s *Server) DocumentSymbol(_ context.Context, params *protocol.DocumentSymbolParams) (result []interface{}, err error) {
 	// Get file
-	file, locker := s.getFile(uriPath(params.TextDocument.URI))
+	file, locker := s.getFile(params.TextDocument.URI.Filename())
 	if file == nil {
 		return nil, nil
 	}

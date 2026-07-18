@@ -87,7 +87,7 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 	}
 
 	for _, folder := range params.WorkspaceFolders {
-		s.openWorkspace(ctx, uriPath(protocol.DocumentURI(folder.URI)))
+		s.openWorkspace(ctx, uri.URI(folder.URI).Filename())
 	}
 
 	if params.Capabilities.Workspace != nil && params.Capabilities.Workspace.FileOperations != nil {
@@ -169,7 +169,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 func (s *Server) DidChangeWorkspaceFolders(ctx context.Context, params *protocol.DidChangeWorkspaceFoldersParams) error {
 	for _, folder := range params.Event.Removed {
-		folderPath := uriPath(protocol.DocumentURI(folder.URI))
+		folderPath := uri.URI(folder.URI).Filename()
 
 		index := slices.IndexFunc(s.workspaces, func(workspace *Workspace) bool {
 			return workspace.path == folderPath
@@ -186,7 +186,7 @@ func (s *Server) DidChangeWorkspaceFolders(ctx context.Context, params *protocol
 	}
 
 	for _, folder := range params.Event.Added {
-		s.openWorkspace(ctx, uriPath(protocol.DocumentURI(folder.URI)))
+		s.openWorkspace(ctx, uri.URI(folder.URI).Filename())
 	}
 
 	return nil
@@ -206,7 +206,7 @@ func (s *Server) DidCreateFiles(ctx context.Context, params *protocol.CreateFile
 			continue
 		}
 
-		fullPath := uriPath(protocol.DocumentURI(fileCreate.URI))
+		fullPath := uri.URI(fileCreate.URI).Filename()
 		proj := s.getProject(fullPath)
 
 		if proj == nil {
@@ -252,7 +252,7 @@ func (s *Server) DidDeleteFiles(ctx context.Context, params *protocol.DeleteFile
 			}
 
 			// A deleted directory may contain a project.toml
-			fullPath := uriPath(protocol.DocumentURI(file.URI))
+			fullPath := uri.URI(file.URI).Filename()
 
 			if path.Ext(fullPath) != ".fb" && path.Base(fullPath) != "project.toml" {
 				for _, workspace := range s.workspaces {
@@ -269,7 +269,7 @@ func (s *Server) DidDeleteFiles(ctx context.Context, params *protocol.DeleteFile
 	})
 
 	for _, fileDelete := range params.Files {
-		fullPath := uriPath(protocol.DocumentURI(fileDelete.URI))
+		fullPath := uri.URI(fileDelete.URI).Filename()
 
 		if path.Ext(fullPath) != ".fb" && path.Base(fullPath) != "project.toml" {
 			s.deleteFilesUnder(ctx, fullPath)
@@ -329,7 +329,7 @@ func (s *Server) reloadWorkspacesIfProjectConfigChanged(ctx context.Context, it 
 
 	for uri_ := range it {
 		if path.Base(uri_) == "project.toml" {
-			workspace := s.getWorkspaceForProjectConfig(uriPath(protocol.DocumentURI(uri_)))
+			workspace := s.getWorkspaceForProjectConfig(uri.URI(uri_).Filename())
 
 			if workspace == nil {
 				s.warn(ctx, "failed to find workspace for project config file: '%s'", uri_)
@@ -351,7 +351,7 @@ func (s *Server) reloadWorkspacesIfProjectConfigChanged(ctx context.Context, it 
 
 func (s *Server) DidOpen(ctx context.Context, params *protocol.DidOpenTextDocumentParams) error {
 	// Get file and its workspace
-	file, _ := s.getFile(uriPath(params.TextDocument.URI))
+	file, _ := s.getFile(params.TextDocument.URI.Filename())
 	if file == nil {
 		return nil
 	}
@@ -387,7 +387,7 @@ func (s *Server) DidOpen(ctx context.Context, params *protocol.DidOpenTextDocume
 
 func (s *Server) DidChange(ctx context.Context, params *protocol.DidChangeTextDocumentParams) error {
 	// Get file and its workspace
-	file, _ := s.getFile(uriPath(params.TextDocument.URI))
+	file, _ := s.getFile(params.TextDocument.URI.Filename())
 	if file == nil {
 		return nil
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fireball/core"
 	"fmt"
-	"strings"
 
 	"github.com/fireball-lang/protocol"
 )
@@ -65,14 +64,4 @@ func toCorePos(pos protocol.Position) core.Pos {
 		Line:   pos.Line + 1,
 		Column: pos.Character + 1,
 	}
-}
-
-func uriPath(uri protocol.DocumentURI) string {
-	str := string(uri)
-
-	if !strings.HasPrefix(str, "file://") {
-		panic("lsp.uriPath() - Non file URIs are not supported")
-	}
-
-	return str[7:]
 }

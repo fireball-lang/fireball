@@ -14,7 +14,7 @@ import (
 
 func (s *Server) Definition(ctx context.Context, params *protocol.DefinitionParams) (interface{}, error) {
 	// Get file
-	file, locker := s.getFile(uriPath(params.TextDocument.URI))
+	file, locker := s.getFile(params.TextDocument.URI.Filename())
 	if file == nil {
 		return nil, nil
 	}
