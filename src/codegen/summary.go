@@ -21,9 +21,23 @@ func (c *codegen) AddSummaryRef(ref ir.SummaryRef) {
 	}
 }
 
+func (c *codegen) GetGlobalVarRef(g *ast.GlobalVar) ir.SummaryRef {
+	name := GlobalVarLinkName(g)
+	return c.GetSummaryRef(name, true)
+}
+
 func (c *codegen) GetFunctionSummaryRef(f *ast.Func, typ *types.Func, in *types.Interface) ir.SummaryRef {
 	name := FuncLinkName(f, typ, in)
 	return c.GetSummaryRef(name, false)
+}
+
+func (c *codegen) AddSummaryGlobalVar(g *ast.GlobalVar) {
+	if !c.moduleSummaryRef.Valid() {
+		return
+	}
+
+	ref := c.GetGlobalVarRef(g)
+	c.AddSummaryRef(ref)
 }
 
 func (c *codegen) AddSummaryCallee(node ast.Node, f *ast.Func, typ *types.Func, in *types.Interface) {

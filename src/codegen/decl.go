@@ -135,6 +135,65 @@ func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 
 // Utils
 
+func (c *codegen) CreateGlobalVar(g *ast.GlobalVar, typ types.Type, declare bool) *ir.GlobalVar {
+	name := GlobalVarLinkName(g)
+	t := c.types.Get(typ)
+
+	gVar := c.module.NewGlobalVar(name, t)
+
+	if g.IsExtern() || declare {
+		gVar.Flags = ir.External
+	} else {
+		gVar.Initializer = &ir.ZeroInitializer{Typ: t}
+
+		ref := c.module.AddMeta(&ir.GlobalVariableMeta{
+			Name:     g.Name().Token.Text,
+			LinkName: name,
+			Type:     c.types.GetMeta(typ),
+			Scope:    c.emitter.PeekScope(),
+			File:     c.fileRef,
+			Line:     g.Range().Start.Line,
+		})
+
+		ref = c.module.AddMeta(&ir.GlobalVariableExpressionMeta{Var: ref})
+
+		cu := c.module.GetMeta(c.unitRef).(*ir.CompileUnitMeta)
+		var globals *ir.RawMeta
+
+		if cu.Globals.Valid() {
+			globals = c.module.GetMeta(cu.Globals).(*ir.RawMeta)
+		} else {
+			globals = &ir.RawMeta{}
+			cu.Globals = c.module.AddMeta(globals)
+		}
+
+		gVar.SetMeta(ref)
+		globals.Values = append(globals.Values, ir.RawMetaValue{Ref: ref})
+	}
+
+	// Summary
+
+	if !declare && !g.IsExtern() && c.moduleSummaryRef.Valid() {
+		c.module.AddSummary(&ir.VariableSummary{
+			Module: c.moduleSummaryRef,
+			Name:   name,
+			LinkFlags: ir.LinkSummaryFlags{
+				Linkage:             ir.LinkageExternal,
+				Visibility:          ir.VisibilityDefault,
+				NotEligibleToImport: false,
+				Live:                false,
+				DsoLocal:            true,
+				CanAutoHide:         false,
+				ImportType:          ir.ImportDefinition,
+			},
+			Flags: 0,
+			Refs:  nil,
+		})
+	}
+
+	return gVar
+}
+
 func (c *codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool, in *types.Interface) *ir.Function {
 	sig := &ir.Signature{
 		Params:  make([]ir.Type, 0, len(f.Params)+1),

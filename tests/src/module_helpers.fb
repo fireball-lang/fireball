@@ -1,5 +1,7 @@
 mod tests::module_helpers;
 
+pub var value: i32;
+
 pub struct Vec2 {
     pub x: i32,
     pub y: i32,

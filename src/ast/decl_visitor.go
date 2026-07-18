@@ -5,6 +5,8 @@ type DeclVisitor interface {
 	VisitEnum(e *Enum)
 	VisitInterface(i *Interface)
 	VisitImpl(i *Impl)
+
+	VisitGlobalVar(g *GlobalVar)
 	VisitFunc(f *Func)
 
 	VisitBadDecl(b *BadDecl)
@@ -20,6 +22,9 @@ func VisitDecl[V DeclVisitor](visitor V, decl Decl) {
 		visitor.VisitInterface(decl)
 	case *Impl:
 		visitor.VisitImpl(decl)
+
+	case *GlobalVar:
+		visitor.VisitGlobalVar(decl)
 	case *Func:
 		visitor.VisitFunc(decl)
 

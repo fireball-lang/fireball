@@ -287,6 +287,56 @@ func (a *AssociatedType) Children() iter.Seq[Node] {
 	}
 }
 
+// GlobalVar
+
+type GlobalVar struct {
+	baseNode
+
+	Attributes_ []Attribute
+	Public      bool
+
+	Name_ *Leaf
+	Type  Type
+}
+
+func (g *GlobalVar) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, attribute := range g.Attributes_ {
+			if !yield(attribute) {
+				return
+			}
+		}
+		if !yield(g.Name_) {
+			return
+		}
+		if !yield(g.Type) {
+			return
+		}
+	}
+}
+
+func (g *GlobalVar) Attributes() []Attribute {
+	return g.Attributes_
+}
+
+func (g *GlobalVar) Name() *Leaf {
+	return g.Name_
+}
+
+func (g *GlobalVar) _isDecl() {}
+
+func (g *GlobalVar) IsExtern() bool {
+	return GetAttribute[*Extern](g) != nil
+}
+
+func (g *GlobalVar) GetLinkName() string {
+	if link := GetAttribute[*LinkName](g); link != nil {
+		return string(link.Name.Runes)
+	}
+
+	return ""
+}
+
 // Func
 
 type Func struct {

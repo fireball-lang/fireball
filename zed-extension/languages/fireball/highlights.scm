@@ -58,6 +58,8 @@
 
 (associated_type name: (identifier) @type)
 
+(global_var name: (identifier) @variable.global)
+
 (func name: (identifier) @function)
 (func type_param: (type_param name: (identifier) @type.parameter))
 (func receiver: (identifier) @keyword)

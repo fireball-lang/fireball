@@ -163,7 +163,7 @@ func (w *writer) meta(node ir.MetaNode) {
 		w.fieldInteger("value", node.Value)
 
 	case *ir.GlobalVariableMeta:
-		w.beginMeta(false, "DIGlobalVariable")
+		w.beginMeta(true, "DIGlobalVariable")
 		w.fieldString("name", node.Name)
 		w.fieldString("linkageName", node.LinkName)
 		w.fieldMetaRef("type", node.Type)

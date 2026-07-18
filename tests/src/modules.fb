@@ -9,6 +9,8 @@ import tests::module_helpers;
 // alias import: same module under a shorter name
 import tests::module_helpers as h;
 
+import tests::module_helpers::{value};
+
 // --- symbol import tests ---
 
 #[test("cross-module symbol import: function")]
@@ -59,4 +61,11 @@ func testAliasType() bool {
     var v: h::Vec2;
     v.x = 42;
     return v.x == 42;
+}
+
+// --- global variable tests ---
+
+#[test("global variable")]
+func globalVariable() bool {
+	return value == 0;
 }

@@ -19,6 +19,10 @@
   "impl" @context
   type: (type) @name) @item
 
+(global_var
+  "var" @context
+  name: (identifier) @name) @item
+
 (func
   "func" @context
   name: (identifier) @name) @item

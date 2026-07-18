@@ -42,6 +42,11 @@ func (hi *highlighter) VisitImpl(im *ast.Impl) {
 	}
 }
 
+func (hi *highlighter) VisitGlobalVar(g *ast.GlobalVar) {
+	hi.AddFull(g.Name(), variableKind)
+	hi.VisitType(g.Type)
+}
+
 func (hi *highlighter) VisitFunc(f *ast.Func) {
 	hi.AddFull(f.Name(), functionKind)
 	hi.VisitTypeParams(f.TypeParams)

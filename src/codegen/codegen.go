@@ -134,12 +134,16 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		c.functionSummaries = make(map[*ast.Func]ir.SummaryRef)
 	}
 
-	// Function declarations
+	// Function / Global Var declarations
 
 	c.scope.Push()
 
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
+		case *ast.GlobalVar:
+			typ := c.nodeTypes[decl]
+			c.scope.Add(decl.Name().Token.Text, c.CreateGlobalVar(decl, typ, false))
+
 		case *ast.Impl:
 			var in *types.Interface
 			if decl.Interface != nil {
@@ -253,6 +257,30 @@ func (c *codegen) HasTypeParams(f *ast.Func) bool {
 	return false
 }
 
+func GlobalVarLinkName(g *ast.GlobalVar) string {
+	linkName := g.GetLinkName()
+
+	// Custom link name
+	if linkName != "" {
+		return linkName
+	}
+
+	// Normal
+	file := ast.GetFile(g)
+
+	sb := strings.Builder{}
+	sb.WriteString("fb$")
+
+	for _, entry := range file.Mod.Path.Entries {
+		sb.WriteString(entry.Token.Text)
+		sb.WriteString("::")
+	}
+
+	sb.WriteString(g.Name().Token.Text)
+
+	return sb.String()
+}
+
 func FuncLinkName(f *ast.Func, typ *types.Func, in *types.Interface) string {
 	linkName := f.GetLinkName()
 
@@ -359,6 +387,20 @@ func (c *codegen) getFuncInterface(f *ast.Func) *types.Interface {
 
 	in, _ := c.ResolveType(raw).(*types.Interface)
 	return in
+}
+
+func (c *codegen) GetGlobalVar(g *ast.GlobalVar, typ types.Type) *ir.GlobalVar {
+	// Check already existing global variables
+	name := GlobalVarLinkName(g)
+
+	for gVar := range c.module.GlobalVars() {
+		if gVar.Name == name {
+			return gVar
+		}
+	}
+
+	// Create extern global var
+	return c.CreateGlobalVar(g, typ, true)
 }
 
 func (c *codegen) GetFunction(f *ast.Func, typ *types.Func, iface *types.Interface) *ir.Function {

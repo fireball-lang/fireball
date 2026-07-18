@@ -412,6 +412,11 @@ func (c *codegen) VisitCompoundBaseBinaryOp(b *ast.Binary, left, right ir.Value,
 
 func (c *codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 	switch node := c.exprInfos[i].Node.(type) {
+	case *ast.GlobalVar:
+		typ := c.ExprType(i)
+		c.AddSummaryGlobalVar(node)
+		return c.GetGlobalVar(node, typ)
+
 	case *ast.Func:
 		typ := c.ExprType(i).(*types.Func)
 		in := c.getFuncInterface(node)

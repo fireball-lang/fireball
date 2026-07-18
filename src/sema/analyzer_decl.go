@@ -340,6 +340,17 @@ func instanceSignatureMatches(in *types.Func, concrete *types.Func) bool {
 	return in.Returns.Equals(concrete.Returns)
 }
 
+var globalVarAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Extern](),
+	reflect.TypeFor[ast.LinkName](),
+	reflect.TypeFor[ast.Cfg](),
+}
+
+func (a *analyzer) VisitGlobalVar(g *ast.GlobalVar) {
+	// Attributes
+	a.CheckAttributes(g.Attributes(), globalVarAllowedAttributes)
+}
+
 var funcAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Test](),
 	reflect.TypeFor[ast.Extern](),

@@ -47,7 +47,7 @@ func (s *Server) SemanticTokensFull(_ context.Context, params *protocol.Semantic
 
 	// Declarations
 	for _, decl := range file.Ast.Decls {
-		ast.VisitDecl(&hi, decl)
+		hi.VisitDecl(decl)
 	}
 
 	// Stripped

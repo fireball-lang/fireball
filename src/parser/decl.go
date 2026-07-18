@@ -29,6 +29,9 @@ func (p *parser) parseDecl(attributes []ast.Attribute) (decl ast.Decl, recoverId
 			p.reportError(publicToken.Range, "implementation blocks cannot be marked as public")
 		}
 		return p.parseImpl(attributes)
+
+	case lexer.Var:
+		return p.parseGlobalVar(attributes, public)
 	case lexer.Func:
 		return p.parseFunc(attributes, public, false)
 
@@ -426,6 +429,50 @@ func (p *parser) parseAssociatedType(hasType bool) (a *ast.AssociatedType, recov
 		if a.Type, recoverId = p.parseType(); recoverId >= 0 {
 			return
 		}
+	}
+
+	return
+}
+
+func (p *parser) parseGlobalVar(attributes []ast.Attribute, public bool) (g *ast.GlobalVar, recoverId int) {
+	g = &ast.GlobalVar{}
+	g.Range_.Start = p.current.Range.Start
+	g.Attributes_ = attributes
+	g.Public = public
+	g.Name_ = emptyLeaf
+	defer func() {
+		g.Range_.End = p.previous.Range.End
+
+		if core.IsNil(g.Type) {
+			g.Type = p.badType()
+		}
+	}()
+
+	recoverId = -1
+
+	// 'var'
+	if recoverId = p.expect(lexer.Var, "expected 'var'"); recoverId >= 0 {
+		return
+	}
+
+	// Name
+	if g.Name_, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// ':'
+	if recoverId = p.expect(lexer.Colon, "expected ':' before type"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if g.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
+	}
+
+	// ';'
+	if recoverId = p.expect(lexer.Semicolon, "expected ';' after global variable"); recoverId >= 0 {
+		return
 	}
 
 	return

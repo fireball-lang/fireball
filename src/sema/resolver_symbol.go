@@ -174,6 +174,18 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 			}
 		}
 
+	case symbols.Var:
+		g := symbol.Node.(*ast.GlobalVar)
+
+		typ := r.ResolveAndAnalyzeType(g.Type)
+
+		if typ == types.PrimitiveVoid {
+			typ = types.Invalid
+		}
+
+		r.nodeTypes[g] = typ
+		symbol.Type = typ
+
 	case symbols.Func:
 		f := symbol.Node.(*ast.Func)
 		t := symbol.Type.(*types.Func)
