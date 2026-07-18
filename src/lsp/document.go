@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/uri"
 )
 
 type Document struct {
@@ -66,7 +67,7 @@ func (s *Server) publishFileDiagnostics(ctx context.Context, file *project.File)
 
 	if document.lastDiagnostics == nil || !reflect.DeepEqual(document.lastDiagnostics, diagnostics) {
 		_ = s.Client.PublishDiagnostics(ctx, &protocol.PublishDiagnosticsParams{
-			URI:         protocol.DocumentURI("file://" + file.Path),
+			URI:         uri.File(file.Path),
 			Version:     uint32(document.Version),
 			Diagnostics: diagnostics,
 		})
@@ -82,7 +83,7 @@ func (s *Server) clearFileDiagnostics(ctx context.Context, file *project.File) {
 	defer document.mu.Unlock()
 
 	_ = s.Client.PublishDiagnostics(ctx, &protocol.PublishDiagnosticsParams{
-		URI:         protocol.DocumentURI("file://" + file.Path),
+		URI:         uri.File(file.Path),
 		Version:     uint32(document.Version),
 		Diagnostics: emptyDiagnostics,
 	})

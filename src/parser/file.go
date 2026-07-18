@@ -14,7 +14,7 @@ func (p *parser) parseFile() (f *ast.File) {
 	}()
 
 	recoverId := -1
-	p.pushRecoverPoint(lexer.Hashtag, lexer.Mod, lexer.Import, lexer.Pub, lexer.Struct, lexer.Enum, lexer.Interface, lexer.Impl, lexer.Var, lexer.Func)
+	p.pushRecoverPoint(lexer.Hashtag, lexer.Import, lexer.Pub, lexer.Struct, lexer.Enum, lexer.Interface, lexer.Impl, lexer.Var, lexer.Func)
 
 	// Attributes
 
