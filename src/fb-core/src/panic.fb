@@ -1,0 +1,15 @@
+mod core;
+
+var panic_handler: func(msg: StringView);
+
+func set_panic_handler(handler: func(msg: StringView)) {
+	panic_handler = handler;
+}
+
+func panic(msg: StringView) {
+	if (panic_handler == null) {
+		for (;;) {}
+	}
+
+	panic_handler(msg);
+}
