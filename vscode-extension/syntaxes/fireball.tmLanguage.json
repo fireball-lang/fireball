@@ -43,12 +43,6 @@
             "include": "#bool"
         },
 		{
-			"include": "#keywords"
-		},
-		{
-			"include": "#strings"
-		},
-		{
 			"include": "#number"
 		},
 		{
@@ -57,6 +51,9 @@
 		{
 			"include": "#string"
 		},
+        {
+            "include": "#null"
+        },
 		{
 			"include": "#keyword"
 		},
@@ -133,6 +130,10 @@
 			"end": "\"",
 			"name": "string.quoted.double.fb"
 		},
+        "null": {
+            "match": "null",
+            "name": "constant.language.fb"
+        },
 		"keyword": {
 			"match": "\\b(pub|mut|mod|import|struct|enum|interface|impl|type|func|var|if|else|while|for|return|break|continue|as|sizeof|alignof|offsetof)\\b",
 			"name": "keyword.fb"
