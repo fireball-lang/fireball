@@ -232,3 +232,42 @@ func testExplicitI32ToF32Arg() bool {
 func testExplicitI64ToF64() bool {
     return 5000000000 as f64 == 5000000000.0;
 }
+
+// --- Function pointer casts ---
+
+func sum(a: i32, b: i32) i32 {
+    return a + b;
+}
+
+#[test("implicit: func -> *void (var)")]
+func testImplicitFuncToVoidPtrVar() bool {
+    var f: *void = sum;
+    return f != null;
+}
+
+#[test("explicit: func -> *void")]
+func testExplicitFuncToVoidPtr() bool {
+    var f: *void = sum as *void;
+    return f != null;
+}
+
+#[test("explicit: func -> func (noop)")]
+func testExplicitFuncToFunc() bool {
+    var f = sum as func(i32, i32) i32;
+    return f(2, 3) == 5;
+}
+
+#[test("explicit: *void -> func")]
+func testExplicitVoidPtrToFunc() bool {
+    var p: *void = sum;
+    var f = p as func(i32, i32) i32;
+    return f(2, 3) == 5;
+}
+
+// --- CommonType: func <-> *void (via equality) ---
+
+#[test("common: func == *void (null)")]
+func testCommonFuncVsVoidPtr() bool {
+    var f: func(i32, i32) i32 = sum;
+    return f != null && null != f;
+}

@@ -28,42 +28,48 @@ const (
 )
 
 func CommonType(a, b types.Type) types.Type {
-	// Pointer
-	if pa, ok := a.(*types.Pointer); ok {
-		if pb, ok := b.(*types.Pointer); ok {
-			if pa.Pointee == types.PrimitiveVoid {
-				return pa
+	switch a := a.(type) {
+	case *types.Primitive:
+		switch b := b.(type) {
+		case *types.Primitive:
+			if types.IsInteger(a.Kind) && types.IsInteger(b.Kind) && types.IsSigned(a.Kind) == types.IsSigned(b.Kind) {
+				if a.Kind.Size() >= b.Kind.Size() {
+					return a
+				}
+				return b
 			}
-			if pb.Pointee == types.PrimitiveVoid {
-				return pb
+
+			if types.IsFloating(a.Kind) && types.IsFloating(b.Kind) {
+				if a.Kind.Size() >= b.Kind.Size() {
+					return a
+				}
+				return b
+			}
+		}
+
+	case *types.Pointer:
+		switch b := b.(type) {
+		case *types.Pointer:
+			if a.Pointee == types.PrimitiveVoid {
+				return a
+			}
+			if b.Pointee == types.PrimitiveVoid {
+				return b
 			}
 
-			return nil
+		case *types.Func:
+			if a.Pointee == types.PrimitiveVoid {
+				return a
+			}
 		}
 
-		return nil
-	}
-
-	// Primitive
-	pa, aOk := a.(*types.Primitive)
-	pb, bOk := b.(*types.Primitive)
-
-	if !aOk || !bOk {
-		return nil
-	}
-
-	if types.IsInteger(pa.Kind) && types.IsInteger(pb.Kind) && types.IsSigned(pa.Kind) == types.IsSigned(pb.Kind) {
-		if pa.Kind.Size() >= pb.Kind.Size() {
-			return a
+	case *types.Func:
+		switch b := b.(type) {
+		case *types.Pointer:
+			if b.Pointee == types.PrimitiveVoid {
+				return b
+			}
 		}
-		return b
-	}
-
-	if types.IsFloating(pa.Kind) && types.IsFloating(pb.Kind) {
-		if pa.Kind.Size() >= pb.Kind.Size() {
-			return a
-		}
-		return b
 	}
 
 	return nil
@@ -117,7 +123,13 @@ func GetExplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 				return PointerToInt, true
 			}
 
-		case *types.Pointer:
+		case *types.Pointer, *types.Func:
+			return Noop, true
+		}
+
+	case *types.Func:
+		switch to.(type) {
+		case *types.Pointer, *types.Func:
 			return Noop, true
 		}
 
@@ -191,6 +203,11 @@ func GetImplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 			}
 
 			return PointerToInterface, true
+		}
+
+	case *types.Func:
+		if to, ok := to.(*types.Pointer); ok && to.Pointee == types.PrimitiveVoid {
+			return Noop, true
 		}
 
 	case *types.Interface:

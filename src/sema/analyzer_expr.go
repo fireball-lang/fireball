@@ -342,9 +342,9 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 		}
 
 		switch left.Type.(type) {
-		case *types.Primitive, *types.Pointer, *types.Enum:
+		case *types.Primitive, *types.Pointer, *types.Func, *types.Enum:
 		default:
-			return a.Error(b, "equality operators only work on primitive types, pointers or enums, not %s", left.Type)
+			return a.Error(b, "equality operators only work on primitive types, pointers, function pointers or enums, not %s", left.Type)
 		}
 
 		return ExprInfo{Type: types.PrimitiveBool}
