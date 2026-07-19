@@ -7,6 +7,15 @@ import (
 	"fireball/types"
 )
 
+func (p *parser) canStartType() bool {
+	switch p.current.Kind {
+	case lexer.Mut, lexer.Identifier, lexer.LeftBracket, lexer.Star, lexer.Func:
+		return true
+	default:
+		return false
+	}
+}
+
 func (p *parser) parseType() (ast.Type, int) {
 	switch p.current.Kind {
 	case lexer.Mut:
@@ -20,6 +29,8 @@ func (p *parser) parseType() (ast.Type, int) {
 		return p.parseArrayType()
 	case lexer.Star:
 		return p.parsePointerType()
+	case lexer.Func:
+		return p.parseFuncType()
 
 	default:
 		b := &ast.BadType{}
@@ -213,6 +224,28 @@ func (p *parser) parsePointerType() (t *ast.PointerType, recoverId int) {
 
 	// Pointee
 	if t.Pointee, recoverId = p.parseType(); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseFuncType() (f *ast.FuncType, recoverId int) {
+	f = &ast.FuncType{}
+	f.Range_.Start = p.current.Range.Start
+	defer func() {
+		f.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'func'
+	if recoverId = p.expect(lexer.Func, "expected 'func'"); recoverId >= 0 {
+		return
+	}
+
+	// Signature
+	if _, f.Params, f.VarArgs, f.Returns, recoverId = p.parseFuncSignature(false, false); recoverId >= 0 {
 		return
 	}
 

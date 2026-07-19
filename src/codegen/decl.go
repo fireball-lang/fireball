@@ -21,7 +21,7 @@ func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 	ref := c.module.AddMeta(&ir.SubprogramMeta{
 		Name:     f.Name().Token.Text,
 		LinkName: fun.Name,
-		Type:     c.types.GetMeta(typ),
+		Type:     c.module.GetMeta(c.types.GetMeta(typ)).(*ir.DerivedTypeMeta).Base,
 		Scope:    c.emitter.PeekScope(),
 		Unit:     c.unitRef,
 		File:     c.fileRef,

@@ -3,7 +3,7 @@ mod core;
 // Eq
 
 pub interface Eq {
-    func eq(self, rhs: Self) bool
+    func eq(self, rhs: Self) bool;
 }
 
 impl bool : Eq {

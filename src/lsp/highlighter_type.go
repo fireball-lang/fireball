@@ -24,6 +24,17 @@ func (hi *highlighter) VisitPointerType(p *ast.PointerType) int {
 	return 0
 }
 
+func (hi *highlighter) VisitFuncType(f *ast.FuncType) int {
+	for _, param := range f.Params {
+		hi.AddFull(param.Name, parameterKind)
+		hi.VisitType(param.Type)
+	}
+
+	hi.VisitType(f.Returns)
+
+	return 0
+}
+
 func (hi *highlighter) VisitIdentifierType(i *ast.IdentifierType) int {
 	if len(i.Path.Entries) > 0 {
 		last := i.Path.Entries[len(i.Path.Entries)-1]
@@ -43,7 +54,7 @@ func (hi *highlighter) VisitSelfType(s *ast.SelfType) int {
 	return 0
 }
 
-func (hi *highlighter) VisitBadType(b *ast.BadType) int {
+func (hi *highlighter) VisitBadType(_ *ast.BadType) int {
 	return 0
 }
 

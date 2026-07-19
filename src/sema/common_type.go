@@ -67,6 +67,27 @@ func (c *common) VisitPointerType(t *ast.PointerType) types.Type {
 	return typ
 }
 
+func (c *common) VisitFuncType(t *ast.FuncType) types.Type {
+	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
+		return typ
+	}
+
+	params := make([]types.Type, len(t.Params))
+
+	for i, param := range t.Params {
+		params[i] = c.ResolveAndAnalyzeType(param.Type)
+	}
+
+	typ := &types.Func{
+		Params:  params,
+		VarArgs: t.VarArgs,
+		Returns: c.ResolveAndAnalyzeType(t.Returns),
+	}
+
+	c.nodeTypes[t] = typ
+	return typ
+}
+
 func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
 	cached := c.nodeTypes[t]
 

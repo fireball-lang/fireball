@@ -542,39 +542,36 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 
 	// Struct
 	if t, ok := typ.(*types.Struct); ok {
-		wantsFunction := false
+		if field, index := t.Field(m.Name.Token.Text); index != -1 {
+			_, fieldIsFunc := field.Type.(*types.Func)
 
-		if call, ok := m.Parent().(*ast.Call); ok && call.Callee == m {
-			wantsFunction = true
-		}
+			if !a.WantsFunction(m) || fieldIsFunc {
+				if a.checkVisibility && !field.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
+					a.Error(m.Name, "field '%s' is private", m.Name.Token.Text)
+				}
 
-		// Field
-		if field, index := t.Field(m.Name.Token.Text); index != -1 && !wantsFunction {
-			if a.checkVisibility && !field.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
-				a.Error(m.Name, "field '%s' is private", m.Name.Token.Text)
-			}
+				var fieldNode ast.Node
+				lookupStruct := t
 
-			var fieldNode ast.Node
-			lookupStruct := t
+				if t.Generic != nil {
+					lookupStruct = t.Generic
+				}
 
-			if t.Generic != nil {
-				lookupStruct = t.Generic
-			}
-
-			if structNode := a.typeEnv.GetStructNode(lookupStruct); structNode != nil {
-				for _, f := range structNode.Fields {
-					if f.Name.Token.Text == m.Name.Token.Text {
-						fieldNode = f
-						break
+				if structNode := a.typeEnv.GetStructNode(lookupStruct); structNode != nil {
+					for _, f := range structNode.Fields {
+						if f.Name.Token.Text == m.Name.Token.Text {
+							fieldNode = f
+							break
+						}
 					}
 				}
-			}
 
-			return ExprInfo{
-				Type:    field.Type,
-				Node:    fieldNode,
-				Mutable: mutable,
-				Address: address,
+				return ExprInfo{
+					Type:    field.Type,
+					Node:    fieldNode,
+					Mutable: mutable,
+					Address: address,
+				}
 			}
 		}
 
@@ -584,8 +581,13 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 				a.Error(m.Name, "method '%s' is private", m.Name.Token.Text)
 			}
 
-			a.nodeTypes[sym.Node] = sym.Type
-			return ExprInfo{Type: sym.Type, Node: sym.Node}
+			methodType := sym.Type
+			if t.Generic != nil {
+				methodType = a.instantiations.Get(methodType, t.Substitutions).(*types.Func)
+			}
+
+			a.nodeTypes[sym.Node] = methodType
+			return ExprInfo{Type: methodType, Node: sym.Node}
 		}
 
 		// Static method
@@ -595,8 +597,13 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 					a.Error(m.Name, "method '%s' is private", m.Name.Token.Text)
 				}
 
-				a.nodeTypes[sym.Node] = sym.Type
-				return ExprInfo{Type: sym.Type, Node: sym.Node}
+				methodType := sym.Type
+				if t.Generic != nil {
+					methodType = a.instantiations.Get(methodType, t.Substitutions).(*types.Func)
+				}
+
+				a.nodeTypes[sym.Node] = methodType
+				return ExprInfo{Type: methodType, Node: sym.Node}
 			}
 		}
 
@@ -627,94 +634,96 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 	}
 
 	if f, ok := expr.Type.(*types.Func); ok {
-		funcNode := expr.Node.(*ast.Func)
+		params := f.Params
 
-		// Build substitutions
-		var subs []types.Substitution
+		if funcNode, ok := expr.Node.(*ast.Func); ok {
+			// Build substitutions
+			var subs []types.Substitution
 
-		// Generic receiver
-		if funcNode.IsMethod() {
-			if member, ok := c.Callee.(*ast.Member); ok {
-				receiverType := a.exprInfos[member.Expr].Type
-				if p, ok := receiverType.(*types.Pointer); ok {
-					receiverType = p.Pointee
+			// Generic receiver
+			if funcNode.IsMethod() {
+				if member, ok := c.Callee.(*ast.Member); ok {
+					receiverType := a.exprInfos[member.Expr].Type
+					if p, ok := receiverType.(*types.Pointer); ok {
+						receiverType = p.Pointee
+					}
+
+					implNode, isImplMethod := funcNode.Parent().(*ast.Impl)
+					if s, ok := receiverType.(*types.Struct); ok && s.Generic != nil &&
+						isImplMethod && len(implNode.TypeParams) > 0 {
+						subs = append(subs, s.Substitutions...)
+					}
 				}
-
-				implNode, isImplMethod := funcNode.Parent().(*ast.Impl)
-				if s, ok := receiverType.(*types.Struct); ok && s.Generic != nil &&
-					isImplMethod && len(implNode.TypeParams) > 0 {
-					subs = append(subs, s.Substitutions...)
-				}
-			}
-		}
-
-		// Generic method
-		if len(f.TypeParams) > 0 {
-			if len(c.TypeArgs) == 0 {
-				a.Error(c.Callee, "generic function '%s' requires explicit type arguments", funcNode.Name().Token.Text)
-				return ExprInfo{Type: types.Invalid}
 			}
 
-			if len(c.TypeArgs) != len(f.TypeParams) {
-				a.ErrorRange(ast.SliceRange(c.TypeArgs), "expected %d type argument(s), got %d", len(f.TypeParams), len(c.TypeArgs))
-				return ExprInfo{Type: types.Invalid}
-			}
-
-			funcSubs := make([]types.Substitution, len(c.TypeArgs))
-
-			for i, typeArg := range c.TypeArgs {
-				argType := a.ResolveAndAnalyzeType(typeArg)
-				if argType == types.Invalid {
+			// Generic method
+			if len(f.TypeParams) > 0 {
+				if len(c.TypeArgs) == 0 {
+					a.Error(c.Callee, "generic function '%s' requires explicit type arguments", funcNode.Name().Token.Text)
 					return ExprInfo{Type: types.Invalid}
 				}
 
-				funcSubs[i] = types.Substitution{Param: f.TypeParams[i], Type: argType}
-			}
+				if len(c.TypeArgs) != len(f.TypeParams) {
+					a.ErrorRange(ast.SliceRange(c.TypeArgs), "expected %d type argument(s), got %d", len(f.TypeParams), len(c.TypeArgs))
+					return ExprInfo{Type: types.Invalid}
+				}
 
-			allSubs := append(subs, funcSubs...)
+				funcSubs := make([]types.Substitution, len(c.TypeArgs))
 
-			for i, typeArg := range c.TypeArgs {
-				param := f.TypeParams[i]
+				for i, typeArg := range c.TypeArgs {
+					argType := a.ResolveAndAnalyzeType(typeArg)
+					if argType == types.Invalid {
+						return ExprInfo{Type: types.Invalid}
+					}
 
-				for _, constraint := range param.Constraints {
-					if in, ok := a.instantiations.Substitute(constraint, allSubs).(*types.Interface); ok {
-						a.CheckConstraint(funcSubs[i].Type, in, typeArg)
+					funcSubs[i] = types.Substitution{Param: f.TypeParams[i], Type: argType}
+				}
+
+				allSubs := append(subs, funcSubs...)
+
+				for i, typeArg := range c.TypeArgs {
+					param := f.TypeParams[i]
+
+					for _, constraint := range param.Constraints {
+						if in, ok := a.instantiations.Substitute(constraint, allSubs).(*types.Interface); ok {
+							a.CheckConstraint(funcSubs[i].Type, in, typeArg)
+						}
 					}
 				}
+
+				subs = allSubs
+			} else if len(c.TypeArgs) > 0 {
+				a.Error(c.Callee, "function '%s' is not generic", funcNode.Name().Token.Text)
 			}
 
-			subs = allSubs
-		} else if len(c.TypeArgs) > 0 {
-			a.Error(c.Callee, "function '%s' is not generic", funcNode.Name().Token.Text)
-		}
+			// Instantiate
+			if len(subs) > 0 {
+				f = a.instantiations.Get(f, subs).(*types.Func)
+				a.nodeTypes[funcNode] = f
+				a.nodeTypes[c] = f
+			}
 
-		// Instantiate
-		if len(subs) > 0 {
-			f = a.instantiations.Get(f, subs).(*types.Func)
-			a.nodeTypes[funcNode] = f
-			a.nodeTypes[c] = f
-		}
+			params = f.Params
 
-		params := f.Params
+			if funcNode.Receiver != nil {
+				params = params[1:]
 
-		if funcNode.Receiver != nil {
-			params = params[1:]
-
-			if funcNode.Receiver.Mutable {
-				if member, ok := c.Callee.(*ast.Member); ok {
-					if p, ok := a.exprInfos[member.Expr].Type.(*types.Pointer); ok && !p.Mutable {
-						a.Error(member.Expr, "cannot call mutable method '%s' on an immutable pointer", funcNode.Name().Token.Text)
-					}
-					if in, ok := a.exprInfos[member.Expr].Type.(*types.Interface); ok && !in.Mutable {
-						a.Error(member.Expr, "cannot call mutable method '%s' on an immutable interface", funcNode.Name().Token.Text)
-					}
-					if tp, ok := a.exprInfos[member.Expr].Type.(*types.Param); ok {
-						// Find which constraint owns this method and check its mutability
-						if parentIface, ok := funcNode.Parent().(*ast.Interface); ok {
-							for _, constraint := range tp.Constraints {
-								if a.typeEnv.GetInterfaceNode(constraint) == parentIface && !constraint.Mutable {
-									a.Error(member.Expr, "cannot call mutable method '%s' on type parameter '%s' with immutable constraint '%s'", funcNode.Name().Token.Text, tp.Name, constraint)
-									break
+				if funcNode.Receiver.Mutable {
+					if member, ok := c.Callee.(*ast.Member); ok {
+						if p, ok := a.exprInfos[member.Expr].Type.(*types.Pointer); ok && !p.Mutable {
+							a.Error(member.Expr, "cannot call mutable method '%s' on an immutable pointer", funcNode.Name().Token.Text)
+						}
+						if in, ok := a.exprInfos[member.Expr].Type.(*types.Interface); ok && !in.Mutable {
+							a.Error(member.Expr, "cannot call mutable method '%s' on an immutable interface", funcNode.Name().Token.Text)
+						}
+						if tp, ok := a.exprInfos[member.Expr].Type.(*types.Param); ok {
+							// Find which constraint owns this method and check its mutability
+							if parentIface, ok := funcNode.Parent().(*ast.Interface); ok {
+								for _, constraint := range tp.Constraints {
+									if a.typeEnv.GetInterfaceNode(constraint) == parentIface && !constraint.Mutable {
+										a.Error(member.Expr, "cannot call mutable method '%s' on type parameter '%s' with immutable constraint '%s'", funcNode.Name().Token.Text, tp.Name, constraint)
+										break
+									}
 								}
 							}
 						}
@@ -775,6 +784,33 @@ func (a *analyzer) VisitBadExpr(_ *ast.BadExpr) ExprInfo {
 }
 
 // Utils
+
+func (a *analyzer) WantsFunction(node ast.Node) bool {
+	switch parent := node.Parent().(type) {
+	case *ast.Call:
+		if parent.Callee == node {
+			return true
+		}
+
+		for i, arg := range parent.Args {
+			if arg == node {
+				if f, ok := a.AnalyzeExpr(parent.Callee).Type.(*types.Func); ok && i < len(f.Params) {
+					_, ok := f.Params[i].(*types.Func)
+					return ok
+				}
+			}
+		}
+
+	case *ast.Binary:
+		if parent.Op == ast.Equal && parent.Right == node {
+			if _, ok := a.AnalyzeExpr(parent.Left).Type.(*types.Func); ok {
+				return true
+			}
+		}
+	}
+
+	return false
+}
 
 func (a *analyzer) AnalyzeExpr(expr ast.Expr) ExprInfo {
 	if core.IsNil(expr) {

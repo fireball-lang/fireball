@@ -431,6 +431,11 @@ func (p *parser) parseAssociatedType(hasType bool) (a *ast.AssociatedType, recov
 		}
 	}
 
+	// ';'
+	if recoverId = p.expect(lexer.Semicolon, "expected ';'"); recoverId >= 0 {
+		return
+	}
+
 	return
 }
 
@@ -511,6 +516,32 @@ func (p *parser) parseFunc(attributes []ast.Attribute, public bool, allowReceive
 		}
 	}
 
+	// Signature
+	if f.Receiver, f.Params, f.VarArgs, f.Returns, recoverId = p.parseFuncSignature(allowReceiver, true); recoverId >= 0 {
+		return
+	}
+
+	// Body
+	if p.current.Kind == lexer.LeftBrace {
+		if f.Body, recoverId = p.parseStmt(); recoverId >= 0 {
+			return
+		}
+	} else {
+		if recoverId = p.expect(lexer.Semicolon, "expected ';' after a function with no body"); recoverId >= 0 {
+			return
+		}
+	}
+
+	return
+}
+
+func (p *parser) parseFuncSignature(allowReceiver, paramNameRequired bool) (receiver *ast.Receiver, params []*ast.Param, varArgs bool, returns ast.Type, recoverId int) {
+	defer func() {
+		if core.IsNil(returns) {
+			returns = p.badType()
+		}
+	}()
+
 	// '(' Parameters ')'
 	{
 		// '('
@@ -520,7 +551,7 @@ func (p *parser) parseFunc(attributes []ast.Attribute, public bool, allowReceive
 
 		// Receiver
 		if allowReceiver && (p.current.Kind == lexer.Mut || (p.current.Kind == lexer.Identifier && p.current.Text == "self")) {
-			if f.Receiver, recoverId = p.parseReceiver(); recoverId >= 0 {
+			if receiver, recoverId = p.parseReceiver(); recoverId >= 0 {
 				return
 			}
 
@@ -533,11 +564,13 @@ func (p *parser) parseFunc(attributes []ast.Attribute, public bool, allowReceive
 
 		// Parameters
 		myRecoverId := p.pushRecoverPoint(lexer.RightParen)
-		f.Params, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightParen, p.parseFuncParam)
+		params, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightParen, func() (*ast.Param, int) {
+			return p.parseFuncParam(paramNameRequired)
+		})
 		p.popRecoverPoint()
 
-		for i, param := range f.Params {
-			if param.Name.Token.Kind == lexer.DotDotDot && i != len(f.Params)-1 {
+		for i, param := range params {
+			if param.Name != nil && param.Name.Token.Kind == lexer.DotDotDot && i != len(params)-1 {
 				p.diagnostics = append(p.diagnostics, core.Diagnostic{
 					Kind:    core.Error,
 					Path:    p.path,
@@ -548,16 +581,16 @@ func (p *parser) parseFunc(attributes []ast.Attribute, public bool, allowReceive
 		}
 
 		for {
-			i := slices.IndexFunc(f.Params, func(n *ast.Param) bool {
-				return n.Name.Token.Kind == lexer.DotDotDot
+			i := slices.IndexFunc(params, func(n *ast.Param) bool {
+				return n.Name != nil && n.Name.Token.Kind == lexer.DotDotDot
 			})
 
 			if i == -1 {
 				break
 			}
 
-			f.Params = append(f.Params[:i], f.Params[i+1:]...)
-			f.VarArgs = true
+			params = append(params[:i], params[i+1:]...)
+			varArgs = true
 		}
 
 		if recoverId >= 0 {
@@ -575,9 +608,9 @@ func (p *parser) parseFunc(attributes []ast.Attribute, public bool, allowReceive
 	}
 
 	// Returns
-	if p.current.Kind != lexer.LeftBrace {
+	if p.canStartType() {
 		myRecoverId := p.pushRecoverPoint(lexer.LeftBrace)
-		f.Returns, recoverId = p.parseType()
+		returns, recoverId = p.parseType()
 		p.popRecoverPoint()
 
 		if recoverId >= 0 {
@@ -588,14 +621,7 @@ func (p *parser) parseFunc(attributes []ast.Attribute, public bool, allowReceive
 			}
 		}
 	} else {
-		f.Returns = &ast.PrimitiveType{Kind: types.Void}
-	}
-
-	// Body
-	if p.current.Kind == lexer.LeftBrace {
-		if f.Body, recoverId = p.parseStmt(); recoverId >= 0 {
-			return
-		}
+		returns = &ast.PrimitiveType{Kind: types.Void}
 	}
 
 	return
@@ -626,7 +652,7 @@ func (p *parser) parseReceiver() (r *ast.Receiver, recoverId int) {
 	return
 }
 
-func (p *parser) parseFuncParam() (param *ast.Param, recoverId int) {
+func (p *parser) parseFuncParam(nameRequired bool) (param *ast.Param, recoverId int) {
 	if p.current.Kind == lexer.DotDotDot {
 		param = &ast.Param{}
 		param.Name = &ast.Leaf{Token: p.advance()}
@@ -648,14 +674,16 @@ func (p *parser) parseFuncParam() (param *ast.Param, recoverId int) {
 
 	recoverId = -1
 
-	// Name
-	if param.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
-		return
-	}
+	if nameRequired || (p.current.Kind == lexer.Identifier && p.next.Kind == lexer.Colon) {
+		// Name
+		if param.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+			return
+		}
 
-	// ':'
-	if recoverId = p.expect(lexer.Colon, "expected ':' before type"); recoverId >= 0 {
-		return
+		// ':'
+		if recoverId = p.expect(lexer.Colon, "expected ':' before type"); recoverId >= 0 {
+			return
+		}
 	}
 
 	// Type

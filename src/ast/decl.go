@@ -491,13 +491,13 @@ func (r *Receiver) Children() iter.Seq[Node] {
 type Param struct {
 	baseNode
 
-	Name *Leaf
+	Name *Leaf // optional when used inside FuncType
 	Type Type
 }
 
 func (p *Param) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		if !yield(p.Name) {
+		if p.Name != nil && !yield(p.Name) {
 			return
 		}
 		yield(p.Type)

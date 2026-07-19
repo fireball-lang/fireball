@@ -58,9 +58,9 @@ impl[T] Wrapper[T] {
 // ── Interface with Self ────────────────────────────────────────────────────────
 
 interface Resettable {
-    func reset(self) i32     // returns a plain type — safe to dispatch
-    func default_val() Self  // static factory returning Self
-    func clone(self) Self    // instance method returning Self
+    func reset(self) i32;     // returns a plain type — safe to dispatch
+    func default_val() Self;  // static factory returning Self
+    func clone(self) Self;    // instance method returning Self
 }
 
 struct Counter {

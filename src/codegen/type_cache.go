@@ -281,20 +281,34 @@ func (t *TypeCache) createStructMeta(typ *types.Struct) ir.MetaRef {
 // types.Func
 
 func (t *TypeCache) createFuncMeta(typ *types.Func) ir.MetaRef {
-	node := &ir.SubroutineTypeMeta{}
-
-	ref := t.AddMeta(typ, t.Module.AddMeta(node))
-
+	// Function
 	params := make([]ir.MetaRef, len(typ.Params))
 
 	for i, param := range typ.Params {
 		params[i] = t.GetMeta(param)
 	}
 
-	node.Returns = t.GetMeta(typ.Returns)
-	node.Params = params
+	node := &ir.SubroutineTypeMeta{
+		Params:  params,
+		Returns: t.GetMeta(typ.Returns),
+	}
 
-	return ref
+	ref := t.Module.AddMeta(node)
+
+	// Pointer wrapper
+	info := t.Arch.Info(typ)
+
+	pNode := &ir.DerivedTypeMeta{
+		Name:  typ.String(),
+		Kind:  ir.MetaPointerType,
+		Base:  ref,
+		Size:  info.Size * 8,
+		Align: info.Align * 8,
+	}
+
+	pRef := t.AddMeta(typ, t.Module.AddMeta(pNode))
+
+	return pRef
 }
 
 // types.Enum

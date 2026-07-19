@@ -154,9 +154,9 @@ func (hi *highlighter) VisitMember(m *ast.Member) int {
 	if info, ok := hi.file.ExprInfos[m]; ok {
 		switch info.Node.(type) {
 		case *ast.Func:
-			hi.AddFull(m.Name, functionKind)
+			hi.Add(m.Name, functionKind)
 		case *ast.Field:
-			hi.AddFull(m.Name, propertyKind)
+			hi.Add(m.Name, propertyKind)
 		}
 	}
 

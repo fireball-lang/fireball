@@ -4,31 +4,31 @@ mod tests::constraints;
 
 // Static method returning Self (for Self:: inside impl body tests)
 interface Constructible {
-    func fromValue(value: i32) Self
+    func fromValue(value: i32) Self;
 }
 
 // Immutable single-method interface
 interface Doubler {
-    func doubled(self) i32
+    func doubled(self) i32;
 }
 
 // Mutable single-method interface
 interface Setter[T] {
-    func set(mut self, value: T) void
+    func set(mut self, value: T) void;
 }
 
 // Static-method interface
 interface Default {
-    func zero() Self
+    func zero() Self;
 }
 
 // Two independent interfaces for multiple-constraint tests
 interface Adder {
-    func add(self, other: i32) i32
+    func add(self, other: i32) i32;
 }
 
 interface Negate {
-    func negate(self) i32
+    func negate(self) i32;
 }
 
 // ── Helper structs ─────────────────────────────────────────────────────────────

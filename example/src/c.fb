@@ -1,4 +1,4 @@
 mod example::c;
 
 #[extern]
-pub func printf(format: *u8, ...) void
+pub func printf(format: *u8, ...);

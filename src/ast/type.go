@@ -5,6 +5,7 @@ import (
 	"fireball/types"
 	"fmt"
 	"iter"
+	"strings"
 )
 
 type Type interface {
@@ -78,6 +79,56 @@ func (p *PointerType) String() string {
 }
 
 func (p *PointerType) _isType() {}
+
+// Func
+
+type FuncType struct {
+	baseNode
+
+	Params  []*Param
+	VarArgs bool
+
+	Returns Type
+}
+
+func (f *FuncType) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, param := range f.Params {
+			if !yield(param) {
+				return
+			}
+		}
+		if !yield(f.Returns) {
+			return
+		}
+	}
+}
+
+func (f *FuncType) String() string {
+	var sb strings.Builder
+
+	sb.WriteString("func(")
+
+	for i, param := range f.Params {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+
+		if param.Name != nil {
+			sb.WriteString(param.Name.Token.Text)
+			sb.WriteRune(' ')
+		}
+
+		sb.WriteString(param.Type.String())
+	}
+
+	sb.WriteString(") ")
+	sb.WriteString(f.Returns.String())
+
+	return sb.String()
+}
+
+func (f *FuncType) _isType() {}
 
 // Identifier
 

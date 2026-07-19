@@ -3,7 +3,7 @@ mod tests::interfaces;
 // ── Non-generic types ──────────────────────────────────────────────────────────
 
 interface Getter {
-	func get(self) i32
+	func get(self) i32;
 }
 
 struct Constant {
@@ -42,8 +42,8 @@ impl Bit : Getter {
 // ── Generic interface types ────────────────────────────────────────────────────
 
 interface Number[T] {
-	func get(self) T
-	func valid(self) bool
+	func get(self) T;
+	func valid(self) bool;
 }
 
 struct Immediate[T] {
@@ -79,7 +79,7 @@ impl[T] Wrapper[T] : Number[T] {
 // ── Generic struct / non-generic interface ────────────────────────────────────
 
 interface Printable {
-	func display(self) i32
+	func display(self) i32;
 }
 
 struct Pair[T] {
@@ -101,9 +101,9 @@ func unwrap[T](n: Number[T]) T {
 // ── Associated type ────────────────────────────────────────────────────────────
 
 interface Index[T] {
-    type Result
+    type Result;
 
-    func get(self, index: T) Result
+    func get(self, index: T) Result;
 }
 
 struct Slice[T] {
@@ -112,7 +112,7 @@ struct Slice[T] {
 }
 
 impl[T] Slice[T] : Index[u64] {
-    type Result = T
+    type Result = T;
 
     func get(self, index: u64) Result {
         return self.ptr[index];
@@ -276,7 +276,7 @@ func testGenericStructNonGenericInterfaceBool() bool {
 // ── Interface method with parameters ─────────────────────────────────────────
 
 interface Scaler {
-	func scale(self, factor: i32) i32
+	func scale(self, factor: i32) i32;
 }
 
 impl Constant : Scaler {
@@ -288,9 +288,9 @@ impl Constant : Scaler {
 // ── Mutable interface tests ───────────────────────────────────────────────────
 
 interface Mutator {
-	func set(mut self, v: i32) void
-	func add(mut self, delta: i32) void
-	func get(self) i32
+	func set(mut self, v: i32);
+	func add(mut self, delta: i32);
+	func get(self) i32;
 }
 
 struct Accumulator {

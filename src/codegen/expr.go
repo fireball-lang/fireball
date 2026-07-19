@@ -530,7 +530,7 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 }
 
 func (c *codegen) VisitCall(e *ast.Call) ir.Value {
-	f := c.exprInfos[e.Callee].Node.(*ast.Func)
+	funcNode, isDecl := c.exprInfos[e.Callee].Node.(*ast.Func)
 	typ := c.ExprType(e.Callee).(*types.Func)
 
 	if instTyp, ok := c.nodeTypes[e].(*types.Func); ok {
@@ -540,6 +540,15 @@ func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 	var callee ir.Value
 	var sig *ir.Signature
 	var receiver ir.Value
+
+	// Indirect call through a function value
+	if !isDecl {
+		callee = c.Load(e.Callee)
+		sig = c.BuildSignature(typ, false)
+		return c.EmitCall(callee, sig, typ, nil, e.Args, c.UnderlyingExprType(e))
+	}
+
+	f := funcNode
 
 	if m, ok := e.Callee.(*ast.Member); ok && f.Receiver != nil {
 		if _, ok := c.ExprType(m.Expr).(*types.Interface); ok {
