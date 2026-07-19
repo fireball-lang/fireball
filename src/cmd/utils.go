@@ -139,7 +139,7 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*
 	return main, projMap, nil
 }
 
-func buildProject(proj *project.Project, projMap map[string]*project.Project, profileName string, start time.Time, entrypointFnProvider func(project2 *project.Project) (build.EntrypointFn, error)) (string, error) {
+func buildProject(proj *project.Project, projMap map[string]*project.Project, profileName string, start time.Time, entrypointFnProvider func(projMap map[string]*project.Project, project2 *project.Project) (build.EntrypointFn, error)) (string, error) {
 	defer core.Scope()()
 
 	// Initialize build system
@@ -166,7 +166,7 @@ func buildProject(proj *project.Project, projMap map[string]*project.Project, pr
 	}
 
 	// Compile entrypoint
-	fn, err := entrypointFnProvider(proj)
+	fn, err := entrypointFnProvider(projMap, proj)
 	if err != nil {
 		return "", err
 	}
@@ -196,7 +196,7 @@ func printBuildSuccessful(start time.Time) {
 	color.White("  took %s", duration)
 }
 
-func normalEntrypointProvider(proj *project.Project) (build.EntrypointFn, error) {
+func normalEntrypointProvider(projMap map[string]*project.Project, proj *project.Project) (build.EntrypointFn, error) {
 	var mainFunc *ast.Func
 	var mainFuncTyp *types.Func
 
@@ -228,6 +228,18 @@ outer:
 		emitter := ir.Emitter{Module: module}
 		emitter.Begin(fun.NewBlock("fun.entry"))
 
+		// Init functions
+		inits := findInitFunctions(projMap)
+		initSignature := &ir.Signature{Returns: ir.Void}
+
+		for _, init := range inits {
+			initFun := module.NewFunction(codegen.FuncLinkName(init.node, init.typ, nil), initSignature, nil)
+			initFun.Flags = ir.Declare
+
+			emitter.Call(initSignature, initFun, nil)
+		}
+
+		// Fireball main
 		var value ir.Value
 
 		if mainFuncTyp.Returns == types.PrimitiveVoid {
@@ -258,7 +270,15 @@ outer:
 			Hash: [5]uint32{},
 		})
 
+		summaryCalls := make([]ir.FunctionSummaryCall, 0, 1+len(inits))
+
 		fbMainRef := module.AddSummary(&ir.SymbolSummary{Name: mainFun.Name})
+		summaryCalls = append(summaryCalls, ir.FunctionSummaryCall{Callee: fbMainRef})
+
+		for _, init := range inits {
+			initRef := module.AddSummary(&ir.SymbolSummary{Name: codegen.FuncLinkName(init.node, init.typ, nil)})
+			summaryCalls = append(summaryCalls, ir.FunctionSummaryCall{Callee: initRef})
+		}
 
 		module.AddSummary(&ir.FunctionSummary{
 			Module: moduleRef,
@@ -274,7 +294,7 @@ outer:
 			},
 			InstructionCount: emitter.Block().InstructionCount,
 			Flags:            ir.FuncNoInline | ir.FuncNoUnwind,
-			Calls:            []ir.FunctionSummaryCall{{Callee: fbMainRef}},
+			Calls:            summaryCalls,
 			Refs:             nil,
 		})
 
@@ -290,6 +310,30 @@ outer:
 
 		return proj
 	}, nil
+}
+
+type initFunc struct {
+	node *ast.Func
+	typ  *types.Func
+}
+
+func findInitFunctions(projMap map[string]*project.Project) []initFunc {
+	var inits []initFunc
+
+	for _, proj := range projMap {
+		for _, file := range proj.Files {
+			for _, decl := range file.Ast.Decls {
+				if f, ok := decl.(*ast.Func); ok && ast.GetAttribute[*ast.Init](f) != nil {
+					inits = append(inits, initFunc{
+						node: f,
+						typ:  file.NodeTypes[f].(*types.Func),
+					})
+				}
+			}
+		}
+	}
+
+	return inits
 }
 
 func printDiagnostic(filePath string, diag core.Diagnostic) {

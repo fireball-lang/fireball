@@ -1,0 +1,13 @@
+mod tests::init;
+
+var value: i32;
+
+#[init]
+func init() {
+	value = 5;
+}
+
+#[test("init function")]
+func initRan() bool {
+	return value == 5;
+}

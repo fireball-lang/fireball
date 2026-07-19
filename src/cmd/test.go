@@ -40,9 +40,9 @@ func getTestCmd() *cobra.Command {
 			// Build
 			proj.Config.LibC = true
 
-			exePath, err := buildProject(proj, projMap, "debug", start, func(proj *project.Project) (build.EntrypointFn, error) {
+			exePath, err := buildProject(proj, projMap, "debug", start, func(projMap map[string]*project.Project, proj *project.Project) (build.EntrypointFn, error) {
 				return func(module *ir.Module, fun *ir.Function) *project.Project {
-					testEntrypoint(module, fun, testFuncs)
+					testEntrypoint(projMap, module, fun, testFuncs)
 					return proj
 				}, nil
 			})
@@ -153,7 +153,7 @@ var irCharZero = &ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, '0')}
 var irOne = &ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, 1)}
 var irZero = &ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, 0)}
 
-func testEntrypoint(module *ir.Module, fun *ir.Function, testFuncs []*ast.Func) {
+func testEntrypoint(projMap map[string]*project.Project, module *ir.Module, fun *ir.Function, testFuncs []*ast.Func) {
 	// Test pointers variable
 	tests := make([]ir.Value, len(testFuncs))
 
@@ -189,6 +189,18 @@ func testEntrypoint(module *ir.Module, fun *ir.Function, testFuncs []*ast.Func) 
 	failedPtr.SetName("failed")
 	emitter.Store(irZero, failedPtr)
 
+	// Init functions
+	inits := findInitFunctions(projMap)
+	initSignature := &ir.Signature{Returns: ir.Void}
+
+	for _, init := range inits {
+		initFun := module.NewFunction(codegen.FuncLinkName(init.node, init.typ, nil), initSignature, nil)
+		initFun.Flags = ir.Declare
+
+		emitter.Call(initSignature, initFun, nil)
+	}
+
+	// Call test pointers
 	bCondition := fun.NewBlock("condition")
 	bBody := fun.NewBlock("body")
 	bExit := fun.NewBlock("exit")

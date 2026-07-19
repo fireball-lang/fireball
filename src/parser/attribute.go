@@ -65,6 +65,8 @@ func (p *parser) parseAttribute() (ast.Attribute, int) {
 	}
 
 	switch p.current.Text {
+	case "init":
+		return p.parseInit()
 	case "test":
 		return p.parseTest()
 	case "extern":
@@ -83,6 +85,23 @@ func (p *parser) parseAttribute() (ast.Attribute, int) {
 
 		return b, p.error("")
 	}
+}
+
+func (p *parser) parseInit() (i *ast.Init, recoverId int) {
+	i = &ast.Init{}
+	i.Range_.Start = p.current.Range.Start
+	defer func() {
+		i.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'init'
+	if recoverId = p.expect(lexer.Identifier, "expected 'init'"); recoverId >= 0 {
+		return
+	}
+
+	return
 }
 
 func (p *parser) parseTest() (t *ast.Test, recoverId int) {

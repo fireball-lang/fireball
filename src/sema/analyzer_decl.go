@@ -352,6 +352,7 @@ func (a *analyzer) VisitGlobalVar(g *ast.GlobalVar) {
 }
 
 var funcAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Init](),
 	reflect.TypeFor[ast.Test](),
 	reflect.TypeFor[ast.Extern](),
 	reflect.TypeFor[ast.LinkName](),
@@ -362,6 +363,7 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	// Attributes
 	a.CheckAttributes(f.Attributes(), funcAllowedAttributes)
 
+	init := ast.GetAttribute[*ast.Init](f) != nil
 	test := ast.GetAttribute[*ast.Test](f) != nil
 	extern := ast.GetAttribute[*ast.Extern](f) != nil
 
@@ -371,23 +373,44 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	typ := symbol.Type.(*types.Func)
 	a.nodeTypes[f] = typ
 
+	// Init
+	if init {
+		if len(f.Params) != 0 || f.VarArgs {
+			a.Error(f.Name(), "init functions cannot have any parameters")
+		}
+
+		if typ.Returns != types.PrimitiveVoid {
+			a.Error(f.Returns, "init functions cannot return anything")
+		}
+
+		if test {
+			a.Error(ast.GetAttribute[*ast.Test](f), "'init' and 'test' attributes are mutually exclusive ")
+			test = false
+		}
+		if extern {
+			a.Error(ast.GetAttribute[*ast.Extern](f), "'init' and 'extern' attributes are mutually exclusive ")
+			extern = false
+		}
+	}
+
 	// Test
 	if test {
 		if len(f.Params) != 0 || f.VarArgs {
-			a.Error(f.Name_, "test functions cannot have any parameters")
+			a.Error(f.Name(), "test functions cannot have any parameters")
 		}
 
 		if typ.Returns != types.PrimitiveBool {
 			var node ast.Node = f.Returns
 			if node.Range().Start == node.Range().End {
-				node = f.Name_
+				node = f.Name()
 			}
 
 			a.Error(node, "test functions need to return a boolean")
 		}
 
-		if core.IsNil(f.Body) {
-			a.Error(f.Name_, "test functions need to have a body")
+		if extern {
+			a.Error(ast.GetAttribute[*ast.Extern](f), "'test' and 'extern' attributes are mutually exclusive ")
+			extern = false
 		}
 	}
 
@@ -398,7 +421,7 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 		}
 	} else {
 		if core.IsNil(f.Body) {
-			a.Error(f.Name_, "non-extern functions need to have a body")
+			a.Error(f.Name(), "non-extern functions need to have a body")
 		}
 	}
 

@@ -10,6 +10,18 @@ type Attribute interface {
 	_isAttribute()
 }
 
+// Init
+
+type Init struct {
+	baseNode
+}
+
+func (i *Init) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {}
+}
+
+func (i *Init) _isAttribute() {}
+
 // Test
 
 type Test struct {
