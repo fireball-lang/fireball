@@ -129,7 +129,7 @@ func (hi *highlighter) VisitIdentifier(i *ast.Identifier) int {
 		case symbols.Param:
 			kind := parameterKind
 
-			if len(i.Path) == 1 && entry.Token.Text == "Self" {
+			if len(i.Path) == 1 && entry.Token.Text == "self" {
 				if f := ast.GetClosestParent[*ast.Func](i); f != nil && f.Receiver != nil {
 					kind = keywordKind
 				}
