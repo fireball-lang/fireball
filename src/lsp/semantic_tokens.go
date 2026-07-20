@@ -30,13 +30,13 @@ func (s *Server) SemanticTokensFull(_ context.Context, params *protocol.Semantic
 	}
 
 	// Mod
-	for _, entry := range file.Ast.Mod.Path.Entries {
+	for _, entry := range file.Ast.Mod.Path {
 		hi.AddFull(entry, namespaceKind)
 	}
 
 	// Imports
 	for _, im := range file.Ast.Imports {
-		for _, entry := range im.Path.Entries {
+		for _, entry := range im.Path {
 			hi.AddFull(entry, namespaceKind)
 		}
 

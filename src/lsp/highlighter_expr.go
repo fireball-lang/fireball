@@ -86,20 +86,24 @@ func (hi *highlighter) VisitBinary(b *ast.Binary) int {
 }
 
 func (hi *highlighter) VisitIdentifier(i *ast.Identifier) int {
-	if len(i.Path.Entries) == 0 {
+	if len(i.Path) == 0 {
 		return 0
 	}
 
 	// Entries before last one
-	for _, entry := range i.Path.Entries[:len(i.Path.Entries)-1] {
+	for _, entry := range i.Path[:len(i.Path)-1] {
 		if typ, ok := hi.file.NodeTypes[entry]; ok {
-			hi.AddType(entry, typ)
+			hi.AddType(entry.Name, typ)
+		}
+
+		for _, arg := range entry.TypeArgs {
+			hi.VisitType(arg)
 		}
 	}
 
 	// Last entry
 	if info, ok := hi.file.ExprInfos[i]; ok {
-		entry := i.Path.Entries[len(i.Path.Entries)-1]
+		entry := i.Path[len(i.Path)-1].Name
 
 		switch info.Symbol {
 		case symbols.Invalid:
@@ -125,7 +129,7 @@ func (hi *highlighter) VisitIdentifier(i *ast.Identifier) int {
 		case symbols.Param:
 			kind := parameterKind
 
-			if len(i.Path.Entries) == 1 && entry.Token.Text == "self" {
+			if len(i.Path) == 1 && entry.Token.Text == "Self" {
 				if f := ast.GetClosestParent[*ast.Func](i); f != nil && f.Receiver != nil {
 					kind = keywordKind
 				}
@@ -135,6 +139,10 @@ func (hi *highlighter) VisitIdentifier(i *ast.Identifier) int {
 
 		case symbols.Var:
 			hi.Add(entry, variableKind)
+		}
+
+		for _, arg := range i.Path[len(i.Path)-1].TypeArgs {
+			hi.VisitType(arg)
 		}
 	}
 
@@ -165,10 +173,6 @@ func (hi *highlighter) VisitMember(m *ast.Member) int {
 
 func (hi *highlighter) VisitCall(c *ast.Call) int {
 	hi.VisitExpr(c.Callee)
-
-	for _, arg := range c.TypeArgs {
-		hi.VisitType(arg)
-	}
 
 	for _, arg := range c.Args {
 		hi.VisitExpr(arg)

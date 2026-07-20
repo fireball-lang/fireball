@@ -38,6 +38,14 @@ struct Box[T] {
 }
 
 impl[T] Box[T] {
+	func new(value: T) Self {
+		return Self { value: value };
+	}
+
+	func passthrough[K](value: K) K {
+		return value;
+	}
+
     func get(self) T {
         return self.value;
     }
@@ -64,7 +72,6 @@ func choose[T](cond: bool, a: T, b: T) T {
     return b;
 }
 
-
 // ── Generic functions: multiple type instantiations (Bug 3 regression) ─────────
 // Calling the same generic function with different concrete types must each
 // produce correct results even though nodeTypes[funcNode] gets overwritten per
@@ -72,37 +79,37 @@ func choose[T](cond: bool, a: T, b: T) T {
 
 #[test("identity i32")]
 func testIdentityI32() bool {
-    return identity::[i32](42) == 42;
+    return identity:[i32](42) == 42;
 }
 
 #[test("identity i64")]
 func testIdentityI64() bool {
-    return identity::[i64](1000000000) == 1000000000;
+    return identity:[i64](1000000000) == 1000000000;
 }
 
 #[test("identity bool")]
 func testIdentityBool() bool {
-    return identity::[bool](true) == true;
+    return identity:[bool](true) == true;
 }
 
 #[test("choose i32 true branch")]
 func testChooseI32True() bool {
-    return choose::[i32](true, 10, 20) == 10;
+    return choose:[i32](true, 10, 20) == 10;
 }
 
 #[test("choose i32 false branch")]
 func testChooseI32False() bool {
-    return choose::[i32](false, 10, 20) == 20;
+    return choose:[i32](false, 10, 20) == 20;
 }
 
 #[test("choose bool true branch")]
 func testChooseBoolTrue() bool {
-    return choose::[bool](true, true, false) == true;
+    return choose:[bool](true, true, false) == true;
 }
 
 #[test("choose bool false branch")]
 func testChooseBoolFalse() bool {
-    return choose::[bool](false, true, false) == false;
+    return choose:[bool](false, true, false) == false;
 }
 
 
@@ -110,7 +117,7 @@ func testChooseBoolFalse() bool {
 
 #[test("generic struct initializer")]
 func genericStructInitializer() bool {
-    var b = Box::[i32] { value: 5 };
+    var b = Box:[i32] { value: 5 };
     return b.value == 5;
 }
 
@@ -154,6 +161,19 @@ func testTwoPairInstances() bool {
     b.second = 4;
 
     return a.first == 1 && a.second == 2 && b.first == 999 && b.second == 4;
+}
+
+// ── Generic struct methods: static methods ──────────
+
+#[test("Box new static method")]
+func testBoxNew() bool {
+	var b = Box:[i32]::new(5);
+	return b.value == 5;
+}
+
+#[test("Box passthrough static generic method")]
+func testBoxPassthroughStatic() bool {
+	return Box:[bool]::passthrough:[i32](3) == 3;
 }
 
 // ── Generic struct methods: instance methods ──────────
@@ -214,7 +234,6 @@ func testPairSwapFirst() bool {
     return old == 10 && p.first == 77 && p.second == 20;
 }
 
-
 // Same method called on two different instantiations — link names must differ.
 #[test("get_first on two Pair instantiations")]
 func testGetFirstMultipleInstances() bool {
@@ -246,7 +265,7 @@ func testSetTwoBoxInstances() bool {
 func testIdentityBox() bool {
     var b: Box[i32];
     b.value = 5;
-    var c = identity::[Box[i32]](b);
+    var c = identity:[Box[i32]](b);
     return c.value == 5;
 }
 
@@ -257,8 +276,8 @@ func testChooseBox() bool {
     a.value = 1;
     b.value = 2;
 
-    var x = choose::[Box[i32]](true,  a, b);
-    var y = choose::[Box[i32]](false, a, b);
+    var x = choose:[Box[i32]](true,  a, b);
+    var y = choose:[Box[i32]](false, a, b);
 
     return x.value == 1 && y.value == 2;
 }

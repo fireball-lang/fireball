@@ -606,9 +606,9 @@ func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 		}
 	} else {
 		if _, ok := f.Parent().(*ast.Interface); ok {
-			if ident, ok := e.Callee.(*ast.Identifier); ok && len(ident.Path.Entries) >= 2 {
+			if ident, ok := e.Callee.(*ast.Identifier); ok && len(ident.Path) >= 2 {
 				// Static call on a constrained type parameter
-				typeLeaf := ident.Path.Entries[len(ident.Path.Entries)-2]
+				typeLeaf := ident.Path[len(ident.Path)-2]
 				concreteTyp := c.ResolveType(c.nodeTypes[typeLeaf])
 
 				lookupTyp := concreteTyp

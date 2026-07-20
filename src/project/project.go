@@ -139,7 +139,7 @@ func (p *Project) getRootScope(depMap map[Dependency]*Project) rootScope {
 
 func (p *Project) assignFileToModule(file *File) {
 	// Get ast.Mod
-	path := file.Ast.Mod.Path.Entries
+	path := file.Ast.Mod.Path
 
 	if len(path) == 0 || path[0].Token.Text != p.Config.Name {
 		return

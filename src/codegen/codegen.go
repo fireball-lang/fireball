@@ -271,7 +271,7 @@ func GlobalVarLinkName(g *ast.GlobalVar) string {
 	sb := strings.Builder{}
 	sb.WriteString("fb$")
 
-	for _, entry := range file.Mod.Path.Entries {
+	for _, entry := range file.Mod.Path {
 		sb.WriteString(entry.Token.Text)
 		sb.WriteString("::")
 	}
@@ -304,7 +304,7 @@ func FuncLinkName(f *ast.Func, typ *types.Func, in *types.Interface) string {
 	sb := strings.Builder{}
 	sb.WriteString("fb$")
 
-	for i, entry := range file.Mod.Path.Entries {
+	for i, entry := range file.Mod.Path {
 		if i > 0 {
 			sb.WriteString("::")
 		}
@@ -318,7 +318,8 @@ func FuncLinkName(f *ast.Func, typ *types.Func, in *types.Interface) string {
 		if p, ok := i.Type.(*ast.PrimitiveType); ok {
 			name = p.Kind.String()
 		} else {
-			name = i.Type.(*ast.IdentifierType).Path.LastName()
+			path := i.Type.(*ast.IdentifierType).Path
+			name = path[len(path)-1].Name.Token.Text
 		}
 
 		sb.WriteString("::")
@@ -330,7 +331,7 @@ func FuncLinkName(f *ast.Func, typ *types.Func, in *types.Interface) string {
 			sb.WriteString(in.Name)
 
 			if in.Generic != nil {
-				sb.WriteString("::[")
+				sb.WriteString(":[")
 
 				for j, sub := range in.Substitutions {
 					if j > 0 {
@@ -353,7 +354,7 @@ func FuncLinkName(f *ast.Func, typ *types.Func, in *types.Interface) string {
 
 	// Generic
 	if typ != nil && typ.Generic != nil {
-		sb.WriteString("::[")
+		sb.WriteString(":[")
 
 		for i, sub := range typ.Substitutions {
 			if i > 0 {

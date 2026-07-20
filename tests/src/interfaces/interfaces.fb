@@ -236,7 +236,7 @@ func testUnwrapI32() bool {
 	c.live = true;
 
 	var n: Number[i32] = &c;
-	return unwrap::[i32](n) == 55;
+	return unwrap:[i32](n) == 55;
 }
 
 #[test("generic function with generic interface parameter i64")]
@@ -246,7 +246,7 @@ func testUnwrapI64() bool {
 	c.live = true;
 
 	var n: Number[i64] = &c;
-	return unwrap::[i64](n) == 9999;
+	return unwrap:[i64](n) == 9999;
 }
 
 // ── Generic struct / non-generic interface tests ──────────────────────────────
@@ -389,7 +389,7 @@ func testInterfaceMethodWithParam() bool {
 #[test("interface with associated type")]
 func testAssociatedType() bool {
     var array = [3]i32{ 1, 3, 6 };
-    var slice = Slice::[i32] { ptr: &array[0], size: 3u };
+    var slice = Slice:[i32] { ptr: &array[0], size: 3u };
 
     return slice.get(1u) == 3;
 }

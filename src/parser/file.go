@@ -60,13 +60,11 @@ func (p *parser) parseMod() (m *ast.Mod, recoverId int) {
 
 	// 'mod'
 	if recoverId = p.expect(lexer.Mod, "expected 'mod'"); recoverId >= 0 {
-		m.Path = &ast.IdentifierPath{}
-		m.Path.Range_ = p.current.Range
 		return
 	}
 
 	// Path
-	if m.Path, recoverId = p.parseIdentifierPath(false); recoverId >= 0 {
+	if m.Path, recoverId = p.parsePath(false); recoverId >= 0 {
 		return
 	}
 
@@ -91,7 +89,7 @@ func (p *parser) parseImport() (i *ast.Import, recoverId int) {
 	}
 
 	// Path
-	if i.Path, recoverId = p.parseIdentifierPath(true); recoverId >= 0 {
+	if i.Path, recoverId = p.parsePath(true); recoverId >= 0 {
 		return
 	}
 

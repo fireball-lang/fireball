@@ -135,18 +135,14 @@ func (f *FuncType) _isType() {}
 type IdentifierType struct {
 	baseNode
 
-	Mutable  bool
-	Path     *IdentifierPath
-	TypeArgs []Type
+	Mutable bool
+	Path    []*IdentifierEntry
 }
 
 func (i *IdentifierType) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		if !yield(i.Path) {
-			return
-		}
-		for _, arg := range i.TypeArgs {
-			if !yield(arg) {
+		for _, entry := range i.Path {
+			if !yield(entry) {
 				return
 			}
 		}
@@ -154,11 +150,31 @@ func (i *IdentifierType) Children() iter.Seq[Node] {
 }
 
 func (i *IdentifierType) String() string {
+	var sb strings.Builder
+
 	if i.Mutable {
-		return "mut " + i.Path.String()
+		sb.WriteString("mut ")
 	}
 
-	return i.Path.String()
+	for index, entry := range i.Path {
+		if index > 0 {
+			sb.WriteString("::")
+		}
+
+		sb.WriteString(entry.Name.Token.Text)
+
+		if len(entry.TypeArgs) > 0 {
+			sb.WriteString(":[")
+
+			for _, arg := range entry.TypeArgs {
+				sb.WriteString(arg.String())
+			}
+
+			sb.WriteRune(']')
+		}
+	}
+
+	return sb.String()
 }
 
 func (i *IdentifierType) _isType() {}

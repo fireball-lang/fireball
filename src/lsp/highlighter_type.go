@@ -36,13 +36,15 @@ func (hi *highlighter) VisitFuncType(f *ast.FuncType) int {
 }
 
 func (hi *highlighter) VisitIdentifierType(i *ast.IdentifierType) int {
-	if len(i.Path.Entries) > 0 {
-		last := i.Path.Entries[len(i.Path.Entries)-1]
+	if len(i.Path) > 0 {
+		last := i.Path[len(i.Path)-1].Name
 		hi.AddType(last, hi.file.NodeTypes[i])
 	}
 
-	for _, arg := range i.TypeArgs {
-		hi.VisitType(arg)
+	for _, entry := range i.Path {
+		for _, arg := range entry.TypeArgs {
+			hi.VisitType(arg)
+		}
 	}
 
 	return 0

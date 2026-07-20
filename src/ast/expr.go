@@ -387,13 +387,15 @@ func (b *Binary) _isExpr() {}
 type Identifier struct {
 	baseNode
 
-	Path *IdentifierPath
+	Path []*IdentifierEntry
 }
 
 func (i *Identifier) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		if !yield(i.Path) {
-			return
+		for _, entry := range i.Path {
+			if !yield(entry) {
+				return
+			}
 		}
 	}
 }
@@ -445,20 +447,14 @@ func (m *Member) _isExpr() {}
 type Call struct {
 	baseNode
 
-	Callee   Expr
-	TypeArgs []Type
-	Args     []Expr
+	Callee Expr
+	Args   []Expr
 }
 
 func (c *Call) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
 		if !yield(c.Callee) {
 			return
-		}
-		for _, arg := range c.TypeArgs {
-			if !yield(arg) {
-				return
-			}
 		}
 		for _, arg := range c.Args {
 			if !yield(arg) {

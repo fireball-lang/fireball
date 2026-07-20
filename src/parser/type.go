@@ -128,32 +128,6 @@ func (p *parser) parseNonPrimitiveIdentifierType(mutable bool) (i *ast.Identifie
 		return
 	}
 
-	// '[' Type Arguments ']'
-	if p.current.Kind == lexer.LeftBracket {
-		// '['
-		if recoverId = p.expect(lexer.LeftBracket, "expected '[' before type arguments"); recoverId >= 0 {
-			return
-		}
-
-		// Type Arguments
-		myRecoverId := p.pushRecoverPoint(lexer.RightBracket)
-		i.TypeArgs, recoverId = parseCommaList(p, lexer.Comma, lexer.RightBracket, p.parseType)
-		p.popRecoverPoint()
-
-		if recoverId >= 0 {
-			if recoverId == myRecoverId {
-				recoverId = -1
-			} else {
-				return
-			}
-		}
-
-		// ']'
-		if recoverId = p.expect(lexer.RightBracket, "expected ']' after type arguments"); recoverId >= 0 {
-			return
-		}
-	}
-
 	return
 }
 

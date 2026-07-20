@@ -4,43 +4,28 @@ import (
 	"fireball/core"
 	"fireball/lexer"
 	"iter"
-	"strings"
 )
 
-// IdentifierPath
+// IdentifierEntry
 
-type IdentifierPath struct {
+type IdentifierEntry struct {
 	baseNode
 
-	Entries []*Leaf
+	Name     *Leaf
+	TypeArgs []Type
 }
 
-func (i *IdentifierPath) Children() iter.Seq[Node] {
+func (i *IdentifierEntry) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		for _, entry := range i.Entries {
-			if !yield(entry) {
+		if !yield(i.Name) {
+			return
+		}
+		for _, arg := range i.TypeArgs {
+			if !yield(arg) {
 				return
 			}
 		}
 	}
-}
-
-func (i *IdentifierPath) String() string {
-	sb := strings.Builder{}
-
-	for index, entry := range i.Entries {
-		if index > 0 {
-			sb.WriteString("::")
-		}
-
-		sb.WriteString(entry.Token.Text)
-	}
-
-	return sb.String()
-}
-
-func (i *IdentifierPath) LastName() string {
-	return i.Entries[len(i.Entries)-1].Token.Text
 }
 
 // Leaf

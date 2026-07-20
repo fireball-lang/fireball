@@ -51,13 +51,15 @@ func (f *File) Attributes() []Attribute {
 type Mod struct {
 	baseNode
 
-	Path *IdentifierPath
+	Path []*Leaf
 }
 
 func (m *Mod) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
-		if !yield(m.Path) {
-			return
+		for _, entry := range m.Path {
+			if !yield(entry) {
+				return
+			}
 		}
 	}
 }
@@ -69,7 +71,7 @@ type Import struct {
 
 	Attributes_ []Attribute
 
-	Path    *IdentifierPath
+	Path    []*Leaf
 	Symbols []*Leaf // optional
 	Alias   *Leaf   // optional
 }
@@ -81,8 +83,10 @@ func (i *Import) Children() iter.Seq[Node] {
 				return
 			}
 		}
-		if !yield(i.Path) {
-			return
+		for _, entry := range i.Path {
+			if !yield(entry) {
+				return
+			}
 		}
 		for _, symbol := range i.Symbols {
 			if !yield(symbol) {

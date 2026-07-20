@@ -77,18 +77,31 @@ func (f *File) analyze(root symbols.Scope, instantiations *types.InstantiationCa
 
 func (f *File) Diagnostics() iter.Seq[core.Diagnostic] {
 	return func(yield func(core.Diagnostic) bool) {
+		seen := make(map[core.Range]any)
+
+		process := func(diagnostic core.Diagnostic) bool {
+			if _, ok := seen[diagnostic.Range]; !ok {
+				if !yield(diagnostic) {
+					return false
+				}
+				seen[diagnostic.Range] = nil
+			}
+
+			return true
+		}
+
 		for _, diagnostic := range f.parseDiagnostics {
-			if !yield(diagnostic) {
+			if !process(diagnostic) {
 				return
 			}
 		}
 		for _, diagnostic := range f.resolveDiagnostics {
-			if !yield(diagnostic) {
+			if !process(diagnostic) {
 				return
 			}
 		}
 		for _, diagnostic := range f.semaDiagnostics {
-			if !yield(diagnostic) {
+			if !process(diagnostic) {
 				return
 			}
 		}

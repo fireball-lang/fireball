@@ -138,7 +138,7 @@ func construct[T: Constructible](v: i32) T {
 func testImmutableConstraint() bool {
     var c: Counter;
     c.value = 5;
-    return getDoubled::[Counter](c) == 10;
+    return getDoubled:[Counter](c) == 10;
 }
 
 // Mutable constraint: instance method via mut pointer, mutation visible outside
@@ -146,14 +146,14 @@ func testImmutableConstraint() bool {
 func testMutableConstraint() bool {
     var h: Holder[i32];
     h.value = 0;
-    applySet::[mut *Holder[i32], i32](&h, 42);
+    applySet:[mut *Holder[i32], i32](&h, 42);
     return h.value == 42;
 }
 
 // Static method constraint: T::zero() returns correct zero value
 #[test("static method constraint produces zero value")]
 func testStaticConstraint() bool {
-    var z = makeZero::[Counter]();
+    var z = makeZero:[Counter]();
     return z.value == 0;
 }
 
@@ -163,7 +163,7 @@ func testMultipleConstraints() bool {
     var c: Counter;
     c.value = 10;
     // negate() = -10, add(3) = 13, result = -10 + 13 = 3
-    return addThenNegate::[Counter](c, 3) == 3;
+    return addThenNegate:[Counter](c, 3) == 3;
 }
 
 // Dependent constraint with reversed declaration order [T: mut Setter[V], V]
@@ -171,14 +171,14 @@ func testMultipleConstraints() bool {
 func testDependentConstraintReversed() bool {
     var h: Holder[i32];
     h.value = 0;
-    applySetReversed::[mut *Holder[i32], i32](&h, 99);
+    applySetReversed:[mut *Holder[i32], i32](&h, 99);
     return h.value == 99;
 }
 
 // Self:: inside impl body: impl method calls Self::new(), exercising Self:: static dispatch
 #[test("Self:: static method call inside impl body")]
 func testSelfStaticInImplBody() bool {
-    var c = construct::[Counter](7);
+    var c = construct:[Counter](7);
     return c.value == 7;
 }
 

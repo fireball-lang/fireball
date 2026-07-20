@@ -51,7 +51,7 @@ func (hi *highlighter) VisitFunc(f *ast.Func) {
 	hi.AddFull(f.Name(), functionKind)
 	hi.VisitTypeParams(f.TypeParams)
 
-	hi.AddFull(f.Receiver, keywordKind)
+	hi.Add(f.Receiver, keywordKind)
 
 	for _, param := range f.Params {
 		hi.AddFull(param.Name, parameterKind)

@@ -121,7 +121,7 @@ func (w *testWriter) Write(p []byte) (n int, err error) {
 
 			file := ast.GetFile(f)
 
-			for _, entry := range file.Mod.Path.Entries {
+			for _, entry := range file.Mod.Path {
 				_, _ = color.New(color.FgWhite).Print(entry.Token.Text)
 				_, _ = color.New(color.FgWhite).Print("::")
 			}

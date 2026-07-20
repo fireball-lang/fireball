@@ -62,7 +62,7 @@ func callFunctionPointer() bool {
 
 #[test("call function pointer assigned from a method")]
 func methodFunctionPointer() bool {
-	var wrapper = Wrapper::[i32] { value: 5 };
+	var wrapper = Wrapper:[i32] { value: 5 };
 	var fn = wrapper.get;
 	return fn(&wrapper) == 5;
 }
@@ -83,7 +83,7 @@ func funcPointerAsArgument() bool {
 
 #[test("mutable method assigned to function pointer")]
 func mutableMethodFunctionPointer() bool {
-	var wrapper = Wrapper::[i32] { value: 5 };
+	var wrapper = Wrapper:[i32] { value: 5 };
 	var setter: func(mut *Wrapper[i32], i32);
 	setter = wrapper.set;
 	setter(&wrapper, 9);

@@ -31,7 +31,7 @@
 
 ; Mod
 
-(mod path: (identifier_path (identifier) @namespace))
+(mod path: (identifier) @namespace)
 
 ; Import
 
@@ -62,15 +62,11 @@
 
 (func name: (identifier) @function)
 (func type_param: (type_param name: (identifier) @type.parameter))
-(func receiver: (identifier) @keyword)
 (func param: (param name: (identifier) @variable.parameter))
 
 ; Expressions
 
 (member_expr name: (identifier) @property)
-
-(call_expr callee: (identifier_path) @function.call)
-(call_expr callee: (member_expr name: (identifier) @function.method.call))
 
 (var name: (identifier) @variable)
 
@@ -103,14 +99,12 @@
 
 (primitive_type) @type.builtin
 
-(array_type size: (integer) @number)
+(array_type size: (number) @number)
 
 (pointer_type "*" @punctuation.special)
 
-(identifier_type (identifier_path (identifier) @type))
-(identifier_path (identifier) @namespace . "::")
-
-(call_expr callee: (identifier_path (identifier) @type . "::") (#match? @type "^[A-Z]"))
+(identifier_type (identifier) @type)
+(identifier_type (identifier) @namespace . "::")
 
 ; Attributes
 

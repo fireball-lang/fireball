@@ -64,10 +64,10 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 
 	// Core
 
-	stringViewSymbol, ok := a.GetSymbol(&ast.IdentifierPath{Entries: []*ast.Leaf{
-		{Token: lexer.Token{Text: "core"}},
-		{Token: lexer.Token{Text: "StringView"}},
-	}})
+	stringViewSymbol, ok := a.GetSymbol([]*ast.IdentifierEntry{
+		{Name: &ast.Leaf{Token: lexer.Token{Text: "core"}}},
+		{Name: &ast.Leaf{Token: lexer.Token{Text: "StringView"}}},
+	})
 	if !ok {
 		panic("analyze.Analyze() - Failed to find 'core::StringView'")
 	}
@@ -76,8 +76,8 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 
 	// Module
 
-	if len(file.Mod.Path.Entries) > 0 && file.Mod.Path.Entries[0].Token.Text != a.topLevelModule {
-		a.Error(file.Mod.Path.Entries[0], "top level module needs to match the project name")
+	if len(file.Mod.Path) > 0 && file.Mod.Path[0].Token.Text != a.topLevelModule {
+		a.Error(file.Mod.Path[0], "top level module needs to match the project name")
 	}
 
 	// File & Import attributes

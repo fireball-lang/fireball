@@ -89,81 +89,28 @@ func (c *common) VisitFuncType(t *ast.FuncType) types.Type {
 }
 
 func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
-	cached := c.nodeTypes[t]
-
+	// Get symbol for path
 	symbol, ok := c.GetSymbol(t.Path)
 	if !ok {
 		return types.Invalid
 	}
 
+	// Check nodeTypes for an existing type
+	cached := c.nodeTypes[t]
+	if !core.IsNil(cached) {
+		return cached
+	}
+
 	switch symbol.Kind {
 	case symbols.Struct:
-		if !core.IsNil(cached) {
-			if c.checkTypeConstraints {
-				s := symbol.Type.(*types.Struct)
-				subs := make([]types.Substitution, len(s.TypeParams))
-
-				for j, param := range s.TypeParams {
-					argType := c.ResolveAndAnalyzeType(t.TypeArgs[j])
-					if argType == types.Invalid {
-						return types.Invalid
-					}
-
-					subs[j] = types.Substitution{Param: param, Type: argType}
-				}
-
-				for j, param := range s.TypeParams {
-					if len(param.Constraints) > 0 {
-						for _, con := range param.Constraints {
-							if in, ok := c.instantiations.Substitute(con, subs).(*types.Interface); ok {
-								c.CheckConstraint(subs[j].Type, in, t.TypeArgs[j])
-							}
-						}
-					}
-				}
-			}
-
-			return cached
-		}
-
 		s := symbol.Type.(*types.Struct)
 
 		if t.Mutable {
-			c.Error(t, "struct type '%s' cannot be mutable", s.Name)
+			c.Error(t, "struct type '%s' cannot be mutable", s)
 		}
 
-		// Non-generic
-		if len(t.TypeArgs) == 0 {
-			if len(s.TypeParams) > 0 {
-				c.Error(t, "'%s' is a generic type and requires type arguments", s.Name)
-				return types.Invalid
-			}
-
-			c.nodeTypes[t] = s
-			return s
-		}
-
-		// Check generic parameter count
-		if len(t.TypeArgs) != len(s.TypeParams) {
-			c.Error(t, "'%s' expects %d type argument(s), got %d", s.Name, len(s.TypeParams), len(t.TypeArgs))
-			return types.Invalid
-		}
-
-		subs := make([]types.Substitution, len(s.TypeParams))
-
-		for j, param := range s.TypeParams {
-			argType := c.ResolveAndAnalyzeType(t.TypeArgs[j])
-			if argType == types.Invalid {
-				return types.Invalid
-			}
-
-			subs[j] = types.Substitution{Param: param, Type: argType}
-		}
-
-		result := c.instantiations.Get(s, subs).(*types.Struct)
-
-		c.nodeTypes[t] = result
-		return result
+		c.nodeTypes[t] = s
+		return s
 
 	case symbols.Enum:
 		if t.Mutable {
@@ -174,75 +121,14 @@ func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
 		return symbol.Type
 
 	case symbols.Interface:
-		if !core.IsNil(cached) {
-			if c.checkTypeConstraints {
-				in := symbol.Type.(*types.Interface)
-				subs := make([]types.Substitution, len(in.TypeParams))
-
-				for j, param := range in.TypeParams {
-					argType := c.ResolveAndAnalyzeType(t.TypeArgs[j])
-					if argType == types.Invalid {
-						return types.Invalid
-					}
-
-					subs[j] = types.Substitution{Param: param, Type: argType}
-				}
-
-				for j, param := range in.TypeParams {
-					if len(param.Constraints) > 0 {
-						for _, con := range param.Constraints {
-							if in, ok := c.instantiations.Substitute(con, subs).(*types.Interface); ok {
-								c.CheckConstraint(subs[j].Type, in, t.TypeArgs[j])
-							}
-						}
-					}
-				}
-			}
-
-			return cached
-		}
 		in := symbol.Type.(*types.Interface)
 
-		// Non-generic
-		if len(t.TypeArgs) == 0 {
-			if len(in.TypeParams) > 0 {
-				c.Error(t, "'%s' is a generic type and requires type arguments", in.Name)
-				return types.Invalid
-			}
-
-			result := in
-			if t.Mutable {
-				result = in.AsMutable()
-			}
-
-			c.nodeTypes[t] = result
-			return result
-		}
-
-		// Check generic parameter count
-		if len(t.TypeArgs) != len(in.TypeParams) {
-			c.Error(t, "'%s' expects %d type argument(s), got %d", in.Name, len(in.TypeParams), len(t.TypeArgs))
-			return types.Invalid
-		}
-
-		subs := make([]types.Substitution, len(in.TypeParams))
-
-		for j, param := range in.TypeParams {
-			argType := c.ResolveAndAnalyzeType(t.TypeArgs[j])
-			if argType == types.Invalid {
-				return types.Invalid
-			}
-
-			subs[j] = types.Substitution{Param: param, Type: argType}
-		}
-
-		result := c.instantiations.Get(in, subs).(*types.Interface)
 		if t.Mutable {
-			result = result.AsMutable()
+			in = in.AsMutable()
 		}
 
-		c.nodeTypes[t] = result
-		return result
+		c.nodeTypes[t] = in
+		return in
 
 	case symbols.TypeParam:
 		if t.Mutable {
@@ -253,7 +139,7 @@ func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
 		return symbol.Type
 
 	case symbols.Func, symbols.Param, symbols.Var:
-		c.Error(t, "'%s' cannot be used as a type", t.Path.LastName())
+		c.Error(t, "'%s' cannot be used as a type", t.Path[len(t.Path)-1].Name.Token.Text)
 		return types.Invalid
 
 	default:

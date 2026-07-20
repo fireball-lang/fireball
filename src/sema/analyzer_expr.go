@@ -403,8 +403,8 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 			Symbol: symbol.Kind,
 		}
 
-	case symbols.Struct, symbols.Enum, symbols.Interface:
-		return a.Error(i, "symbol '%s' is a type and cannot be used as an expression", i.Path.LastName())
+	case symbols.Struct, symbols.Enum, symbols.Interface, symbols.TypeParam:
+		return a.Error(i, "symbol '%s' is a type and cannot be used as an expression", i.Path[len(i.Path)-1].Name.Token.Text)
 
 	default:
 		panic("sema.analyzer.VisitIdentifier() - Invalid symbol kind")
@@ -654,46 +654,6 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 						subs = append(subs, s.Substitutions...)
 					}
 				}
-			}
-
-			// Generic method
-			if len(f.TypeParams) > 0 {
-				if len(c.TypeArgs) == 0 {
-					a.Error(c.Callee, "generic function '%s' requires explicit type arguments", funcNode.Name().Token.Text)
-					return ExprInfo{Type: types.Invalid}
-				}
-
-				if len(c.TypeArgs) != len(f.TypeParams) {
-					a.ErrorRange(ast.SliceRange(c.TypeArgs), "expected %d type argument(s), got %d", len(f.TypeParams), len(c.TypeArgs))
-					return ExprInfo{Type: types.Invalid}
-				}
-
-				funcSubs := make([]types.Substitution, len(c.TypeArgs))
-
-				for i, typeArg := range c.TypeArgs {
-					argType := a.ResolveAndAnalyzeType(typeArg)
-					if argType == types.Invalid {
-						return ExprInfo{Type: types.Invalid}
-					}
-
-					funcSubs[i] = types.Substitution{Param: f.TypeParams[i], Type: argType}
-				}
-
-				allSubs := append(subs, funcSubs...)
-
-				for i, typeArg := range c.TypeArgs {
-					param := f.TypeParams[i]
-
-					for _, constraint := range param.Constraints {
-						if in, ok := a.instantiations.Substitute(constraint, allSubs).(*types.Interface); ok {
-							a.CheckConstraint(funcSubs[i].Type, in, typeArg)
-						}
-					}
-				}
-
-				subs = allSubs
-			} else if len(c.TypeArgs) > 0 {
-				a.Error(c.Callee, "function '%s' is not generic", funcNode.Name().Token.Text)
 			}
 
 			// Instantiate

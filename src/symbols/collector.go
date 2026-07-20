@@ -14,8 +14,8 @@ func Collect(file *ast.File) []Symbol {
 		case *ast.Struct:
 			sb := strings.Builder{}
 
-			modulePath := make([]string, 0, len(file.Mod.Path.Entries))
-			for _, entry := range file.Mod.Path.Entries {
+			modulePath := make([]string, 0, len(file.Mod.Path))
+			for _, entry := range file.Mod.Path {
 				modulePath = append(modulePath, entry.Token.Text)
 				sb.WriteString(entry.Token.Text)
 				sb.WriteString("::")
@@ -40,8 +40,8 @@ func Collect(file *ast.File) []Symbol {
 		case *ast.Enum:
 			sb := strings.Builder{}
 
-			modulePath := make([]string, 0, len(file.Mod.Path.Entries))
-			for _, entry := range file.Mod.Path.Entries {
+			modulePath := make([]string, 0, len(file.Mod.Path))
+			for _, entry := range file.Mod.Path {
 				modulePath = append(modulePath, entry.Token.Text)
 				sb.WriteString(entry.Token.Text)
 				sb.WriteString("::")
@@ -60,8 +60,8 @@ func Collect(file *ast.File) []Symbol {
 		case *ast.Interface:
 			sb := strings.Builder{}
 
-			modulePath := make([]string, 0, len(file.Mod.Path.Entries))
-			for _, entry := range file.Mod.Path.Entries {
+			modulePath := make([]string, 0, len(file.Mod.Path))
+			for _, entry := range file.Mod.Path {
 				modulePath = append(modulePath, entry.Token.Text)
 				sb.WriteString(entry.Token.Text)
 				sb.WriteString("::")

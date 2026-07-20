@@ -71,14 +71,22 @@ func (s *Server) resolveDefinition(file *project.File, node ast.Node) ast.Node {
 				}
 			}
 
-			// Intermediate path entry in a qualified identifier
-			if path, ok := n.Parent().(*ast.IdentifierPath); ok {
-				isLast := path.Entries[len(path.Entries)-1] == n
+		// IdentifierEntry
+		case *ast.IdentifierEntry:
+			var path []*ast.IdentifierEntry
 
-				if !isLast {
-					if typ, ok := file.NodeTypes[n]; ok {
-						return s.findTypeDeclaration(typ)
-					}
+			switch parent := n.Parent().(type) {
+			case *ast.Identifier:
+				path = parent.Path
+			case *ast.IdentifierType:
+				path = parent.Path
+			}
+
+			isLast := path[len(path)-1] == n
+
+			if !isLast {
+				if typ, ok := file.NodeTypes[n]; ok {
+					return s.findTypeDeclaration(typ)
 				}
 			}
 		}
