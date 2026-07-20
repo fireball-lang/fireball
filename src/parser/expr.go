@@ -927,7 +927,7 @@ func init() {
 	// as, or
 	infix(false, lexer.As, lexer.Or)
 	// <<, >>, >>>
-	infix(false, lexer.LessLess, lexer.Greater, lexer.GreaterGreater, lexer.GreaterGreaterGreater)
+	infix(false, lexer.LessLess, lexer.GreaterGreater, lexer.GreaterGreaterGreater)
 	// +, -
 	infix(false, lexer.Plus, lexer.Minus)
 	// *, /, %
