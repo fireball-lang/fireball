@@ -73,7 +73,7 @@
 			"name": "comment.block.fb"
 		},
 		"operator": {
-            "match": "=|\\+=|-=|\\*=|\\/=|%=|<<=|>>=|>>>=|\\|=|\\^=|&=|\\+|-|\\*|\\/|%|\\+\\+|--|<<|>>|>>>|\\&|\\|\\^|!|&&|\\|\\||==|!=|<|<=|>|>=",
+            "match": "=|\\+=|-=|\\*=|\\/=|%=|<<=|>>=|>>>=|\\|=|\\^=|&=|\\+|-|\\*|\\/|%|\\+\\+|--|\\?|<<|>>|>>>|\\&|\\|\\^|!|&&|\\|\\||==|!=|<|<=|>|>=",
 			"name": "keyword.operator.fb"
 		},
 		"terminator": {
@@ -135,7 +135,7 @@
             "name": "constant.language.fb"
         },
 		"keyword": {
-			"match": "\\b(pub|mut|mod|import|struct|enum|interface|impl|type|func|var|if|else|while|for|return|break|continue|as|sizeof|alignof|offsetof)\\b",
+			"match": "\\b(pub|mut|mod|import|struct|enum|interface|impl|type|func|var|if|else|while|for|return|break|continue|as|sizeof|alignof|offsetof|or)\\b",
 			"name": "keyword.fb"
 		},
 		"attribute": {

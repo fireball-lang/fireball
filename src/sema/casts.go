@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"fireball/core"
 	"fireball/types"
 	"slices"
 )
@@ -25,6 +26,8 @@ const (
 
 	PointerToInterface
 	InterfaceToPointer
+
+	TypeToOption
 )
 
 func CommonType(a, b types.Type) types.Type {
@@ -213,6 +216,12 @@ func GetImplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 	case *types.Interface:
 		if to, ok := to.(*types.Interface); ok && !to.Mutable && from.Mutable && from.AsImmutable() == to {
 			return Noop, true
+		}
+	}
+
+	if toInner := getOptionInnerType(to); !core.IsNil(toInner) {
+		if _, ok := GetImplicitCast(env, from, toInner); ok {
+			return TypeToOption, true
 		}
 	}
 

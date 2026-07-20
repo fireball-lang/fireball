@@ -195,6 +195,28 @@ func (s *SelfType) String() string {
 
 func (s *SelfType) _isType() {}
 
+// Option
+
+type OptionType struct {
+	baseNode
+
+	Type Type
+}
+
+func (o *OptionType) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(o.Type) {
+			return
+		}
+	}
+}
+
+func (o *OptionType) String() string {
+	return "?" + o.Type.String()
+}
+
+func (o *OptionType) _isType() {}
+
 // Bad
 
 type BadType struct {

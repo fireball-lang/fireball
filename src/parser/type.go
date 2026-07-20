@@ -9,7 +9,7 @@ import (
 
 func (p *parser) canStartType() bool {
 	switch p.current.Kind {
-	case lexer.Mut, lexer.Identifier, lexer.LeftBracket, lexer.Star, lexer.Func:
+	case lexer.Mut, lexer.Identifier, lexer.LeftBracket, lexer.Star, lexer.Func, lexer.QuestionMark:
 		return true
 	default:
 		return false
@@ -31,6 +31,8 @@ func (p *parser) parseType() (ast.Type, int) {
 		return p.parsePointerType()
 	case lexer.Func:
 		return p.parseFuncType()
+	case lexer.QuestionMark:
+		return p.parseOptionType()
 
 	default:
 		b := &ast.BadType{}
@@ -220,6 +222,32 @@ func (p *parser) parseFuncType() (f *ast.FuncType, recoverId int) {
 
 	// Signature
 	if _, f.Params, f.VarArgs, f.Returns, recoverId = p.parseFuncSignature(false, false); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseOptionType() (o *ast.OptionType, recoverId int) {
+	o = &ast.OptionType{}
+	o.Range_.Start = p.current.Range.Start
+	defer func() {
+		o.Range_.End = p.previous.Range.End
+
+		if core.IsNil(o.Type) {
+			o.Type = p.badType()
+		}
+	}()
+
+	recoverId = -1
+
+	// '?'
+	if recoverId = p.expect(lexer.QuestionMark, "expected '?'"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if o.Type, recoverId = p.parseType(); recoverId >= 0 {
 		return
 	}
 

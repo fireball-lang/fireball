@@ -244,6 +244,18 @@ func (a *analyzer) VisitPostfix(p *ast.Postfix) ExprInfo {
 
 		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsNumeric, "numeric", expr, p.Expr)}
 
+	case ast.PropagateO:
+		inner := getOptionInnerType(expr.Type)
+
+		if core.IsNil(inner) {
+			return a.Error(p.Expr, "can only propagate 'core::Option', not '%s'", expr.Type)
+		}
+		if inner := getOptionInnerType(a.funcType.Returns); core.IsNil(inner) {
+			a.Error(p, "can only propagate from a function that returns 'core::Option', not '%s'", a.funcType.Returns)
+		}
+
+		return ExprInfo{Type: inner}
+
 	default:
 		panic("sema.analyzer.VisitPostfix() - Invalid operator kind")
 	}
@@ -364,6 +376,18 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 		}
 
 		return ExprInfo{Type: types.PrimitiveBool}
+	}
+
+	// Or
+	if op == ast.Or {
+		leftInner := getOptionInnerType(left.Type)
+		if core.IsNil(leftInner) {
+			return a.Error(b.Left, "'or' operator only works on 'core::Option', not '%s'", left.Type)
+		}
+
+		a.ExpectType(leftInner, right, b.Right)
+
+		return ExprInfo{Type: leftInner}
 	}
 
 	panic("sema.analyzer.AnalyzeBaseBinaryOp() - Invalid base operator")

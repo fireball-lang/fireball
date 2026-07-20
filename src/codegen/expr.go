@@ -252,6 +252,31 @@ func (c *codegen) VisitPostfix(p *ast.Postfix) ir.Value {
 
 		return value
 
+	case ast.PropagateO:
+		_, hasI := c.ExprType(p.Expr).(*types.Struct).Field("has_value")
+		if hasI < 0 {
+			panic("codegen.codegen.VisitPostfix() - Failed to find 'has_value' field on 'core::Option'")
+		}
+
+		bNone := c.fun.NewBlock("propagate.none")
+		bSome := c.fun.NewBlock("propagate.some")
+
+		// Condition
+		value := c.Load(p.Expr)
+
+		some := c.emitter.ExtractValue(value, uint32(hasI))
+		c.emitter.BrCond(some, bSome, bNone)
+
+		// None
+		c.emitter.Begin(bNone)
+		c.emitter.Ret(&ir.ZeroInitializer{Typ: c.fun.Signature.Returns})
+
+		// Some
+		c.emitter.Begin(bSome)
+		value = c.emitter.ExtractValue(value, uint32(1-hasI))
+
+		return value
+
 	default:
 		panic("codegen.codegen.VisitPostfix() - Invalid operator")
 	}
@@ -353,6 +378,43 @@ func (c *codegen) VisitBinary(b *ast.Binary) ir.Value {
 
 	case ast.GreaterEqual:
 		return c.EmitCmp(ir.Ge, b.Left, b.Right)
+
+	// Or
+
+	case ast.Or:
+		_, hasI := c.ExprType(b.Left).(*types.Struct).Field("has_value")
+		if hasI < 0 {
+			panic("codegen.codegen.VisitBinary() - Failed to find 'has_value' field on 'core::Option'")
+		}
+
+		bLeft := c.fun.NewBlock("or.left")
+		bRight := c.fun.NewBlock("or.right")
+		bExit := c.fun.NewBlock("or.exit")
+
+		// Entry
+		left := c.Load(b.Left)
+		some := c.emitter.ExtractValue(left, uint32(hasI))
+		c.emitter.BrCond(some, bLeft, bRight)
+
+		// Left
+		c.emitter.Begin(bLeft)
+		leftValue := c.emitter.ExtractValue(left, uint32(1-hasI))
+		bLeft = c.emitter.Block()
+		c.emitter.Br(bExit)
+
+		// Right
+		c.emitter.Begin(bRight)
+		right := c.LoadImplicitCast(b.Right, c.ExprType(b))
+		bRight = c.emitter.Block()
+		c.emitter.Br(bExit)
+
+		// Exit
+		c.emitter.Begin(bExit)
+
+		return c.emitter.Phi(
+			ir.PhiPair{Block: bLeft, Value: leftValue},
+			ir.PhiPair{Block: bRight, Value: right},
+		)
 
 	default:
 		typ := c.ExprType(b)
@@ -867,6 +929,10 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) 
 		case sema.IntToPointer:
 			// fall through
 
+		case sema.TypeToOption:
+			toInner := to.(*types.Struct).Substitutions[0].Type
+			return c.GetOptionStructInitializer(to, c.ImplicitCast(value, from, toInner))
+
 		default:
 			panic("codegen.codegen.Cast() - Invalid cast kind for integer literal")
 		}
@@ -877,6 +943,11 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) 
 			return &ir.Integer{Typ: toTyp, Value: core.Signed(int64(value.Value))}
 		case sema.FloatExtend:
 			return &ir.DoubleV{Value: float64(value.Value)}
+
+		case sema.TypeToOption:
+			toInner := to.(*types.Struct).Substitutions[0].Type
+			return c.GetOptionStructInitializer(to, c.ImplicitCast(value, from, toInner))
+
 		default:
 			panic("codegen.codegen.Cast() - Invalid cast kind for float literal")
 		}
@@ -887,6 +958,11 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) 
 			return &ir.Integer{Typ: toTyp, Value: core.Signed(int64(value.Value))}
 		case sema.FloatTruncate:
 			return &ir.FloatV{Value: float32(value.Value)}
+
+		case sema.TypeToOption:
+			toInner := to.(*types.Struct).Substitutions[0].Type
+			return c.GetOptionStructInitializer(to, c.ImplicitCast(value, from, toInner))
+
 		default:
 			panic("codegen.codegen.Cast() - Invalid cast kind for double literal")
 		}
@@ -938,11 +1014,42 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) 
 	case sema.InterfaceToPointer:
 		value = c.emitter.ExtractValue(value, 0)
 
+	case sema.TypeToOption:
+		_, hasI := to.(*types.Struct).Field("has_value")
+		if hasI < 0 {
+			panic("codegen.codegen.GetOptionStructInitializer() - Failed to find 'has_value' field on 'core::Option'")
+		}
+
+		toInner := to.(*types.Struct).Substitutions[0].Type
+
+		option := c.GetOptionStructInitializer(to, &ir.ZeroInitializer{Typ: c.types.Get(toInner)})
+		value = c.ImplicitCast(value, from, toInner)
+
+		return c.emitter.InsertValue(option, value, uint32(1-hasI))
+
 	default:
 		panic("codegen.codegen.Cast() - Invalid cast kind")
 	}
 
 	return value
+}
+
+func (c *codegen) GetOptionStructInitializer(to types.Type, value ir.Value) *ir.Struct {
+	s := to.(*types.Struct)
+
+	_, hasI := s.Field("has_value")
+	if hasI < 0 {
+		panic("codegen.codegen.GetOptionStructInitializer() - Failed to find 'has_value' field on 'core::Option'")
+	}
+
+	fields := make([]ir.Value, 2)
+	fields[hasI] = ir.True
+	fields[1-hasI] = value
+
+	return &ir.Struct{
+		Typ:    c.types.Get(to),
+		Fields: fields,
+	}
 }
 
 func (c *codegen) EmitCmp(op ir.CmpOp, left, right ast.Expr) ir.Value {

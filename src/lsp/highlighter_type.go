@@ -56,6 +56,12 @@ func (hi *highlighter) VisitSelfType(s *ast.SelfType) int {
 	return 0
 }
 
+func (hi *highlighter) VisitOptionType(o *ast.OptionType) int {
+	hi.VisitType(o.Type)
+
+	return 0
+}
+
 func (hi *highlighter) VisitBadType(_ *ast.BadType) int {
 	return 0
 }

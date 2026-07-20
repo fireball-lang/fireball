@@ -83,6 +83,8 @@ func (l *Lexer) Next() Token {
 		return l.make(Semicolon)
 	case '#':
 		return l.make(Hashtag)
+	case '?':
+		return l.make(QuestionMark)
 
 	case '(':
 		return l.make(LeftParen)
@@ -373,6 +375,9 @@ func (l *Lexer) keywordIdentifier() Token {
 
 	case "as":
 		token.Kind = As
+
+	case "or":
+		token.Kind = Or
 
 	case "sizeof":
 		token.Kind = Sizeof

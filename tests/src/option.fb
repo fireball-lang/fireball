@@ -1,0 +1,44 @@
+mod tests::option;
+
+func get_some() ?i32 {
+	return 5;
+}
+
+func get_none() ?i32 {
+	return Option:[i32]::none();
+}
+
+func none_or(option: ?i32, if_some: i32) ?i32 {
+	var _ = option?;
+	return if_some;
+}
+
+#[test("option - implicit cast (some)")]
+func optionImplicitCastSome() bool {
+	var opt = get_some();
+	return opt.is_some() && opt.unwrap() == 5;
+}
+
+#[test("option - ? operator (some)")]
+func optionPropagateOperatorSome() bool {
+	var opt = none_or(get_some(), 1);
+	return opt.is_some() && opt.unwrap() == 1;
+}
+
+#[test("option - ? operator (none)")]
+func optionPropagateOperatorNone() bool {
+	var opt = none_or(get_none(), 1);
+	return opt.is_none();
+}
+
+#[test("option - or operator (some)")]
+func optionOrOperatorSome() bool {
+	var v = get_some() or 2;
+	return v == 5;
+}
+
+#[test("option - or operator (some)")]
+func optionOrOperatorNone() bool {
+	var v = get_none() or 2;
+	return v == 2;
+}

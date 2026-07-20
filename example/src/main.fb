@@ -2,6 +2,24 @@ mod example;
 
 import example::c::{printf};
 
+// '?...' is just syntax sugar for using the full type: 'Option[...]'
+func retrieve() ?i32 {
+    return Option:[i32]::none();
+}
+
+func example() ?i32 {
+    // returns 'none' from the function if 'retrieve()' returns 'none',
+    // otherwise the expression results in the unwrapped value
+    var value1 = retrieve()?;
+
+    // unwraps the value returned by 'retrieve()' and skips expression on the right if it returned 'some(...)',
+    // otherwise results in the value of the expression on the right
+    var value2 = retrieve() or 1;
+
+    // values can be implicitly converted to their Option counterpart
+    return 5;
+}
+
 func main() {
     var os = get_os();
     printf("Hello from %s!\n".ptr, os.ptr);

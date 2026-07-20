@@ -566,6 +566,9 @@ func (p *parser) parseBinary(left ast.Expr, rightPower int) (b *ast.Binary, reco
 	case lexer.AmpersandEqual:
 		b.Op = ast.BitAndAssign
 
+	case lexer.Or:
+		b.Op = ast.Or
+
 	default:
 		panic("parser.parseBinary() - Invalid operator token '" + p.previous.Text + "'")
 	}
@@ -629,7 +632,7 @@ func (p *parser) parseCast(left ast.Expr, _ int) (c *ast.Cast, recoverId int) {
 
 func (p *parser) parsePostfixExpr(left ast.Expr) (ast.Expr, int) {
 	switch p.current.Kind {
-	case lexer.PlusPlus, lexer.MinusMinus:
+	case lexer.PlusPlus, lexer.MinusMinus, lexer.QuestionMark:
 		return p.parsePostfix(left)
 
 	case lexer.LeftBracket:
@@ -668,6 +671,8 @@ func (p *parser) parsePostfix(left ast.Expr) (e *ast.Postfix, recoverId int) {
 		e.Op = ast.IncrementO
 	case lexer.MinusMinus:
 		e.Op = ast.DecrementO
+	case lexer.QuestionMark:
+		e.Op = ast.PropagateO
 
 	default:
 		panic("parser.parser.parsePostfix() - Invalid operator token '" + p.previous.Text + "'")
@@ -919,8 +924,8 @@ func init() {
 	infix(false, lexer.EqualEqual, lexer.BangEqual)
 	// >, <=, >, >=
 	infix(false, lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual)
-	// as
-	infix(false, lexer.As)
+	// as, or
+	infix(false, lexer.As, lexer.Or)
 	// <<, >>, >>>
 	infix(false, lexer.LessLess, lexer.Greater, lexer.GreaterGreater, lexer.GreaterGreaterGreater)
 	// +, -
@@ -929,10 +934,10 @@ func init() {
 	infix(false, lexer.Star, lexer.Slash, lexer.Percentage)
 	// -x, !x, ++x, --x, &x, *x
 	prefix(lexer.Minus, lexer.Bang, lexer.PlusPlus, lexer.MinusMinus, lexer.Ampersand, lexer.Star)
-	// x++, x--
-	postfix(lexer.PlusPlus, lexer.MinusMinus)
-	// x[], x(), x {}, x::[]
-	postfix(lexer.LeftBracket, lexer.LeftParen, lexer.LeftBrace, lexer.ColonColon)
+	// x++, x--, x?
+	postfix(lexer.PlusPlus, lexer.MinusMinus, lexer.QuestionMark)
+	// x[], x(), x {}
+	postfix(lexer.LeftBracket, lexer.LeftParen, lexer.LeftBrace)
 	// x.y
 	infix(false, lexer.Dot)
 }

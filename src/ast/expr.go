@@ -243,6 +243,7 @@ type PostfixOp uint8
 const (
 	IncrementO PostfixOp = iota
 	DecrementO
+	PropagateO
 )
 
 type Postfix struct {
@@ -305,6 +306,8 @@ const (
 	BitOrAssign
 	BitXorAssign
 	BitAndAssign
+
+	Or
 )
 
 func (b BinaryOp) IsMath() bool {

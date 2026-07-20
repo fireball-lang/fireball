@@ -54,6 +54,8 @@ const (
 
 	As
 
+	Or
+
 	Sizeof
 	Alignof
 	Offsetof
@@ -69,6 +71,7 @@ const (
 	ColonColon
 	Semicolon
 	Hashtag
+	QuestionMark
 
 	LeftParen
 	RightParen

@@ -1,0 +1,34 @@
+mod core;
+
+pub struct Option[T] {
+	has_value: bool,
+	value: T,
+}
+
+impl[T] Option[T] {
+	pub func some(value: T) Self {
+		return Self { has_value: true, value: value };
+	}
+
+	pub func none() Self {
+		return Self {};
+	}
+
+	pub func is_some(self) bool {
+		return self.has_value;
+	}
+
+	pub func is_none(self) bool {
+		return !self.has_value;
+	}
+
+	pub func unwrap(self) T {
+		if (!self.has_value) panic("failed to unwrap an Option");
+		return self.value;
+	}
+
+	pub func expect(self, error: StringView) T {
+		if (!self.has_value) panic(error);
+		return self.value;
+	}
+}

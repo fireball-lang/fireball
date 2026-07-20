@@ -160,6 +160,29 @@ func (c *common) VisitSelfType(t *ast.SelfType) types.Type {
 	return c.selfType
 }
 
+func (c *common) VisitOptionType(t *ast.OptionType) types.Type {
+	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
+		return typ
+	}
+
+	path := []*ast.IdentifierEntry{
+		{
+			Name: &ast.Leaf{Token: lexer.Token{Text: "core"}},
+		},
+		{
+			Name:     &ast.Leaf{Token: lexer.Token{Text: "Option"}},
+			TypeArgs: []ast.Type{t.Type},
+		},
+	}
+
+	symbol, ok := c.GetSymbol(path)
+	if !ok {
+		panic("sema.common.VisitOptionType() - Failed to find 'core::Option'")
+	}
+
+	return symbol.Type
+}
+
 func (c *common) VisitBadType(_ *ast.BadType) types.Type {
 	return types.Invalid
 }
