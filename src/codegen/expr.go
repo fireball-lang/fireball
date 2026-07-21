@@ -269,7 +269,7 @@ func (c *codegen) VisitPostfix(p *ast.Postfix) ir.Value {
 
 		// None
 		c.emitter.Begin(bNone)
-		c.emitter.Ret(&ir.ZeroInitializer{Typ: c.fun.Signature.Returns})
+		c.ReturnValue(&ir.ZeroInitializer{Typ: c.types.Get(c.funcTyp.Returns)})
 
 		// Some
 		c.emitter.Begin(bSome)

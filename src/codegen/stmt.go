@@ -191,16 +191,9 @@ func (c *codegen) VisitReturn(r *ast.Return) {
 
 	if !core.IsNil(r.Value) {
 		value = c.LoadImplicitCast(r.Value, c.ResolveType(c.funcTyp.Returns))
-
-		if core.IsNil(c.returnPtr) {
-			value = c.BitCast(value, c.fun.Signature.Returns)
-		} else {
-			c.emitter.Store(value, c.returnPtr)
-			value = nil
-		}
 	}
 
-	c.emitter.Ret(value)
+	c.ReturnValue(value)
 }
 
 func (c *codegen) VisitBreak(_ *ast.Break) {
@@ -214,6 +207,19 @@ func (c *codegen) VisitContinue(_ *ast.Continue) {
 func (c *codegen) VisitBadStmt(_ *ast.BadStmt) {}
 
 // Utils
+
+func (c *codegen) ReturnValue(value ir.Value) {
+	if !core.IsNil(value) {
+		if core.IsNil(c.returnPtr) {
+			value = c.BitCast(value, c.fun.Signature.Returns)
+		} else {
+			c.emitter.Store(value, c.returnPtr)
+			value = nil
+		}
+	}
+
+	c.emitter.Ret(value)
+}
 
 func (c *codegen) GenerateStmt(stmt ast.Stmt) {
 	c.emitter.SetDebugLocation(stmt.Range().Start)
