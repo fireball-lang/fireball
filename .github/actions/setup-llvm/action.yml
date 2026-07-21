@@ -1,0 +1,59 @@
+name: Setup LLVM
+description: Install C3 LLVM toolchain
+
+inputs:
+  version:
+    description: LLVM release version
+    required: true
+    default: "22.1.9"
+
+runs:
+  using: composite
+  steps:
+    - name: Cache LLVM
+      id: llvm-cache
+      uses: actions/cache@v6
+      with:
+        path: llvm
+        key: llvm-for-c3-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
+
+    - name: Download LLVM
+      if: steps.llvm-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        case "$RUNNER_OS-$RUNNER_ARCH" in
+          Linux-X64)
+            asset="llvm-linux-amd64.tar.xz"
+            ;;
+          macOS-ARM64)
+            asset="llvm-darwin-aarch64.tar.xz"
+            ;;
+          Windows-X64)
+            asset="llvm-windows-amd64.tar.xz"
+            ;;
+          *)
+            echo "Unsupported platform: $RUNNER_OS-$RUNNER_ARCH"
+            exit 1
+            ;;
+        esac
+
+        url="https://github.com/c3lang/llvm-for-c3/releases/download/llvm_${{ inputs.version }}/$asset"
+        echo "Downloading LLVM: $url"
+        curl -fL "$url" -o llvm.tar.xz
+
+        mkdir -p llvm
+        tar xf llvm.tar.xz -C llvm --strip-components=1
+
+        if [ -d llvm/usr ]; then
+          mv llvm/usr/* llvm/
+          rmdir llvm/usr
+        fi
+
+        rm llvm.tar.xz
+
+    - name: Add LLVM to PATH
+      shell: bash
+      run: |
+        echo "${{ github.workspace }}/llvm/bin" >> "$GITHUB_PATH"
