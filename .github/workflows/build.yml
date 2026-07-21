@@ -7,54 +7,97 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
+            artifact: Windows
             ext: ".exe"
           - os: ubuntu-latest
+            artifact: Linux
             ext: ""
           - os: macos-latest
+            artifact: macOS
             ext: ""
+
     runs-on: ${{ matrix.os }}
+
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - name: Setup Go
+        uses: actions/setup-go@v7
         with:
-          go-version-file: "src/go.mod"
-          cache-dependency-path: "src/go.sum"
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
 
       - name: Build
         run: |
           cd src
           go build -o ../fireball${{ matrix.ext }} ./cmd
 
-      - name: Cache fireball
-        uses: actions/cache/save@v5
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
         with:
+          name: ${{ matrix.artifact }}
           path: fireball${{ matrix.ext }}
-          key: ${{ runner.os }}-${{ github.sha }}
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v6
+  test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: Windows
+            ext: ".exe"
+          - os: ubuntu-latest
+            artifact: Linux
+            ext: ""
+          - os: macos-latest
+            artifact: macOS
+            ext: ""
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - name: Download artifact
+        uses: actions/download-artifact@v8
         with:
-          name: ${{ runner.os }}
-          path: fireball${{ matrix.ext }}
+          name: ${{ matrix.artifact }}
+
+      - name: Restore executable bit
+        if: runner.os != 'Windows'
+        run: chmod +x fireball
+
+      - name: Setup LLVM
+        uses: ./.github/actions/setup-llvm
+        with:
+          version: "22.1.9"
+
+      - name: Run tests
+        shell: bash
+        run: |
+          cd tests
+          ../fireball${{ matrix.ext }} test
 
   package-vscode:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
-      - name: Set up Node
+      - name: Setup Node
         uses: actions/setup-node@v7
         with:
           node-version: "26.x"
-          cache: "npm"
-          cache-dependency-path: "vscode-extension/package-lock.json"
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
 
       - name: Install VSCE
         run: npm install -g @vscode/vsce
@@ -65,94 +108,8 @@ jobs:
           npm install
           vsce package
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload VSCode extension
+        uses: actions/upload-artifact@v7
         with:
-          name: "VSCode"
+          name: VSCode
           path: vscode-extension/*.vsix
-
-  test-windows:
-    runs-on: windows-latest
-    needs: build
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v6
-
-      - name: Download LLVM
-        uses: robinraju/release-downloader@v1
-        with:
-          repository: "c3lang/win-llvm"
-          tag: "llvm_21_1_8"
-          fileName: "llvm-21.1.8-windows-amd64-msvc17-libcmt.7z"
-
-      - name: Extract LLVM
-        run: 7z x llvm-21.1.8-windows-amd64-msvc17-libcmt.7z
-
-      - name: Add LLVM to path
-        shell: bash
-        run: echo "${{ github.workspace }}/llvm-21.1.8-windows-amd64-msvc17-libcmt/bin" >> $GITHUB_PATH
-
-      - name: Get fireball from cache
-        uses: actions/cache/restore@v5
-        with:
-          path: fireball.exe
-          key: ${{ runner.os }}-${{ github.sha }}
-
-      - name: Run tests
-        run: |
-          cd tests
-          ../fireball.exe test
-
-  test-linux:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v6
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install build-essential libc6-dev
-
-      - name: Install LLVM
-        uses: KyleMayes/install-llvm-action@v2
-        with:
-          version: "21.1.8"
-
-      - name: Get fireball from cache
-        uses: actions/cache/restore@v5
-        with:
-          path: fireball
-          key: ${{ runner.os }}-${{ github.sha }}
-
-      - name: Run tests
-        run: |
-          cd tests
-          ../fireball test
-
-  test-macos:
-    runs-on: macos-latest
-    needs: build
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v6
-
-      - name: Install LLVM
-        run: |
-          brew update
-          brew install llvm lld
-
-      - name: Add LLVM to PATH
-        run: echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
-
-      - name: Get fireball from cache
-        uses: actions/cache/restore@v5
-        with:
-          path: fireball
-          key: ${{ runner.os }}-${{ github.sha }}
-
-      - name: Run tests
-        run: |
-          cd tests
-          ../fireball test
