@@ -133,6 +133,33 @@ func (s *System) CompileEntrypoint(fn EntrypointFn) (string, error) {
 
 	proj := fn(module, fun)
 
+	// Add summary for '_fltused'
+	if strings.Contains(s.target.Name, "windows") {
+		for summary, ref := range module.Summaries() {
+			if _, ok := summary.(*ir.ModuleSummary); !ok {
+				continue
+			}
+
+			module.AddSummary(&ir.VariableSummary{
+				Module: ref,
+				Name:   "_fltused",
+				LinkFlags: ir.LinkSummaryFlags{
+					Linkage:             ir.LinkageExternal,
+					Visibility:          ir.VisibilityDefault,
+					NotEligibleToImport: false,
+					Live:                true,
+					DsoLocal:            false,
+					CanAutoHide:         false,
+					ImportType:          ir.ImportDefinition,
+				},
+				Flags: ir.VarReadOnly,
+				Refs:  nil,
+			})
+
+			break
+		}
+	}
+
 	// Get paths
 	s.mainProjName = proj.Config.Name
 	s.mainBuildPath = filepath.Join(s.profilePath, proj.Config.Name)
