@@ -14,6 +14,7 @@ import (
 // Visitor
 
 var structAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Repr](),
 	reflect.TypeFor[ast.Cfg](),
 }
 

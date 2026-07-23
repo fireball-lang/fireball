@@ -259,9 +259,9 @@ func (e *ExtractValue) Type() Type {
 		case *ArrayType:
 			typ = type_.Element
 		case *StructType:
-			typ = type_.Fields[index]
+			typ = type_.Fields[index].Type
 		case *RefStructType:
-			typ = type_.Struct.Fields[index]
+			typ = type_.Struct.Fields[index].Type
 
 		default:
 			panic("ir.ExtractValue.Type() - Invalid aggregate value type")

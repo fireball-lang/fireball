@@ -76,14 +76,20 @@ func (c *codegen) VisitString(s *ast.String) ir.Value {
 
 	// Value
 
-	typ := c.types.Get(c.UnderlyingExprType(s))
+	typ := c.types.Get(c.UnderlyingExprType(s)).(ir.StructLikeType)
+
+	_, ptrI := typ.Field("ptr")
+	if ptrI == -1 {
+		panic("codegen.codegen.VisitString() - Failed to find 'ptr' field on 'core::StringView'")
+	}
+
+	fields := make([]ir.Value, 2)
+	fields[ptrI] = global
+	fields[1-ptrI] = &ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, uint64(literal.Size))}
 
 	value := &ir.Struct{
-		Typ: typ,
-		Fields: []ir.Value{
-			global,
-			&ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, uint64(literal.Size))},
-		},
+		Typ:    typ,
+		Fields: fields,
 	}
 
 	// Summary
@@ -117,13 +123,14 @@ func (c *codegen) VisitNull(_ *ast.Null) ir.Value {
 
 func (c *codegen) VisitStructInitializer(s *ast.StructInitializer) ir.Value {
 	typ := c.ExprType(s).(*types.Struct)
-	t := c.types.Get(typ)
+	t := c.types.Get(typ).(ir.StructLikeType)
+	info := c.arch.Info(typ)
 
 	value := ir.Value(&ir.ZeroInitializer{Typ: t})
 
 	for _, field := range s.Fields {
-		f, i := typ.Field(field.Name.Token.Text)
-		fieldValue := c.LoadImplicitCast(field.Value, f.Type)
+		_, i := t.Field(field.Name.Token.Text)
+		fieldValue := c.LoadImplicitCast(field.Value, typ.Fields[info.Fields[i].Index].Type)
 
 		value = c.emitter.InsertValue(value, fieldValue, uint32(i))
 	}
@@ -168,12 +175,14 @@ func (c *codegen) VisitAlignOf(e *ast.AlignOf) ir.Value {
 
 func (c *codegen) VisitOffsetOf(o *ast.OffsetOf) ir.Value {
 	typ := c.ResolveType(c.nodeTypes[o.Type]).(*types.Struct)
+	t := c.types.Get(typ).(ir.StructLikeType)
 	info := c.arch.Info(typ)
-	_, index := typ.Field(o.Field.Token.Text)
+
+	_, index := t.Field(o.Field.Token.Text)
 
 	return &ir.Integer{
 		Typ:   ir.I32,
-		Value: core.Unsigned(false, uint64(info.Offsets[index])),
+		Value: core.Unsigned(false, uint64(info.Fields[index].Offset)),
 	}
 }
 
@@ -253,7 +262,10 @@ func (c *codegen) VisitPostfix(p *ast.Postfix) ir.Value {
 		return value
 
 	case ast.PropagateO:
-		_, hasI := c.ExprType(p.Expr).(*types.Struct).Field("has_value")
+		typ := c.ExprType(p.Expr)
+		t := c.types.Get(typ).(ir.StructLikeType)
+
+		_, hasI := t.Field("has_value")
 		if hasI < 0 {
 			panic("codegen.codegen.VisitPostfix() - Failed to find 'has_value' field on 'core::Option'")
 		}
@@ -382,7 +394,10 @@ func (c *codegen) VisitBinary(b *ast.Binary) ir.Value {
 	// Or
 
 	case ast.Or:
-		_, hasI := c.ExprType(b.Left).(*types.Struct).Field("has_value")
+		typ := c.ExprType(b.Left)
+		t := c.types.Get(typ).(ir.StructLikeType)
+
+		_, hasI := t.Field("has_value")
 		if hasI < 0 {
 			panic("codegen.codegen.VisitBinary() - Failed to find 'has_value' field on 'core::Option'")
 		}
@@ -560,7 +575,9 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 		s = typ.(*types.Struct)
 	}
 
-	_, index := s.Field(m.Name.Token.Text)
+	t := c.types.Get(s).(ir.StructLikeType)
+
+	_, index := t.Field(m.Name.Token.Text)
 
 	// Method
 	if index == -1 {
@@ -1015,7 +1032,9 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) 
 		value = c.emitter.ExtractValue(value, 0)
 
 	case sema.TypeToOption:
-		_, hasI := to.(*types.Struct).Field("has_value")
+		t := c.types.Get(to).(ir.StructLikeType)
+
+		_, hasI := t.Field("has_value")
 		if hasI < 0 {
 			panic("codegen.codegen.GetOptionStructInitializer() - Failed to find 'has_value' field on 'core::Option'")
 		}
@@ -1036,8 +1055,9 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) 
 
 func (c *codegen) GetOptionStructInitializer(to types.Type, value ir.Value) *ir.Struct {
 	s := to.(*types.Struct)
+	t := c.types.Get(s).(ir.StructLikeType)
 
-	_, hasI := s.Field("has_value")
+	_, hasI := t.Field("has_value")
 	if hasI < 0 {
 		panic("codegen.codegen.GetOptionStructInitializer() - Failed to find 'has_value' field on 'core::Option'")
 	}

@@ -231,10 +231,16 @@ func (t *TypeCache) createArrayMeta(typ *types.Array) ir.MetaRef {
 // types.Struct
 
 func (t *TypeCache) createStructType(typ *types.Struct) ir.Type {
-	fields := make([]ir.Type, len(typ.Fields))
+	info := t.Arch.Info(typ)
+	fields := make([]ir.Field, len(typ.Fields))
 
-	for i, field := range typ.Fields {
-		fields[i] = t.Get(field.Type)
+	for i, field := range info.Fields {
+		f := typ.Fields[field.Index]
+
+		fields[i] = ir.Field{
+			Name: f.Name,
+			Type: t.Get(f.Type),
+		}
 	}
 
 	irTyp := ir.StructType{
@@ -267,7 +273,7 @@ func (t *TypeCache) createStructMeta(typ *types.Struct) ir.MetaRef {
 			Name:   field.Name,
 			Kind:   ir.MetaMember,
 			Base:   t.GetMeta(field.Type),
-			Offset: info.Offsets[i] * 8,
+			Offset: info.Fields[i].Offset * 8,
 			Size:   fieldInfo.Size * 8,
 			Align:  fieldInfo.Align * 8,
 		})

@@ -1,4 +1,4 @@
-mod tests::intrinsics;
+mod tests::repr_c;
 
 // Mixed: fields of ascending size, triggers multiple padding gaps
 //
@@ -9,6 +9,7 @@ mod tests::intrinsics;
 //
 // Total size: alignTo(24, 8) = 24, align = 8
 
+#[repr(C)]
 struct Mixed {
     a: i8,
     b: i32,
@@ -55,6 +56,7 @@ func testOffsetofMixedD() bool {
 //
 // Total size: alignTo(15, 8) = 16, align = 8
 
+#[repr(C)]
 struct Descending {
     x: i64,
     y: i32,
@@ -99,6 +101,7 @@ func testOffsetofDescendingW() bool {
 //
 // Total size: alignTo(16, 8) = 16, align = 8
 
+#[repr(C)]
 struct BoolAndI64 {
     flag: bool,
     val: i64,

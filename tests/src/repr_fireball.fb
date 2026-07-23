@@ -1,0 +1,135 @@
+mod tests::repr_fireball;
+
+// Mixed: fields are defined in mixed order, but the Fireball layout
+// sorts them by alignment descending (i64, i32, i16, i8) to minimize padding.
+//
+// Sorted layout:
+//   d: i64  @ offset  0  (size 8, align 8)
+//   b: i32  @ offset  8  (size 4, align 4)
+//   c: i16  @ offset 12  (size 2, align 2)
+//   a: i8   @ offset 14  (size 1, align 1)
+//
+// Total size: alignTo(15, 8) = 16, align = 8
+// (Notice it shrank from 24 bytes in C layout down to 16 bytes!)
+
+struct Mixed {
+    a: i8,
+    b: i32,
+    c: i16,
+    d: i64,
+}
+
+#[test("sizeof(Mixed)")]
+func testSizeofMixed() bool {
+    return sizeof(Mixed) == 16u;
+}
+
+#[test("alignof(Mixed)")]
+func testAlignofMixed() bool {
+    return alignof(Mixed) == 8u;
+}
+
+#[test("offsetof(Mixed, a)")]
+func testOffsetofMixedA() bool {
+    return offsetof(Mixed, a) == 14u;
+}
+
+#[test("offsetof(Mixed, b)")]
+func testOffsetofMixedB() bool {
+    return offsetof(Mixed, b) == 8u;
+}
+
+#[test("offsetof(Mixed, c)")]
+func testOffsetofMixedC() bool {
+    return offsetof(Mixed, c) == 12u;
+}
+
+#[test("offsetof(Mixed, d)")]
+func testOffsetofMixedD() bool {
+    return offsetof(Mixed, d) == 0u;
+}
+
+
+// Descending: fields are already in descending alignment order.
+// The Fireball layout sort is stable/matches this, so the offsets
+// and size are identical to the C layout.
+//
+//   x: i64  @ offset  0  (size 8, align 8)
+//   y: i32  @ offset  8  (size 4, align 4)
+//   z: i16  @ offset 12  (size 2, align 2)
+//   w: i8   @ offset 14  (size 1, align 1)
+//
+// Total size: alignTo(15, 8) = 16, align = 8
+
+struct Descending {
+    x: i64,
+    y: i32,
+    z: i16,
+    w: i8,
+}
+
+#[test("sizeof(Descending)")]
+func testSizeofDescending() bool {
+    return sizeof(Descending) == 16u;
+}
+
+#[test("alignof(Descending)")]
+func testAlignofDescending() bool {
+    return alignof(Descending) == 8u;
+}
+
+#[test("offsetof(Descending, x)")]
+func testOffsetofDescendingX() bool {
+    return offsetof(Descending, x) == 0u;
+}
+
+#[test("offsetof(Descending, y)")]
+func testOffsetofDescendingY() bool {
+    return offsetof(Descending, y) == 8u;
+}
+
+#[test("offsetof(Descending, z)")]
+func testOffsetofDescendingZ() bool {
+    return offsetof(Descending, z) == 12u;
+}
+
+#[test("offsetof(Descending, w)")]
+func testOffsetofDescendingW() bool {
+    return offsetof(Descending, w) == 14u;
+}
+
+
+// BoolAndI64: bool followed by i64.
+// Fireball layout sorts the i64 to the front to prevent the massive 7-byte gap.
+//
+// Sorted layout:
+//   val:  i64   @ offset 0  (size 8, align 8)
+//   flag: bool  @ offset 8  (size 1, align 1)
+//
+// Total size: alignTo(9, 8) = 16, align = 8
+// (Trailing padding still pads it to 16, but offsetof(flag) changes)
+
+struct BoolAndI64 {
+    flag: bool,
+    val: i64,
+}
+
+#[test("sizeof(BoolAndI64)")]
+func testSizeofBoolAndI64() bool {
+    return sizeof(BoolAndI64) == 16u;
+}
+
+#[test("alignof(BoolAndI64)")]
+func testAlignofBoolAndI64() bool {
+    return alignof(BoolAndI64) == 8u;
+}
+
+#[test("offsetof(BoolAndI64, flag)")]
+func testOffsetofBoolAndI64Flag() bool {
+    return offsetof(BoolAndI64, flag) == 8u;
+}
+
+#[test("offsetof(BoolAndI64, val)")]
+func testOffsetofBoolAndI64Val() bool {
+    return offsetof(BoolAndI64, val) == 0u;
+}

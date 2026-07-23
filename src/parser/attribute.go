@@ -4,6 +4,7 @@ import (
 	"fireball/ast"
 	"fireball/core"
 	"fireball/lexer"
+	"fireball/types"
 )
 
 func (p *parser) parseAttributes() (attributes []ast.Attribute, recoverId int) {
@@ -73,6 +74,8 @@ func (p *parser) parseAttribute() (ast.Attribute, int) {
 		return p.parseExtern()
 	case "link_name":
 		return p.parseLinkName()
+	case "repr":
+		return p.parseRepr()
 	case "cfg":
 		return p.parseCfg()
 
@@ -186,6 +189,48 @@ func (p *parser) parseLinkName() (l *ast.LinkName, recoverId int) {
 
 	// ')'
 	if recoverId = p.expect(lexer.RightParen, "expected ')' after a link name"); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseRepr() (r *ast.Repr, recoverId int) {
+	r = &ast.Repr{}
+	r.Range_.Start = p.current.Range.Start
+	defer func() {
+		r.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'repr'
+	if recoverId = p.expect(lexer.Identifier, "expected 'repr'"); recoverId >= 0 {
+		return
+	}
+
+	// '('
+	if recoverId = p.expect(lexer.LeftParen, "expected '(' before a struct layout"); recoverId >= 0 {
+		return
+	}
+
+	// Layout
+	if recoverId = p.expect(lexer.Identifier, "expected an identifier"); recoverId >= 0 {
+		return
+	}
+
+	switch p.previous.Text {
+	case "Fireball":
+		r.Layout = types.Fireball
+	case "C":
+		r.Layout = types.C
+
+	default:
+		p.reportError(p.previous.Range, "invalid struct layout value, expected 'fireball' or 'c'")
+	}
+
+	// ')'
+	if recoverId = p.expect(lexer.RightParen, "expected ')' after a struct layout"); recoverId >= 0 {
 		return
 	}
 

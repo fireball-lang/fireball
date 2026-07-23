@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fireball/types"
 	"iter"
 )
 
@@ -69,6 +70,20 @@ func (l *LinkName) Children() iter.Seq[Node] {
 }
 
 func (l *LinkName) _isAttribute() {}
+
+// Repr
+
+type Repr struct {
+	baseNode
+
+	Layout types.Layout
+}
+
+func (r *Repr) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {}
+}
+
+func (r *Repr) _isAttribute() {}
 
 // Cfg
 

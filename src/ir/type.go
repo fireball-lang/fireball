@@ -1,7 +1,19 @@
 package ir
 
+import (
+	"iter"
+	"slices"
+)
+
 type Type interface {
 	isIrType()
+}
+
+type StructLikeType interface {
+	Type
+
+	AllFields() iter.Seq2[int, Field]
+	Field(name string) (Type, int)
 }
 
 // Simple
@@ -60,12 +72,31 @@ func (a ArrayType) isIrType() {}
 
 // Struct
 
+type Field struct {
+	Name string
+	Type Type
+}
+
 type StructType struct {
 	Packed bool
-	Fields []Type
+	Fields []Field
 }
 
 func (s StructType) isIrType() {}
+
+func (s StructType) AllFields() iter.Seq2[int, Field] {
+	return slices.All(s.Fields)
+}
+
+func (s StructType) Field(name string) (Type, int) {
+	for i, field := range s.Fields {
+		if field.Name == name {
+			return field.Type, i
+		}
+	}
+
+	return nil, -1
+}
 
 // Ref
 
@@ -75,6 +106,14 @@ type RefStructType struct {
 }
 
 func (r RefStructType) isIrType() {}
+
+func (r RefStructType) AllFields() iter.Seq2[int, Field] {
+	return r.Struct.AllFields()
+}
+
+func (r RefStructType) Field(name string) (Type, int) {
+	return r.Struct.Field(name)
+}
 
 // Utils
 

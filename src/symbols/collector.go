@@ -34,7 +34,7 @@ func Collect(file *ast.File) []Symbol {
 				Public: decl.Public,
 				Name:   decl.Name().Token.Text,
 				Node:   decl,
-				Type:   &types.Struct{Name: sb.String(), ModulePath: modulePath, TypeParams: typeParams}, // filled in type resolver
+				Type:   &types.Struct{Name: sb.String(), ModulePath: modulePath, Layout: decl.GetLayout(), TypeParams: typeParams}, // filled in type resolver
 			})
 
 		case *ast.Enum:

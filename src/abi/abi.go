@@ -10,10 +10,15 @@ const (
 	Memory
 )
 
+type Field struct {
+	Index  uint32
+	Offset uint32
+}
+
 type Info struct {
-	Size    uint32
-	Align   uint32
-	Offsets []uint32
+	Size   uint32
+	Align  uint32
+	Fields []Field
 }
 
 type Arch interface {

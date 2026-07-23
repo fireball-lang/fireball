@@ -91,9 +91,9 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 	}
 
 	for _, field := range s.Fields {
-		f, i := t.Field(field.Name.Token.Text)
+		f := t.Field(field.Name.Token.Text)
 
-		if i == -1 {
+		if f == nil {
 			a.Error(field.Name, "field '%s' doesn't exist on struct '%s'", field.Name.Token.Text, t)
 			continue
 		}
@@ -150,7 +150,7 @@ func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) ExprInfo {
 	}
 
 	if s, ok := typ.(*types.Struct); ok {
-		if _, index := s.Field(o.Field.Token.Text); index == -1 {
+		if field := s.Field(o.Field.Token.Text); field == nil {
 			a.Error(o.Field, "field '%s' doesn't exist on '%s'", o.Field.Token.Text, s)
 		}
 	} else {
@@ -566,7 +566,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 
 	// Struct
 	if t, ok := typ.(*types.Struct); ok {
-		if field, index := t.Field(m.Name.Token.Text); index != -1 {
+		if field := t.Field(m.Name.Token.Text); field != nil {
 			_, fieldIsFunc := field.Type.(*types.Func)
 
 			if !a.WantsFunction(m) || fieldIsFunc {

@@ -26,13 +26,7 @@ func (a *amd64) Info(typ types.Type) Info {
 		return Info{Size: elem.Size * typ.Size, Align: elem.Align}
 
 	case *types.Struct:
-		layout := structLayout{arch: a, packed: typ.Packed}
-
-		for _, field := range typ.Fields {
-			layout.Field(field.Type)
-		}
-
-		return layout.Info()
+		return getStructLayout(a, typ)
 
 	default:
 		panic("abi.amd64.Info() - Invalid type")

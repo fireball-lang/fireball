@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fireball/core"
+	"fireball/types"
 	"iter"
 	"strings"
 )
@@ -71,6 +72,14 @@ func (s *Struct) Name() *Leaf {
 }
 
 func (s *Struct) _isDecl() {}
+
+func (s *Struct) GetLayout() types.Layout {
+	if repr := GetAttribute[*Repr](s); repr != nil {
+		return repr.Layout
+	}
+
+	return types.Fireball
+}
 
 // Field
 

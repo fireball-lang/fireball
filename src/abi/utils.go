@@ -51,8 +51,8 @@ func flatten(arch Arch, typ types.Type, offset uint32, regs []register) []regist
 	case *types.Struct:
 		info := arch.Info(typ)
 
-		for i, field := range typ.Fields {
-			regs = flatten(arch, field.Type, offset+info.Offsets[i], regs)
+		for _, field := range info.Fields {
+			regs = flatten(arch, typ.Fields[field.Index].Type, offset+field.Offset, regs)
 		}
 
 	default:

@@ -2,6 +2,13 @@ package types
 
 import "strings"
 
+type Layout uint8
+
+const (
+	Fireball Layout = iota
+	C
+)
+
 type Field struct {
 	Name   string
 	Type   Type
@@ -11,6 +18,7 @@ type Field struct {
 type Struct struct {
 	Name       string
 	ModulePath []string
+	Layout     Layout
 	Packed     bool
 	TypeParams []*Param
 	Fields     []Field
@@ -19,14 +27,15 @@ type Struct struct {
 	Substitutions []Substitution
 }
 
-func (s *Struct) Field(name string) (Field, int) {
-	for i, field := range s.Fields {
+func (s *Struct) Field(name string) *Field {
+	for i := range s.Fields {
+		field := &s.Fields[i]
 		if field.Name == name {
-			return field, i
+			return field
 		}
 	}
 
-	return Field{}, -1
+	return nil
 }
 
 func (s *Struct) Equals(other Type) bool {

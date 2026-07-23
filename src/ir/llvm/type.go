@@ -68,7 +68,7 @@ func (w *writer) structTyp(typ *ir.StructType) {
 			w.string(", ")
 		}
 
-		w.typ(field)
+		w.typ(field.Type)
 	}
 
 	if typ.Packed {

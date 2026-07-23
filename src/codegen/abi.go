@@ -13,10 +13,10 @@ func getTypeForClasses(classes []abi.Class, size uint32) ir.Type {
 		return getTypeForClass(classes[0], size)
 	}
 
-	fields := make([]ir.Type, 0, len(classes))
+	fields := make([]ir.Field, 0, len(classes))
 
 	for _, class := range classes {
-		fields = append(fields, getTypeForClass(class, min(size, 8)))
+		fields = append(fields, ir.Field{Type: getTypeForClass(class, min(size, 8))})
 		size -= min(size, 8)
 	}
 
