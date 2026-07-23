@@ -19,6 +19,8 @@ import (
 )
 
 func getTestCmd() *cobra.Command {
+	var profileName string
+
 	cmd := &cobra.Command{
 		Use:   "test",
 		Short: "Tests a project",
@@ -40,7 +42,7 @@ func getTestCmd() *cobra.Command {
 			// Build
 			proj.Config.LibC = true
 
-			exePath, err := buildProject(proj, projMap, "debug", start, func(projMap map[string]*project.Project, proj *project.Project) (build.EntrypointFn, error) {
+			exePath, err := buildProject(proj, projMap, profileName, start, func(projMap map[string]*project.Project, proj *project.Project) (build.EntrypointFn, error) {
 				return func(module *ir.Module, fun *ir.Function) *project.Project {
 					testEntrypoint(projMap, module, fun, testFuncs)
 					return proj
@@ -99,6 +101,8 @@ func getTestCmd() *cobra.Command {
 			return nil
 		}),
 	}
+
+	cmd.Flags().StringVarP(&profileName, "profile", "p", "debug", "profile to build the project with")
 
 	return cmd
 }
@@ -251,4 +255,66 @@ func testEntrypoint(projMap map[string]*project.Project, module *ir.Module, fun 
 		failed := emitter.Load(ir.I32, failedPtr)
 		emitter.Ret(failed)
 	}
+
+	// Summary
+
+	moduleRef := module.AddSummary(&ir.ModuleSummary{
+		Path: module.Path,
+		Hash: [5]uint32{},
+	})
+
+	mainSummaryCalls := make([]ir.FunctionSummaryCall, 0, len(inits))
+
+	for _, init := range inits {
+		initRef := module.AddSummary(&ir.SymbolSummary{Name: codegen.FuncLinkName(init.node, init.typ, nil)})
+		mainSummaryCalls = append(mainSummaryCalls, ir.FunctionSummaryCall{Callee: initRef})
+	}
+
+	varSummaryRefs := make([]ir.SummaryRef, 0, len(testFuncs))
+
+	for _, test := range testFuncs {
+		varSummaryRefs = append(varSummaryRefs, module.AddSummary(&ir.SymbolSummary{Name: codegen.FuncLinkName(test, nil, nil)}))
+	}
+
+	module.AddSummary(&ir.FunctionSummary{
+		Module: moduleRef,
+		Name:   fun.Name,
+		LinkFlags: ir.LinkSummaryFlags{
+			Linkage:             ir.LinkageExternal,
+			Visibility:          ir.VisibilityDefault,
+			NotEligibleToImport: false,
+			Live:                false,
+			DsoLocal:            true,
+			CanAutoHide:         false,
+			ImportType:          ir.ImportDefinition,
+		},
+		InstructionCount: emitter.Block().InstructionCount,
+		Flags:            ir.FuncNoInline | ir.FuncNoUnwind,
+		Calls:            mainSummaryCalls,
+		Refs: []ir.SummaryRef{module.AddSummary(&ir.VariableSummary{
+			Module: moduleRef,
+			Name:   testPointers.Name,
+			LinkFlags: ir.LinkSummaryFlags{
+				Linkage:             ir.LinkagePrivate,
+				Visibility:          ir.VisibilityDefault,
+				NotEligibleToImport: false,
+				Live:                false,
+				DsoLocal:            true,
+				CanAutoHide:         false,
+				ImportType:          ir.ImportDefinition,
+			},
+			Flags: ir.VarConstant,
+			Refs:  varSummaryRefs,
+		})},
+	})
+
+	module.AddSummary(&ir.SimpleSummary{
+		Name:  "flags",
+		Value: 520,
+	})
+
+	module.AddSummary(&ir.SimpleSummary{
+		Name:  "blockcount",
+		Value: 0,
+	})
 }

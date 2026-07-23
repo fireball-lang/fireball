@@ -33,9 +33,9 @@ jobs:
           cache-dependency-path: src/go.sum
 
       - name: Build
-        run: |
-          cd src
-          go build -o ../fireball${{ matrix.ext }} ./cmd
+        shell: bash
+        working-directory: src
+        run: go build -o ../fireball${{ matrix.ext }} ./cmd
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -72,6 +72,7 @@ jobs:
 
       - name: Restore executable bit
         if: runner.os != 'Windows'
+        shell: bash
         run: chmod +x fireball
 
       - name: Setup LLVM
@@ -79,11 +80,15 @@ jobs:
         with:
           version: "22.1.9"
 
-      - name: Run tests
+      - name: Run tests (debug)
         shell: bash
-        run: |
-          cd tests
-          ../fireball${{ matrix.ext }} test
+        working-directory: tests
+        run: ../fireball${{ matrix.ext }} test
+
+      - name: Run tests (release)
+        shell: bash
+        working-directory: tests
+        run: ../fireball${{ matrix.ext }} test -p release
 
   package-vscode:
     runs-on: ubuntu-latest
@@ -100,11 +105,13 @@ jobs:
           cache-dependency-path: vscode-extension/package-lock.json
 
       - name: Install VSCE
+        shell: bash
         run: npm install -g @vscode/vsce
 
       - name: Build VSCode extension
+        shell: bash
+        working-directory: vscode-extension
         run: |
-          cd vscode-extension
           npm install
           vsce package
 
