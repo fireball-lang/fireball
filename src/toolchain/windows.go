@@ -43,7 +43,7 @@ func findLibcWindows() (LibC, error) {
 	// Return
 	return LibC{
 		LibPaths:           []string{path},
-		Libs:               []string{"gcc", "gcc_eh", "kernel32", "m", "mingw32", "mingwex", "ucrt", "ws2_32"},
+		Libs:               []string{"gcc", "gcc_eh", "kernel32", "m", "mingw32", "mingwex", "ucrt", "ws2_32", "secur32"},
 		PreObjectPaths:     []string{"crt2.o", "crtbegin.o"},
 		PostObjectPaths:    []string{"crtend.o"},
 		AdditionalLinkArgs: nil,

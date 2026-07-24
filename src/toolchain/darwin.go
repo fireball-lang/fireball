@@ -70,6 +70,8 @@ func findLibcDarwin() (LibC, error) {
 		PostObjectPaths: nil,
 		AdditionalLinkArgs: []string{
 			"-syslibroot", path,
+			"-framework", "CoreFoundation",
+			"-framework", "Security",
 		},
 	}, nil
 }
