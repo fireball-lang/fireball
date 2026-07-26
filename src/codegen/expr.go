@@ -1,13 +1,11 @@
 package codegen
 
 import (
-	"fireball/abi"
 	"fireball/ast"
 	"fireball/core"
 	"fireball/ir"
 	"fireball/lexer"
 	"fireball/sema"
-	"fireball/symbols"
 	"fireball/types"
 	"fmt"
 	"slices"
@@ -496,7 +494,7 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 
 	case *ast.Func:
 		typ := c.ExprType(i).(*types.Func)
-		in := c.getFuncInterface(node)
+		in := c.GetFuncInterface(node)
 		c.AddSummaryCallee(i, node, typ, in)
 		return c.GetFunction(node, typ, in)
 
@@ -583,7 +581,7 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 	if index == -1 {
 		f := c.exprInfos[m].Node.(*ast.Func)
 		typ := c.ExprType(m).(*types.Func)
-		in := c.getFuncInterface(f)
+		in := c.GetFuncInterface(f)
 
 		c.AddSummaryCallee(m, f, typ, in)
 		return c.GetFunction(f, typ, in)
@@ -623,267 +621,49 @@ func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 	// Indirect call through a function value
 	if !isDecl {
 		callee = c.Load(e.Callee)
-		sig = c.BuildSignature(typ, false)
-		return c.EmitCall(callee, sig, typ, nil, e.Args, c.UnderlyingExprType(e))
+		sig = c.BuildCallSignature(typ, false)
+		return c.EmitCallExpr(callee, sig, typ, nil, e.Args, c.UnderlyingExprType(e))
 	}
 
 	f := funcNode
+	m, isMember := e.Callee.(*ast.Member)
+	hasReceiver := isMember && f.Receiver != nil
 
-	if m, ok := e.Callee.(*ast.Member); ok && f.Receiver != nil {
-		if _, ok := c.ExprType(m.Expr).(*types.Interface); ok {
-			// Interface dispatch.
-			callee, receiver = c.PrepareInterfaceCall(m)
-
-			sig = c.BuildSignature(typ, true)
-		} else {
-			if _, ok := f.Parent().(*ast.Interface); ok {
-				// Direct constrained method call
-				receiverTyp := c.ExprType(m.Expr)
-				if p, ok := receiverTyp.(*types.Pointer); ok {
-					receiverTyp = p.Pointee
-				}
-
-				// For generic structs, methods live on the template
-				lookupTyp := receiverTyp
-				if s, ok := receiverTyp.(*types.Struct); ok && s.Generic != nil {
-					lookupTyp = s.Generic
-				}
-
-				sym, ok := c.typeEnv.GetInstanceMethod(lookupTyp, m.Name.Token.Text)
-				if !ok {
-					panic(fmt.Sprintf("codegen.codegen.VisitCall() - constraint method '%s' not found on '%s'", m.Name.Token.Text, receiverTyp))
-				}
-
-				concreteFunc := sym.Node.(*ast.Func)
-				concreteTyp := sym.Type.(*types.Func)
-
-				// If the struct is a generic instantiation, substitute into the method type
-				if s, ok := receiverTyp.(*types.Struct); ok && s.Generic != nil {
-					concreteTyp = c.instantiations.Substitute(concreteTyp, s.Substitutions).(*types.Func)
-				}
-
-				in := c.getFuncInterface(concreteFunc)
-
-				callee = c.GetFunction(concreteFunc, concreteTyp, in)
-				sig = callee.(*ir.Function).Signature
-
-				c.AddSummaryCallee(e.Callee, concreteFunc, concreteTyp, in)
-
-				receiver = c.PrepareReceiver(m)
-				typ = concreteTyp // use concrete type for EmitCall parameter matching
-			} else {
-				// Direct method call
-				in := c.getFuncInterface(f)
-
-				callee = c.GetFunction(f, typ, in)
-				sig = callee.(*ir.Function).Signature
-
-				c.AddSummaryCallee(e.Callee, f, typ, in)
-
-				receiver = c.PrepareReceiver(m)
-			}
-		}
-	} else {
-		if _, ok := f.Parent().(*ast.Interface); ok {
-			if ident, ok := e.Callee.(*ast.Identifier); ok && len(ident.Path) >= 2 {
-				// Static call on a constrained type parameter
-				typeLeaf := ident.Path[len(ident.Path)-2]
-				concreteTyp := c.ResolveType(c.nodeTypes[typeLeaf])
-
-				lookupTyp := concreteTyp
-				if s, ok := concreteTyp.(*types.Struct); ok && s.Generic != nil {
-					lookupTyp = s.Generic
-				}
-
-				sym, ok := c.typeEnv.GetStaticMethod(lookupTyp, f.Name().Token.Text)
-				if !ok || sym.Kind != symbols.Func {
-					panic(fmt.Sprintf("codegen.codegen.VisitCall() - constraint static method '%s' not found on '%s'", f.Name().Token.Text, concreteTyp))
-				}
-
-				concreteFunc := sym.Node.(*ast.Func)
-				concreteTypFunc := sym.Type.(*types.Func)
-
-				if s, ok := concreteTyp.(*types.Struct); ok && s.Generic != nil {
-					concreteTypFunc = c.instantiations.Substitute(concreteTypFunc, s.Substitutions).(*types.Func)
-				}
-
-				in := c.getFuncInterface(concreteFunc)
-
-				callee = c.GetFunction(concreteFunc, concreteTypFunc, in)
-				sig = callee.(*ir.Function).Signature
-
-				c.AddSummaryCallee(e.Callee, concreteFunc, concreteTypFunc, in)
-
-				typ = concreteTypFunc
-			}
-		} else {
-			// Static call
-			in := c.getFuncInterface(f)
-
-			callee = c.GetFunction(f, typ, in)
-			sig = callee.(*ir.Function).Signature
-
-			c.AddSummaryCallee(e.Callee, f, typ, in)
-		}
-	}
-
-	return c.EmitCall(callee, sig, typ, receiver, e.Args, c.UnderlyingExprType(e))
-}
-
-func (c *codegen) PrepareReceiver(m *ast.Member) ir.Value {
-	var value ir.Value
-
-	if _, ok := c.UnderlyingExprType(m.Expr).(*types.Pointer); ok {
-		value = c.Load(m.Expr)
-	} else {
-		value = c.GenerateExpr(m.Expr)
-
-		if !c.exprInfos[m.Expr].Address {
-			typ := c.types.Get(c.UnderlyingExprType(m.Expr))
-			ptr := c.Alloca(typ, "call.self")
-			c.emitter.Store(value, ptr)
-			value = ptr
-		}
-	}
-
-	return value
-}
-
-func (c *codegen) PrepareInterfaceCall(m *ast.Member) (callee ir.Value, receiver ir.Value) {
-	interfaceValue := c.Load(m.Expr)
-	interfaceType := c.ExprType(m.Expr).(*types.Interface)
-
-	receiver = c.emitter.ExtractValue(interfaceValue, 0)
-	vtablePtr := c.emitter.ExtractValue(interfaceValue, 1)
-
-	methodName := m.Name.Token.Text
-	methodIndex := -1
-
-	for i, method := range interfaceType.InstanceMethods {
-		if method.Name == methodName {
-			methodIndex = i
-			break
-		}
-	}
-
-	if methodIndex == -1 {
-		panic("codegen.codegen.PrepareInterfaceCall() - interface method not found")
-	}
-
-	vtableArrayType := &ir.ArrayType{
-		Length:  uint32(len(interfaceType.InstanceMethods)),
-		Element: ir.Pointer,
-	}
-
-	funcPtrPtr := c.emitter.GetElementPtrConst(vtableArrayType, vtablePtr, 0, uint32(methodIndex))
-	callee = c.emitter.Load(ir.Pointer, funcPtrPtr)
-
-	return callee, receiver
-}
-
-func (c *codegen) BuildSignature(typ *types.Func, hasReceiver bool) *ir.Signature {
-	sig := &ir.Signature{
-		Params:  make([]ir.Type, 0),
-		VarArgs: typ.VarArgs,
-	}
-
-	params := typ.Params
-
-	// Receiver
+	isInterfaceDispatch := false
 	if hasReceiver {
-		sig.Params = append(sig.Params, ir.Pointer)
-
-		if len(params) > 0 {
-			params = params[1:]
-		}
+		_, isInterfaceDispatch = c.ExprType(m.Expr).(*types.Interface)
 	}
 
-	// Params
-	for _, param := range params {
-		classes, info := c.callConv.Classify(c.arch, param)
-
-		if len(classes) == 1 && classes[0] == abi.Memory {
-			sig.Params = append(sig.Params, ir.Pointer)
-		} else {
-			sig.Params = append(sig.Params, getTypeForClasses(classes, info.Size))
-		}
-	}
-
-	// Returns
-	classes, info := c.callConv.Classify(c.arch, typ.Returns)
-
-	if len(classes) == 1 && classes[0] == abi.Memory {
-		sig.Returns = ir.Void
-		sig.SRet = c.types.Get(typ.Returns)
-		sig.Params = slices.Insert(sig.Params, 0, ir.Type(ir.Pointer))
+	if hasReceiver && isInterfaceDispatch {
+		// Interface dispatch
+		callee, receiver = c.LookupInterfaceMethod(c.ExprType(m.Expr).(*types.Interface), c.Load(m.Expr), m.Name.Token.Text)
+		sig = c.BuildCallSignature(typ, true)
+	} else if hasReceiver && isInterfaceMethod(f) {
+		// Method from interface, resolved to concrete impl
+		callee, sig, typ = c.ResolveInterfaceMethod(c.ExprType(m.Expr), m.Name.Token.Text, false, e.Callee)
+		receiver = c.ResolveReceiver(m)
+	} else if hasReceiver {
+		// Method from impl block
+		in := c.GetFuncInterface(f)
+		callee = c.GetFunction(f, typ, in)
+		sig = callee.(*ir.Function).Signature
+		c.AddSummaryCallee(e.Callee, f, typ, in)
+		receiver = c.ResolveReceiver(m)
+	} else if isInterfaceStatic(f, e.Callee) {
+		// Static method from interface, resolved to concrete impl
+		ident := e.Callee.(*ast.Identifier)
+		typeLeaf := ident.Path[len(ident.Path)-2]
+		concreteTyp := c.ResolveType(c.nodeTypes[typeLeaf])
+		callee, sig, typ = c.ResolveInterfaceMethod(concreteTyp, f.Name().Token.Text, true, e.Callee)
 	} else {
-		sig.Returns = getTypeForClasses(classes, info.Size)
+		// Static method from impl block
+		in := c.GetFuncInterface(f)
+		callee = c.GetFunction(f, typ, in)
+		sig = callee.(*ir.Function).Signature
+		c.AddSummaryCallee(e.Callee, f, typ, in)
 	}
 
-	return sig
-}
-
-func (c *codegen) EmitCall(callee ir.Value, sig *ir.Signature, funcType *types.Func, receiver ir.Value, args []ast.Expr, returnType types.Type) ir.Value {
-	irArgs := make([]ir.Value, 0, len(args)+1)
-
-	// Receiver
-	if receiver != nil {
-		irArgs = append(irArgs, receiver)
-	}
-
-	// Parameters
-	params := funcType.Params
-
-	if receiver != nil && len(params) > 0 {
-		params = params[1:]
-	}
-
-	for i, arg := range args {
-		var valueType types.Type
-		var value ir.Value
-
-		if i < len(params) {
-			valueType = params[i]
-			value = c.LoadImplicitCast(arg, valueType)
-		} else {
-			valueType = c.UnderlyingExprType(arg)
-			value = c.Load(arg)
-		}
-
-		classes, info := c.callConv.Classify(c.arch, valueType)
-
-		if len(classes) == 1 && classes[0] == abi.Memory {
-			ptr := c.Alloca(value.Type(), "call.param")
-			c.emitter.Store(value, ptr)
-			irArgs = append(irArgs, ptr)
-			continue
-		}
-
-		typ := getTypeForClasses(classes, info.Size)
-		value = c.BitCast(value, typ)
-		irArgs = append(irArgs, value)
-	}
-
-	// Return value handling
-	returnClasses, _ := c.callConv.Classify(c.arch, returnType)
-
-	var returnPtr ir.Value
-	if len(returnClasses) == 1 && returnClasses[0] == abi.Memory {
-		returnPtr = c.Alloca(c.types.Get(returnType), "call.sret")
-		irArgs = slices.Insert(irArgs, 0, returnPtr)
-	}
-
-	// Call
-	value := c.emitter.Call(sig, callee, irArgs)
-
-	// Return
-	if core.IsNil(returnPtr) {
-		typ := c.types.Get(returnType)
-		return c.BitCast(value, typ)
-	}
-
-	typ := c.types.Get(returnType)
-	return c.emitter.Load(typ, returnPtr)
+	return c.EmitCallExpr(callee, sig, typ, receiver, e.Args, c.UnderlyingExprType(e))
 }
 
 func (c *codegen) VisitCast(e *ast.Cast) ir.Value {

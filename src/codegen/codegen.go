@@ -370,7 +370,7 @@ func FuncLinkName(f *ast.Func, typ *types.Func, in *types.Interface) string {
 	return sb.String()
 }
 
-func (c *codegen) getFuncInterface(f *ast.Func) *types.Interface {
+func (c *codegen) GetFuncInterface(f *ast.Func) *types.Interface {
 	impl, ok := f.Parent().(*ast.Impl)
 	if !ok || impl.Interface == nil {
 		return nil
