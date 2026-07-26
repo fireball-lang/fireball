@@ -157,3 +157,18 @@ type Struct struct {
 func (s *Struct) Type() Type {
 	return s.Typ
 }
+
+// Utils
+
+func IsConstant(value Value) bool {
+	switch value := value.(type) {
+	case *ZeroInitializer, *Null, *Integer, *FloatV, *DoubleV, *String, *Vector, *Array, *Struct:
+		return true
+	case *GlobalVar:
+		return value.Flags&Constant != 0
+	case *Function:
+		return true
+	default:
+		return false
+	}
+}

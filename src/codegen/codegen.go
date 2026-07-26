@@ -487,3 +487,95 @@ func (c *codegen) Alloca(typ ir.Type, name string) ir.Value {
 	c.emitter.Begin(prevBlock)
 	return ptr
 }
+
+// Struct Builder
+
+type structBuilder struct {
+	c *codegen
+	s *types.Struct
+
+	fields map[string]ir.Value
+}
+
+func (c *codegen) Struct(s *types.Struct) structBuilder {
+	return structBuilder{
+		c:      c,
+		s:      s,
+		fields: make(map[string]ir.Value),
+	}
+}
+
+func (sb *structBuilder) Set(name string, value ir.Value) {
+	sb.fields[name] = value
+}
+
+func (sb *structBuilder) Build() ir.Value {
+	// Constants
+	constantCount := 0
+
+	for _, value := range sb.fields {
+		if ir.IsConstant(value) {
+			constantCount++
+		}
+	}
+
+	typ := sb.c.types.Get(sb.s).(ir.StructLikeType)
+
+	var fields []ir.Value
+	if constantCount > 0 {
+		fields = make([]ir.Value, len(sb.s.Fields))
+	}
+
+	structInit := &ir.Struct{
+		Typ:    typ,
+		Fields: fields,
+	}
+
+	for name, value := range sb.fields {
+		if ir.IsConstant(value) {
+			_, i := typ.Field(name)
+			if i < 0 {
+				panic("codegen.structBuilder.Build() - Failed to find field '" + name + "' on type '" + sb.s.String() + "'")
+			}
+
+			structInit.Fields[i] = value
+		}
+	}
+
+	if constantCount == len(sb.s.Fields) {
+		return structInit
+	}
+
+	// Runtime
+	if sb.c.fun == nil {
+		panic("codegen.structBuilder.Builder() - Tried to build a struct outside of a function with runtime values")
+	}
+
+	var structValue ir.Value
+
+	if constantCount == 0 {
+		structValue = &ir.ZeroInitializer{Typ: typ}
+	} else {
+		for _, field := range sb.s.Fields {
+			if value, ok := sb.fields[field.Name]; !ok || !ir.IsConstant(value) {
+				fieldTyp, i := typ.Field(field.Name)
+				structInit.Fields[i] = &ir.ZeroInitializer{Typ: fieldTyp}
+			}
+		}
+
+		structValue = structInit
+	}
+
+	for name, value := range sb.fields {
+		if !ir.IsConstant(value) {
+			_, i := typ.Field(name)
+			if i < 0 {
+				panic("codegen.structBuilder.Build() - Failed to find field '" + name + "' on type '" + sb.s.String() + "'")
+			}
+
+			structValue = sb.c.emitter.InsertValue(structValue, value, uint32(i))
+		}
+	}
+
+	return structValue
+}
