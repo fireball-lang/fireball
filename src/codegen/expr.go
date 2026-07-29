@@ -525,7 +525,7 @@ func (c *codegen) VisitIndex(i *ast.Index) ir.Value {
 	typ := c.UnderlyingExprType(i.Expr)
 
 	// core::Index[T]
-	if fTyp := sema.GetIndexMethod(c.typeEnv, typ, c.ExprType(i.Index)); fTyp != nil {
+	if fTyp := sema.GetIndexMethod(c.typeEnv, c.instantiations, typ, c.ExprType(i.Index)); fTyp != nil {
 		var callee ir.Value
 		var sig *ir.Signature
 		var receiver ir.Value
