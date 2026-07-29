@@ -30,27 +30,42 @@ func containsFalse() bool {
 	return !"Hello, World!".contains("o W");
 }
 
-#[test("StringView::index() - True")]
-func indexTrue() bool {
-	return "Hello, World!".index("l") == 2;
+#[test("StringView::index_of() - True")]
+func indexOfTrue() bool {
+	return "Hello, World!".index_of("l") == 2;
 }
 
-#[test("StringView::index() - False")]
-func indexFalse() bool {
-	return "Hello, World!".index("l") != 3;
+#[test("StringView::index_of() - False")]
+func indexOfFalse() bool {
+	return "Hello, World!".index_of("l") != 3;
 }
 
-#[test("StringView::index_last() - True")]
-func indexLastTrue() bool {
-	return "Hello, World!".index_last("l") == 10;
+#[test("StringView::index_of_last() - True")]
+func indexOfLastTrue() bool {
+	return "Hello, World!".index_of_last("l") == 10;
 }
 
-#[test("StringView::index_last() - False")]
-func indexLastFalse() bool {
-	return "Hello, World!".index_last("l") != 11;
+#[test("StringView::index_of_last() - False")]
+func indexOfLastFalse() bool {
+	return "Hello, World!".index_of_last("l") != 11;
 }
 
 #[test("StringView::trim()")]
 func trim() bool {
 	return "  Hello, World!\t".trim().size == 13u;
+}
+
+#[test("StringView::eq() - True")]
+func eqTrue() bool {
+	return "1".eq("1");
+}
+
+#[test("StringView::eq() - False")]
+func eqFalse() bool {
+	return !"1".eq("2");
+}
+
+#[test("StringView::[]")]
+func index() bool {
+	return "Hello"[2u] == 'l';
 }

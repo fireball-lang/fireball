@@ -1,0 +1,32 @@
+mod tests::ops;
+
+struct Vec2 {
+	xy: [2]i32,
+}
+
+impl Vec2 {
+	func new(x: i32, y: i32) Vec2 {
+		return Vec2 { xy: [2]i32{ x, y } };
+	}
+}
+
+impl Vec2 : Index[i32] {
+	type Result = i32;
+
+	pub func index(self, i: i32) i32 {
+		return self.xy[i];
+	}
+}
+
+#[test("core::Index - struct")]
+func indexStruct() bool {
+	return Vec2::new(1, 2)[1] == 2;
+}
+
+#[test("core::Index - struct pointer")]
+func indexStructPointer() bool {
+	var point = Vec2::new(1, 2);
+	var ptr = &point;
+
+	return ptr[1] == 2;
+}

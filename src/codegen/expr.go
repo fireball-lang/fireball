@@ -486,7 +486,13 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 	case *ast.Func:
 		typ := c.ExprType(i).(*types.Func)
 		in := c.GetFuncInterface(node)
-		c.AddSummaryCallee(i, node, typ, in)
+
+		call := false
+		if c, ok := i.Parent().(*ast.Call); ok && c.Callee == i {
+			call = true
+		}
+		c.AddSummaryCallee(node, typ, in, call)
+
 		return c.GetFunction(node, typ, in)
 
 	case *ast.Case:
@@ -517,12 +523,33 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 
 func (c *codegen) VisitIndex(i *ast.Index) ir.Value {
 	typ := c.UnderlyingExprType(i.Expr)
-	index := c.Load(i.Index)
+
+	// core::Index[T]
+	if fTyp := sema.GetIndexMethod(c.typeEnv, typ, c.ExprType(i.Index)); fTyp != nil {
+		var callee ir.Value
+		var sig *ir.Signature
+		var receiver ir.Value
+
+		_, isInterfaceDispatch := typ.(*types.Interface)
+
+		if isInterfaceDispatch {
+			// Interface dispatch
+			callee, receiver = c.LookupInterfaceMethod(c.ExprType(i.Expr).(*types.Interface), c.Load(i.Expr), "index")
+			sig = c.BuildCallSignature(fTyp, true)
+		} else {
+			// Method from interface, resolved to concrete impl
+			callee, sig, fTyp = c.ResolveInterfaceMethod(c.ExprType(i.Expr), "index", false)
+			receiver = c.ResolveReceiver(i.Expr)
+		}
+
+		return c.EmitCallExpr(callee, sig, fTyp, receiver, []ast.Expr{i.Index}, c.UnderlyingExprType(i))
+	}
 
 	// Pointer indexing
 	if p, ok := typ.(*types.Pointer); ok {
 		irTyp := c.types.Get(p.Pointee)
 		ptr := c.Load(i.Expr)
+		index := c.Load(i.Index)
 		return c.emitter.GetElementPtrDyn(irTyp, ptr, index, nil)
 	}
 
@@ -541,6 +568,7 @@ func (c *codegen) VisitIndex(i *ast.Index) ir.Value {
 		c.emitter.Store(value, ptr)
 	}
 
+	index := c.Load(i.Index)
 	value := c.emitter.GetElementPtrDyn(irTyp, ptr, ir.False, index)
 
 	if !c.exprInfos[i].Address {
@@ -574,7 +602,12 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 		typ := c.ExprType(m).(*types.Func)
 		in := c.GetFuncInterface(f)
 
-		c.AddSummaryCallee(m, f, typ, in)
+		call := false
+		if c, ok := m.Parent().(*ast.Call); ok && c.Callee == m {
+			call = true
+		}
+		c.AddSummaryCallee(f, typ, in, call)
+
 		return c.GetFunction(f, typ, in)
 	}
 
@@ -631,27 +664,27 @@ func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 		sig = c.BuildCallSignature(typ, true)
 	} else if hasReceiver && isInterfaceMethod(f) {
 		// Method from interface, resolved to concrete impl
-		callee, sig, typ = c.ResolveInterfaceMethod(c.ExprType(m.Expr), m.Name.Token.Text, false, e.Callee)
-		receiver = c.ResolveReceiver(m)
+		callee, sig, typ = c.ResolveInterfaceMethod(c.ExprType(m.Expr), m.Name.Token.Text, false)
+		receiver = c.ResolveReceiver(m.Expr)
 	} else if hasReceiver {
 		// Method from impl block
 		in := c.GetFuncInterface(f)
 		callee = c.GetFunction(f, typ, in)
 		sig = callee.(*ir.Function).Signature
-		c.AddSummaryCallee(e.Callee, f, typ, in)
-		receiver = c.ResolveReceiver(m)
+		c.AddSummaryCallee(f, typ, in, true)
+		receiver = c.ResolveReceiver(m.Expr)
 	} else if isInterfaceStatic(f, e.Callee) {
 		// Static method from interface, resolved to concrete impl
 		ident := e.Callee.(*ast.Identifier)
 		typeLeaf := ident.Path[len(ident.Path)-2]
 		concreteTyp := c.ResolveType(c.nodeTypes[typeLeaf])
-		callee, sig, typ = c.ResolveInterfaceMethod(concreteTyp, f.Name().Token.Text, true, e.Callee)
+		callee, sig, typ = c.ResolveInterfaceMethod(concreteTyp, f.Name().Token.Text, true)
 	} else {
 		// Static method from impl block
 		in := c.GetFuncInterface(f)
 		callee = c.GetFunction(f, typ, in)
 		sig = callee.(*ir.Function).Signature
-		c.AddSummaryCallee(e.Callee, f, typ, in)
+		c.AddSummaryCallee(f, typ, in, true)
 	}
 
 	return c.EmitCallExpr(callee, sig, typ, receiver, e.Args, c.UnderlyingExprType(e))

@@ -19,7 +19,7 @@ impl StringView {
 	}
 
 	pub func contains(self, other: StringView) bool {
-		return self.index(other) != -1;
+		return self.index_of(other) != -1;
 	}
 
 	pub func trim(self) StringView {
@@ -37,7 +37,7 @@ impl StringView {
 		return self.slice(start, end);
 	}
 
-	pub func index(self, other: StringView) i32 {
+	pub func index_of(self, other: StringView) i32 {
 		if (other.size == 0u) return 0;
 		if (self.size < other.size) return -1;
 
@@ -52,7 +52,7 @@ impl StringView {
 		return -1;
 	}
 
-	pub func index_last(self, other: StringView) i32 {
+	pub func index_of_last(self, other: StringView) i32 {
 		if (other.size == 0u) return (self.size as i32);
 		if (self.size < other.size) return -1;
 
@@ -89,5 +89,13 @@ impl StringView : Eq {
 		}
 
 		return true;
+	}
+}
+
+impl StringView : Index[u32] {
+	type Result = u8;
+
+	pub func index(self, idx: u32) u8 {
+		return self.ptr[idx];
 	}
 }

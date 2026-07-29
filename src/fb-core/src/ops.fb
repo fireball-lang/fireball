@@ -64,3 +64,11 @@ impl f64 : Eq {
         return *self == rhs;
     }
 }
+
+// Index
+
+pub interface Index[T] {
+	type Result;
+
+	func index(self, i: T) Result;
+}

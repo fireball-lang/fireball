@@ -25,13 +25,13 @@ func isInterfaceStatic(f *ast.Func, callee ast.Expr) bool {
 	return ok && len(ident.Path) >= 2
 }
 
-func (c *codegen) ResolveReceiver(m *ast.Member) ir.Value {
-	if _, ok := c.UnderlyingExprType(m.Expr).(*types.Pointer); ok {
-		return c.Load(m.Expr)
+func (c *codegen) ResolveReceiver(node ast.Expr) ir.Value {
+	if _, ok := c.UnderlyingExprType(node).(*types.Pointer); ok {
+		return c.Load(node)
 	}
 
-	value := c.GenerateExpr(m.Expr)
-	return c.ReceiverToPointer(value, c.UnderlyingExprType(m.Expr), c.exprInfos[m.Expr].Address)
+	value := c.GenerateExpr(node)
+	return c.ReceiverToPointer(value, c.UnderlyingExprType(node), c.exprInfos[node].Address)
 }
 
 func (c *codegen) ReceiverToPointer(value ir.Value, typ types.Type, addressable bool) ir.Value {
@@ -203,7 +203,7 @@ func (c *codegen) EmitCall(callee ir.Value, sig *ir.Signature, funcType *types.F
 	return c.emitter.Load(typ, returnPtr)
 }
 
-func (c *codegen) ResolveInterfaceMethod(receiverType types.Type, methodName string, isStatic bool, summaryNode ast.Node) (ir.Value, *ir.Signature, *types.Func) {
+func (c *codegen) ResolveInterfaceMethod(receiverType types.Type, methodName string, isStatic bool) (ir.Value, *ir.Signature, *types.Func) {
 	if p, ok := receiverType.(*types.Pointer); ok {
 		receiverType = p.Pointee
 	}
@@ -243,7 +243,7 @@ func (c *codegen) ResolveInterfaceMethod(receiverType types.Type, methodName str
 	callee := c.GetFunction(concreteFunc, concreteTyp, in)
 	sig := callee.Signature
 
-	c.AddSummaryCallee(summaryNode, concreteFunc, concreteTyp, in)
+	c.AddSummaryCallee(concreteFunc, concreteTyp, in, true)
 
 	return callee, sig, concreteTyp
 }

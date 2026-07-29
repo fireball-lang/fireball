@@ -438,7 +438,9 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
 	// Index
 	index := a.AnalyzeExpr(i.Index)
-	a.ExpectPrimitiveClass(types.IsInteger, "integer", index, i.Index)
+	if index.Invalid() {
+		return ExprInfo{Type: types.Invalid}
+	}
 
 	// Expression
 	expr := a.AnalyzeExpr(i.Expr)
@@ -446,7 +448,19 @@ func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
 		return ExprInfo{Type: types.Invalid}
 	}
 
+	// core::Index[T]
+	if f := GetIndexMethod(a.typeEnv, expr.Type, index.Type); f != nil {
+		if p, ok := f.Returns.(*types.Param); ok && p.Associated {
+			return a.Error(i.Expr, "cannot call a function which return type is not fully defined")
+		}
+
+		return ExprInfo{Type: f.Returns}
+	}
+
+	// Pointer
 	if p, ok := expr.Type.(*types.Pointer); ok {
+		a.ExpectPrimitiveClass(types.IsInteger, "integer", index, i.Index)
+
 		return ExprInfo{
 			Type:    p.Pointee,
 			Mutable: p.Mutable,
@@ -454,7 +468,10 @@ func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
 		}
 	}
 
+	// Array
 	if t, ok := expr.Type.(*types.Array); ok {
+		a.ExpectPrimitiveClass(types.IsInteger, "integer", index, i.Index)
+
 		return ExprInfo{
 			Type:    t.Element,
 			Mutable: true,
@@ -462,7 +479,8 @@ func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
 		}
 	}
 
-	return a.Error(i.Expr, "expected an array or a pointer, got '%s'", expr.Type)
+	// Invalid
+	return a.Error(i.Expr, "expected an array, pointer or type implementing 'core::Index[T]', got '%s'", expr.Type)
 }
 
 func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
@@ -768,6 +786,35 @@ func (a *analyzer) VisitBadExpr(_ *ast.BadExpr) ExprInfo {
 }
 
 // Utils
+
+func GetIndexMethod(typeEnv *TypeEnvironment, calleeType types.Type, indexType types.Type) *types.Func {
+	if param, ok := calleeType.(*types.Param); ok {
+		for _, in := range param.Constraints {
+			if in.Name == "core::Index" && len(in.Substitutions) == 1 {
+				if _, ok := GetImplicitCast(typeEnv, indexType, in.Substitutions[0].Type); ok {
+					return in.InstanceMethods[0].Type
+				}
+			}
+		}
+
+		return nil
+	}
+
+	if ptr, ok := calleeType.(*types.Pointer); ok {
+		calleeType = ptr.Pointee
+	}
+
+	for _, in := range typeEnv.GetConformances(calleeType) {
+		if in.Name == "core::Index" && len(in.Substitutions) == 1 {
+			if _, ok := GetImplicitCast(typeEnv, indexType, in.Substitutions[0].Type); ok {
+				symbol, _ := typeEnv.GetInstanceMethod(calleeType, "index")
+				return symbol.Type.(*types.Func)
+			}
+		}
+	}
+
+	return nil
+}
 
 func (a *analyzer) WantsFunction(node ast.Node) bool {
 	switch parent := node.Parent().(type) {

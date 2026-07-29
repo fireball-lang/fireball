@@ -5,3 +5,6 @@ lib-c = true
 
 [profile.debug]
 output-ir = true
+
+[profile.release]
+output-ir = true

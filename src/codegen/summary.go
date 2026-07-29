@@ -40,14 +40,14 @@ func (c *codegen) AddSummaryGlobalVar(g *ast.GlobalVar) {
 	c.AddSummaryRef(ref)
 }
 
-func (c *codegen) AddSummaryCallee(node ast.Node, f *ast.Func, typ *types.Func, in *types.Interface) {
+func (c *codegen) AddSummaryCallee(f *ast.Func, typ *types.Func, in *types.Interface, call bool) {
 	if !c.moduleSummaryRef.Valid() {
 		return
 	}
 
 	ref := c.GetFunctionSummaryRef(f, typ, in)
 
-	if call, ok := node.Parent().(*ast.Call); ok && call.Callee == node {
+	if call {
 		c.AddSummaryCall(ref)
 	} else {
 		c.AddSummaryRef(ref)
