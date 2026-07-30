@@ -72,3 +72,9 @@ pub interface Index[T] {
 
 	func index(self, i: T) Result;
 }
+
+// ImplicitAs
+
+pub interface ImplicitAs[T] {
+	func implicit_as(self) T;
+}

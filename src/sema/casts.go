@@ -28,6 +28,7 @@ const (
 	InterfaceToPointer
 
 	TypeToOption
+	ImplicitAs
 )
 
 func CommonType(a, b types.Type) types.Type {
@@ -222,6 +223,12 @@ func GetImplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 	if toInner := getOptionInnerType(to); !core.IsNil(toInner) {
 		if _, ok := GetImplicitCast(env, from, toInner); ok {
 			return TypeToOption, true
+		}
+	}
+
+	for _, in := range env.GetConformances(from) {
+		if in.Name == "core::ImplicitAs" && len(in.Substitutions) == 1 && in.Substitutions[0].Type.Equals(to) {
+			return ImplicitAs, true
 		}
 	}
 

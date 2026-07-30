@@ -848,25 +848,21 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) 
 		value = c.emitter.ExtractValue(value, 0)
 
 	case sema.TypeToOption:
-		t := c.types.Get(to).(ir.StructLikeType)
+		to := to.(*types.Struct)
+		toInner := to.Substitutions[0].Type
 
-		_, hasI := t.Field("has_value")
-		if hasI < 0 {
-			panic("codegen.codegen.GetOptionStructInitializer() - Failed to find 'has_value' field on 'core::Option'")
-		}
-
-		toInner := to.(*types.Struct).Substitutions[0].Type
-
-		sb := c.Struct(to.(*types.Struct))
+		sb := c.Struct(to)
 
 		sb.Set("has_value", ir.True)
-		sb.Set("value", &ir.ZeroInitializer{Typ: c.types.Get(toInner)})
+		sb.Set("value", c.ImplicitCast(value, from, toInner))
 
-		option := sb.Build()
+		return sb.Build()
 
-		value = c.ImplicitCast(value, from, toInner)
+	case sema.ImplicitAs:
+		callee, sig, fTyp := c.ResolveInterfaceMethod(from, "implicit_as", false)
+		receiver := c.ReceiverToPointer(value, from, false)
 
-		return c.emitter.InsertValue(option, value, uint32(1-hasI))
+		return c.EmitCallExpr(callee, sig, fTyp, receiver, nil, to)
 
 	default:
 		panic("codegen.codegen.Cast() - Invalid cast kind")
