@@ -198,7 +198,7 @@ func GetImplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 		}
 
 	case *types.Array:
-		if to, ok := to.(*types.Struct); ok && from.Address && (to.Name == "core::Slice" || to.Name == "core::MutSlice") && len(to.Substitutions) == 1 && to.Substitutions[0].Type.Equals(fromT.Element) {
+		if to, ok := to.(*types.Struct); ok && from.Address && (to.Name == "core::Slice" || (from.Mutable && to.Name == "core::MutSlice")) && len(to.Substitutions) == 1 && to.Substitutions[0].Type.Equals(fromT.Element) {
 			return ArrayToSlice, true
 		}
 
