@@ -99,3 +99,9 @@ impl StringView : Index[u32] {
 		return self.ptr[idx];
 	}
 }
+
+impl StringView : ImplicitAs[Slice[u8]] {
+	pub func implicit_as(self) Slice[u8] {
+		return Slice:[u8] { ptr: self.ptr, size: self.size };
+	}
+}

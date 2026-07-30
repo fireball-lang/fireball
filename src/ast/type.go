@@ -217,6 +217,33 @@ func (o *OptionType) String() string {
 
 func (o *OptionType) _isType() {}
 
+// Slice
+
+type SliceType struct {
+	baseNode
+
+	Mutable bool
+	Type    Type
+}
+
+func (s *SliceType) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(s.Type) {
+			return
+		}
+	}
+}
+
+func (s *SliceType) String() string {
+	if s.Mutable {
+		return "mut []" + s.Type.String()
+	}
+
+	return "[]" + s.Type.String()
+}
+
+func (s *SliceType) _isType() {}
+
 // Bad
 
 type BadType struct {

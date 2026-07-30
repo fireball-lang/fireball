@@ -10,6 +10,7 @@ type TypeVisitor[T any] interface {
 	VisitSelfType(s *SelfType) T
 
 	VisitOptionType(o *OptionType) T
+	VisitSliceType(s *SliceType) T
 
 	VisitBadType(b *BadType) T
 }
@@ -32,6 +33,8 @@ func VisitType[V TypeVisitor[T], T any](visitor V, typ Type) T {
 
 	case *OptionType:
 		return visitor.VisitOptionType(typ)
+	case *SliceType:
+		return visitor.VisitSliceType(typ)
 
 	case *BadType:
 		return visitor.VisitBadType(typ)

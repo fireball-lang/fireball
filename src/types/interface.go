@@ -76,7 +76,17 @@ func (i *Interface) AsImmutable() *Interface {
 }
 
 func (i *Interface) Equals(other Type) bool {
-	return i == other
+	o, ok := other.(*Interface)
+	if !ok {
+		return false
+	}
+
+	if i.Generic != nil && o.Generic != nil {
+		return i.Generic == o.Generic && substitutionsEquals(i.Substitutions, o.Substitutions)
+	}
+
+	return i == o
+
 }
 
 func (i *Interface) String() string {

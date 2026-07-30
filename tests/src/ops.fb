@@ -20,9 +20,16 @@ impl Vec2 : Index[i32] {
 	}
 }
 
-#[test("core::Index[T] - struct")]
-func indexStruct() bool {
+#[test("core::Index[T] - struct temp")]
+func indexStructTemp() bool {
 	return Vec2::new(1, 2)[1] == 2;
+}
+
+#[test("core::Index[T] - struct var")]
+func indexStructVar() bool {
+	var point = Vec2::new(1, 2);
+
+	return point[1] == 2;
 }
 
 #[test("core::Index[T] - struct pointer")]

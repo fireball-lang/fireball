@@ -22,10 +22,16 @@ func (p *parser) parseType() (ast.Type, int) {
 		if p.next.Kind == lexer.Star {
 			return p.parsePointerType()
 		}
+		if p.next.Kind == lexer.LeftBracket {
+			return p.parseSliceType()
+		}
 		return p.parseIdentifierType()
 	case lexer.Identifier:
 		return p.parseIdentifierType()
 	case lexer.LeftBracket:
+		if p.next.Kind == lexer.RightBracket {
+			return p.parseSliceType()
+		}
 		return p.parseArrayType()
 	case lexer.Star:
 		return p.parsePointerType()
@@ -248,6 +254,43 @@ func (p *parser) parseOptionType() (o *ast.OptionType, recoverId int) {
 
 	// Type
 	if o.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseSliceType() (s *ast.SliceType, recoverId int) {
+	s = &ast.SliceType{}
+	s.Range_.Start = p.current.Range.Start
+	defer func() {
+		s.Range_.End = p.previous.Range.End
+
+		if core.IsNil(s.Type) {
+			s.Type = p.badType()
+		}
+	}()
+
+	recoverId = -1
+
+	// 'mut'
+	if p.current.Kind == lexer.Mut {
+		p.advance()
+		s.Mutable = true
+	}
+
+	// '['
+	if recoverId = p.expect(lexer.LeftBracket, "expected '['"); recoverId >= 0 {
+		return
+	}
+
+	// ']'
+	if recoverId = p.expect(lexer.RightBracket, "expected ']'"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if s.Type, recoverId = p.parseType(); recoverId >= 0 {
 		return
 	}
 

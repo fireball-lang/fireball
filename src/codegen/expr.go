@@ -290,7 +290,7 @@ func (c *codegen) VisitBinary(b *ast.Binary) ir.Value {
 		typ := c.ExprType(b)
 
 		leftVal := c.emitter.Load(c.types.Get(c.UnderlyingExprType(b.Left)), ptr)
-		left := c.ImplicitCast(leftVal, c.ExprType(b.Left), typ)
+		left := c.ImplicitCast(leftVal, c.ExprInfo(b.Left), typ)
 		right := c.LoadImplicitCast(b.Right, typ)
 
 		op := b.Op.CompoundAssignBase()
@@ -496,7 +496,7 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 		return c.GetFunction(node, typ, in)
 
 	case *ast.Case:
-		typ := c.exprInfos[i].Type.(*types.Enum)
+		typ := c.ExprType(i).(*types.Enum)
 		value := typ.Cases[slices.Index(node.Parent().(*ast.Enum).Cases, node)].Value
 
 		return &ir.Integer{
@@ -691,14 +691,19 @@ func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 }
 
 func (c *codegen) VisitCast(e *ast.Cast) ir.Value {
-	value := c.Load(e.Expr)
-
-	from := c.ExprType(e.Expr)
 	to := c.ExprType(e)
 
-	kind, _ := sema.GetExplicitCast(c.typeEnv, from, to)
+	kind, _ := sema.GetExplicitCast(c.typeEnv, c.ExprInfo(e.Expr), to)
 
-	return c.Cast(value, kind, from, to)
+	// sema.ArrayToSlice
+	if kind == sema.ArrayToSlice {
+		return c.CastArrayToSlice(e.Expr, to)
+	}
+
+	// Normal
+	value := c.Load(e.Expr)
+
+	return c.Cast(value, kind, c.ExprInfo(e.Expr), to)
 }
 
 func (c *codegen) VisitBadExpr(_ *ast.BadExpr) ir.Value {
@@ -708,11 +713,24 @@ func (c *codegen) VisitBadExpr(_ *ast.BadExpr) ir.Value {
 // Utils
 
 func (c *codegen) LoadImplicitCast(expr ast.Expr, typ types.Type) ir.Value {
+	from := c.ExprInfo(expr)
+
+	kind, ok := sema.GetImplicitCast(c.typeEnv, from, typ)
+	if !ok {
+		return c.Load(expr)
+	}
+
+	// sema.ArrayToSlice
+	if kind == sema.ArrayToSlice {
+		return c.CastArrayToSlice(expr, typ)
+	}
+
+	// Normal
 	value := c.Load(expr)
-	return c.ImplicitCast(value, c.ExprType(expr), typ)
+	return c.Cast(value, kind, from, typ)
 }
 
-func (c *codegen) ImplicitCast(value ir.Value, from, to types.Type) ir.Value {
+func (c *codegen) ImplicitCast(value ir.Value, from sema.ExprInfo, to types.Type) ir.Value {
 	if kind, ok := sema.GetImplicitCast(c.typeEnv, from, to); ok {
 		value = c.Cast(value, kind, from, to)
 	}
@@ -720,7 +738,31 @@ func (c *codegen) ImplicitCast(value ir.Value, from, to types.Type) ir.Value {
 	return value
 }
 
-func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) ir.Value {
+func (c *codegen) CastArrayToSlice(expr ast.Expr, to types.Type) ir.Value {
+	from := c.ExprType(expr)
+
+	if !c.exprInfos[expr].Address {
+		panic("codegen.codegen.CastArrayToSlice() - Expression is not addressable")
+	}
+
+	s := to.(*types.Struct)
+
+	sizeField := s.Field("size")
+	if sizeField == nil {
+		panic("codegen.codegen.CastArrayToSlice() - Failed to find 'size' field on '" + from.String() + "'")
+	}
+
+	sizeTyp := c.types.Get(sizeField.Type)
+
+	sb := c.Struct(s)
+
+	sb.Set("ptr", c.GenerateExpr(expr))
+	sb.Set("size", &ir.Integer{Typ: sizeTyp, Value: core.Unsigned(false, uint64(from.(*types.Array).Size))})
+
+	return sb.Build()
+}
+
+func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, to types.Type) ir.Value {
 	if kind == sema.Noop {
 		return value
 	}
@@ -736,7 +778,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) 
 
 		case sema.IntToFloat:
 			var floatValue float64
-			if types.IsSigned(from.(*types.Primitive).Kind) {
+			if types.IsSigned(from.Type.(*types.Primitive).Kind) {
 				floatValue = float64(value.Value.Signed())
 			} else {
 				floatValue = float64(value.Value.Raw())
@@ -813,7 +855,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) 
 		value = c.emitter.Trunc(value, toTyp)
 
 	case sema.IntToFloat:
-		signed := types.IsSigned(from.(*types.Primitive).Kind)
+		signed := types.IsSigned(from.Type.(*types.Primitive).Kind)
 		value = c.emitter.IntToFp(signed, value, toTyp)
 
 	case sema.FloatToInt:
@@ -834,7 +876,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) 
 
 	case sema.PointerToInterface:
 		typ := c.types.Get(to)
-		vtable := c.GetVTable(to.(*types.Interface), from.(*types.Pointer).Pointee)
+		vtable := c.GetVTable(to.(*types.Interface), from.Type.(*types.Pointer).Pointee)
 
 		value = c.emitter.InsertValue(&ir.Struct{
 			Typ: typ,
@@ -859,10 +901,13 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from, to types.Type) 
 		return sb.Build()
 
 	case sema.ImplicitAs:
-		callee, sig, fTyp := c.ResolveInterfaceMethod(from, "implicit_as", false)
-		receiver := c.ReceiverToPointer(value, from, false)
+		callee, sig, fTyp := c.ResolveInterfaceMethod(from.Type, "implicit_as", false)
+		receiver := c.ReceiverToPointer(value, from.Type, false)
 
 		return c.EmitCallExpr(callee, sig, fTyp, receiver, nil, to)
+
+	case sema.ArrayToSlice:
+		panic("codegen.codegen.Cast() - ArrayToSlice should have been handled before calling Cast()")
 
 	default:
 		panic("codegen.codegen.Cast() - Invalid cast kind")
@@ -916,6 +961,13 @@ func (c *codegen) GetDivKind(expr ast.Expr) ir.DivKind {
 	}
 
 	return kind
+}
+
+func (c *codegen) ExprInfo(expr ast.Expr) sema.ExprInfo {
+	info := c.exprInfos[expr]
+	info.Type = c.ResolveType(info.Type)
+
+	return info
 }
 
 func (c *codegen) UnderlyingExprType(expr ast.Expr) types.Type {

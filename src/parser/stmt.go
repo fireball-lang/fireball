@@ -121,10 +121,20 @@ func (p *parser) parseVar() (v *ast.Var, recoverId int) {
 	}
 
 	// (':' Type)?
+	myRecoverId := p.pushRecoverPoint(lexer.Equal)
+
 	if p.current.Kind == lexer.Colon {
 		p.advance()
 
-		if v.Type, recoverId = p.parseType(); recoverId >= 0 {
+		v.Type, recoverId = p.parseType()
+	}
+
+	p.popRecoverPoint()
+
+	if recoverId >= 0 {
+		if recoverId == myRecoverId {
+			recoverId = -1
+		} else {
 			return
 		}
 	}

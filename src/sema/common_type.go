@@ -183,6 +183,34 @@ func (c *common) VisitOptionType(t *ast.OptionType) types.Type {
 	return symbol.Type
 }
 
+func (c *common) VisitSliceType(t *ast.SliceType) types.Type {
+	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
+		return typ
+	}
+
+	name := "Slice"
+	if t.Mutable {
+		name = "MutSlice"
+	}
+
+	path := []*ast.IdentifierEntry{
+		{
+			Name: &ast.Leaf{Token: lexer.Token{Text: "core"}},
+		},
+		{
+			Name:     &ast.Leaf{Token: lexer.Token{Text: name}},
+			TypeArgs: []ast.Type{t.Type},
+		},
+	}
+
+	symbol, ok := c.GetSymbol(path)
+	if !ok {
+		panic("sema.common.VisitSliceType() - Failed to find 'core::" + name + "'")
+	}
+
+	return symbol.Type
+}
+
 func (c *common) VisitBadType(_ *ast.BadType) types.Type {
 	return types.Invalid
 }

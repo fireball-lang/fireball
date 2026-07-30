@@ -774,7 +774,7 @@ func (a *analyzer) VisitCast(c *ast.Cast) ExprInfo {
 		return ExprInfo{Type: types.Invalid}
 	}
 
-	if _, ok := GetExplicitCast(a.typeEnv, expr.Type, to); ok {
+	if _, ok := GetExplicitCast(a.typeEnv, expr, to); ok {
 		return ExprInfo{Type: to}
 	}
 
@@ -791,7 +791,7 @@ func GetIndexMethod(typeEnv *TypeEnvironment, instantiations *types.Instantiatio
 	if param, ok := calleeType.(*types.Param); ok {
 		for _, in := range param.Constraints {
 			if in.Name == "core::Index" && len(in.Substitutions) == 1 {
-				if _, ok := GetImplicitCast(typeEnv, indexType, in.Substitutions[0].Type); ok {
+				if _, ok := GetImplicitCast(typeEnv, ExprInfo{Type: indexType}, in.Substitutions[0].Type); ok {
 					return in.InstanceMethods[0].Type
 				}
 			}
@@ -806,7 +806,7 @@ func GetIndexMethod(typeEnv *TypeEnvironment, instantiations *types.Instantiatio
 
 	for _, in := range typeEnv.GetConformances(calleeType) {
 		if in.Name == "core::Index" && len(in.Substitutions) == 1 {
-			if _, ok := GetImplicitCast(typeEnv, indexType, in.Substitutions[0].Type); ok {
+			if _, ok := GetImplicitCast(typeEnv, ExprInfo{Type: indexType}, in.Substitutions[0].Type); ok {
 				typ := calleeType
 				if s, ok := calleeType.(*types.Struct); ok && s.Generic != nil {
 					typ = s.Generic

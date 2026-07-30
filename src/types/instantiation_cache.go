@@ -40,6 +40,10 @@ func (c *InstantiationCache) Substitute(typ Type, substitutions []Substitution) 
 func (c *InstantiationCache) get(generic Type, substitutions []Substitution) Type {
 	entries := c.types[generic]
 
+	if isIdentitySubstitution(substitutions) {
+		return generic
+	}
+
 	for _, entry := range entries {
 		if substitutionsEquals(entry.substitutions, substitutions) {
 			return entry.typ
@@ -247,6 +251,16 @@ func getSubstitution(substitutions []Substitution, param *Param) Type {
 	}
 
 	return param
+}
+
+func isIdentitySubstitution(subs []Substitution) bool {
+	for _, s := range subs {
+		if p, ok := s.Type.(*Param); !ok || p != s.Param {
+			return false
+		}
+	}
+
+	return true
 }
 
 func substitutionsEquals(a, b []Substitution) bool {

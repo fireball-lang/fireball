@@ -1,0 +1,111 @@
+mod core;
+
+// Immutable
+
+pub struct Slice[T] {
+	pub ptr: *T,
+	pub size: u64,
+}
+
+impl[T] Slice[T] {
+	pub func is_empty(self) bool {
+		return self.size == 0u;
+	}
+
+	pub func first(self) ?T {
+		if (self.size == 0u) return Option:[T]::none();
+		return self.ptr[0];
+	}
+
+	pub func last(self) ?T {
+		if (self.size == 0u) return Option:[T]::none();
+		return self.ptr[self.size - 1u];
+	}
+
+	pub func slice(self, start: u64, end: u64) []T {
+		return Self {
+			ptr: &self.ptr[start],
+			size: end - start,
+		};
+	}
+
+	pub func offset(self, start: u64) []T {
+		return self.slice(start, self.size);
+	}
+}
+
+impl[T] Slice[T] : Index[u64] {
+	type Result = T;
+
+	pub func index(self, i: u64) T {
+		return self.ptr[i];
+	}
+}
+
+// Mutable
+
+pub struct MutSlice[T] {
+	pub ptr: mut *T,
+	pub size: u64,
+}
+
+impl[T] MutSlice[T] {
+	pub func is_empty(self) bool {
+		return self.size == 0u;
+	}
+
+	pub func first(self) ?T {
+		if (self.size == 0u) return Option:[T]::none();
+		return self.ptr[0];
+	}
+
+	pub func last(self) ?T {
+		if (self.size == 0u) return Option:[T]::none();
+		return self.ptr[self.size - 1u];
+	}
+
+	pub func slice(self, start: u64, end: u64) mut []T {
+		return Self {
+			ptr: &self.ptr[start],
+			size: end - start,
+		};
+	}
+
+	pub func offset(self, start: u64) mut []T {
+		return self.slice(start, self.size);
+	}
+}
+
+impl[T] MutSlice[T] {
+	pub func fill(mut self, value: T) {
+		for (var i = 0u; i < self.size; i++) {
+			self.ptr[i] = value;
+		}
+	}
+
+	pub func swap(mut self, a: u64, b: u64) {
+		var temp = self.ptr[a];
+		self.ptr[a] = self.ptr[b];
+		self.ptr[b] = temp;
+	}
+
+	pub func reverse(mut self) {
+		for (var i = 0u; i < self.size / 2u; i++) {
+			self.swap(i, self.size - 1u - i);
+		}
+	}
+}
+
+impl[T] MutSlice[T] : Index[u64] {
+	type Result = T;
+
+	pub func index(self, i: u64) T {
+		return self.ptr[i];
+	}
+}
+
+impl[T] MutSlice[T] : ImplicitAs[Slice[T]] {
+	pub func implicit_as(self) Slice[T] {
+		return Slice:[T] { ptr: self.ptr, size: self.size };
+	}
+}

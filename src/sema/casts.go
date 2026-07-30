@@ -29,6 +29,7 @@ const (
 
 	TypeToOption
 	ImplicitAs
+	ArrayToSlice
 )
 
 func CommonType(a, b types.Type) types.Type {
@@ -79,29 +80,29 @@ func CommonType(a, b types.Type) types.Type {
 	return nil
 }
 
-func GetExplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool) {
+func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKind, bool) {
 	if kind, ok := GetImplicitCast(env, from, to); ok {
 		return kind, true
 	}
 
-	switch from := from.(type) {
+	switch fromT := from.Type.(type) {
 	case *types.Primitive:
 		switch to := to.(type) {
 		case *types.Primitive:
-			if types.IsInteger(from.Kind) && types.IsInteger(to.Kind) {
-				return getCastFromToInteger(from.Kind, to.Kind)
+			if types.IsInteger(fromT.Kind) && types.IsInteger(to.Kind) {
+				return getCastFromToInteger(fromT.Kind, to.Kind)
 			}
 
-			if types.IsInteger(from.Kind) && types.IsFloating(to.Kind) {
+			if types.IsInteger(fromT.Kind) && types.IsFloating(to.Kind) {
 				return IntToFloat, true
 			}
 
-			if types.IsFloating(from.Kind) && types.IsInteger(to.Kind) {
+			if types.IsFloating(fromT.Kind) && types.IsInteger(to.Kind) {
 				return FloatToInt, true
 			}
 
-			if types.IsFloating(from.Kind) && types.IsFloating(to.Kind) {
-				fromSize := from.Kind.Size()
+			if types.IsFloating(fromT.Kind) && types.IsFloating(to.Kind) {
+				fromSize := fromT.Kind.Size()
 				toSize := to.Kind.Size()
 
 				if fromSize > toSize {
@@ -110,13 +111,13 @@ func GetExplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 			}
 
 		case *types.Pointer:
-			if from.Kind == types.U64 {
+			if fromT.Kind == types.U64 {
 				return IntToPointer, true
 			}
 
 		case *types.Enum:
-			if types.IsInteger(from.Kind) {
-				return getCastFromToInteger(from.Kind, to.CaseType.(*types.Primitive).Kind)
+			if types.IsInteger(fromT.Kind) {
+				return getCastFromToInteger(fromT.Kind, to.CaseType.(*types.Primitive).Kind)
 			}
 		}
 
@@ -139,12 +140,12 @@ func GetExplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 
 	case *types.Enum:
 		if to, ok := to.(*types.Primitive); ok && types.IsInteger(to.Kind) {
-			return getCastFromToInteger(from.CaseType.(*types.Primitive).Kind, to.Kind)
+			return getCastFromToInteger(fromT.CaseType.(*types.Primitive).Kind, to.Kind)
 		}
 
 	case *types.Interface:
-		if to, ok := to.(*types.Pointer); ok && slices.Contains(env.GetConformances(to.Pointee), from.AsImmutable()) {
-			if to.Mutable && !from.Mutable {
+		if to, ok := to.(*types.Pointer); ok && slices.Contains(env.GetConformances(to.Pointee), fromT.AsImmutable()) {
+			if to.Mutable && !fromT.Mutable {
 				break
 			}
 
@@ -155,21 +156,21 @@ func GetExplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 	return Noop, false
 }
 
-func GetImplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool) {
-	if from.Equals(to) {
+func GetImplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKind, bool) {
+	if from.Type.Equals(to) {
 		return Noop, true
 	}
 
-	switch from := from.(type) {
+	switch fromT := from.Type.(type) {
 	case *types.Primitive:
 		switch to := to.(type) {
 		case *types.Primitive:
-			if types.IsInteger(from.Kind) && types.IsInteger(to.Kind) && types.IsSigned(from.Kind) == types.IsSigned(to.Kind) {
-				fromSize := from.Kind.Size()
+			if types.IsInteger(fromT.Kind) && types.IsInteger(to.Kind) && types.IsSigned(fromT.Kind) == types.IsSigned(to.Kind) {
+				fromSize := fromT.Kind.Size()
 				toSize := to.Kind.Size()
 
 				if fromSize < toSize {
-					if types.IsSigned(from.Kind) {
+					if types.IsSigned(fromT.Kind) {
 						return SignExtend, true
 					}
 
@@ -177,8 +178,8 @@ func GetImplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 				}
 			}
 
-			if types.IsInteger(from.Kind) && types.IsFloating(to.Kind) {
-				fromSize := from.Kind.Size()
+			if types.IsInteger(fromT.Kind) && types.IsFloating(to.Kind) {
+				fromSize := fromT.Kind.Size()
 				toSize := to.Kind.Size()
 
 				if fromSize < toSize {
@@ -186,8 +187,8 @@ func GetImplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 				}
 			}
 
-			if types.IsFloating(from.Kind) && types.IsFloating(to.Kind) {
-				fromSize := from.Kind.Size()
+			if types.IsFloating(fromT.Kind) && types.IsFloating(to.Kind) {
+				fromSize := fromT.Kind.Size()
 				toSize := to.Kind.Size()
 
 				if fromSize < toSize {
@@ -196,13 +197,18 @@ func GetImplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 			}
 		}
 
+	case *types.Array:
+		if to, ok := to.(*types.Struct); ok && from.Address && (to.Name == "core::Slice" || to.Name == "core::MutSlice") && len(to.Substitutions) == 1 && to.Substitutions[0].Type.Equals(fromT.Element) {
+			return ArrayToSlice, true
+		}
+
 	case *types.Pointer:
-		if to, ok := to.(*types.Pointer); ok && (from.Pointee.Equals(to.Pointee) || to.Pointee == types.PrimitiveVoid) && (from.Mutable == to.Mutable || (from.Mutable && !to.Mutable)) {
+		if to, ok := to.(*types.Pointer); ok && (fromT.Pointee.Equals(to.Pointee) || to.Pointee == types.PrimitiveVoid) && (fromT.Mutable == to.Mutable || (fromT.Mutable && !to.Mutable)) {
 			return Noop, true
 		}
 
-		if to, ok := to.(*types.Interface); ok && slices.Contains(env.GetConformances(from.Pointee), to.AsImmutable()) {
-			if to.Mutable && !from.Mutable {
+		if to, ok := to.(*types.Interface); ok && slices.Contains(env.GetConformances(fromT.Pointee), to.AsImmutable()) {
+			if to.Mutable && !fromT.Mutable {
 				break
 			}
 
@@ -215,7 +221,7 @@ func GetImplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 		}
 
 	case *types.Interface:
-		if to, ok := to.(*types.Interface); ok && !to.Mutable && from.Mutable && from.AsImmutable() == to {
+		if to, ok := to.(*types.Interface); ok && !to.Mutable && fromT.Mutable && fromT.AsImmutable() == to {
 			return Noop, true
 		}
 	}
@@ -226,7 +232,7 @@ func GetImplicitCast(env *TypeEnvironment, from, to types.Type) (CastKind, bool)
 		}
 	}
 
-	for _, in := range env.GetConformances(from) {
+	for _, in := range env.GetConformances(from.Type) {
 		if in.Name == "core::ImplicitAs" && len(in.Substitutions) == 1 && in.Substitutions[0].Type.Equals(to) {
 			return ImplicitAs, true
 		}

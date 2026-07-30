@@ -39,7 +39,16 @@ func (s *Struct) Field(name string) *Field {
 }
 
 func (s *Struct) Equals(other Type) bool {
-	return s == other
+	o, ok := other.(*Struct)
+	if !ok {
+		return false
+	}
+
+	if s.Generic != nil && o.Generic != nil {
+		return s.Generic == o.Generic && substitutionsEquals(s.Substitutions, o.Substitutions)
+	}
+
+	return s == o
 }
 
 func (s *Struct) String() string {
