@@ -108,6 +108,8 @@ func (w *Workspace) parseFiles(files []*project.File) {
 		proj.Resolve(w.depMap, instantiations, typeEnv)
 	}
 
+	instantiations.SubstituteDependentTypes()
+
 	for _, proj := range ordered {
 		proj.Analyze(w.depMap, instantiations, typeEnv)
 	}

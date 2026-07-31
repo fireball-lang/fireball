@@ -99,6 +99,8 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*
 		proj.Resolve(depMap, instantiations, typeEnv)
 	}
 
+	instantiations.SubstituteDependentTypes()
+
 	// Analyze
 	for _, proj := range ordered {
 		proj.Analyze(depMap, instantiations, typeEnv)

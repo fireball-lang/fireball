@@ -1,10 +1,16 @@
 package types
 
-import "sync"
+import (
+	"fireball/core"
+	"sync"
+)
 
 type InstantiationCache struct {
 	types map[Type][]cacheEntry
 	mu    sync.Mutex
+
+	substituteDependentsQueue []Type
+	substituteDependentTypes  bool
 }
 
 type cacheEntry struct {
@@ -35,6 +41,18 @@ func (c *InstantiationCache) Substitute(typ Type, substitutions []Substitution) 
 	defer c.mu.Unlock()
 
 	return c.resolve(typ, substitutions)
+}
+
+func (c *InstantiationCache) SubstituteDependentTypes() {
+	defer core.Scope()()
+
+	c.substituteDependentTypes = true
+
+	for _, typ := range c.substituteDependentsQueue {
+		c.substituteDependents(typ)
+	}
+
+	c.substituteDependentsQueue = nil
 }
 
 func (c *InstantiationCache) get(generic Type, substitutions []Substitution) Type {
@@ -161,72 +179,118 @@ func (c *InstantiationCache) resolve(typ Type, substitutions []Substitution) Typ
 func (c *InstantiationCache) substitute(generic Type, substitutions []Substitution) Type {
 	switch generic := generic.(type) {
 	case *Struct:
-		fields := make([]Field, len(generic.Fields))
-
-		for i, field := range generic.Fields {
-			fields[i] = Field{
-				Name:   field.Name,
-				Type:   c.resolve(field.Type, substitutions),
-				Public: field.Public,
-			}
-		}
-
-		return &Struct{
+		s := &Struct{
 			Name:          generic.Name,
 			ModulePath:    generic.ModulePath,
 			Packed:        generic.Packed,
-			Fields:        fields,
+			Fields:        nil,
 			Generic:       generic,
 			Substitutions: substitutions,
 		}
 
+		if c.substituteDependentTypes {
+			c.substituteDependents(s)
+		} else {
+			c.substituteDependentsQueue = append(c.substituteDependentsQueue, s)
+		}
+
+		return s
+
 	case *Interface:
-		instanceMethods := make([]Method, len(generic.InstanceMethods))
-		staticMethods := make([]Method, len(generic.StaticMethods))
-
-		for i, m := range generic.InstanceMethods {
-			instanceMethods[i] = Method{
-				Name: m.Name,
-				Type: c.resolve(m.Type, substitutions).(*Func),
-			}
-		}
-
-		for i, m := range generic.StaticMethods {
-			staticMethods[i] = Method{
-				Name: m.Name,
-				Type: c.resolve(m.Type, substitutions).(*Func),
-			}
-		}
-
-		return &Interface{
+		in := &Interface{
 			Name:            generic.Name,
 			ModulePath:      generic.ModulePath,
 			SelfParam:       generic.SelfParam,
 			AssociatedTypes: generic.AssociatedTypes,
-			InstanceMethods: instanceMethods,
-			StaticMethods:   staticMethods,
+			InstanceMethods: nil,
+			StaticMethods:   nil,
 			Generic:         generic,
 			Substitutions:   substitutions,
 		}
 
-	case *Func:
-		params := make([]Type, len(generic.Params))
-
-		for i, param := range generic.Params {
-			params[i] = c.resolve(param, substitutions)
+		if c.substituteDependentTypes {
+			c.substituteDependents(in)
+		} else {
+			c.substituteDependentsQueue = append(c.substituteDependentsQueue, in)
 		}
 
-		return &Func{
-			TypeParams:    nil,
-			Params:        params,
+		return in
+
+	case *Func:
+		f := &Func{
+			Params:        nil,
 			VarArgs:       generic.VarArgs,
-			Returns:       c.resolve(generic.Returns, substitutions),
+			Returns:       nil,
 			Generic:       generic,
 			Substitutions: substitutions,
 		}
 
+		if c.substituteDependentTypes {
+			c.substituteDependents(f)
+		} else {
+			c.substituteDependentsQueue = append(c.substituteDependentsQueue, f)
+		}
+
+		return f
+
 	default:
 		panic("types.InstantiationCache.substitute() - Invalid generic type")
+	}
+}
+
+func (c *InstantiationCache) substituteDependents(typ Type) {
+	switch typ := typ.(type) {
+	case *Struct:
+		fields := make([]Field, len(typ.Generic.Fields))
+
+		for i, field := range typ.Generic.Fields {
+			fields[i] = Field{
+				Name:   field.Name,
+				Type:   c.resolve(field.Type, typ.Substitutions),
+				Public: field.Public,
+			}
+		}
+
+		typ.Fields = fields
+
+	case *Interface:
+		instanceMethods := make([]Method, len(typ.Generic.InstanceMethods))
+		staticMethods := make([]Method, len(typ.Generic.StaticMethods))
+
+		for i, m := range typ.Generic.InstanceMethods {
+			instanceMethods[i] = Method{
+				Name: m.Name,
+				Type: c.resolve(m.Type, typ.Substitutions).(*Func),
+			}
+		}
+
+		for i, m := range typ.Generic.StaticMethods {
+			staticMethods[i] = Method{
+				Name: m.Name,
+				Type: c.resolve(m.Type, typ.Substitutions).(*Func),
+			}
+		}
+
+		typ.InstanceMethods = instanceMethods
+		typ.StaticMethods = staticMethods
+
+		if v := typ.oppositeMutabilityVariant; v != nil {
+			v.InstanceMethods = instanceMethods
+			v.StaticMethods = staticMethods
+		}
+
+	case *Func:
+		params := make([]Type, len(typ.Generic.Params))
+
+		for i, param := range typ.Generic.Params {
+			params[i] = c.resolve(param, typ.Substitutions)
+		}
+
+		typ.Params = params
+		typ.Returns = c.resolve(typ.Generic.Returns, typ.Substitutions)
+
+	default:
+		panic("types.InstantiationCache.substituteDependents() - Invalid generic type")
 	}
 }
 
