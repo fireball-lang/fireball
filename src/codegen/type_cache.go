@@ -248,6 +248,10 @@ func (t *TypeCache) createStructType(typ *types.Struct) ir.Type {
 		Fields: fields,
 	}
 
+	if typ.Name == "" {
+		return &irTyp
+	}
+
 	return t.Module.NamedStruct(typ.String(), irTyp)
 }
 

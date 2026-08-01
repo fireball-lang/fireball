@@ -161,12 +161,10 @@ func (s *Struct) Type() Type {
 // Utils
 
 func IsConstant(value Value) bool {
-	switch value := value.(type) {
+	switch value.(type) {
 	case *ZeroInitializer, *Null, *Integer, *FloatV, *DoubleV, *String, *Vector, *Array, *Struct:
 		return true
-	case *GlobalVar:
-		return value.Flags&Constant != 0
-	case *Function:
+	case *GlobalVar, *Function:
 		return true
 	default:
 		return false

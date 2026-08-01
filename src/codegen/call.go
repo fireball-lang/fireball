@@ -69,12 +69,15 @@ func (c *codegen) LookupInterfaceMethod(iface *types.Interface, interfaceValue i
 		panic("codegen.codegen.LookupInterfaceMethod() - interface method not found")
 	}
 
-	vtableArrayType := &ir.ArrayType{
-		Length:  uint32(len(iface.InstanceMethods)),
-		Element: ir.Pointer,
-	}
+	vtableArrayType := &ir.StructType{Fields: []ir.Field{
+		{Name: "type_info", Type: ir.Pointer},
+		{Name: "methods", Type: &ir.ArrayType{
+			Length:  uint32(len(iface.InstanceMethods)),
+			Element: ir.Pointer,
+		}},
+	}}
 
-	funcPtrPtr := c.emitter.GetElementPtrConst(vtableArrayType, vtablePtr, 0, uint32(methodIndex))
+	funcPtrPtr := c.emitter.GetElementPtrConst(vtableArrayType, vtablePtr, 0, 1, uint32(methodIndex))
 	callee = c.emitter.Load(ir.Pointer, funcPtrPtr)
 
 	return callee, receiver

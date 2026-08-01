@@ -1,6 +1,9 @@
 package ir
 
-import "fireball/core"
+import (
+	"fireball/core"
+	"math"
+)
 
 type Emitter struct {
 	Module *Module
@@ -342,30 +345,46 @@ func (e *Emitter) Store(value, pointer Value) Instruction {
 	})
 }
 
-func (e *Emitter) GetElementPtrConst(typ Type, pointer Value, pointerIndex, elementIndex uint32) Instruction {
+func (e *Emitter) GetElementPtrConst(typ Type, pointer Value, indices ...uint32) Instruction {
 	if e.skip {
 		return dummy
 	}
 
-	return emit(e, &GetElementPtrConst{
-		Typ:          typ,
-		Pointer:      pointer,
-		PointerIndex: pointerIndex,
-		ElementIndex: elementIndex,
-	})
+	if len(indices) > 4 {
+		panic("ir.Emitter.GetElementPtrConst() - Can only have at most 4 indices")
+	}
+
+	gep := &GetElementPtrConst{
+		Typ:     typ,
+		Pointer: pointer,
+	}
+
+	copy(gep.Indices[:len(indices)], indices)
+
+	for i := len(indices); i < 4; i++ {
+		gep.Indices[i] = math.MaxUint32
+	}
+
+	return emit(e, gep)
 }
 
-func (e *Emitter) GetElementPtrDyn(typ Type, pointer, pointerIndex, elementIndex Value) Instruction {
+func (e *Emitter) GetElementPtrDyn(typ Type, pointer Value, indices ...Value) Instruction {
 	if e.skip {
 		return dummy
 	}
 
-	return emit(e, &GetElementPtrDyn{
-		Typ:          typ,
-		Pointer:      pointer,
-		PointerIndex: pointerIndex,
-		ElementIndex: elementIndex,
-	})
+	if len(indices) > 4 {
+		panic("ir.Emitter.GetElementPtrDyn() - Can only have at most 4 indices")
+	}
+
+	gep := GetElementPtrDyn{
+		Typ:     typ,
+		Pointer: pointer,
+	}
+
+	copy(gep.Indices[:len(indices)], indices)
+
+	return emit(e, &gep)
 }
 
 // Conversion instructions

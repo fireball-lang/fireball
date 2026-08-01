@@ -178,6 +178,46 @@ func testNestedDispatch() bool {
 	return result.get() == 30;
 }
 
+#[test("interface equals concrete pointer (valid)")]
+func interfaceEqualsConcreteValid() bool {
+	var c = Constant { value: 5 };
+
+	var g: Getter = &c;
+
+	return g == &c;
+}
+
+#[test("interface equals concrete pointer (invalid)")]
+func interfaceEqualsConcreteInvalid() bool {
+	var c1 = Constant { value: 5 };
+	var c2 = Constant { value: 50 };
+
+	var g: Getter = &c1;
+
+	return g != &c2;
+}
+
+#[test("interface equals interface (valid)")]
+func interfaceEqualsInterfaceteValid() bool {
+	var c = Constant { value: 5 };
+
+	var g1: Getter = &c;
+	var g2: Getter = &c;
+
+	return g1 == g2;
+}
+
+#[test("interface equals interface (invalid)")]
+func interfaceEqualsCsInterfaceInvalid() bool {
+	var c = Constant { value: 5 };
+	var b = Bit::One;
+
+	var g1: Getter = &c;
+	var g2: Getter = &b;
+
+	return g1 != g2;
+}
+
 // ── Generic interface tests ────────────────────────────────────────────────────
 
 #[test("generic interface get i32")]
@@ -351,28 +391,6 @@ func testMutableInterfaceDowngrade() bool {
 	var m: mut Mutator = &a;
 	var r: Mutator = m;
 	return r.get() == 99;
-}
-
-#[test("explicit downcast from mutable interface to mutable pointer")]
-func testMutableInterfaceDowncast() bool {
-	var a: Accumulator;
-	a.total = 5;
-
-	var m: mut Mutator = &a;
-	var ptr: mut *Accumulator = m as mut *Accumulator;
-	ptr.total = 10;
-
-	return a.total == 10;
-}
-
-#[test("explicit downcast from interface to concrete pointer")]
-func testInterfaceDowncast() bool {
-	var c: Constant;
-	c.value = 77;
-
-	var g: Getter = &c;
-	var ptr: *Constant = g as *Constant;
-	return ptr.value == 77;
 }
 
 #[test("interface method with parameter dispatches correctly")]

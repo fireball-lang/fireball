@@ -876,18 +876,123 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 
 	case sema.PointerToInterface:
 		typ := c.types.Get(to)
-		vtable := c.GetVTable(to.(*types.Interface), from.Type.(*types.Pointer).Pointee)
 
-		value = c.emitter.InsertValue(&ir.Struct{
-			Typ: typ,
-			Fields: []ir.Value{
-				&ir.Null{},
-				vtable,
-			},
-		}, value, 0)
+		if p, ok := from.Type.(*types.Pointer); ok && p.Pointee == types.PrimitiveVoid {
+			value = &ir.ZeroInitializer{Typ: typ}
+		} else {
+			// Check pointer for null
+			null := c.fun.NewBlock("ptr_to_interface.null")
+			valid := c.fun.NewBlock("ptr_to_interface.valid")
+			exit := c.fun.NewBlock("ptr_to_interface.exit")
+
+			isNull := c.emitter.ICmp(ir.Eq, false, value, &ir.Null{})
+			c.emitter.BrCond(isNull, null, valid)
+
+			// Null
+			c.emitter.Begin(null)
+			nullValue := &ir.ZeroInitializer{Typ: typ}
+			c.emitter.Br(exit)
+
+			// Valid
+			c.emitter.Begin(valid)
+
+			validValue := c.emitter.InsertValue(&ir.Struct{
+				Typ: typ,
+				Fields: []ir.Value{
+					&ir.Null{},
+					c.GetVTable(to.(*types.Interface), from.Type.(*types.Pointer).Pointee),
+				},
+			}, value, 0)
+
+			c.emitter.Br(exit)
+
+			// Exit
+			c.emitter.Begin(exit)
+			value = c.emitter.Phi(ir.PhiPair{Block: null, Value: nullValue}, ir.PhiPair{Block: valid, Value: validValue})
+		}
 
 	case sema.InterfaceToPointer:
-		value = c.emitter.ExtractValue(value, 0)
+		// Check pointer for null
+		start := c.emitter.Block()
+		valid := c.fun.NewBlock("interface_to_pointer.valid")
+		exit := c.fun.NewBlock("interface_to_pointer.exit")
+
+		dataPtr := c.emitter.ExtractValue(value, 0)
+
+		isNull := c.emitter.ICmp(ir.Eq, false, dataPtr, &ir.Null{})
+		c.emitter.BrCond(isNull, exit, valid)
+
+		// Valid
+		c.emitter.Begin(valid)
+		{
+			// Get type info pointers
+			vtablePtr := c.emitter.ExtractValue(value, 1)
+			vtableTyp := &ir.StructType{Fields: []ir.Field{{Name: "type_info", Type: ir.Pointer}}}
+
+			srcTypeInfoPtrPtr := c.emitter.GetElementPtrConst(vtableTyp, vtablePtr, 0, 0)
+			srcTypeInfoPtr := c.emitter.Load(ir.Pointer, srcTypeInfoPtrPtr)
+			targetTypeInfoPtr := c.GetTypeInfo(to.(*types.Pointer).Pointee)
+
+			// Check if pointers are the same
+			isTarget := c.emitter.ICmp(ir.Eq, false, srcTypeInfoPtr, targetTypeInfoPtr)
+
+			// Extract pointer or null
+			value = c.ExtractPointerFromInterfaceOrNull(value, isTarget)
+		}
+		valid = c.emitter.Block()
+		c.emitter.Br(exit)
+
+		// Exit
+		c.emitter.Begin(exit)
+		value = c.emitter.Phi(ir.PhiPair{Block: valid, Value: value}, ir.PhiPair{Block: start, Value: &ir.Null{}})
+
+	case sema.InterfaceToInterface:
+		// Check pointer for null
+		start := c.emitter.Block()
+		valid := c.fun.NewBlock("interface_to_pointer.valid")
+		exit := c.fun.NewBlock("interface_to_pointer.exit")
+
+		dataPtr := c.emitter.ExtractValue(value, 0)
+
+		isNull := c.emitter.ICmp(ir.Eq, false, dataPtr, &ir.Null{})
+		c.emitter.BrCond(isNull, exit, valid)
+
+		// Valid
+		c.emitter.Begin(valid)
+		{
+			// Get type info pointers
+			vtablePtr := c.emitter.ExtractValue(value, 1)
+			vtableTyp := &ir.StructType{Fields: []ir.Field{{Name: "type_info", Type: ir.Pointer}}}
+
+			srcTypeInfoPtrPtr := c.emitter.GetElementPtrConst(vtableTyp, vtablePtr, 0, 0)
+			srcTypeInfoPtr := c.emitter.Load(ir.Pointer, srcTypeInfoPtrPtr)
+			targetTypeInfoPtr := c.GetTypeInfo(to)
+
+			// Call 'src.implements(target)'
+			symbol, ok := c.typeEnv.GetInstanceMethod(c.typeInfo, "implements")
+			if !ok {
+				panic("codegen.codegen.Cast() - Failed to find 'implements' method on 'core::TypeInfo'")
+			}
+
+			f := symbol.Node.(*ast.Func)
+			typ := symbol.Type.(*types.Func)
+
+			callee := c.GetFunction(f, typ, nil)
+			sig := callee.Signature
+			c.AddSummaryCallee(f, typ, nil, true)
+			receiver := srcTypeInfoPtr
+
+			isTarget := c.EmitCall(callee, sig, typ, receiver, []ir.Value{targetTypeInfoPtr}, []types.Type{&types.Pointer{Pointee: c.typeInfo}}, types.PrimitiveBool)
+
+			// Extract pointer or null
+			value = c.ExtractPointerFromInterfaceOrNull(value, isTarget)
+		}
+		valid = c.emitter.Block()
+		c.emitter.Br(exit)
+
+		// Exit
+		c.emitter.Begin(exit)
+		value = c.emitter.Phi(ir.PhiPair{Block: valid, Value: value}, ir.PhiPair{Block: start, Value: &ir.ZeroInitializer{Typ: c.types.Get(to)}})
 
 	case sema.TypeToOption:
 		to := to.(*types.Struct)
@@ -916,17 +1021,49 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 	return value
 }
 
+func (c *codegen) ExtractPointerFromInterfaceOrNull(value, isTarget ir.Value) ir.Value {
+	start := c.emitter.Block()
+	ptr := c.fun.NewBlock("interface_check.ptr")
+	exit := c.fun.NewBlock("interface_check.exit")
+
+	c.emitter.BrCond(isTarget, ptr, exit)
+
+	// Ptr
+	c.emitter.Begin(ptr)
+	value = c.emitter.ExtractValue(value, 0)
+	c.emitter.Br(exit)
+
+	// Exit
+	c.emitter.Begin(exit)
+	return c.emitter.Phi(ir.PhiPair{Block: ptr, Value: value}, ir.PhiPair{Block: start, Value: &ir.Null{}})
+}
+
 func (c *codegen) EmitCmp(op ir.CmpOp, left, right ast.Expr) ir.Value {
 	leftType := c.ExprType(left)
 	rightType := c.ExprType(right)
 
-	common := sema.CommonType(leftType, rightType)
+	common := sema.CommonType(c.typeEnv, leftType, rightType)
 	if common == nil {
 		common = leftType
 	}
 
 	leftV := c.LoadImplicitCast(left, common)
 	rightV := c.LoadImplicitCast(right, common)
+
+	// Interface
+	if _, ok := common.(*types.Interface); ok {
+		leftPtr := leftV
+		if s, ok := leftV.Type().(*ir.RefStructType); ok && s.Name == "__interface" {
+			leftPtr = c.emitter.ExtractValue(leftV, 0)
+		}
+
+		rightPtr := rightV
+		if s, ok := rightV.Type().(*ir.RefStructType); ok && s.Name == "__interface" {
+			rightPtr = c.emitter.ExtractValue(rightV, 0)
+		}
+
+		return c.emitter.ICmp(op, false, leftPtr, rightPtr)
+	}
 
 	// Enum
 	if t, ok := common.(*types.Enum); ok {

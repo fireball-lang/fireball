@@ -314,7 +314,7 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 			return ExprInfo{Type: types.Invalid}
 		}
 
-		typ := CommonType(left, right)
+		typ := CommonType(a.typeEnv, left, right)
 		if typ == nil {
 			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left, right)
 		}
@@ -331,7 +331,7 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 			return ExprInfo{Type: types.Invalid}
 		}
 
-		typ := CommonType(left, right)
+		typ := CommonType(a.typeEnv, left, right)
 		if typ == nil {
 			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left, right)
 		}
@@ -349,12 +349,12 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 
 	// Equality
 	if op.IsEquality() {
-		if common := CommonType(left.Type, right.Type); common == nil && !left.Type.Equals(right.Type) {
+		if common := CommonType(a.typeEnv, left.Type, right.Type); common == nil && !left.Type.Equals(right.Type) {
 			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left.Type, right.Type)
 		}
 
 		switch left.Type.(type) {
-		case *types.Primitive, *types.Pointer, *types.Func, *types.Enum:
+		case *types.Primitive, *types.Pointer, *types.Func, *types.Enum, *types.Interface:
 		default:
 			return a.Error(b, "equality operators only work on primitive types, pointers, function pointers or enums, not %s", left.Type)
 		}
@@ -371,7 +371,7 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 			return ExprInfo{Type: types.Invalid}
 		}
 
-		if common := CommonType(left, right); common == nil {
+		if common := CommonType(a.typeEnv, left, right); common == nil {
 			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left, right)
 		}
 

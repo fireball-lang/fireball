@@ -9,6 +9,7 @@ import (
 	"fireball/ir/llvm"
 	"fireball/project"
 	"fireball/toolchain"
+	"fireball/types"
 	"io"
 	"os"
 	"path/filepath"
@@ -76,6 +77,8 @@ func (s *System) CompileProjectHierarchy(projMap map[string]*project.Project) ([
 		}
 	}
 
+	neededTypes := getNeededTypes(projMap)
+
 	err := core.ParallelFor(files, func(i int, file *project.File) error {
 		buildPath := filepath.Join(s.profilePath, file.Proj.Config.Name)
 
@@ -93,7 +96,7 @@ func (s *System) CompileProjectHierarchy(projMap map[string]*project.Project) ([
 		}
 
 		name := getBuildFileName(file)
-		module := codegen.Generate(file.Ast, s.target.Arch, s.target.CallConv, file.Instantiations, file.TypeEnv, fileDataMap, file.Path, s.profile.Lto)
+		module := codegen.Generate(file.Ast, s.target.Arch, s.target.CallConv, file.Instantiations, file.TypeEnv, fileDataMap, neededTypes, file.Path, s.profile.Lto)
 
 		if module.IsEmpty() {
 			return nil
@@ -109,6 +112,23 @@ func (s *System) CompileProjectHierarchy(projMap map[string]*project.Project) ([
 	})
 
 	return objFilePaths, err
+}
+
+func getNeededTypes(projMap map[string]*project.Project) codegen.Types {
+	var needed codegen.Types
+
+	proj := projMap["core"]
+	if proj == nil {
+		panic("build.getNeededTypes() - Failed to get 'core' project")
+	}
+
+	symbol, ok := proj.Module.GetSymbol("TypeInfo")
+	if !ok {
+		panic("build.getNeededTypes() - Failed to get 'core::TypeInfo' type")
+	}
+	needed.TypeInfo = symbol.Type.(*types.Struct)
+
+	return needed
 }
 
 func (s *System) CompileEntrypoint(fn EntrypointFn) (string, error) {

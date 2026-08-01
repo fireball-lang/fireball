@@ -9,12 +9,17 @@ import (
 	"fireball/types"
 	"fmt"
 	"hash/crc32"
+	"path/filepath"
 	"strings"
 )
 
 type FileData struct {
 	ExprInfos map[ast.Expr]sema.ExprInfo
 	NodeTypes map[ast.Node]types.Type
+}
+
+type Types struct {
+	TypeInfo *types.Struct
 }
 
 type pendingInstantiation struct {
@@ -32,6 +37,8 @@ type codegen struct {
 	exprInfos map[ast.Expr]sema.ExprInfo
 	nodeTypes map[ast.Node]types.Type
 	typeEnv   *sema.TypeEnvironment
+
+	typeInfo *types.Struct
 
 	scope       symbolScope
 	stringCount uint32
@@ -63,7 +70,7 @@ type codegen struct {
 	fileDataMap map[*ast.File]FileData
 }
 
-func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]FileData, path string, summary bool) *ir.Module {
+func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]FileData, neededTypes Types, path string, summary bool) *ir.Module {
 	defer core.Scope()()
 
 	module := ir.NewModule()
@@ -73,11 +80,14 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		module: module,
 		uid:    fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(path))),
 
-		arch:           arch,
-		callConv:       callConv,
-		exprInfos:      fileDataMap[file].ExprInfos,
-		nodeTypes:      fileDataMap[file].NodeTypes,
-		typeEnv:        typeEnv,
+		arch:      arch,
+		callConv:  callConv,
+		exprInfos: fileDataMap[file].ExprInfos,
+		nodeTypes: fileDataMap[file].NodeTypes,
+		typeEnv:   typeEnv,
+
+		typeInfo: neededTypes.TypeInfo,
+
 		instantiations: instantiations,
 		fileDataMap:    fileDataMap,
 
@@ -165,6 +175,43 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		}
 	}
 
+	// Type Infos
+
+	if strings.HasSuffix(filepath.ToSlash(path), "build/dependencies/core/src/reflect.fb") {
+		c.CreateTypeInfo(types.PrimitiveBool, false)
+
+		c.CreateTypeInfo(types.PrimitiveU8, false)
+		c.CreateTypeInfo(types.PrimitiveU16, false)
+		c.CreateTypeInfo(types.PrimitiveU32, false)
+		c.CreateTypeInfo(types.PrimitiveU64, false)
+
+		c.CreateTypeInfo(types.PrimitiveI8, false)
+		c.CreateTypeInfo(types.PrimitiveI16, false)
+		c.CreateTypeInfo(types.PrimitiveI32, false)
+		c.CreateTypeInfo(types.PrimitiveI64, false)
+
+		c.CreateTypeInfo(types.PrimitiveF32, false)
+		c.CreateTypeInfo(types.PrimitiveF64, false)
+	}
+
+	for _, decl := range file.Decls {
+		if decl, ok := decl.(*ast.Interface); ok && !c.HasTypeParams(decl) {
+			c.CreateTypeInfo(c.nodeTypes[decl], false)
+		}
+	}
+
+	for _, decl := range file.Decls {
+		switch decl := decl.(type) {
+		case *ast.Enum:
+			c.CreateTypeInfo(c.nodeTypes[decl], false)
+
+		case *ast.Struct:
+			if !c.HasTypeParams(decl) {
+				c.CreateTypeInfo(c.nodeTypes[decl], false)
+			}
+		}
+	}
+
 	// V-Tables
 
 	for _, decl := range file.Decls {
@@ -243,15 +290,32 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 
 // Utils
 
-func (c *codegen) HasTypeParams(f *ast.Func) bool {
-	typ := c.nodeTypes[f].(*types.Func)
+func (c *codegen) HasTypeParams(decl ast.Decl) bool {
+	switch decl := decl.(type) {
+	case *ast.Struct:
+		typ := c.nodeTypes[decl].(*types.Struct)
 
-	if len(typ.TypeParams) > 0 || typ.Generic != nil {
-		return true
-	}
+		if len(typ.TypeParams) > 0 || typ.Generic != nil {
+			return true
+		}
 
-	if impl, ok := f.Parent().(*ast.Impl); ok && len(impl.TypeParams) > 0 {
-		return true
+	case *ast.Interface:
+		typ := c.nodeTypes[decl].(*types.Interface)
+
+		if len(typ.TypeParams) > 0 || typ.Generic != nil {
+			return true
+		}
+
+	case *ast.Func:
+		typ := c.nodeTypes[decl].(*types.Func)
+
+		if len(typ.TypeParams) > 0 || typ.Generic != nil {
+			return true
+		}
+
+		if impl, ok := decl.Parent().(*ast.Impl); ok && len(impl.TypeParams) > 0 {
+			return true
+		}
 	}
 
 	return false
@@ -486,96 +550,4 @@ func (c *codegen) Alloca(typ ir.Type, name string) ir.Value {
 
 	c.emitter.Begin(prevBlock)
 	return ptr
-}
-
-// Struct Builder
-
-type structBuilder struct {
-	c *codegen
-	s *types.Struct
-
-	fields map[string]ir.Value
-}
-
-func (c *codegen) Struct(s *types.Struct) structBuilder {
-	return structBuilder{
-		c:      c,
-		s:      s,
-		fields: make(map[string]ir.Value),
-	}
-}
-
-func (sb *structBuilder) Set(name string, value ir.Value) {
-	sb.fields[name] = value
-}
-
-func (sb *structBuilder) Build() ir.Value {
-	// Constants
-	constantCount := 0
-
-	for _, value := range sb.fields {
-		if ir.IsConstant(value) {
-			constantCount++
-		}
-	}
-
-	typ := sb.c.types.Get(sb.s).(ir.StructLikeType)
-
-	var fields []ir.Value
-	if constantCount > 0 {
-		fields = make([]ir.Value, len(sb.s.Fields))
-	}
-
-	structInit := &ir.Struct{
-		Typ:    typ,
-		Fields: fields,
-	}
-
-	for name, value := range sb.fields {
-		if ir.IsConstant(value) {
-			_, i := typ.Field(name)
-			if i < 0 {
-				panic("codegen.structBuilder.Build() - Failed to find field '" + name + "' on type '" + sb.s.String() + "'")
-			}
-
-			structInit.Fields[i] = value
-		}
-	}
-
-	if constantCount == len(sb.s.Fields) {
-		return structInit
-	}
-
-	// Runtime
-	if sb.c.fun == nil {
-		panic("codegen.structBuilder.Builder() - Tried to build a struct outside of a function with runtime values")
-	}
-
-	var structValue ir.Value
-
-	if constantCount == 0 {
-		structValue = &ir.ZeroInitializer{Typ: typ}
-	} else {
-		for _, field := range sb.s.Fields {
-			if value, ok := sb.fields[field.Name]; !ok || !ir.IsConstant(value) {
-				fieldTyp, i := typ.Field(field.Name)
-				structInit.Fields[i] = &ir.ZeroInitializer{Typ: fieldTyp}
-			}
-		}
-
-		structValue = structInit
-	}
-
-	for name, value := range sb.fields {
-		if !ir.IsConstant(value) {
-			_, i := typ.Field(name)
-			if i < 0 {
-				panic("codegen.structBuilder.Build() - Failed to find field '" + name + "' on type '" + sb.s.String() + "'")
-			}
-
-			structValue = sb.c.emitter.InsertValue(structValue, value, uint32(i))
-		}
-	}
-
-	return structValue
 }

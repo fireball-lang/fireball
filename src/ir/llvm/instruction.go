@@ -3,6 +3,7 @@ package llvm
 import (
 	"fireball/core"
 	"fireball/ir"
+	"math"
 )
 
 func (w *writer) instruction(in ir.Instruction) {
@@ -142,21 +143,23 @@ func (w *writer) instruction(in ir.Instruction) {
 		w.typ(in.Typ)
 		w.string(", ")
 		w.typValue(in.Pointer)
-		w.string(", i32 ")
-		w.uint(uint64(in.PointerIndex), 10)
-		w.string(", i32 ")
-		w.uint(uint64(in.ElementIndex), 10)
+		for _, index := range in.Indices {
+			if index != math.MaxUint32 {
+				w.string(", i32 ")
+				w.uint(uint64(index), 10)
+			}
+		}
 
 	case *ir.GetElementPtrDyn:
 		w.string("getelementptr ")
 		w.typ(in.Typ)
 		w.string(", ")
 		w.typValue(in.Pointer)
-		w.string(", ")
-		w.typValue(in.PointerIndex)
-		if !core.IsNil(in.ElementIndex) {
-			w.string(", ")
-			w.typValue(in.ElementIndex)
+		for _, index := range in.Indices {
+			if !core.IsNil(index) {
+				w.string(", ")
+				w.typValue(index)
+			}
 		}
 
 	// Conversion instructions

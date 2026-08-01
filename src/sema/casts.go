@@ -26,13 +26,14 @@ const (
 
 	PointerToInterface
 	InterfaceToPointer
+	InterfaceToInterface
 
 	TypeToOption
 	ImplicitAs
 	ArrayToSlice
 )
 
-func CommonType(a, b types.Type) types.Type {
+func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
 	switch a := a.(type) {
 	case *types.Primitive:
 		switch b := b.(type) {
@@ -66,6 +67,15 @@ func CommonType(a, b types.Type) types.Type {
 			if a.Pointee == types.PrimitiveVoid {
 				return a
 			}
+
+		case *types.Interface:
+			if a.Pointee == types.PrimitiveVoid || slices.Contains(env.GetConformances(a.Pointee), b.AsImmutable()) {
+				common := b.AsImmutable()
+				if a.Mutable {
+					common = b.AsMutable()
+				}
+				return common
+			}
 		}
 
 	case *types.Func:
@@ -73,6 +83,18 @@ func CommonType(a, b types.Type) types.Type {
 		case *types.Pointer:
 			if b.Pointee == types.PrimitiveVoid {
 				return b
+			}
+		}
+
+	case *types.Interface:
+		switch b := b.(type) {
+		case *types.Pointer:
+			if b.Pointee == types.PrimitiveVoid || slices.Contains(env.GetConformances(b.Pointee), a.AsImmutable()) {
+				common := a.AsImmutable()
+				if b.Mutable {
+					common = a.AsMutable()
+				}
+				return common
 			}
 		}
 	}
@@ -144,12 +166,22 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 		}
 
 	case *types.Interface:
-		if to, ok := to.(*types.Pointer); ok && slices.Contains(env.GetConformances(to.Pointee), fromT.AsImmutable()) {
-			if to.Mutable && !fromT.Mutable {
+		switch to := to.(type) {
+		case *types.Pointer:
+			if slices.Contains(env.GetConformances(to.Pointee), fromT.AsImmutable()) {
+				if !fromT.Mutable && to.Mutable {
+					break
+				}
+
+				return InterfaceToPointer, true
+			}
+
+		case *types.Interface:
+			if !fromT.Mutable && to.Mutable {
 				break
 			}
 
-			return InterfaceToPointer, true
+			return InterfaceToInterface, true
 		}
 	}
 
@@ -203,16 +235,20 @@ func GetImplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 		}
 
 	case *types.Pointer:
-		if to, ok := to.(*types.Pointer); ok && (fromT.Pointee.Equals(to.Pointee) || to.Pointee == types.PrimitiveVoid) && (fromT.Mutable == to.Mutable || (fromT.Mutable && !to.Mutable)) {
-			return Noop, true
-		}
-
-		if to, ok := to.(*types.Interface); ok && slices.Contains(env.GetConformances(fromT.Pointee), to.AsImmutable()) {
-			if to.Mutable && !fromT.Mutable {
-				break
+		switch to := to.(type) {
+		case *types.Pointer:
+			if (fromT.Pointee.Equals(to.Pointee) || to.Pointee == types.PrimitiveVoid) && (fromT.Mutable == to.Mutable || (fromT.Mutable && !to.Mutable)) {
+				return Noop, true
 			}
 
-			return PointerToInterface, true
+		case *types.Interface:
+			if fromT.Pointee == types.PrimitiveVoid || slices.Contains(env.GetConformances(fromT.Pointee), to.AsImmutable()) {
+				if to.Mutable && !fromT.Mutable {
+					break
+				}
+
+				return PointerToInterface, true
+			}
 		}
 
 	case *types.Func:

@@ -82,3 +82,24 @@ func (c *codegen) GetSummaryRef(name string, variable bool) ir.SummaryRef {
 
 	return ref
 }
+
+func (c *codegen) CollectSummaryRefs(refs []ir.SummaryRef, value ir.Value) []ir.SummaryRef {
+	switch value := value.(type) {
+	case *ir.GlobalVar:
+		refs = append(refs, c.GetSummaryRef(value.Name, true))
+	case *ir.Function:
+		refs = append(refs, c.GetSummaryRef(value.Name, false))
+
+	case *ir.Array:
+		for _, element := range value.Elements {
+			refs = c.CollectSummaryRefs(refs, element)
+		}
+
+	case *ir.Struct:
+		for _, field := range value.Fields {
+			refs = c.CollectSummaryRefs(refs, field)
+		}
+	}
+
+	return refs
+}

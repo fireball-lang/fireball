@@ -1,0 +1,15 @@
+mod core;
+
+pub struct TypeInfo {
+	implements: Slice[*TypeInfo],
+}
+
+impl TypeInfo {
+	pub func implements(self, other: *TypeInfo) bool {
+		for (var i = 0u; i < self.implements.size; i++) {
+			if (self.implements[i] == other) return true;
+		}
+
+		return false;
+	}
+}

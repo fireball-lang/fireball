@@ -1,0 +1,154 @@
+mod tests::interfaces::casts;
+
+// Types
+
+interface Animal {
+	func get(self) i32;
+	func set(mut self, foo: i32);
+}
+
+interface Foo {}
+
+struct Dog {
+	foo: i32,
+}
+
+impl Dog : Animal {
+	func get(self) i32 { return self.foo; }
+	func set(mut self, foo: i32) { self.foo = foo; }
+}
+
+struct Cat {
+	foo: i32,
+}
+
+impl Cat : Animal {
+	func get(self) i32 { return self.foo; }
+	func set(mut self, foo: i32) { self.foo = foo; }
+}
+
+impl Cat : Foo {}
+
+// Tests
+
+#[test("concrete -> interface")]
+func concreteToInterface() bool {
+	var cat = Cat { foo: 5 };
+
+	var animal: Animal = &cat;
+
+	return animal.get() == 5;
+}
+
+#[test("concrete -> interface (null)")]
+func concreteToInterfaceNull() bool {
+	var cat: *Cat = null;
+
+	var animal: Animal = cat;
+
+	return animal == null;
+}
+
+#[test("mut concrete -> mut interface")]
+func mutConcreteToMutInterface() bool {
+	var cat = Cat { foo: 5 };
+
+	var animal: mut Animal = &cat;
+	animal.set(6);
+
+	return cat.foo == 6;
+}
+
+#[test("interface -> concrete (valid)")]
+func interfaceToConcreteValid() bool {
+	var cat1 = Cat { foo: 5 };
+
+	var animal: Animal = &cat1;
+	var cat2 = animal as *Cat;
+
+	return cat2 != null;
+}
+
+#[test("mut interface -> mut concrete (valid)")]
+func muInterfaceToMutConcreteValid() bool {
+	var cat1 = Cat { foo: 5 };
+
+	var animal: mut Animal = &cat1;
+	var cat2 = animal as mut *Cat;
+
+	return cat2 != null;
+}
+
+#[test("interface -> concrete (invalid)")]
+func interfaceToConcreteInvalid() bool {
+	var cat1 = Cat { foo: 5 };
+
+	var animal: Animal = &cat1;
+	var cat2 = animal as *Dog;
+
+	return cat2 == null;
+}
+
+#[test("interface -> concrete (invalid, null literal)")]
+func interfaceToConcreteInvalidNullLiteral() bool {
+	var animal: Animal = null;
+	var cat2 = animal as *Dog;
+
+	return cat2 == null;
+}
+
+#[test("interface -> concrete (invalid, null)")]
+func interfaceToConcreteInvalidNull() bool {
+	var cat1: *Cat = null;
+	var animal: Animal = cat1;
+	var cat2 = animal as *Dog;
+
+	return cat2 == null;
+}
+
+#[test("mut interface -> mut concrete (invalid)")]
+func mutInterfaceToMutConcreteInvalid() bool {
+	var cat1 = Cat { foo: 5 };
+
+	var animal: mut Animal = &cat1;
+	var cat2 = animal as mut *Dog;
+
+	return cat2 == null;
+}
+
+#[test("interface -> interface (valid)")]
+func interfaceToInterfaceValid() bool {
+	var cat = Cat { foo: 5 };
+
+	var animal: Animal = &cat;
+	var foo = animal as Foo;
+
+	return foo != null;
+}
+
+#[test("interface -> interface (invalid)")]
+func interfaceToInterfaceInvalid() bool {
+	var dog = Dog { foo: 5 };
+
+	var animal: Animal = &dog;
+	var foo = animal as Foo;
+
+	return foo == null;
+}
+
+#[test("interface -> interface (null, literal)")]
+func interfaceToInterfaceNullLiteral() bool {
+	var animal: Animal = null;
+	var foo = animal as Foo;
+
+	return foo == null;
+}
+
+#[test("interface -> interface (null)")]
+func interfaceToInterfaceNull() bool {
+	var cat: *Cat = null;
+	var animal: Animal = cat;
+	var foo = animal as Foo;
+
+	return foo == null;
+}

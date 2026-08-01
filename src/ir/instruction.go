@@ -320,8 +320,7 @@ type GetElementPtrConst struct {
 	Typ     Type
 	Pointer Value
 
-	PointerIndex uint32
-	ElementIndex uint32
+	Indices [4]uint32
 }
 
 func (g *GetElementPtrConst) Type() Type {
@@ -334,8 +333,7 @@ type GetElementPtrDyn struct {
 	Typ     Type
 	Pointer Value
 
-	PointerIndex Value
-	ElementIndex Value
+	Indices [4]Value
 }
 
 func (g *GetElementPtrDyn) Type() Type {
