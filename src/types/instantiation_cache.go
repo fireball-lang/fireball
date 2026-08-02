@@ -109,6 +109,9 @@ func (c *InstantiationCache) resolve(typ Type, substitutions []Substitution) Typ
 			Element: element,
 		}
 
+	case *Enum:
+		return typ
+
 	case *Struct:
 		if typ.Generic != nil {
 			return c.getRemapped(typ.Generic, typ.Substitutions, substitutions)
