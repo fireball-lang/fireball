@@ -194,6 +194,10 @@ func (c *codegen) EmitCall(callee ir.Value, sig *ir.Signature, funcType *types.F
 	}
 
 	// Call
+	if !ir.IsConstant(callee) {
+		c.funDoesIndirectDispatch = true
+	}
+
 	value := c.emitter.Call(sig, callee, finalArgs)
 
 	// Return

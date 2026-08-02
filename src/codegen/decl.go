@@ -103,6 +103,7 @@ func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 
 	c.fun = fun
 	c.funcTyp = typ
+	c.funDoesIndirectDispatch = false
 
 	c.GenerateStmt(f.Body)
 	c.emitter.Ret(nil)
@@ -118,11 +119,15 @@ func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 	c.scope.Pop()
 
 	// Summary
-	if ref, ok := c.functionSummaries[f]; ok {
+	if ref, ok := c.functionSummaries[fun.Name]; ok {
 		funSum := c.module.GetSummary(ref).(*ir.FunctionSummary)
 
 		for _, block := range fun.Blocks {
 			funSum.InstructionCount += block.InstructionCount
+		}
+
+		if c.funDoesIndirectDispatch {
+			funSum.Flags |= ir.FuncHasUnknownCall
 		}
 
 		funSum.Calls = c.summaryCalls
@@ -269,7 +274,7 @@ func (c *codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool, in 
 			Flags: ir.FuncNoUnwind,
 		})
 
-		c.functionSummaries[f] = ref
+		c.functionSummaries[fun.Name] = ref
 	}
 
 	return fun

@@ -289,7 +289,7 @@ func testEntrypoint(projMap map[string]*project.Project, module *ir.Module, fun 
 			ImportType:          ir.ImportDefinition,
 		},
 		InstructionCount: emitter.Block().InstructionCount,
-		Flags:            ir.FuncNoInline | ir.FuncNoUnwind,
+		Flags:            ir.FuncNoInline | ir.FuncNoUnwind | ir.FuncHasUnknownCall,
 		Calls:            mainSummaryCalls,
 		Refs: []ir.SummaryRef{module.AddSummary(&ir.VariableSummary{
 			Module: moduleRef,

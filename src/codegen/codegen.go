@@ -50,13 +50,14 @@ type codegen struct {
 	unitRef ir.MetaRef
 
 	moduleSummaryRef  ir.SummaryRef
-	functionSummaries map[*ast.Func]ir.SummaryRef
+	functionSummaries map[string]ir.SummaryRef
 
-	fun           *ir.Function
-	funcTyp       *types.Func // type of the function currently being generated
-	substitutions []types.Substitution
-	returnPtr     ir.Value
-	bVariables    *ir.Block
+	fun                     *ir.Function
+	funcTyp                 *types.Func // type of the function currently being generated
+	funDoesIndirectDispatch bool
+	substitutions           []types.Substitution
+	returnPtr               ir.Value
+	bVariables              *ir.Block
 
 	bLoopBreak    *ir.Block
 	bLoopContinue *ir.Block
@@ -141,7 +142,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 			Hash: [5]uint32{},
 		})
 
-		c.functionSummaries = make(map[*ast.Func]ir.SummaryRef)
+		c.functionSummaries = make(map[string]ir.SummaryRef)
 	}
 
 	// Function / Global Var declarations
@@ -535,7 +536,7 @@ func (c *codegen) BitCast(value ir.Value, typ ir.Type) ir.Value {
 	}
 
 	// Store + Load
-	ptr := c.Alloca(typ, "bitcast")
+	ptr := c.Alloca(value.Type(), "bitcast")
 	c.emitter.Store(value, ptr)
 
 	return c.emitter.Load(typ, ptr)
