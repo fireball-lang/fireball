@@ -38,9 +38,9 @@ func getTypeForClass(class abi.Class, size uint32) ir.Type {
 			return ir.I8
 		case 2:
 			return ir.I16
-		case 4:
+		case 3, 4:
 			return ir.I32
-		case 8:
+		case 5, 6, 7, 8:
 			return ir.I64
 
 		default:
