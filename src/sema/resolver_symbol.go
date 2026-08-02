@@ -174,6 +174,8 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 			}
 		}
 
+		inType.CopyMethodsToOppositeMutabilityVariant()
+
 	case symbols.Var:
 		g := symbol.Node.(*ast.GlobalVar)
 

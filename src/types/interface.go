@@ -75,6 +75,13 @@ func (i *Interface) AsImmutable() *Interface {
 	return i.oppositeMutabilityVariant
 }
 
+func (i *Interface) CopyMethodsToOppositeMutabilityVariant() {
+	if variant := i.oppositeMutabilityVariant; variant != nil {
+		variant.InstanceMethods = i.InstanceMethods
+		variant.StaticMethods = i.StaticMethods
+	}
+}
+
 func (i *Interface) Equals(other Type) bool {
 	o, ok := other.(*Interface)
 	if !ok {
