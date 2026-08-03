@@ -15,7 +15,7 @@ func (p *ParamScope) GetScope(_ string) (Scope, bool) {
 	return nil, false
 }
 
-func (p *ParamScope) GetSymbol(name string) (Symbol, bool) {
+func (p *ParamScope) GetSymbol(_ Domain, name string) (Symbol, bool) {
 	for i, param := range p.Params {
 		var n string
 		if i < len(p.Names) {

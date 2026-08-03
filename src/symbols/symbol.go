@@ -19,6 +19,26 @@ const (
 	Var
 )
 
+func (k Kind) Domain() Domain {
+	switch k {
+	case Invalid:
+		return 0
+	case Struct, Enum, Interface, TypeParam:
+		return Type
+	case Func:
+		return Function
+	case Var, Param, Case:
+		return Variable
+
+	default:
+		panic("symbols.Kind.Domain() - Invalid Kind")
+	}
+}
+
+func (k Kind) IsInDomain(domain Domain) bool {
+	return domain&k.Domain() != 0
+}
+
 type Symbol struct {
 	Kind Kind
 

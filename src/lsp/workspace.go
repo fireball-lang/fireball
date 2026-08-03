@@ -95,12 +95,21 @@ func (w *Workspace) removeWatchers(s *Server) {
 }
 
 func (w *Workspace) parseFiles(files []*project.File) {
+	defer core.Scope()()
+
+	// Order projects by dependency (dependencies before dependents)
 	ordered := project.OrderProjects(w.projMap, w.depMap)
 
+	// Parse
 	for _, proj := range ordered {
 		proj.Parse(files, w.server.Env)
 	}
 
+	for _, proj := range ordered {
+		proj.Module.CheckCollisions()
+	}
+
+	// Resolve
 	instantiations := types.NewInstantiationCache()
 	typeEnv := sema.NewTypeEnvironment(instantiations)
 
@@ -110,6 +119,10 @@ func (w *Workspace) parseFiles(files []*project.File) {
 
 	instantiations.SubstituteDependentTypes()
 
+	// Check type-local collisions
+	project.CheckTypeLocalCollisions(w.projMap, typeEnv)
+
+	// Analyze
 	for _, proj := range ordered {
 		proj.Analyze(w.depMap, instantiations, typeEnv)
 	}

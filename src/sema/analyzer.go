@@ -64,7 +64,7 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 
 	// Core
 
-	stringViewSymbol, ok := a.GetSymbol([]*ast.IdentifierEntry{
+	stringViewSymbol, ok := a.GetSymbol(symbols.Type, []*ast.IdentifierEntry{
 		{Name: &ast.Leaf{Token: lexer.Token{Text: "core"}}},
 		{Name: &ast.Leaf{Token: lexer.Token{Text: "StringView"}}},
 	})

@@ -83,12 +83,16 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*
 		return nil, nil, err
 	}
 
-	// Order projects by dependency (dependencies before dependents).
+	// Order projects by dependency (dependencies before dependents)
 	ordered := project.OrderProjects(projMap, depMap)
 
 	// Parse
 	for _, proj := range ordered {
 		proj.Parse(nil, env)
+	}
+
+	for _, proj := range ordered {
+		proj.Module.CheckCollisions()
 	}
 
 	// Resolve
@@ -100,6 +104,9 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*
 	}
 
 	instantiations.SubstituteDependentTypes()
+
+	// Check type-local collisions
+	project.CheckTypeLocalCollisions(projMap, typeEnv)
 
 	// Analyze
 	for _, proj := range ordered {

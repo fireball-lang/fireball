@@ -241,13 +241,13 @@ func sum(a: i32, b: i32) i32 {
 
 #[test("implicit: func -> *void (var)")]
 func testImplicitFuncToVoidPtrVar() bool {
-    var f: *void = sum;
+    var f: *void = sum as func(i32, i32) i32;
     return f != null;
 }
 
 #[test("explicit: func -> *void")]
 func testExplicitFuncToVoidPtr() bool {
-    var f: *void = sum as *void;
+    var f: *void = sum as func(i32, i32) i32 as *void;
     return f != null;
 }
 
@@ -259,7 +259,7 @@ func testExplicitFuncToFunc() bool {
 
 #[test("explicit: *void -> func")]
 func testExplicitVoidPtrToFunc() bool {
-    var p: *void = sum;
+    var p: *void = sum as func(i32, i32) i32;
     var f = p as func(i32, i32) i32;
     return f(2, 3) == 5;
 }

@@ -90,7 +90,7 @@ func (c *common) VisitFuncType(t *ast.FuncType) types.Type {
 
 func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
 	// Get symbol for path
-	symbol, ok := c.GetSymbol(t.Path)
+	symbol, ok := c.GetSymbol(symbols.Type, t.Path)
 	if !ok {
 		return types.Invalid
 	}
@@ -175,7 +175,7 @@ func (c *common) VisitOptionType(t *ast.OptionType) types.Type {
 		},
 	}
 
-	symbol, ok := c.GetSymbol(path)
+	symbol, ok := c.GetSymbol(symbols.Type, path)
 	if !ok {
 		panic("sema.common.VisitOptionType() - Failed to find 'core::Option'")
 	}
@@ -203,7 +203,7 @@ func (c *common) VisitSliceType(t *ast.SliceType) types.Type {
 		},
 	}
 
-	symbol, ok := c.GetSymbol(path)
+	symbol, ok := c.GetSymbol(symbols.Type, path)
 	if !ok {
 		panic("sema.common.VisitSliceType() - Failed to find 'core::" + name + "'")
 	}

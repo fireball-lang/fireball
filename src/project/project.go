@@ -176,6 +176,6 @@ func (r *rootScope) GetScope(name string) (symbols.Scope, bool) {
 	return nil, false
 }
 
-func (r *rootScope) GetSymbol(name string) (symbols.Symbol, bool) {
-	return r.core.GetSymbol(name)
+func (r *rootScope) GetSymbol(domain symbols.Domain, name string) (symbols.Symbol, bool) {
+	return r.core.GetSymbol(domain, name)
 }

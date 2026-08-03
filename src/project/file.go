@@ -25,7 +25,8 @@ type File struct {
 	Ast              *ast.File
 	parseDiagnostics []core.Diagnostic
 
-	Symbols []symbols.Symbol
+	Symbols              []symbols.Symbol
+	collisionDiagnostics []core.Diagnostic
 
 	resolveDiagnostics []core.Diagnostic
 
@@ -91,6 +92,11 @@ func (f *File) Diagnostics() iter.Seq[core.Diagnostic] {
 		}
 
 		for _, diagnostic := range f.parseDiagnostics {
+			if !process(diagnostic) {
+				return
+			}
+		}
+		for _, diagnostic := range f.collisionDiagnostics {
 			if !process(diagnostic) {
 				return
 			}

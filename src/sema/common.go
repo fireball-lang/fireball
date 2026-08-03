@@ -102,7 +102,7 @@ func (c *common) GetImportsScope(root symbols.Scope, file *ast.File) symbols.Sco
 		}
 
 		for _, name := range i.Symbols {
-			symbol, ok := importScope.GetSymbol(name.Token.Text)
+			symbol, ok := importScope.GetSymbol(symbols.Type|symbols.Variable|symbols.Function, name.Token.Text)
 			if !ok {
 				c.Error(name, "symbol '%s' cannot be found", name.Token.Text)
 				continue
@@ -121,7 +121,7 @@ func (c *common) GetImportsScope(root symbols.Scope, file *ast.File) symbols.Sco
 	return scope
 }
 
-func (c *common) GetSymbol(entries []*ast.IdentifierEntry) (symbols.Symbol, bool) {
+func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry) (symbols.Symbol, bool) {
 	if len(entries) == 0 {
 		return symbols.Symbol{}, false
 	}
@@ -166,7 +166,7 @@ func (c *common) GetSymbol(entries []*ast.IdentifierEntry) (symbols.Symbol, bool
 		}
 
 		// Type
-		if symbol, ok := scope.GetSymbol(name); ok {
+		if symbol, ok := scope.GetSymbol(symbols.Type, name); ok {
 			c.nodeTypes[entry] = symbol.Type
 
 			// Type scope
@@ -217,7 +217,7 @@ func (c *common) GetSymbol(entries []*ast.IdentifierEntry) (symbols.Symbol, bool
 
 	// Resolve symbol
 	entry := entries[len(entries)-1]
-	symbol, ok := scope.GetSymbol(entry.Name.Token.Text)
+	symbol, ok := scope.GetSymbol(domain, entry.Name.Token.Text)
 
 	if !ok {
 		c.Error(entry, "symbol '%s' cannot be found", entry.Name.Token.Text)

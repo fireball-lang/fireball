@@ -36,7 +36,6 @@ impl Counter {
     }
 }
 
-
 // ── static method tests ────────────────────────────────────────────────────────
 
 #[test("static constructor")]

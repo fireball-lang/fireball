@@ -23,7 +23,7 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 	a.CheckAttributes(s.Attributes(), structAllowedAttributes)
 
 	// Type
-	symbol, _ := a.scopes.GetSymbol(s.Name().Token.Text)
+	symbol, _ := a.scopes.GetSymbol(symbols.Type, s.Name().Token.Text)
 
 	typ := symbol.Type.(*types.Struct)
 	a.nodeTypes[s] = typ
@@ -58,7 +58,7 @@ func (a *analyzer) VisitEnum(e *ast.Enum) {
 	a.CheckAttributes(e.Attributes(), enumAllowedAttributes)
 
 	// Type
-	symbol, _ := a.scopes.GetSymbol(e.Name().Token.Text)
+	symbol, _ := a.scopes.GetSymbol(symbols.Type, e.Name().Token.Text)
 
 	typ := symbol.Type.(*types.Enum)
 	a.nodeTypes[e] = typ
@@ -68,6 +68,10 @@ func (a *analyzer) VisitEnum(e *ast.Enum) {
 	values := make(map[core.Integer]any)
 
 	for i, c := range typ.Cases {
+		if i >= len(e.Cases) {
+			break
+		}
+
 		node := e.Cases[i].Value
 		if node == nil {
 			node = e.Cases[i].Name
@@ -94,7 +98,7 @@ func (a *analyzer) VisitInterface(i *ast.Interface) {
 	a.CheckAttributes(i.Attributes(), interfaceAllowedAttributes)
 
 	// Type
-	symbol, _ := a.scopes.GetSymbol(i.Name().Token.Text)
+	symbol, _ := a.scopes.GetSymbol(symbols.Type, i.Name().Token.Text)
 
 	typ := symbol.Type.(*types.Interface)
 	a.nodeTypes[i] = typ
@@ -396,7 +400,7 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	extern := ast.GetAttribute[*ast.Extern](f) != nil
 
 	// Type
-	symbol, _ := a.scopes.GetSymbol(f.Name().Token.Text)
+	symbol, _ := a.scopes.GetSymbol(symbols.Function, f.Name().Token.Text)
 
 	typ := symbol.Type.(*types.Func)
 	a.nodeTypes[f] = typ

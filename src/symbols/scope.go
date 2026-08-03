@@ -1,8 +1,16 @@
 package symbols
 
+type Domain uint8
+
+const (
+	Type Domain = 1 << iota
+	Variable
+	Function
+)
+
 type Scope interface {
 	GetScope(name string) (Scope, bool)
-	GetSymbol(name string) (Symbol, bool)
+	GetSymbol(domain Domain, name string) (Symbol, bool)
 }
 
 // Symbol
@@ -13,9 +21,9 @@ func (s SymbolScope) GetScope(_ string) (Scope, bool) {
 	return nil, false
 }
 
-func (s SymbolScope) GetSymbol(name string) (Symbol, bool) {
+func (s SymbolScope) GetSymbol(domain Domain, name string) (Symbol, bool) {
 	for _, symbol := range s {
-		if symbol.Name == name {
+		if symbol.Kind.IsInDomain(domain) && symbol.Name == name {
 			return symbol, true
 		}
 	}
@@ -55,9 +63,9 @@ func (b *BasicScope) GetScope(name string) (Scope, bool) {
 	return scope, ok
 }
 
-func (b *BasicScope) GetSymbol(name string) (Symbol, bool) {
+func (b *BasicScope) GetSymbol(domain Domain, name string) (Symbol, bool) {
 	for _, symbol := range b.symbols {
-		if symbol.Name == name {
+		if symbol.Kind.IsInDomain(domain) && symbol.Name == name {
 			return symbol, true
 		}
 	}
@@ -95,9 +103,9 @@ func (s *ScopeStack) GetScope(name string) (Scope, bool) {
 	return nil, false
 }
 
-func (s *ScopeStack) GetSymbol(name string) (Symbol, bool) {
+func (s *ScopeStack) GetSymbol(domain Domain, name string) (Symbol, bool) {
 	for i := len(s.scopes) - 1; i >= 0; i-- {
-		if symbol, ok := s.scopes[i].GetSymbol(name); ok {
+		if symbol, ok := s.scopes[i].GetSymbol(domain, name); ok {
 			return symbol, true
 		}
 	}

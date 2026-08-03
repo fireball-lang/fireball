@@ -2,6 +2,7 @@ package sema
 
 import (
 	"fireball/ast"
+	"fireball/core"
 	"fireball/symbols"
 	"fireball/types"
 )
@@ -34,6 +35,27 @@ func NewTypeEnvironment(instantiations *types.InstantiationCache) *TypeEnvironme
 		conformances:   make(map[types.Type][]*types.Interface),
 		paramScopes:    make(map[*types.Param]symbols.Scope),
 		instantiations: instantiations,
+	}
+}
+
+func (e *TypeEnvironment) CheckCollisions(fn func(diagnostic core.Diagnostic)) {
+	for t := range e.typeDeclNodes {
+		funcDomain := make(map[string]bool)
+
+		for _, symbol := range e.static[t] {
+			if symbol.Kind == symbols.Func {
+				if _, ok := funcDomain[symbol.Name]; ok {
+					fn(core.Diagnostic{
+						Kind:    core.Error,
+						Path:    ast.GetFile(symbol.Node).Path,
+						Range:   symbol.Node.(*ast.Func).Name().Range(),
+						Message: "method '" + symbol.Name + "' already exists on type '" + t.String() + "'",
+					})
+				} else {
+					funcDomain[symbol.Name] = true
+				}
+			}
+		}
 	}
 }
 

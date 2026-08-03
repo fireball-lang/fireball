@@ -35,9 +35,9 @@ func (b *BlockScope) GetScope(_ string) (Scope, bool) {
 	return nil, false
 }
 
-func (b *BlockScope) GetSymbol(name string) (Symbol, bool) {
+func (b *BlockScope) GetSymbol(domain Domain, name string) (Symbol, bool) {
 	for i := len(b.symbols) - 1; i >= 0; i-- {
-		if b.symbols[i].Name == name {
+		if b.symbols[i].Kind.IsInDomain(domain) && b.symbols[i].Name == name {
 			return b.symbols[i], true
 		}
 	}

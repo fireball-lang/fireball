@@ -56,7 +56,7 @@ struct CallbackHolder {
 
 #[test("call function pointer")]
 func callFunctionPointer() bool {
-	var fn = is_positive;
+	var fn: func(i32) bool = is_positive;
 	return fn(5);
 }
 

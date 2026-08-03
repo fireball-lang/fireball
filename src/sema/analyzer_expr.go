@@ -394,7 +394,12 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 }
 
 func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
-	symbol, ok := a.GetSymbol(i.Path)
+	domain := symbols.Variable | symbols.Function
+	if !a.WantsFunction(i) {
+		domain = symbols.Variable
+	}
+
+	symbol, ok := a.GetSymbol(domain, i.Path)
 	if !ok {
 		return ExprInfo{Type: types.Invalid}
 	}
@@ -847,6 +852,19 @@ func GetIndexMethod(typeEnv *TypeEnvironment, instantiations *types.Instantiatio
 
 func (a *analyzer) WantsFunction(node ast.Node) bool {
 	switch parent := node.Parent().(type) {
+	case *ast.Var:
+		if parent.Initializer == node && !core.IsNil(parent.Type) {
+			if _, ok := a.ResolveAndAnalyzeType(parent.Type).(*types.Func); ok {
+				return true
+			}
+		}
+
+	case *ast.Return:
+		f := ast.GetClosestParent[*ast.Func](parent)
+		if _, ok := a.nodeTypes[f].(*types.Func).Returns.(*types.Func); ok {
+			return true
+		}
+
 	case *ast.Call:
 		if parent.Callee == node {
 			return true
@@ -862,10 +880,15 @@ func (a *analyzer) WantsFunction(node ast.Node) bool {
 		}
 
 	case *ast.Binary:
-		if parent.Op == ast.Equal && parent.Right == node {
-			if _, ok := a.AnalyzeExpr(parent.Left).Type.(*types.Func); ok {
+		if parent.Op == ast.Assign && parent.Right == node {
+			if _, ok := a.exprInfos[parent.Left].Type.(*types.Func); ok {
 				return true
 			}
+		}
+
+	case *ast.Cast:
+		if _, ok := a.ResolveAndAnalyzeType(parent.Type).(*types.Func); ok {
+			return true
 		}
 	}
 

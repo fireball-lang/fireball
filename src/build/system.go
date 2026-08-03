@@ -8,6 +8,7 @@ import (
 	"fireball/ir"
 	"fireball/ir/llvm"
 	"fireball/project"
+	"fireball/symbols"
 	"fireball/toolchain"
 	"fireball/types"
 	"io"
@@ -122,7 +123,7 @@ func getNeededTypes(projMap map[string]*project.Project) codegen.Types {
 		panic("build.getNeededTypes() - Failed to get 'core' project")
 	}
 
-	symbol, ok := proj.Module.GetSymbol("TypeInfo")
+	symbol, ok := proj.Module.GetSymbol(symbols.Type, "TypeInfo")
 	if !ok {
 		panic("build.getNeededTypes() - Failed to get 'core::TypeInfo' type")
 	}
