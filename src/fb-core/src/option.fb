@@ -32,3 +32,12 @@ impl[T] Option[T] {
 		return self.value;
 	}
 }
+
+impl[T: Eq] Option[T] : Eq {
+	pub func eq(self, other: Self) bool {
+		if (self.has_value != other.has_value) return false;
+		if (!self.has_value) return true;
+
+		return self.value.eq(other.value);
+	}
+}

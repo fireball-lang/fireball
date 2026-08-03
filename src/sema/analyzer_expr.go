@@ -694,6 +694,24 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 					if s, ok := receiverType.(*types.Struct); ok && s.Generic != nil &&
 						isImplMethod && len(implNode.TypeParams) > 0 {
 						subs = append(subs, s.Substitutions...)
+
+						// Check that type args satisfy the impl's type param constraints
+						template := s.Generic
+
+						if len(template.TypeParams) == len(implNode.TypeParams) {
+							for i, typeParam := range implNode.TypeParams {
+								if resolvedParam, ok := a.nodeTypes[typeParam].(*types.Param); ok {
+									for _, constraint := range resolvedParam.Constraints {
+										for _, sub := range s.Substitutions {
+											if sub.Param == template.TypeParams[i] {
+												a.CheckConstraint(sub.Type, constraint, c.Callee)
+												break
+											}
+										}
+									}
+								}
+							}
+						}
 					}
 				}
 			}

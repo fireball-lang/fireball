@@ -309,3 +309,17 @@ func testPairGetFirstViaPointer() bool {
     var ptr = &p;
     return ptr.get_first() == 77;
 }
+
+// Conditional impl block dependent on generic constraint
+
+impl[T: Eq] Box[T] : Eq {
+	pub func eq(self, other: Self) bool {
+		return self.value.eq(other.value);
+	}
+}
+
+#[test("conditional impl block dependent on generic constraint")]
+func implDependent() bool {
+	var box = Box:[i32] { value: 5 };
+	return box.eq(box);
+}

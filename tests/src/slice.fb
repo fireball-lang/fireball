@@ -148,3 +148,115 @@ func mutSliceReverse() bool {
 	s.reverse();
 	return s[0u] == 3 && s[1u] == 2 && s[2u] == 1;
 }
+
+// --- Slice Eq / search methods ---
+
+#[test("Slice.index_of - found")]
+func sliceIndexOfFound() bool {
+	var array = [4]i32 { 10, 20, 30, 40 };
+	var s: []i32 = array;
+	return s.index_of(30).unwrap() == 2u;
+}
+
+#[test("Slice.index_of - not found")]
+func sliceIndexOfNotFound() bool {
+	var array = [3]i32 { 1, 2, 3 };
+	var s: []i32 = array;
+	return s.index_of(99).is_none();
+}
+
+#[test("Slice.contains - present")]
+func sliceContainsPresent() bool {
+	var array = [3]i32 { 10, 20, 30 };
+	var s: []i32 = array;
+	return s.contains(20);
+}
+
+#[test("Slice.contains - absent")]
+func sliceContainsAbsent() bool {
+	var array = [3]i32 { 10, 20, 30 };
+	var s: []i32 = array;
+	return !s.contains(99);
+}
+
+#[test("Slice.eq - equal")]
+func sliceEqEqual() bool {
+	var array = [3]i32 { 1, 2, 3 };
+	var a: []i32 = array;
+	var b: []i32 = array;
+	return a.eq(b);
+}
+
+#[test("Slice.eq - different size")]
+func sliceEqDifferentSize() bool {
+	var aArr = [3]i32 { 1, 2, 3 };
+	var bArr = [2]i32 { 1, 2 };
+	var a: []i32 = aArr;
+	var b: []i32 = bArr;
+	return !a.eq(b);
+}
+
+#[test("Slice.eq - different values")]
+func sliceEqDifferentValues() bool {
+	var aArr = [3]i32 { 1, 2, 3 };
+	var bArr = [3]i32 { 1, 2, 4 };
+	var a: []i32 = aArr;
+	var b: []i32 = bArr;
+	return !a.eq(b);
+}
+
+// --- MutSlice Eq / search methods ---
+
+#[test("MutSlice.index_of - found")]
+func mutSliceIndexOfFound() bool {
+	var array = [4]i32 { 10, 20, 30, 40 };
+	var s: mut []i32 = array;
+	return s.index_of(30).unwrap() == 2u;
+}
+
+#[test("MutSlice.index_of - not found")]
+func mutSliceIndexOfNotFound() bool {
+	var array = [3]i32 { 1, 2, 3 };
+	var s: mut []i32 = array;
+	return s.index_of(99).is_none();
+}
+
+#[test("MutSlice.contains - present")]
+func mutSliceContainsPresent() bool {
+	var array = [3]i32 { 10, 20, 30 };
+	var s: mut []i32 = array;
+	return s.contains(20);
+}
+
+#[test("MutSlice.contains - absent")]
+func mutSliceContainsAbsent() bool {
+	var array = [3]i32 { 10, 20, 30 };
+	var s: mut []i32 = array;
+	return !s.contains(99);
+}
+
+#[test("MutSlice.eq - equal")]
+func mutSliceEqEqual() bool {
+	var array = [3]i32 { 1, 2, 3 };
+	var a: mut []i32 = array;
+	var b: mut []i32 = array;
+	return a.eq(b);
+}
+
+#[test("MutSlice.eq - different size")]
+func mutSliceEqDifferentSize() bool {
+	var aArr = [3]i32 { 1, 2, 3 };
+	var bArr = [2]i32 { 1, 2 };
+	var a: mut []i32 = aArr;
+	var b: mut []i32 = bArr;
+	return !a.eq(b);
+}
+
+#[test("MutSlice.eq - different values")]
+func mutSliceEqDifferentValues() bool {
+	var aArr = [3]i32 { 1, 2, 3 };
+	var bArr = [3]i32 { 1, 2, 4 };
+	var a: mut []i32 = aArr;
+	var b: mut []i32 = bArr;
+	return !a.eq(b);
+}

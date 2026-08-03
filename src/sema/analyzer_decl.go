@@ -166,6 +166,25 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	a.selfType = lookupTyp
 	defer func() { a.selfType = prevSelf }()
 
+	// Add impl type param constraints to canonical type params for method body analysis
+	var savedConstraints [][]*types.Interface
+
+	if s, ok := typ.(*types.Struct); ok && s.Generic != nil && len(i.TypeParams) > 0 {
+		template := s.Generic
+
+		if len(template.TypeParams) == len(i.TypeParams) {
+			savedConstraints = make([][]*types.Interface, len(template.TypeParams))
+
+			for j, tp := range template.TypeParams {
+				savedConstraints[j] = tp.Constraints
+
+				if resolvedParam, ok := a.nodeTypes[i.TypeParams[j]].(*types.Param); ok {
+					tp.Constraints = append(tp.Constraints, resolvedParam.Constraints...)
+				}
+			}
+		}
+	}
+
 	// Methods
 	for _, f := range i.Methods {
 		if core.IsNil(f.Body) {
@@ -205,6 +224,14 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 
 		if len(fTyp.TypeParams) > 0 {
 			a.scopes.Pop()
+		}
+	}
+
+	// Restore canonical type param constraints
+	if savedConstraints != nil {
+		template := typ.(*types.Struct).Generic
+		for j, tp := range template.TypeParams {
+			tp.Constraints = savedConstraints[j]
 		}
 	}
 
