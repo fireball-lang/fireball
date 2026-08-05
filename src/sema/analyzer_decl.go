@@ -183,7 +183,10 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 				savedConstraints[j] = tp.Constraints
 
 				if resolvedParam, ok := a.nodeTypes[i.TypeParams[j]].(*types.Param); ok {
-					tp.Constraints = append(tp.Constraints, resolvedParam.Constraints...)
+					for _, c := range resolvedParam.Constraints {
+						substituted := a.instantiations.Substitute(c, []types.Substitution{{Param: resolvedParam, Type: tp}}).(*types.Interface)
+						tp.Constraints = append(tp.Constraints, substituted)
+					}
 				}
 			}
 		}

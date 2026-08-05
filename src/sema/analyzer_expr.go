@@ -709,7 +709,8 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 									for _, constraint := range resolvedParam.Constraints {
 										for _, sub := range s.Substitutions {
 											if sub.Param == template.TypeParams[i] {
-												a.CheckConstraint(sub.Type, constraint, c.Callee)
+												substituted := a.instantiations.Substitute(constraint, []types.Substitution{{Param: resolvedParam, Type: sub.Type}}).(*types.Interface)
+												a.CheckConstraint(sub.Type, substituted, c.Callee)
 												break
 											}
 										}
