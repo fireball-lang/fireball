@@ -26,3 +26,13 @@ func (e *Enum) String() string {
 func (e *Enum) Underlying() Type {
 	return e.CaseType
 }
+
+func (e *Enum) Case(name string) (core.Integer, bool) {
+	for _, c := range e.Cases {
+		if c.Name == name {
+			return c.Value, true
+		}
+	}
+
+	return core.Integer{}, false
+}

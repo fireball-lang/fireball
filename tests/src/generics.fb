@@ -312,7 +312,7 @@ func testPairGetFirstViaPointer() bool {
 
 // Conditional impl block dependent on generic constraint
 
-impl[T: Eq] Box[T] : Eq {
+impl[T: Eq[T]] Box[T] : Eq[Box[T]] {
 	pub func eq(self, other: Self) bool {
 		return self.value.eq(other.value);
 	}

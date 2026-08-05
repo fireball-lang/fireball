@@ -221,6 +221,18 @@ const (
 	Dereference
 )
 
+func (p PrefixOp) InterfaceName() string {
+	switch p {
+	case Negate:
+		return "core::Neg"
+	case Not:
+		return "core::Not"
+
+	default:
+		return ""
+	}
+}
+
 type Prefix struct {
 	baseNode
 
@@ -363,6 +375,37 @@ func (b BinaryOp) CompoundAssignBase() BinaryOp {
 
 	default:
 		panic("ast.BinaryOp.CompoundBase() - Not compound operator")
+	}
+}
+
+func (b BinaryOp) InterfaceName() string {
+	switch b {
+	case Add:
+		return "core::Add"
+	case Subtract:
+		return "core::Sub"
+	case Multiply:
+		return "core::Mul"
+	case Divide:
+		return "core::Div"
+	case Modulo:
+		return "core::Rem"
+
+	case BitOr:
+		return "core::BitOr"
+	case BitXor:
+		return "core::BitXor"
+	case BitAnd:
+		return "core::BitAnd"
+
+	case Equal, NotEqual:
+		return "core::Eq"
+
+	case Less, LessEqual, Greater, GreaterEqual:
+		return "core::Ord"
+
+	default:
+		return ""
 	}
 }
 

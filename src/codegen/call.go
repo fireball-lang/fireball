@@ -125,7 +125,7 @@ func (c *codegen) BuildCallSignature(typ *types.Func, hasReceiver bool) *ir.Sign
 	return sig
 }
 
-func (c *codegen) EmitCallExpr(callee ir.Value, sig *ir.Signature, funcType *types.Func, receiver ir.Value, args []ast.Expr, returnType types.Type) ir.Value {
+func (c *codegen) PrepareExprArgs(funcType *types.Func, receiver ir.Value, args []ast.Expr) ([]ir.Value, []types.Type) {
 	irArgs := make([]ir.Value, len(args))
 	argTypes := make([]types.Type, len(args))
 
@@ -144,6 +144,11 @@ func (c *codegen) EmitCallExpr(callee ir.Value, sig *ir.Signature, funcType *typ
 		}
 	}
 
+	return irArgs, argTypes
+}
+
+func (c *codegen) EmitCallExpr(callee ir.Value, sig *ir.Signature, funcType *types.Func, receiver ir.Value, args []ast.Expr, returnType types.Type) ir.Value {
+	irArgs, argTypes := c.PrepareExprArgs(funcType, receiver, args)
 	return c.EmitCall(callee, sig, funcType, receiver, irArgs, argTypes, returnType)
 }
 

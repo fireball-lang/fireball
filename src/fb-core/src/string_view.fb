@@ -80,7 +80,7 @@ impl StringView {
 	}
 }
 
-impl StringView : Eq {
+impl StringView : Eq[StringView] {
     pub func eq(self, rhs: StringView) bool {
 		if (self.size != rhs.size) return false;
 

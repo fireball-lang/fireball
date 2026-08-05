@@ -176,6 +176,18 @@ func (c *codegen) VisitOffsetOf(o *ast.OffsetOf) ir.Value {
 }
 
 func (c *codegen) VisitPrefix(p *ast.Prefix) ir.Value {
+	// core::<interface>
+	typ_ := c.ExprType(p.Expr)
+
+	if _, ok := typ_.(*types.Primitive); !ok {
+		if name := p.Op.InterfaceName(); name != "" {
+			if fTyp, fName := sema.GetUnaryMethod(c.typeEnv, c.instantiations, name, typ_); fTyp != nil {
+				return c.CallMethodExpr(fTyp, fName, p.Expr, nil)
+			}
+		}
+	}
+
+	// Built-in
 	switch p.Op {
 	case ast.Negate:
 		value := c.Load(p.Expr)
@@ -309,6 +321,63 @@ func (c *codegen) VisitBinary(b *ast.Binary) ir.Value {
 		return value
 	}
 
+	// core::<interface>
+	typ := c.ExprType(b.Left)
+
+	if _, ok := typ.(*types.Primitive); !ok {
+		if name := b.Op.InterfaceName(); name != "" {
+			if fTyp, fName := sema.GetBinaryMethod(c.typeEnv, c.instantiations, name, typ, c.ExprType(b.Right)); fTyp != nil {
+				value := c.CallMethodExpr(fTyp, fName, b.Left, []ast.Expr{b.Right})
+
+				switch b.Op {
+				case ast.NotEqual:
+					return c.emitter.Xor(value, ir.True)
+
+				case ast.Less, ast.Greater:
+					name := "Less"
+					if b.Op == ast.Greater {
+						name = "Greater"
+					}
+
+					ordering := fTyp.Returns.(*types.Enum)
+					caseValue, ok := ordering.Case(name)
+					if !ok {
+						panic("codegen.VisitBinary() - Failed to find '" + fTyp.Returns.String() + "::" + name + "' enum case")
+					}
+
+					return c.emitter.ICmp(ir.Eq, caseValue.Negative(), value, &ir.Integer{Typ: c.types.Get(fTyp.Returns), Value: caseValue})
+
+				case ast.LessEqual, ast.GreaterEqual:
+					name := "Less"
+					if b.Op == ast.GreaterEqual {
+						name = "Greater"
+					}
+
+					ordering := fTyp.Returns.(*types.Enum)
+
+					nameValue, ok := ordering.Case(name)
+					if !ok {
+						panic("codegen.VisitBinary() - Failed to find '" + fTyp.Returns.String() + "::" + name + "' enum case")
+					}
+
+					equalValue, ok := ordering.Case("Equal")
+					if !ok {
+						panic("codegen.VisitBinary() - Failed to find '" + fTyp.Returns.String() + "::Equal' enum case")
+					}
+
+					nameOk := c.emitter.ICmp(ir.Eq, nameValue.Negative(), value, &ir.Integer{Typ: c.types.Get(fTyp.Returns), Value: nameValue})
+					equalOk := c.emitter.ICmp(ir.Eq, equalValue.Negative(), value, &ir.Integer{Typ: c.types.Get(fTyp.Returns), Value: equalValue})
+
+					return c.emitter.Or(nameOk, equalOk)
+
+				default:
+					return value
+				}
+			}
+		}
+	}
+
+	// Built-in
 	switch b.Op {
 	// Boolean
 
@@ -420,6 +489,8 @@ func (c *codegen) VisitBinary(b *ast.Binary) ir.Value {
 			ir.PhiPair{Block: bRight, Value: right},
 		)
 
+	// Base
+
 	default:
 		typ := c.ExprType(b)
 
@@ -431,6 +502,18 @@ func (c *codegen) VisitBinary(b *ast.Binary) ir.Value {
 }
 
 func (c *codegen) VisitCompoundBaseBinaryOp(b *ast.Binary, left, right ir.Value, op ast.BinaryOp) ir.Value {
+	// core::<interface>
+	typ := c.ExprType(b.Left)
+
+	if _, ok := typ.(*types.Primitive); !ok {
+		if name := op.InterfaceName(); name != "" {
+			if fTyp, fName := sema.GetBinaryMethod(c.typeEnv, c.instantiations, name, typ, c.ExprType(b.Right)); fTyp != nil {
+				return c.CallMethodExpr(fTyp, fName, b.Left, []ast.Expr{b.Right})
+			}
+		}
+	}
+
+	// Built-in
 	switch op {
 	// Math
 
@@ -470,6 +553,8 @@ func (c *codegen) VisitCompoundBaseBinaryOp(b *ast.Binary, left, right ir.Value,
 
 	case ast.BitAnd:
 		return c.emitter.And(left, right)
+
+	// Invalid
 
 	default:
 		panic("codegen.codegen.VisitCompoundBaseBinaryOp() - Invalid compound base operator")
@@ -522,27 +607,11 @@ func (c *codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 }
 
 func (c *codegen) VisitIndex(i *ast.Index) ir.Value {
-	typ := c.UnderlyingExprType(i.Expr)
+	typ := c.ExprType(i.Expr)
 
 	// core::Index[T]
-	if fTyp := sema.GetIndexMethod(c.typeEnv, c.instantiations, typ, c.ExprType(i.Index)); fTyp != nil {
-		var callee ir.Value
-		var sig *ir.Signature
-		var receiver ir.Value
-
-		_, isInterfaceDispatch := typ.(*types.Interface)
-
-		if isInterfaceDispatch {
-			// Interface dispatch
-			callee, receiver = c.LookupInterfaceMethod(c.ExprType(i.Expr).(*types.Interface), c.Load(i.Expr), "index")
-			sig = c.BuildCallSignature(fTyp, true)
-		} else {
-			// Method from interface, resolved to concrete impl
-			callee, sig, fTyp = c.ResolveInterfaceMethod(c.ExprType(i.Expr), "index", false)
-			receiver = c.ResolveReceiver(i.Expr)
-		}
-
-		return c.EmitCallExpr(callee, sig, fTyp, receiver, []ast.Expr{i.Index}, c.UnderlyingExprType(i))
+	if fTyp, fName := sema.GetBinaryMethod(c.typeEnv, c.instantiations, "core::Index", typ, c.ExprType(i.Index)); fTyp != nil {
+		return c.CallMethodExpr(fTyp, fName, i.Expr, []ast.Expr{i.Index})
 	}
 
 	// Pointer indexing
@@ -711,6 +780,48 @@ func (c *codegen) VisitBadExpr(_ *ast.BadExpr) ir.Value {
 }
 
 // Utils
+
+func (c *codegen) CallMethodExpr(fTyp *types.Func, fName string, calleeExpr ast.Expr, args []ast.Expr) ir.Value {
+	var callee ir.Value
+	var sig *ir.Signature
+	var receiver ir.Value
+
+	typ := c.ExprType(calleeExpr)
+	_, isInterfaceDispatch := typ.(*types.Interface)
+
+	if isInterfaceDispatch {
+		// Interface dispatch
+		callee, receiver = c.LookupInterfaceMethod(typ.(*types.Interface), c.Load(calleeExpr), fName)
+		sig = c.BuildCallSignature(fTyp, true)
+	} else {
+		// Method from interface, resolved to concrete impl
+		callee, sig, fTyp = c.ResolveInterfaceMethod(typ, fName, false)
+		receiver = c.ResolveReceiver(calleeExpr)
+	}
+
+	return c.EmitCallExpr(callee, sig, fTyp, receiver, args, fTyp.Returns)
+}
+
+func (c *codegen) CallMethod(fTyp *types.Func, fName string, calleeExpr ast.Expr, irArgs []ir.Value, argTypes []types.Type) ir.Value {
+	var callee ir.Value
+	var sig *ir.Signature
+	var receiver ir.Value
+
+	typ := c.ExprType(calleeExpr)
+	_, isInterfaceDispatch := typ.(*types.Interface)
+
+	if isInterfaceDispatch {
+		// Interface dispatch
+		callee, receiver = c.LookupInterfaceMethod(typ.(*types.Interface), c.Load(calleeExpr), fName)
+		sig = c.BuildCallSignature(fTyp, true)
+	} else {
+		// Method from interface, resolved to concrete impl
+		callee, sig, fTyp = c.ResolveInterfaceMethod(typ, fName, false)
+		receiver = c.ResolveReceiver(calleeExpr)
+	}
+
+	return c.EmitCall(callee, sig, fTyp, receiver, irArgs, argTypes, fTyp.Returns)
+}
 
 func (c *codegen) LoadImplicitCast(expr ast.Expr, typ types.Type) ir.Value {
 	from := c.ExprInfo(expr)

@@ -34,7 +34,7 @@ impl[T] Slice[T] {
 	}
 }
 
-impl[T: Eq] Slice[T] {
+impl[T: Eq[T]] Slice[T] {
 	pub func index_of(self, value: T) ?u64 {
 		for (var i = 0u; i < self.size; i++) {
 			if (self.ptr[i].eq(value)) return i;
@@ -48,7 +48,7 @@ impl[T: Eq] Slice[T] {
 	}
 }
 
-impl[T: Eq] Slice[T] : Eq {
+impl[T: Eq[T]] Slice[T] : Eq[Slice[T]] {
 	pub func eq(self, other: Self) bool {
 		if (self.size != other.size) return false;
 
@@ -122,7 +122,7 @@ impl[T] MutSlice[T] {
 	}
 }
 
-impl[T: Eq] MutSlice[T] {
+impl[T: Eq[T]] MutSlice[T] {
 	pub func index_of(self, value: T) ?u64 {
 		for (var i = 0u; i < self.size; i++) {
 			if (self.ptr[i].eq(value)) return i;
@@ -136,8 +136,8 @@ impl[T: Eq] MutSlice[T] {
 	}
 }
 
-impl[T: Eq] MutSlice[T] : Eq {
-	pub func eq(self, other: Self) bool {
+impl[T: Eq[T]] MutSlice[T] : Eq[Slice[T]] {
+	pub func eq(self, other: Slice[T]) bool {
 		if (self.size != other.size) return false;
 
 		for (var i = 0u; i < self.size; i++) {

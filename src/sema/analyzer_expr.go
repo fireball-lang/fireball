@@ -166,6 +166,18 @@ func (a *analyzer) VisitPrefix(p *ast.Prefix) ExprInfo {
 		return ExprInfo{Type: types.Invalid}
 	}
 
+	// core::<interface>
+	if _, ok := expr.Type.(*types.Primitive); !ok {
+		if f, _ := GetUnaryMethod(a.typeEnv, a.instantiations, p.Op.InterfaceName(), expr.Type); f != nil {
+			if param, ok := f.Returns.(*types.Param); ok && param.Associated {
+				return a.Error(p, "cannot call a function which return type is not fully defined")
+			}
+
+			return ExprInfo{Type: f.Returns}
+		}
+	}
+
+	// Built-in
 	switch p.Op {
 	case ast.Negate:
 		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsSigned, "signed numeric", expr, p.Expr)}
@@ -305,6 +317,21 @@ func (a *analyzer) VisitBinary(b *ast.Binary) ExprInfo {
 }
 
 func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op ast.BinaryOp) ExprInfo {
+	// core::<interface>
+	if _, ok := left.Type.(*types.Primitive); !ok {
+		if f, _ := GetBinaryMethod(a.typeEnv, a.instantiations, op.InterfaceName(), left.Type, right.Type); f != nil {
+			if p, ok := f.Returns.(*types.Param); ok && p.Associated {
+				return a.Error(b, "cannot call a function which return type is not fully defined")
+			}
+
+			if op.IsRelational() {
+				return ExprInfo{Type: types.PrimitiveBool}
+			}
+
+			return ExprInfo{Type: f.Returns}
+		}
+	}
+
 	// Math
 	if op.IsMath() {
 		left := a.ExpectPrimitiveClass(types.IsNumeric, "numeric", left, b.Left)
@@ -454,7 +481,7 @@ func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
 	}
 
 	// core::Index[T]
-	if f := GetIndexMethod(a.typeEnv, a.instantiations, expr.Type, index.Type); f != nil {
+	if f, _ := GetBinaryMethod(a.typeEnv, a.instantiations, "core::Index", expr.Type, index.Type); f != nil {
 		if p, ok := f.Returns.(*types.Param); ok && p.Associated {
 			return a.Error(i.Expr, "cannot call a function which return type is not fully defined")
 		}
@@ -811,17 +838,19 @@ func (a *analyzer) VisitBadExpr(_ *ast.BadExpr) ExprInfo {
 
 // Utils
 
-func GetIndexMethod(typeEnv *TypeEnvironment, instantiations *types.InstantiationCache, calleeType types.Type, indexType types.Type) *types.Func {
+func GetUnaryMethod(typeEnv *TypeEnvironment, instantiations *types.InstantiationCache, inName string, calleeType types.Type) (*types.Func, string) {
+	if inName == "" {
+		return nil, ""
+	}
+
 	if param, ok := calleeType.(*types.Param); ok {
 		for _, in := range param.Constraints {
-			if in.Name == "core::Index" && len(in.Substitutions) == 1 {
-				if _, ok := GetImplicitCast(typeEnv, ExprInfo{Type: indexType}, in.Substitutions[0].Type); ok {
-					return in.InstanceMethods[0].Type
-				}
+			if in.Name == inName {
+				return in.InstanceMethods[0].Type, in.InstanceMethods[0].Name
 			}
 		}
 
-		return nil
+		return nil, ""
 	}
 
 	if ptr, ok := calleeType.(*types.Pointer); ok {
@@ -829,26 +858,68 @@ func GetIndexMethod(typeEnv *TypeEnvironment, instantiations *types.Instantiatio
 	}
 
 	for _, in := range typeEnv.GetConformances(calleeType) {
-		if in.Name == "core::Index" && len(in.Substitutions) == 1 {
-			if _, ok := GetImplicitCast(typeEnv, ExprInfo{Type: indexType}, in.Substitutions[0].Type); ok {
+		if in.Name == inName {
+			typ := calleeType
+			if s, ok := calleeType.(*types.Struct); ok && s.Generic != nil {
+				typ = s.Generic
+			}
+
+			symbol, _ := typeEnv.GetInstanceMethod(typ, in.InstanceMethods[0].Name)
+			fTyp := symbol.Type
+
+			if s, ok := calleeType.(*types.Struct); ok && s.Generic != nil {
+				fTyp = instantiations.Get(fTyp, s.Substitutions)
+			}
+
+			return fTyp.(*types.Func), symbol.Name
+		}
+	}
+
+	return nil, ""
+}
+
+func GetBinaryMethod(typeEnv *TypeEnvironment, instantiations *types.InstantiationCache, inName string, calleeType types.Type, rhsType types.Type) (*types.Func, string) {
+	if inName == "" {
+		return nil, ""
+	}
+
+	if param, ok := calleeType.(*types.Param); ok {
+		for _, in := range param.Constraints {
+			if in.Name == inName && len(in.Substitutions) == 1 {
+				if _, ok := GetImplicitCast(typeEnv, ExprInfo{Type: rhsType}, in.Substitutions[0].Type); ok {
+					return in.InstanceMethods[0].Type, in.InstanceMethods[0].Name
+				}
+			}
+		}
+
+		return nil, ""
+	}
+
+	if ptr, ok := calleeType.(*types.Pointer); ok {
+		calleeType = ptr.Pointee
+	}
+
+	for _, in := range typeEnv.GetConformances(calleeType) {
+		if in.Name == inName && len(in.Substitutions) == 1 {
+			if _, ok := GetImplicitCast(typeEnv, ExprInfo{Type: rhsType}, in.Substitutions[0].Type); ok {
 				typ := calleeType
 				if s, ok := calleeType.(*types.Struct); ok && s.Generic != nil {
 					typ = s.Generic
 				}
 
-				symbol, _ := typeEnv.GetInstanceMethod(typ, "index")
+				symbol, _ := typeEnv.GetInstanceMethod(typ, in.InstanceMethods[0].Name)
 				fTyp := symbol.Type
 
 				if s, ok := calleeType.(*types.Struct); ok && s.Generic != nil {
 					fTyp = instantiations.Get(fTyp, s.Substitutions)
 				}
 
-				return fTyp.(*types.Func)
+				return fTyp.(*types.Func), symbol.Name
 			}
 		}
 	}
 
-	return nil
+	return nil, ""
 }
 
 func (a *analyzer) WantsFunction(node ast.Node) bool {

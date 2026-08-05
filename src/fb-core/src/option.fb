@@ -33,7 +33,7 @@ impl[T] Option[T] {
 	}
 }
 
-impl[T: Eq] Option[T] : Eq {
+impl[T: Eq[T]] Option[T] : Eq[Option[T]] {
 	pub func eq(self, other: Self) bool {
 		if (self.has_value != other.has_value) return false;
 		if (!self.has_value) return true;

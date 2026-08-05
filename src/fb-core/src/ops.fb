@@ -2,67 +2,558 @@ mod core;
 
 // Eq
 
-pub interface Eq {
-    func eq(self, rhs: Self) bool;
+pub interface Eq[T] {
+    func eq(self, rhs: T) bool;
 }
 
-impl bool : Eq {
-    pub func eq(self, rhs: Self) bool {
-        return *self == rhs;
-    }
+impl bool : Eq[bool] {
+    pub func eq(self, rhs: Self) bool { return *self == rhs; }
 }
 
-impl u8 : Eq {
-    pub func eq(self, rhs: Self) bool {
-        return *self == rhs;
-    }
+impl u8 : Eq[u8] {
+    pub func eq(self, rhs: Self) bool { return *self == rhs; }
 }
-impl u16 : Eq {
-    pub func eq(self, rhs: Self) bool {
-        return *self == rhs;
-    }
+impl u16 : Eq[u16] {
+    pub func eq(self, rhs: Self) bool { return *self == rhs; }
 }
-impl u32 : Eq {
-    pub func eq(self, rhs: Self) bool {
-        return *self == rhs;
-    }
+impl u32 : Eq[u32] {
+    pub func eq(self, rhs: Self) bool { return *self == rhs; }
 }
-impl u64 : Eq {
-    pub func eq(self, rhs: Self) bool {
-        return *self == rhs;
-    }
+impl u64 : Eq[u64] {
+    pub func eq(self, rhs: Self) bool { return *self == rhs; }
 }
 
-impl i8 : Eq {
-    pub func eq(self, rhs: Self) bool {
-        return *self == rhs;
-    }
+impl i8 : Eq[i8] {
+    pub func eq(self, rhs: Self) bool { return *self == rhs; }
 }
-impl i16 : Eq {
-    pub func eq(self, rhs: Self) bool {
-        return *self == rhs;
-    }
+impl i16 : Eq[i16] {
+    pub func eq(self, rhs: Self) bool { return *self == rhs; }
 }
-impl i32 : Eq {
-    pub func eq(self, rhs: Self) bool {
-        return *self == rhs;
-    }
+impl i32 : Eq[i32] {
+    pub func eq(self, rhs: Self) bool { return *self == rhs; }
 }
-impl i64 : Eq {
-    pub func eq(self, rhs: Self) bool {
-        return *self == rhs;
-    }
+impl i64 : Eq[i64] {
+    pub func eq(self, rhs: Self) bool { return *self == rhs; }
 }
 
-impl f32 : Eq {
-    pub func eq(self, rhs: Self) bool {
-        return *self == rhs;
-    }
+impl f32 : Eq[f32] {
+    pub func eq(self, rhs: Self) bool { return *self == rhs; }
 }
-impl f64 : Eq {
-    pub func eq(self, rhs: Self) bool {
-        return *self == rhs;
-    }
+impl f64 : Eq[f64] {
+    pub func eq(self, rhs: Self) bool { return *self == rhs; }
+}
+
+// Ord
+
+pub enum Ordering {
+	Less,
+	Equal,
+	Greater,
+}
+
+pub interface Ord[T] {
+	func ord(self, rhs: T) Ordering;
+}
+
+impl u8 : Ord[u8] {
+	func ord(self, rhs: Self) Ordering {
+		if (*self == rhs) return Ordering::Equal;
+		if (*self < rhs) return Ordering::Less;
+		return Ordering::Greater;
+	}
+}
+impl u16 : Ord[u16] {
+	func ord(self, rhs: Self) Ordering {
+		if (*self == rhs) return Ordering::Equal;
+		if (*self < rhs) return Ordering::Less;
+		return Ordering::Greater;
+	}
+}
+impl u32 : Ord[u32] {
+	func ord(self, rhs: Self) Ordering {
+		if (*self == rhs) return Ordering::Equal;
+		if (*self < rhs) return Ordering::Less;
+		return Ordering::Greater;
+	}
+}
+impl u64 : Ord[u64] {
+	func ord(self, rhs: Self) Ordering {
+		if (*self == rhs) return Ordering::Equal;
+		if (*self < rhs) return Ordering::Less;
+		return Ordering::Greater;
+	}
+}
+
+impl i8 : Ord[i8] {
+	func ord(self, rhs: Self) Ordering {
+		if (*self == rhs) return Ordering::Equal;
+		if (*self < rhs) return Ordering::Less;
+		return Ordering::Greater;
+	}
+}
+impl i16 : Ord[i16] {
+	func ord(self, rhs: Self) Ordering {
+		if (*self == rhs) return Ordering::Equal;
+		if (*self < rhs) return Ordering::Less;
+		return Ordering::Greater;
+	}
+}
+impl i32 : Ord[i32] {
+	func ord(self, rhs: Self) Ordering {
+		if (*self == rhs) return Ordering::Equal;
+		if (*self < rhs) return Ordering::Less;
+		return Ordering::Greater;
+	}
+}
+impl i64 : Ord[i64] {
+	func ord(self, rhs: Self) Ordering {
+		if (*self == rhs) return Ordering::Equal;
+		if (*self < rhs) return Ordering::Less;
+		return Ordering::Greater;
+	}
+}
+
+impl f32 : Ord[f32] {
+	func ord(self, rhs: Self) Ordering {
+		if (*self == rhs) return Ordering::Equal;
+		if (*self < rhs) return Ordering::Less;
+		return Ordering::Greater;
+	}
+}
+impl f64 : Ord[f64] {
+	func ord(self, rhs: Self) Ordering {
+		if (*self == rhs) return Ordering::Equal;
+		if (*self < rhs) return Ordering::Less;
+		return Ordering::Greater;
+	}
+}
+
+// Not
+
+pub interface Not {
+	type Result;
+
+	func not(self) Result;
+}
+
+impl bool : Not {
+	type Result = bool;
+	pub func not(self) Self { return !*self; }
+}
+
+// Neg
+
+pub interface Neg {
+	type Result;
+
+	func neg(self) Result;
+}
+
+impl i8 : Neg {
+	type Result = i8;
+	pub func neg(self) Self { return -*self; }
+}
+impl i16 : Neg {
+	type Result = i16;
+	pub func neg(self) Self { return -*self; }
+}
+impl i32 : Neg {
+	type Result = i32;
+	pub func neg(self) Self { return -*self; }
+}
+impl i64 : Neg {
+	type Result = i64;
+	pub func neg(self) Self { return -*self; }
+}
+
+impl f32 : Neg {
+	type Result = f32;
+	pub func neg(self) Self { return -*self; }
+}
+impl f64 : Neg {
+	type Result = f64;
+	pub func neg(self) Self { return -*self; }
+}
+
+// Add
+
+pub interface Add[T] {
+	type Result;
+
+	func add(self, rhs: T) Result;
+}
+
+impl u8 : Add[u8] {
+	type Result = u8;
+	pub func add(self, rhs: Self) Result { return *self + rhs; }
+}
+impl u16 : Add[u16] {
+	type Result = u16;
+	pub func add(self, rhs: Self) Result { return *self + rhs; }
+}
+impl u32 : Add[u32] {
+	type Result = u32;
+	pub func add(self, rhs: Self) Result { return *self + rhs; }
+}
+impl u64 : Add[u64] {
+	type Result = u64;
+	pub func add(self, rhs: Self) Result { return *self + rhs; }
+}
+
+impl i8 : Add[i8] {
+	type Result = i8;
+	pub func add(self, rhs: Self) Result { return *self + rhs; }
+}
+impl i16 : Add[i16] {
+	type Result = i16;
+	pub func add(self, rhs: Self) Result { return *self + rhs; }
+}
+impl i32 : Add[i32] {
+	type Result = i32;
+	pub func add(self, rhs: Self) Result { return *self + rhs; }
+}
+impl i64 : Add[i64] {
+	type Result = i64;
+	pub func add(self, rhs: Self) Result { return *self + rhs; }
+}
+
+impl f32 : Add[f32] {
+	type Result = f32;
+	pub func add(self, rhs: Self) Result { return *self + rhs; }
+}
+impl f64 : Add[f64] {
+	type Result = f64;
+	pub func add(self, rhs: Self) Result { return *self + rhs; }
+}
+
+// Sub
+
+pub interface Sub[T] {
+	type Result;
+
+	func sub(self, rhs: T) Result;
+}
+
+impl u8 : Sub[u8] {
+	type Result = u8;
+	pub func sub(self, rhs: Self) Result { return *self - rhs; }
+}
+impl u16 : Sub[u16] {
+	type Result = u16;
+	pub func sub(self, rhs: Self) Result { return *self - rhs; }
+}
+impl u32 : Sub[u32] {
+	type Result = u32;
+	pub func sub(self, rhs: Self) Result { return *self - rhs; }
+}
+impl u64 : Sub[u64] {
+	type Result = u64;
+	pub func sub(self, rhs: Self) Result { return *self - rhs; }
+}
+
+impl i8 : Sub[i8] {
+	type Result = i8;
+	pub func sub(self, rhs: Self) Result { return *self - rhs; }
+}
+impl i16 : Sub[i16] {
+	type Result = i16;
+	pub func sub(self, rhs: Self) Result { return *self - rhs; }
+}
+impl i32 : Sub[i32] {
+	type Result = i32;
+	pub func sub(self, rhs: Self) Result { return *self - rhs; }
+}
+impl i64 : Sub[i64] {
+	type Result = i64;
+	pub func sub(self, rhs: Self) Result { return *self - rhs; }
+}
+
+impl f32 : Sub[f32] {
+	type Result = f32;
+	pub func sub(self, rhs: Self) Result { return *self - rhs; }
+}
+impl f64 : Sub[f64] {
+	type Result = f64;
+	pub func sub(self, rhs: Self) Result { return *self - rhs; }
+}
+
+// Mul
+
+pub interface Mul[T] {
+	type Result;
+
+	func mul(self, rhs: T) Result;
+}
+
+impl u8 : Mul[u8] {
+	type Result = u8;
+	pub func mul(self, rhs: Self) Result { return *self * rhs; }
+}
+impl u16 : Mul[u16] {
+	type Result = u16;
+	pub func mul(self, rhs: Self) Result { return *self * rhs; }
+}
+impl u32 : Mul[u32] {
+	type Result = u32;
+	pub func mul(self, rhs: Self) Result { return *self * rhs; }
+}
+impl u64 : Mul[u64] {
+	type Result = u64;
+	pub func mul(self, rhs: Self) Result { return *self * rhs; }
+}
+
+impl i8 : Mul[i8] {
+	type Result = i8;
+	pub func mul(self, rhs: Self) Result { return *self * rhs; }
+}
+impl i16 : Mul[i16] {
+	type Result = i16;
+	pub func mul(self, rhs: Self) Result { return *self * rhs; }
+}
+impl i32 : Mul[i32] {
+	type Result = i32;
+	pub func mul(self, rhs: Self) Result { return *self * rhs; }
+}
+impl i64 : Mul[i64] {
+	type Result = i64;
+	pub func mul(self, rhs: Self) Result { return *self * rhs; }
+}
+
+impl f32 : Mul[f32] {
+	type Result = f32;
+	pub func mul(self, rhs: Self) Result { return *self * rhs; }
+}
+impl f64 : Mul[f64] {
+	type Result = f64;
+	pub func mul(self, rhs: Self) Result { return *self * rhs; }
+}
+
+// Div
+
+pub interface Div[T] {
+	type Result;
+
+	func div(self, rhs: T) Result;
+}
+
+impl u8 : Div[u8] {
+	type Result = u8;
+	pub func div(self, rhs: Self) Result { return *self / rhs; }
+}
+impl u16 : Div[u16] {
+	type Result = u16;
+	pub func div(self, rhs: Self) Result { return *self / rhs; }
+}
+impl u32 : Div[u32] {
+	type Result = u32;
+	pub func div(self, rhs: Self) Result { return *self / rhs; }
+}
+impl u64 : Div[u64] {
+	type Result = u64;
+	pub func div(self, rhs: Self) Result { return *self / rhs; }
+}
+
+impl i8 : Div[i8] {
+	type Result = i8;
+	pub func div(self, rhs: Self) Result { return *self / rhs; }
+}
+impl i16 : Div[i16] {
+	type Result = i16;
+	pub func div(self, rhs: Self) Result { return *self / rhs; }
+}
+impl i32 : Div[i32] {
+	type Result = i32;
+	pub func div(self, rhs: Self) Result { return *self / rhs; }
+}
+impl i64 : Div[i64] {
+	type Result = i64;
+	pub func div(self, rhs: Self) Result { return *self / rhs; }
+}
+
+impl f32 : Div[f32] {
+	type Result = f32;
+	pub func div(self, rhs: Self) Result { return *self / rhs; }
+}
+impl f64 : Div[f64] {
+	type Result = f64;
+	pub func div(self, rhs: Self) Result { return *self / rhs; }
+}
+
+// Rem
+
+pub interface Rem[T] {
+	type Result;
+
+	func rem(self, rhs: T) Result;
+}
+
+impl u8 : Rem[u8] {
+	type Result = u8;
+	pub func rem(self, rhs: Self) Result { return *self % rhs; }
+}
+impl u16 : Rem[u16] {
+	type Result = u16;
+	pub func rem(self, rhs: Self) Result { return *self % rhs; }
+}
+impl u32 : Rem[u32] {
+	type Result = u32;
+	pub func rem(self, rhs: Self) Result { return *self % rhs; }
+}
+impl u64 : Rem[u64] {
+	type Result = u64;
+	pub func rem(self, rhs: Self) Result { return *self % rhs; }
+}
+
+impl i8 : Rem[i8] {
+	type Result = i8;
+	pub func rem(self, rhs: Self) Result { return *self % rhs; }
+}
+impl i16 : Rem[i16] {
+	type Result = i16;
+	pub func rem(self, rhs: Self) Result { return *self % rhs; }
+}
+impl i32 : Rem[i32] {
+	type Result = i32;
+	pub func rem(self, rhs: Self) Result { return *self % rhs; }
+}
+impl i64 : Rem[i64] {
+	type Result = i64;
+	pub func rem(self, rhs: Self) Result { return *self % rhs; }
+}
+
+impl f32 : Rem[f32] {
+	type Result = f32;
+	pub func rem(self, rhs: Self) Result { return *self % rhs; }
+}
+impl f64 : Rem[f64] {
+	type Result = f64;
+	pub func rem(self, rhs: Self) Result { return *self % rhs; }
+}
+
+// BitOr
+
+pub interface BitOr[T] {
+	type Result;
+
+	func bit_or(self, rhs: T) Result;
+}
+
+impl u8 : BitOr[u8] {
+	type Result = u8;
+	pub func bit_or(self, rhs: Self) Result { return *self | rhs; }
+}
+impl u16 : BitOr[u16] {
+	type Result = u16;
+	pub func bit_or(self, rhs: Self) Result { return *self | rhs; }
+}
+impl u32 : BitOr[u32] {
+	type Result = u32;
+	pub func bit_or(self, rhs: Self) Result { return *self | rhs; }
+}
+impl u64 : BitOr[u64] {
+	type Result = u64;
+	pub func bit_or(self, rhs: Self) Result { return *self | rhs; }
+}
+
+impl i8 : BitOr[i8] {
+	type Result = i8;
+	pub func bit_or(self, rhs: Self) Result { return *self | rhs; }
+}
+impl i16 : BitOr[i16] {
+	type Result = i16;
+	pub func bit_or(self, rhs: Self) Result { return *self | rhs; }
+}
+impl i32 : BitOr[i32] {
+	type Result = i32;
+	pub func bit_or(self, rhs: Self) Result { return *self | rhs; }
+}
+impl i64 : BitOr[i64] {
+	type Result = i64;
+	pub func bit_or(self, rhs: Self) Result { return *self | rhs; }
+}
+
+// BitAnd
+
+pub interface BitAnd[T] {
+	type Result;
+
+	func bit_and(self, rhs: T) Result;
+}
+
+impl u8 : BitAnd[u8] {
+	type Result = u8;
+	pub func bit_and(self, rhs: Self) Result { return *self & rhs; }
+}
+impl u16 : BitAnd[u16] {
+	type Result = u16;
+	pub func bit_and(self, rhs: Self) Result { return *self & rhs; }
+}
+impl u32 : BitAnd[u32] {
+	type Result = u32;
+	pub func bit_and(self, rhs: Self) Result { return *self & rhs; }
+}
+impl u64 : BitAnd[u64] {
+	type Result = u64;
+	pub func bit_and(self, rhs: Self) Result { return *self & rhs; }
+}
+
+impl i8 : BitAnd[i8] {
+	type Result = i8;
+	pub func bit_and(self, rhs: Self) Result { return *self & rhs; }
+}
+impl i16 : BitAnd[i16] {
+	type Result = i16;
+	pub func bit_and(self, rhs: Self) Result { return *self & rhs; }
+}
+impl i32 : BitAnd[i32] {
+	type Result = i32;
+	pub func bit_and(self, rhs: Self) Result { return *self & rhs; }
+}
+impl i64 : BitAnd[i64] {
+	type Result = i64;
+	pub func bit_and(self, rhs: Self) Result { return *self & rhs; }
+}
+
+// BitXor
+
+pub interface BitXor[T] {
+	type Result;
+
+	func bit_xor(self, rhs: T) Result;
+}
+
+impl u8 : BitXor[u8] {
+	type Result = u8;
+	pub func bit_xor(self, rhs: Self) Result { return *self ^ rhs; }
+}
+impl u16 : BitXor[u16] {
+	type Result = u16;
+	pub func bit_xor(self, rhs: Self) Result { return *self ^ rhs; }
+}
+impl u32 : BitXor[u32] {
+	type Result = u32;
+	pub func bit_xor(self, rhs: Self) Result { return *self ^ rhs; }
+}
+impl u64 : BitXor[u64] {
+	type Result = u64;
+	pub func bit_xor(self, rhs: Self) Result { return *self ^ rhs; }
+}
+
+impl i8 : BitXor[i8] {
+	type Result = i8;
+	pub func bit_xor(self, rhs: Self) Result { return *self ^ rhs; }
+}
+impl i16 : BitXor[i16] {
+	type Result = i16;
+	pub func bit_xor(self, rhs: Self) Result { return *self ^ rhs; }
+}
+impl i32 : BitXor[i32] {
+	type Result = i32;
+	pub func bit_xor(self, rhs: Self) Result { return *self ^ rhs; }
+}
+impl i64 : BitXor[i64] {
+	type Result = i64;
+	pub func bit_xor(self, rhs: Self) Result { return *self ^ rhs; }
 }
 
 // Index

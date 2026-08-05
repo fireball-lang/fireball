@@ -1,22 +1,377 @@
 mod tests::ops;
 
-// Index
+// Types
 
 struct Vec2 {
-	xy: [2]i32,
+	x: i32,
+	y: i32,
 }
 
 impl Vec2 {
 	func new(x: i32, y: i32) Vec2 {
-		return Vec2 { xy: [2]i32{ x, y } };
+		return Vec2 { x: x, y: y };
 	}
 }
+
+struct Vec3 {
+	x: i32,
+	y: i32,
+	z: i32,
+}
+
+// Eq
+
+impl Vec2 : Eq[Vec2] {
+	pub func eq(self, rhs: Vec2) bool {
+		return self.x == rhs.x && self.y == rhs.y;
+	}
+}
+
+#[test("core::Eq[T] - equal")]
+func eqVec2Equal() bool {
+	return Vec2::new(1, 2) == Vec2::new(1, 2);
+}
+
+#[test("core::Eq[T] - not equal")]
+func eqVec2NotEqual() bool {
+	return Vec2::new(1, 2) != Vec2::new(3, 4);
+}
+
+#[test("core::Eq[T] - different x")]
+func eqVec2DiffX() bool {
+	return Vec2::new(1, 2) != Vec2::new(3, 2);
+}
+
+#[test("core::Eq[T] - different y")]
+func eqVec2DiffY() bool {
+	return Vec2::new(1, 2) != Vec2::new(1, 4);
+}
+
+// Ord
+
+impl Vec2 : Ord[Vec2] {
+	pub func ord(self, rhs: Vec2) Ordering {
+		if (self.x == rhs.x && self.y == rhs.y) return Ordering::Equal;
+		if (self.x < rhs.x || (self.x == rhs.x && self.y < rhs.y)) return Ordering::Less;
+		return Ordering::Greater;
+	}
+}
+
+#[test("core::Ord[T] - less by x")]
+func ordVec2LessX() bool {
+	return Vec2::new(1, 2) < Vec2::new(2, 2);
+}
+
+#[test("core::Ord[T] - greater by x")]
+func ordVec2GreaterX() bool {
+	return Vec2::new(2, 2) > Vec2::new(1, 2);
+}
+
+#[test("core::Ord[T] - less by y")]
+func ordVec2LessY() bool {
+	return Vec2::new(1, 2) < Vec2::new(1, 3);
+}
+
+#[test("core::Ord[T] - greater by y")]
+func ordVec2GreaterY() bool {
+	return Vec2::new(1, 3) > Vec2::new(1, 2);
+}
+
+#[test("core::Ord[T] - less or equal by x")]
+func ordVec2LessEqualX() bool {
+	return Vec2::new(1, 2) <= Vec2::new(2, 2);
+}
+
+#[test("core::Ord[T] - greater or equal by x")]
+func ordVec2GreaterEqualX() bool {
+	return Vec2::new(2, 2) >= Vec2::new(1, 2);
+}
+
+#[test("core::Ord[T] - less or equal by y")]
+func ordVec2LessEqualY() bool {
+	return Vec2::new(1, 2) <= Vec2::new(1, 3);
+}
+
+#[test("core::Ord[T] - greater or equal by y")]
+func ordVec2GreaterEqualY() bool {
+	return Vec2::new(1, 3) >= Vec2::new(1, 2);
+}
+
+#[test("core::Ord[T] - equal")]
+func ordVec2Equal() bool {
+	return Vec2::new(1, 2) <= Vec2::new(1, 2) && Vec2::new(1, 2) >= Vec2::new(1, 2);
+}
+
+#[test("core::Ord[T] - not less or equal")]
+func ordVec2NotLessEqual() bool {
+	return !(Vec2::new(2, 2) <= Vec2::new(1, 2));
+}
+
+#[test("core::Ord[T] - not greater or equal")]
+func ordVec2NotGreaterEqual() bool {
+	return !(Vec2::new(1, 2) >= Vec2::new(2, 2));
+}
+
+// Not
+
+impl Vec2 : Not {
+    type Result = Vec2;
+
+	pub func not(self) Vec2 {
+		return Vec2 { x: self.x ^ 0xFFFFFFFF as i32, y: self.y ^ 0xFFFFFFFF as i32 };
+	}
+}
+
+#[test("core::Not - bitwise not")]
+func notVec2() bool {
+	var v = !Vec2::new(1, 2);
+	return v.x == -2 && v.y == -3;
+}
+
+// Neg
+
+impl Vec2 : Neg {
+    type Result = Vec2;
+
+	pub func neg(self) Vec2 {
+		return Vec2 { x: -self.x, y: -self.y };
+	}
+}
+
+#[test("core::Neg - negation")]
+func negVec2() bool {
+	var v = -Vec2::new(1, 2);
+	return v.x == -1 && v.y == -2;
+}
+
+#[test("core::Neg - double negation")]
+func negVec2Double() bool {
+	var v = -(-Vec2::new(1, 2));
+	return v.x == 1 && v.y == 2;
+}
+
+// Add
+
+impl Vec2 : Add[Vec2] {
+	type Result = Vec2;
+
+	pub func add(self, rhs: Vec2) Vec2 {
+		return Vec2 { x: self.x + rhs.x, y: self.y + rhs.y };
+	}
+}
+
+#[test("core::Add[T] - addition")]
+func addVec2() bool {
+	var v = Vec2::new(1, 2) + Vec2::new(3, 4);
+	return v.x == 4 && v.y == 6;
+}
+
+#[test("core::Add[T] - add zero")]
+func addVec2Zero() bool {
+	var v = Vec2::new(1, 2) + Vec2::new(0, 0);
+	return v.x == 1 && v.y == 2;
+}
+
+#[test("core::Add[T] - compound add")]
+func compoundAddVec2() bool {
+	var v = Vec2::new(1, 2);
+	v += Vec2::new(3, 4);
+	return v.x == 4 && v.y == 6;
+}
+
+// Sub
+
+impl Vec2 : Sub[Vec2] {
+	type Result = Vec2;
+
+	pub func sub(self, rhs: Vec2) Vec2 {
+		return Vec2 { x: self.x - rhs.x, y: self.y - rhs.y };
+	}
+}
+
+#[test("core::Sub[T] - subtraction")]
+func subVec2() bool {
+	var v = Vec2::new(5, 6) - Vec2::new(3, 4);
+	return v.x == 2 && v.y == 2;
+}
+
+#[test("core::Sub[T] - sub self")]
+func subVec2Self() bool {
+	var v = Vec2::new(5, 6) - Vec2::new(5, 6);
+	return v.x == 0 && v.y == 0;
+}
+
+#[test("core::Sub[T] - compound sub")]
+func compoundSubVec2() bool {
+	var v = Vec2::new(5, 6);
+	v -= Vec2::new(3, 4);
+	return v.x == 2 && v.y == 2;
+}
+
+// Mul
+
+impl Vec2 : Mul[Vec2] {
+	type Result = Vec2;
+
+	pub func mul(self, rhs: Vec2) Vec2 {
+		return Vec2 { x: self.x * rhs.x, y: self.y * rhs.y };
+	}
+}
+
+#[test("core::Mul[T] - multiplication")]
+func mulVec2() bool {
+	var v = Vec2::new(2, 3) * Vec2::new(4, 5);
+	return v.x == 8 && v.y == 15;
+}
+
+#[test("core::Mul[T] - multiply by one")]
+func mulVec2One() bool {
+	var v = Vec2::new(2, 3) * Vec2::new(1, 1);
+	return v.x == 2 && v.y == 3;
+}
+
+#[test("core::Mul[T] - compound mul")]
+func compoundMulVec2() bool {
+	var v = Vec2::new(2, 3);
+	v *= Vec2::new(4, 5);
+	return v.x == 8 && v.y == 15;
+}
+
+// Div
+
+impl Vec2 : Div[Vec2] {
+	type Result = Vec2;
+
+	pub func div(self, rhs: Vec2) Vec2 {
+		return Vec2 { x: self.x / rhs.x, y: self.y / rhs.y };
+	}
+}
+
+#[test("core::Div[T] - division")]
+func divVec2() bool {
+	var v = Vec2::new(8, 15) / Vec2::new(4, 5);
+	return v.x == 2 && v.y == 3;
+}
+
+#[test("core::Div[T] - divide by one")]
+func divVec2One() bool {
+	var v = Vec2::new(8, 15) / Vec2::new(1, 1);
+	return v.x == 8 && v.y == 15;
+}
+
+#[test("core::Div[T] - compound div")]
+func compoundDivVec2() bool {
+	var v = Vec2::new(8, 15);
+	v /= Vec2::new(4, 5);
+	return v.x == 2 && v.y == 3;
+}
+
+// Rem
+
+impl Vec2 : Rem[Vec2] {
+	type Result = Vec2;
+
+	pub func rem(self, rhs: Vec2) Vec2 {
+		return Vec2 { x: self.x % rhs.x, y: self.y % rhs.y };
+	}
+}
+
+#[test("core::Rem[T] - remainder")]
+func remVec2() bool {
+	var v = Vec2::new(7, 10) % Vec2::new(3, 4);
+	return v.x == 1 && v.y == 2;
+}
+
+#[test("core::Rem[T] - no remainder")]
+func remVec2None() bool {
+	var v = Vec2::new(6, 8) % Vec2::new(3, 4);
+	return v.x == 0 && v.y == 0;
+}
+
+#[test("core::Rem[T] - compound rem")]
+func compoundRemVec2() bool {
+	var v = Vec2::new(7, 10);
+	v %= Vec2::new(3, 4);
+	return v.x == 1 && v.y == 2;
+}
+
+// BitOr
+
+impl Vec2 : BitOr[Vec2] {
+	type Result = Vec2;
+
+	pub func bit_or(self, rhs: Vec2) Vec2 {
+		return Vec2 { x: self.x | rhs.x, y: self.y | rhs.y };
+	}
+}
+
+#[test("core::BitOr[T] - bitwise or")]
+func bitOrVec2() bool {
+	var v = Vec2::new(0b1010 as i32, 0b1100 as i32) | Vec2::new(0b1001 as i32, 0b0110 as i32);
+	return v.x == 0b1011 as i32 && v.y == 0b1110 as i32;
+}
+
+#[test("core::BitOr[T] - compound or")]
+func compoundBitOrVec2() bool {
+	var v = Vec2::new(0b1010 as i32, 0b1100 as i32);
+	v |= Vec2::new(0b1001 as i32, 0b0110 as i32);
+	return v.x == 0b1011 as i32 && v.y == 0b1110 as i32;
+}
+
+// BitAnd
+
+impl Vec2 : BitAnd[Vec2] {
+	type Result = Vec2;
+
+	pub func bit_and(self, rhs: Vec2) Vec2 {
+		return Vec2 { x: self.x & rhs.x, y: self.y & rhs.y };
+	}
+}
+
+#[test("core::BitAnd[T] - bitwise and")]
+func bitAndVec2() bool {
+	var v = Vec2::new(0b1010 as i32, 0b1100 as i32) & Vec2::new(0b1001 as i32, 0b0110 as i32);
+	return v.x == 0b1000 as i32 && v.y == 0b0100 as i32;
+}
+
+#[test("core::BitAnd[T] - compound and")]
+func compoundBitAndVec2() bool {
+	var v = Vec2::new(0b1010 as i32, 0b1100 as i32);
+	v &= Vec2::new(0b1001 as i32, 0b0110 as i32);
+	return v.x == 0b1000 as i32 && v.y == 0b0100 as i32;
+}
+
+// BitXor
+
+impl Vec2 : BitXor[Vec2] {
+	type Result = Vec2;
+
+	pub func bit_xor(self, rhs: Vec2) Vec2 {
+		return Vec2 { x: self.x ^ rhs.x, y: self.y ^ rhs.y };
+	}
+}
+
+#[test("core::BitXor[T] - bitwise xor")]
+func bitXorVec2() bool {
+	var v = Vec2::new(0b1010 as i32, 0b1100 as i32) ^ Vec2::new(0b1001 as i32, 0b0110 as i32);
+	return v.x == 0b0011 as i32 && v.y == 0b1010 as i32;
+}
+
+#[test("core::BitXor[T] - compound xor")]
+func compoundBitXorVec2() bool {
+	var v = Vec2::new(0b1010 as i32, 0b1100 as i32);
+	v ^= Vec2::new(0b1001 as i32, 0b0110 as i32);
+	return v.x == 0b0011 as i32 && v.y == 0b1010 as i32;
+}
+
+// Index
 
 impl Vec2 : Index[i32] {
 	type Result = i32;
 
 	pub func index(self, i: i32) i32 {
-		return self.xy[i];
+	    if (i == 0) return self.x;
+		return self.y;
 	}
 }
 
@@ -42,19 +397,14 @@ func indexStructPointer() bool {
 
 // ImplicitAs
 
-struct Vec3 {
-	xy: [2]i32,
-	z: i32,
-}
-
 impl Vec2 : ImplicitAs[Vec3] {
 	pub func implicit_as(self) Vec3 {
-		return Vec3 { xy: self.xy };
+		return Vec3 { x: self.x, y: self.y };
 	}
 }
 
 #[test("core::ImplicitAs[T]")]
 func implicitAsStruct() bool {
 	var point3: Vec3 = Vec2::new(2, 3);
-	return point3.xy[1] == 3;
+	return point3.y == 3;
 }
