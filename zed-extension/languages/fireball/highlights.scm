@@ -135,6 +135,7 @@
 ; Other
 
 (comment) @comment
+((comment) @comment.doc (#match? @comment.doc "(^/// |^///$)"))
 
 [ "(" ")" "[" "]" "{" "}" ] @punctuation.bracket
 [ "," ";" ":" "."         ] @punctuation.delimiter

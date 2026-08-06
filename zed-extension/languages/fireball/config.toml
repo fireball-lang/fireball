@@ -1,7 +1,7 @@
 name = "Fireball"
 grammar = "fireball"
 path_suffixes = ["fb"]
-line_comments = ["// "]
+line_comments = ["// ", "/// "]
 
 [[brackets]]
 start = "("

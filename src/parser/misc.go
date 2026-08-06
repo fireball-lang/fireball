@@ -5,6 +5,20 @@ import (
 	"fireball/lexer"
 )
 
+func (p *parser) parseDocumentation() []*ast.Leaf {
+	var documentation []*ast.Leaf
+
+	for p.current.Kind == lexer.Documentation {
+		p.advance()
+
+		documentation = append(documentation, &ast.Leaf{
+			Token: p.previous,
+		})
+	}
+
+	return documentation
+}
+
 func (p *parser) parseIdentifierPath(typeArgsRequireTurbofish bool) (path []*ast.IdentifierEntry, recoverId int) {
 	var entry *ast.IdentifierEntry
 

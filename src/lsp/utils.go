@@ -2,8 +2,10 @@ package lsp
 
 import (
 	"context"
+	"fireball/ast"
 	"fireball/core"
 	"fmt"
+	"strings"
 
 	"github.com/fireball-lang/protocol"
 )
@@ -36,6 +38,25 @@ func (s *Server) error(ctx context.Context, format string, args ...any) {
 		Type:    protocol.MessageTypeError,
 		Message: msg,
 	})
+}
+
+func (s *Server) markup(documentation []*ast.Leaf) *protocol.MarkupContent {
+	var sb strings.Builder
+
+	for i, leaf := range documentation {
+		if i > 0 {
+			sb.WriteRune('\n')
+		}
+
+		if len(leaf.Token.Text) >= 4 {
+			sb.WriteString(strings.TrimRight(leaf.Token.Text[4:], " \r\n\t"))
+		}
+	}
+
+	return &protocol.MarkupContent{
+		Kind:  protocol.PlainText,
+		Value: sb.String(),
+	}
 }
 
 func toLspRange(r core.Range) protocol.Range {

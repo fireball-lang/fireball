@@ -82,6 +82,8 @@ const (
 	LeftBrace
 	RightBrace
 
+	Documentation
+
 	// Operators
 
 	Plus

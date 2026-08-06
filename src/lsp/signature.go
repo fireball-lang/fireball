@@ -56,8 +56,9 @@ func (s *Server) SignatureHelp(_ context.Context, params *protocol.SignatureHelp
 	return &protocol.SignatureHelp{
 		Signatures: []protocol.SignatureInformation{
 			{
-				Label:      label,
-				Parameters: paramInfos,
+				Label:         label,
+				Documentation: s.markup(funcNode.Documentation()),
+				Parameters:    paramInfos,
 			},
 		},
 		ActiveSignature: 0,

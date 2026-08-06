@@ -2,6 +2,7 @@ mod core;
 
 // Eq
 
+/// Implementing this interface overrides the `==` and `!=` operators for the concrete type and a pointer to that type.
 pub interface Eq[T] {
     func eq(self, rhs: T) bool;
 }
@@ -45,6 +46,7 @@ impl f64 : Eq[f64] {
 
 // Ord
 
+/// Implementing this interface overrides the `<`, `<=`, `>` and `>=` operators for the concrete type and a pointer to that type.
 pub enum Ordering {
 	Less,
 	Equal,
@@ -130,6 +132,7 @@ impl f64 : Ord[f64] {
 
 // Not
 
+/// Implementing this interface overrides the `!` operator for the concrete type and a pointer to that type.
 pub interface Not {
 	type Result;
 
@@ -143,6 +146,7 @@ impl bool : Not {
 
 // Neg
 
+/// Implementing this interface overrides the `-` operator for the concrete type and a pointer to that type.
 pub interface Neg {
 	type Result;
 
@@ -177,6 +181,7 @@ impl f64 : Neg {
 
 // Add
 
+/// Implementing this interface overrides the `+` and `+=` operators for the concrete type and a pointer to that type.
 pub interface Add[T] {
 	type Result;
 
@@ -228,6 +233,7 @@ impl f64 : Add[f64] {
 
 // Sub
 
+/// Implementing this interface overrides the `-` and `-=` operators for the concrete type and a pointer to that type.
 pub interface Sub[T] {
 	type Result;
 
@@ -279,6 +285,7 @@ impl f64 : Sub[f64] {
 
 // Mul
 
+/// Implementing this interface overrides the `*` and `*=` operators for the concrete type and a pointer to that type.
 pub interface Mul[T] {
 	type Result;
 
@@ -330,6 +337,7 @@ impl f64 : Mul[f64] {
 
 // Div
 
+/// Implementing this interface overrides the `/` and `/=` operators for the concrete type and a pointer to that type.
 pub interface Div[T] {
 	type Result;
 
@@ -381,6 +389,7 @@ impl f64 : Div[f64] {
 
 // Rem
 
+/// Implementing this interface overrides the `%` and `%=` operators for the concrete type and a pointer to that type.
 pub interface Rem[T] {
 	type Result;
 
@@ -432,6 +441,7 @@ impl f64 : Rem[f64] {
 
 // BitOr
 
+/// Implementing this interface overrides the `|` and `|=` operators for the concrete type and a pointer to that type.
 pub interface BitOr[T] {
 	type Result;
 
@@ -474,6 +484,7 @@ impl i64 : BitOr[i64] {
 
 // BitAnd
 
+/// Implementing this interface overrides the `&` and `&=` operators for the concrete type and a pointer to that type.
 pub interface BitAnd[T] {
 	type Result;
 
@@ -516,6 +527,7 @@ impl i64 : BitAnd[i64] {
 
 // BitXor
 
+/// Implementing this interface overrides the `^` and `^=` operators for the concrete type and a pointer to that type.
 pub interface BitXor[T] {
 	type Result;
 
@@ -558,6 +570,7 @@ impl i64 : BitXor[i64] {
 
 // Index
 
+/// Implementing this interface overrides the `[]` operator for the concrete type and a pointer to that type.
 pub interface Index[T] {
 	type Result;
 
@@ -566,6 +579,7 @@ pub interface Index[T] {
 
 // ImplicitAs
 
+/// Implementing this interface allows the concrete type to be implicitly casted to the generic type `T`.
 pub interface ImplicitAs[T] {
 	func implicit_as(self) T;
 }

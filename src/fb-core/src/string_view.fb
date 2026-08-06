@@ -1,5 +1,6 @@
 mod core;
 
+/// An immutable character sequence with a known size.
 pub struct StringView {
 	pub ptr: *u8,
 	pub size: u32,

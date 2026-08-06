@@ -1,5 +1,6 @@
 mod core;
 
+/// Stores either a value of the generic type `T` or nothing.
 pub struct Option[T] {
 	has_value: bool,
 	value: T,

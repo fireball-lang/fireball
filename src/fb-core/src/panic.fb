@@ -6,6 +6,7 @@ func set_panic_handler(handler: func(msg: StringView)) {
 	panic_handler = handler;
 }
 
+/// Produces an unrecoverable error which is forwarded to a set panic handler after which the execution of a program stops.
 func panic(msg: StringView) {
 	if (panic_handler == null) {
 		for (;;) {}

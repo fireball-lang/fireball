@@ -25,10 +25,8 @@ func New(reader io.Reader) *Lexer {
 }
 
 func (l *Lexer) Next() Token {
-	l.start = l.pos
-
-	if msg := l.skipWhitespace(); msg != "" {
-		return l.makeError(msg)
+	if token := l.skipWhitespace(); token.Kind != Last {
+		return token
 	}
 
 	l.start = l.pos
@@ -390,7 +388,7 @@ func (l *Lexer) keywordIdentifier() Token {
 	return token
 }
 
-func (l *Lexer) skipWhitespace() string {
+func (l *Lexer) skipWhitespace() Token {
 	for {
 		l.tokenText = l.tokenText[:0]
 
@@ -401,11 +399,23 @@ func (l *Lexer) skipWhitespace() string {
 		case '/':
 			switch l.peek(1) {
 			case '/':
+				doc := false
+
+				if l.peek(2) == '/' && (l.peek(3) == ' ' || l.peek(3) == '\n') {
+					l.start = l.pos
+					l.tokenText = l.tokenText[:0]
+
+					doc = true
+					l.advance()
+				}
+
 				l.advance()
 				l.advance()
 
 				for {
-					l.tokenText = l.tokenText[:0]
+					if !doc {
+						l.tokenText = l.tokenText[:0]
+					}
 
 					ch := l.peek(0)
 					if ch == '\n' || ch == '\000' {
@@ -413,6 +423,10 @@ func (l *Lexer) skipWhitespace() string {
 					}
 
 					l.advance()
+				}
+
+				if doc {
+					return l.make(Documentation)
 				}
 
 			case '*':
@@ -444,18 +458,18 @@ func (l *Lexer) skipWhitespace() string {
 
 						continue
 					} else if ch == '\000' {
-						return "unterminated comment"
+						return l.makeError("unterminated comment")
 					}
 
 					l.advance()
 				}
 
 			default:
-				return ""
+				return Token{Kind: Last}
 			}
 
 		default:
-			return ""
+			return Token{Kind: Last}
 		}
 	}
 }

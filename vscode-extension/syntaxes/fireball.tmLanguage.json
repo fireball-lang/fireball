@@ -9,6 +9,9 @@
 		{
 			"include": "#blockComment"
 		},
+        {
+            "include": "#documentation"
+        },
 		{
 			"include": "#operator"
 		},
@@ -63,7 +66,7 @@
 	],
 	"repository": {
 		"lineComment": {
-			"begin": "//",
+			"begin": "(?<!/)(?!/// |///$)//+",
 			"end": "\n",
 			"name": "comment.line.fb"
 		},
@@ -72,6 +75,11 @@
 			"end": "\\*/",
 			"name": "comment.block.fb"
 		},
+        "documentation": {
+            "begin": "((?<!/)/// |(?<!/)///$)",
+            "end": "\n",
+            "name": "comment.block.documentation.fb"
+        },
 		"operator": {
             "match": "=|\\+=|-=|\\*=|\\/=|%=|<<=|>>=|>>>=|\\|=|\\^=|&=|\\+|-|\\*|\\/|%|\\+\\+|--|\\?|<<|>>|>>>|\\&|\\|\\^|!|&&|\\|\\||==|!=|<|<=|>|>=",
 			"name": "keyword.operator.fb"

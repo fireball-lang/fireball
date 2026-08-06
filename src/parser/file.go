@@ -14,7 +14,7 @@ func (p *parser) parseFile() (f *ast.File) {
 	}()
 
 	recoverId := -1
-	p.pushRecoverPoint(lexer.Hashtag, lexer.Import, lexer.Pub, lexer.Struct, lexer.Enum, lexer.Interface, lexer.Impl, lexer.Var, lexer.Func)
+	p.pushRecoverPoint(lexer.Hashtag, lexer.Import, lexer.Pub, lexer.Documentation, lexer.Struct, lexer.Enum, lexer.Interface, lexer.Impl, lexer.Var, lexer.Func)
 
 	// Attributes
 
@@ -31,19 +31,28 @@ func (p *parser) parseFile() (f *ast.File) {
 	// Imports / Declarations
 
 	for p.current.Kind != lexer.EOF {
+		var documentation []*ast.Leaf
 		var attributes []ast.Attribute
+
+		if p.current.Kind == lexer.Documentation {
+			documentation = p.parseDocumentation()
+		}
 
 		if p.current.Kind == lexer.Hashtag {
 			attributes, _ = p.parseAttributes()
 		}
 
 		if p.current.Kind == lexer.Import {
+			if len(documentation) != 0 {
+				p.reportError(ast.SliceRange(documentation), "documentation cannot be added on imports")
+			}
+
 			i, _ := p.parseImport()
 			i.Attributes_ = attributes
 
 			f.Imports = append(f.Imports, i)
 		} else {
-			decl, _ := p.parseDecl(attributes)
+			decl, _ := p.parseDecl(documentation, attributes)
 			f.Decls = append(f.Decls, decl)
 		}
 	}

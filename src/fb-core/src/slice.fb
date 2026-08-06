@@ -2,6 +2,7 @@ mod core;
 
 // Immutable
 
+/// An immutable sequence of `T` with a known size.
 pub struct Slice[T] {
 	pub ptr: *T,
 	pub size: u64,
@@ -70,6 +71,7 @@ impl[T] Slice[T] : Index[u64] {
 
 // Mutable
 
+/// A mutable sequence of `T` with a known size.
 pub struct MutSlice[T] {
 	pub ptr: mut *T,
 	pub size: u64,

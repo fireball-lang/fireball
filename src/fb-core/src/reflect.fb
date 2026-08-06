@@ -1,5 +1,6 @@
 mod core;
 
+/// Stores RTTI (runtime type information) of every type in the type system.
 pub struct TypeInfo {
 	implements: Slice[*TypeInfo],
 }
