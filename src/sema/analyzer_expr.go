@@ -102,6 +102,10 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 		a.ExpectType(f.Type, value, field.Value)
 	}
 
+	if t.Layout == types.Union && len(s.Fields) > 1 {
+		a.Error(s, "when initializing an union struct, only one field can be set at most")
+	}
+
 	return ExprInfo{Type: typ}
 }
 

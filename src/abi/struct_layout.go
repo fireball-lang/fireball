@@ -22,7 +22,6 @@ type indexInfo struct {
 }
 
 func getStructLayout[T Arch](arch T, s *types.Struct) Info {
-	layout := structLayout{arch: arch, packed: s.Packed}
 
 	switch s.Layout {
 	case types.Fireball:
@@ -40,21 +39,48 @@ func getStructLayout[T Arch](arch T, s *types.Struct) Info {
 			return cmp.Compare(b.Align, a.Align)
 		})
 
+		layout := structLayout{arch: arch, packed: s.Packed}
+
 		for _, field := range fields {
 			layout.field(field.index, field.Info)
 		}
 
+		return layout.info()
+
 	case types.C:
+		layout := structLayout{arch: arch, packed: s.Packed}
+
 		for i, field := range s.Fields {
 			info := arch.Info(field.Type)
 			layout.field(uint32(i), info)
 		}
 
+		return layout.info()
+
+	case types.Union:
+		info := Info{
+			Fields: make([]Field, len(s.Fields)),
+		}
+
+		for i, field := range s.Fields {
+			fieldInfo := arch.Info(field.Type)
+
+			info.Fields[i] = Field{
+				Index:  uint32(i),
+				Offset: 0,
+			}
+
+			info.Size = max(info.Size, fieldInfo.Size)
+			info.Align = max(info.Align, fieldInfo.Align)
+		}
+
+		info.Size = alignTo(info.Size, info.Align)
+
+		return info
+
 	default:
 		panic("abi.getStructLayout() - Invalid struct layout")
 	}
-
-	return layout.info()
 }
 
 func (s *structLayout) field(index uint32, info Info) uint32 {

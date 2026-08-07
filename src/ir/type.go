@@ -5,8 +5,15 @@ import (
 	"slices"
 )
 
+type TypeInfo struct {
+	Size  uint32
+	Align uint32
+}
+
 type Type interface {
 	isIrType()
+
+	Info() TypeInfo
 }
 
 type StructLikeType interface {
@@ -33,6 +40,22 @@ type SimpleType struct {
 
 func (s SimpleType) isIrType() {}
 
+func (s SimpleType) Info() TypeInfo {
+	switch s.Kind {
+	case VoidKind:
+		return TypeInfo{}
+	case FloatKind:
+		return TypeInfo{Size: 4, Align: 4}
+	case DoubleKind:
+		return TypeInfo{Size: 8, Align: 8}
+	case PointerKind:
+		return TypeInfo{Size: 8, Align: 8}
+
+	default:
+		panic("ir.SimpleType.Info() - Invalid kind")
+	}
+}
+
 var Void = &SimpleType{Kind: VoidKind}
 var Float = &SimpleType{Kind: FloatKind}
 var Double = &SimpleType{Kind: DoubleKind}
@@ -45,6 +68,11 @@ type IntegerType struct {
 }
 
 func (i IntegerType) isIrType() {}
+
+func (i IntegerType) Info() TypeInfo {
+	bytes := uint32(i.Bits / 8)
+	return TypeInfo{Size: bytes, Align: max(bytes, 1)}
+}
 
 var I1 = &IntegerType{Bits: 1}
 var I8 = &IntegerType{Bits: 8}
@@ -61,6 +89,11 @@ type VectorType struct {
 
 func (v VectorType) isIrType() {}
 
+func (v VectorType) Info() TypeInfo {
+	info := v.Element.Info()
+	return TypeInfo{Size: info.Size * v.Length, Align: info.Align}
+}
+
 // Array
 
 type ArrayType struct {
@@ -69,6 +102,11 @@ type ArrayType struct {
 }
 
 func (a ArrayType) isIrType() {}
+
+func (a ArrayType) Info() TypeInfo {
+	info := a.Element.Info()
+	return TypeInfo{Size: info.Size * a.Length, Align: info.Align}
+}
 
 // Struct
 
@@ -83,6 +121,30 @@ type StructType struct {
 }
 
 func (s StructType) isIrType() {}
+
+func (s StructType) Info() TypeInfo {
+	info := TypeInfo{Align: 1}
+
+	if s.Packed {
+		for _, field := range s.Fields {
+			info.Size += field.Type.Info().Size
+		}
+
+		return info
+	}
+
+	for _, field := range s.Fields {
+		fieldInfo := field.Type.Info()
+
+		info.Size = alignTo(info.Size, fieldInfo.Align)
+		info.Size += fieldInfo.Size
+		info.Align = max(info.Align, fieldInfo.Align)
+	}
+
+	info.Size = alignTo(info.Size, info.Align)
+
+	return info
+}
 
 func (s StructType) AllFields() iter.Seq2[int, Field] {
 	return slices.All(s.Fields)
@@ -107,6 +169,10 @@ type RefStructType struct {
 
 func (r RefStructType) isIrType() {}
 
+func (r RefStructType) Info() TypeInfo {
+	return r.Struct.Info()
+}
+
 func (r RefStructType) AllFields() iter.Seq2[int, Field] {
 	return r.Struct.AllFields()
 }
@@ -116,6 +182,14 @@ func (r RefStructType) Field(name string) (Type, int) {
 }
 
 // Utils
+
+func alignTo(num, align uint32) uint32 {
+	if num%align != 0 {
+		num += align - (num % align)
+	}
+
+	return num
+}
 
 func IsAggregate(typ Type) bool {
 	switch typ.(type) {

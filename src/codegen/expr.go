@@ -1,6 +1,7 @@
 package codegen
 
 import (
+	"fireball/abi"
 	"fireball/ast"
 	"fireball/core"
 	"fireball/ir"
@@ -112,16 +113,31 @@ func (c *codegen) VisitNull(_ *ast.Null) ir.Value {
 
 func (c *codegen) VisitStructInitializer(s *ast.StructInitializer) ir.Value {
 	typ := c.ExprType(s).(*types.Struct)
-	t := c.types.Get(typ).(ir.StructLikeType)
+	t := c.types.Get(typ).(*ir.RefStructType)
 	info := c.arch.Info(typ)
 
 	sb := c.Struct(typ)
 
 	for _, field := range s.Fields {
-		_, i := t.Field(field.Name.Token.Text)
-		value := c.LoadImplicitCast(field.Value, typ.Fields[info.Fields[i].Index].Type)
+		name := field.Name.Token.Text
+		expr := field.Value
 
-		sb.Set(field.Name.Token.Text, value)
+		var fieldTyp types.Type
+
+		for _, f := range info.Fields {
+			if typ.Fields[f.Index].Name == field.Name.Token.Text {
+				fieldTyp = typ.Fields[f.Index].Type
+				break
+			}
+		}
+
+		value := c.LoadImplicitCast(expr, fieldTyp)
+
+		if typ.Layout == types.Union {
+			value = c.BitCast(value, t.Struct.Fields[0].Type)
+		}
+
+		sb.Set(name, value)
 	}
 
 	return sb.Build()
@@ -164,14 +180,20 @@ func (c *codegen) VisitAlignOf(e *ast.AlignOf) ir.Value {
 
 func (c *codegen) VisitOffsetOf(o *ast.OffsetOf) ir.Value {
 	typ := c.ResolveType(c.nodeTypes[o.Type]).(*types.Struct)
-	t := c.types.Get(typ).(ir.StructLikeType)
 	info := c.arch.Info(typ)
 
-	_, index := t.Field(o.Field.Token.Text)
+	var field abi.Field
+
+	for _, f := range info.Fields {
+		if typ.Fields[f.Index].Name == o.Field.Token.Text {
+			field = f
+			break
+		}
+	}
 
 	return &ir.Integer{
 		Typ:   ir.I32,
-		Value: core.Unsigned(false, uint64(info.Fields[index].Offset)),
+		Value: core.Unsigned(false, uint64(field.Offset)),
 	}
 }
 
@@ -661,9 +683,16 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 		s = typ.(*types.Struct)
 	}
 
-	t := c.types.Get(s).(ir.StructLikeType)
+	index := -1
 
-	_, index := t.Field(m.Name.Token.Text)
+	if s.Layout == types.Union {
+		if f := s.Field(m.Name.Token.Text); f != nil {
+			index = 0
+		}
+	} else {
+		t := c.types.Get(s).(ir.StructLikeType)
+		_, index = t.Field(m.Name.Token.Text)
+	}
 
 	// Method
 	if index == -1 {
@@ -696,7 +725,16 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 	}
 
 	// Value
-	return c.emitter.ExtractValue(value, uint32(index))
+	value = c.emitter.ExtractValue(value, uint32(index))
+
+	if s.Layout == types.Union {
+		//goland:noinspection GoMaybeNil
+		fieldType := s.Field(m.Name.Token.Text).Type
+
+		value = c.BitCast(value, c.types.Get(fieldType))
+	}
+
+	return value
 }
 
 func (c *codegen) VisitCall(e *ast.Call) ir.Value {

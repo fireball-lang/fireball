@@ -117,7 +117,7 @@
 (extern_attribute) @attribute
 (link_name_attribute "link_name" @attribute)
 (repr_attribute "repr" @attribute)
-(repr_attribute layout: [ "Fireball" "C" ] @attribute)
+(repr_attribute layout: [ "Fireball" "C" "Union" ] @attribute)
 (cfg_attribute "cfg" @attribute)
 
 (option_cfg name: (identifier) @attribute)

@@ -1,0 +1,249 @@
+mod tests::repr_union;
+
+// Mixed: all fields share the same union storage, so every field is
+// at offset 0 regardless of size.
+//
+// Union layout:
+//   a: i8   @ offset 0
+//   b: i32  @ offset 0
+//   c: i16  @ offset 0
+//   d: i64  @ offset 0
+//
+// Total size: max(1, 4, 2, 8) = 8, align = max(1, 4, 2, 8) = 8
+
+#[repr(Union)]
+struct Mixed {
+    a: i8,
+    b: i32,
+    c: i16,
+    d: i64,
+}
+
+#[test("sizeof(Mixed)")]
+func testSizeofMixed() bool {
+    return sizeof(Mixed) == 8u;
+}
+
+#[test("alignof(Mixed)")]
+func testAlignofMixed() bool {
+    return alignof(Mixed) == 8u;
+}
+
+#[test("offsetof(Mixed, a)")]
+func testOffsetofMixedA() bool {
+    return offsetof(Mixed, a) == 0u;
+}
+
+#[test("offsetof(Mixed, b)")]
+func testOffsetofMixedB() bool {
+    return offsetof(Mixed, b) == 0u;
+}
+
+#[test("offsetof(Mixed, c)")]
+func testOffsetofMixedC() bool {
+    return offsetof(Mixed, c) == 0u;
+}
+
+#[test("offsetof(Mixed, d)")]
+func testOffsetofMixedD() bool {
+    return offsetof(Mixed, d) == 0u;
+}
+
+#[test("union initializer sets first field")]
+func testUnionInitFirst() bool {
+    var u = Mixed { a: 42 };
+    return u.a == 42;
+}
+
+#[test("union initializer sets second field")]
+func testUnionInitSecond() bool {
+    var u = Mixed { b: 0x55667788 as i32 };
+    return u.b == (0x55667788 as i32);
+}
+
+
+// Descending: fields in descending size order, all still at offset 0.
+//
+//   x: i64  @ offset 0
+//   y: i32  @ offset 0
+//   z: i16  @ offset 0
+//   w: i8   @ offset 0
+//
+// Total size: max(8, 4, 2, 1) = 8, align = max(8, 4, 2, 1) = 8
+
+#[repr(Union)]
+struct Descending {
+    x: i64,
+    y: i32,
+    z: i16,
+    w: i8,
+}
+
+#[test("sizeof(Descending)")]
+func testSizeofDescending() bool {
+    return sizeof(Descending) == 8u;
+}
+
+#[test("alignof(Descending)")]
+func testAlignofDescending() bool {
+    return alignof(Descending) == 8u;
+}
+
+#[test("offsetof(Descending, x)")]
+func testOffsetofDescendingX() bool {
+    return offsetof(Descending, x) == 0u;
+}
+
+#[test("offsetof(Descending, y)")]
+func testOffsetofDescendingY() bool {
+    return offsetof(Descending, y) == 0u;
+}
+
+#[test("offsetof(Descending, z)")]
+func testOffsetofDescendingZ() bool {
+    return offsetof(Descending, z) == 0u;
+}
+
+#[test("offsetof(Descending, w)")]
+func testOffsetofDescendingW() bool {
+    return offsetof(Descending, w) == 0u;
+}
+
+
+// BoolAndI64: bool and i64 share storage, both at offset 0.
+//
+//   flag: bool  @ offset 0
+//   val:  i64   @ offset 0
+//
+// Total size: max(1, 8) = 8, align = max(1, 8) = 8
+
+#[repr(Union)]
+struct BoolAndI64 {
+    flag: bool,
+    val: i64,
+}
+
+#[test("sizeof(BoolAndI64)")]
+func testSizeofBoolAndI64() bool {
+    return sizeof(BoolAndI64) == 8u;
+}
+
+#[test("alignof(BoolAndI64)")]
+func testAlignofBoolAndI64() bool {
+    return alignof(BoolAndI64) == 8u;
+}
+
+#[test("offsetof(BoolAndI64, flag)")]
+func testOffsetofBoolAndI64Flag() bool {
+    return offsetof(BoolAndI64, flag) == 0u;
+}
+
+#[test("offsetof(BoolAndI64, val)")]
+func testOffsetofBoolAndI64Val() bool {
+    return offsetof(BoolAndI64, val) == 0u;
+}
+
+
+// Overlap: writing to one field of a union shares storage with every
+// other field, so a write is visible when reading through another field.
+//
+// Since all fields sit at offset 0, these tests verify the bytes are
+// truly shared rather than each field having its own slot.
+
+#[repr(Union)]
+struct OverlapBytes {
+    word: i64,
+    bytes: [8]i8,
+}
+
+#[test("overlap: write bytes, read word")]
+func testOverlapWriteBytesReadWord() bool {
+    var u: OverlapBytes;
+    for (var i = 0; i < 8; i = i + 1) {
+        u.bytes[i] = -1;
+    }
+    return u.word == -1;
+}
+
+#[test("overlap: write word, read bytes")]
+func testOverlapWriteWordReadBytes() bool {
+    var u: OverlapBytes;
+    u.word = -1;
+    for (var i = 0; i < 8; i = i + 1) {
+        if (u.bytes[i] != -1) { return false; }
+    }
+    return true;
+}
+
+
+// Overlapping binding: reading a field reflects the value that was most
+// recently written through any field that aliases the same storage.
+
+#[repr(Union)]
+struct OverlapNumeric {
+    a: i64,
+    b: i64,
+}
+
+#[test("overlap: write a, read b")]
+func testOverlapWriteAReadB() bool {
+    var u: OverlapNumeric;
+    u.a = 0x1122334455667788 as i64;
+    return u.b == 0x1122334455667788 as i64;
+}
+
+#[test("overlap: write b, read a")]
+func testOverlapWriteBReadA() bool {
+    var u: OverlapNumeric;
+    u.b = 0x8877665544332211 as i64;
+    return u.a == 0x8877665544332211 as i64;
+}
+
+
+// Smaller member read: the union's IR type only holds the largest member,
+// so reading a smaller member must still return the correct value.
+//
+//   big:   i64  (largest, size 8)
+//   small: i32  (smaller, size 4)
+//
+// Writing big = 0x1122334455667788 and reading small gives the low 32 bits
+// (0x55667788) on little-endian targets.
+
+#[repr(Union)]
+struct SmallRead {
+    big: i64,
+    small: i32,
+}
+
+// Returns the union by value so the member access on the call result goes
+// through the ExtractValue path (non-addressable temporary).
+func makeSmallRead() SmallRead {
+    var u: SmallRead;
+    u.big = 0x1122334455667788 as i64;
+    return u;
+}
+
+// Reads a smaller member through a pointer (GEP pointer path).
+func readSmallPtr(u: *SmallRead) i32 {
+    return u.small;
+}
+
+#[test("small member read (extractvalue)")]
+func testSmallMemberExtractValue() bool {
+    return makeSmallRead().small == (0x55667788 as i32);
+}
+
+#[test("small member read (pointer)")]
+func testSmallMemberPointer() bool {
+    var u: SmallRead;
+    u.big = 0x1122334455667788 as i64;
+    return readSmallPtr(&u) == (0x55667788 as i32);
+}
+
+#[test("small member read (addressable variable)")]
+func testSmallMemberVariable() bool {
+    var u: SmallRead;
+    u.big = 0x1122334455667788 as i64;
+    return u.small == (0x55667788 as i32);
+}
+

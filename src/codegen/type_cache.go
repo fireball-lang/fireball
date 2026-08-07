@@ -232,14 +232,35 @@ func (t *TypeCache) createArrayMeta(typ *types.Array) ir.MetaRef {
 
 func (t *TypeCache) createStructType(typ *types.Struct) ir.Type {
 	info := t.Arch.Info(typ)
-	fields := make([]ir.Field, len(typ.Fields))
+	var fields []ir.Field
 
-	for i, field := range info.Fields {
-		f := typ.Fields[field.Index]
+	if typ.Layout == types.Union {
+		fields = make([]ir.Field, 1)
 
-		fields[i] = ir.Field{
-			Name: f.Name,
-			Type: t.Get(f.Type),
+		largestSize := uint32(0)
+		largestIndex := uint32(0)
+
+		for _, field := range info.Fields {
+			f := typ.Fields[field.Index]
+			fieldInfo := t.Arch.Info(f.Type)
+
+			if fieldInfo.Size > largestSize {
+				largestSize = fieldInfo.Size
+				largestIndex = field.Index
+			}
+		}
+
+		fields[0] = ir.Field{Type: t.Get(typ.Fields[largestIndex].Type)}
+	} else {
+		fields = make([]ir.Field, len(typ.Fields))
+
+		for i, field := range info.Fields {
+			f := typ.Fields[field.Index]
+
+			fields[i] = ir.Field{
+				Name: f.Name,
+				Type: t.Get(f.Type),
+			}
 		}
 	}
 

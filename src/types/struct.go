@@ -7,6 +7,7 @@ type Layout uint8
 const (
 	Fireball Layout = iota
 	C
+	Union
 )
 
 type Field struct {

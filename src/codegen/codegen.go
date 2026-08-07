@@ -531,7 +531,7 @@ func (c *codegen) BitCast(value ir.Value, typ ir.Type) ir.Value {
 	}
 
 	// BitCast
-	if !ir.IsAggregate(value.Type()) && !ir.IsAggregate(typ) {
+	if !ir.IsAggregate(value.Type()) && !ir.IsAggregate(typ) && value.Type().Info().Size == typ.Info().Size {
 		return c.emitter.BitCast(value, typ)
 	}
 
