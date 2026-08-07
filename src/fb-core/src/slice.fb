@@ -61,6 +61,25 @@ impl[T: Eq[T]] Slice[T] : Eq[Slice[T]] {
 	}
 }
 
+impl[T: Ord[T]] Slice[T] : Ord[Slice[T]] {
+	pub func ord(self, rhs: Slice[T]) Ordering {
+		var size = self.size;
+		if (rhs.size < size) size = rhs.size;
+
+		for (var i = 0u; i < size; i++) {
+			var ord = self.ptr[i].ord(rhs.ptr[i]);
+			if (ord == Ordering::Equal) continue;
+
+			return ord;
+		}
+
+		if (self.size < rhs.size) return Ordering::Less;
+		if (self.size > rhs.size) return Ordering::Greater;
+
+		return Ordering::Equal;
+	}
+}
+
 impl[T] Slice[T] : Index[u64] {
 	type Result = T;
 
@@ -147,6 +166,25 @@ impl[T: Eq[T]] MutSlice[T] : Eq[Slice[T]] {
 		}
 
 		return true;
+	}
+}
+
+impl[T: Ord[T]] MutSlice[T] : Ord[Slice[T]] {
+	pub func ord(self, rhs: Slice[T]) Ordering {
+		var size = self.size;
+		if (rhs.size < size) size = rhs.size;
+
+		for (var i = 0u; i < size; i++) {
+			var ord = self.ptr[i].ord(rhs.ptr[i]);
+			if (ord == Ordering::Equal) continue;
+
+			return ord;
+		}
+
+		if (self.size < rhs.size) return Ordering::Less;
+		if (self.size > rhs.size) return Ordering::Greater;
+
+		return Ordering::Equal;
 	}
 }
 

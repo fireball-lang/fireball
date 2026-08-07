@@ -260,3 +260,112 @@ func mutSliceEqDifferentValues() bool {
 	var b: mut []i32 = bArr;
 	return !a.eq(b);
 }
+
+// --- Slice Ord ---
+
+#[test("Slice.ord - equal")]
+func sliceOrdEqual() bool {
+	var aArr = [3]i32 { 1, 2, 3 };
+	var bArr = [3]i32 { 1, 2, 3 };
+	var a: []i32 = aArr;
+	var b: []i32 = bArr;
+	return a.ord(b) == Ordering::Equal;
+}
+
+#[test("Slice.ord - less")]
+func sliceOrdLess() bool {
+	var aArr = [3]i32 { 1, 2, 3 };
+	var bArr = [3]i32 { 1, 2, 4 };
+	var a: []i32 = aArr;
+	var b: []i32 = bArr;
+	return a.ord(b) == Ordering::Less;
+}
+
+#[test("Slice.ord - greater")]
+func sliceOrdGreater() bool {
+	var aArr = [3]i32 { 1, 2, 4 };
+	var bArr = [3]i32 { 1, 2, 3 };
+	var a: []i32 = aArr;
+	var b: []i32 = bArr;
+	return a.ord(b) == Ordering::Greater;
+}
+
+#[test("Slice.ord - first differing element wins")]
+func sliceOrdFirstDiffWins() bool {
+	var aArr = [2]i32 { 1, 5 };
+	var bArr = [2]i32 { 2, 3 };
+	var a: []i32 = aArr;
+	var b: []i32 = bArr;
+	return a.ord(b) == Ordering::Less;
+}
+
+#[test("Slice.ord - shorter prefix is less")]
+func sliceOrdShorterIsLess() bool {
+	var aArr = [2]i32 { 1, 2 };
+	var bArr = [3]i32 { 1, 2, 3 };
+	var a: []i32 = aArr;
+	var b: []i32 = bArr;
+	return a.ord(b) == Ordering::Less;
+}
+
+#[test("Slice.ord - longer is greater")]
+func sliceOrdLongerIsGreater() bool {
+	var aArr = [3]i32 { 1, 2, 3 };
+	var bArr = [2]i32 { 1, 2 };
+	var a: []i32 = aArr;
+	var b: []i32 = bArr;
+	return a.ord(b) == Ordering::Greater;
+}
+
+#[test("Slice.ord - both empty")]
+func sliceOrdBothEmpty() bool {
+	var a: []i32;
+	var b: []i32;
+	return a.ord(b) == Ordering::Equal;
+}
+
+#[test("Slice.ord - empty is less")]
+func sliceOrdEmptyIsLess() bool {
+	var a: []i32;
+	var bArr = [1]i32 { 1 };
+	var b: []i32 = bArr;
+	return a.ord(b) == Ordering::Less;
+}
+
+// --- MutSlice Ord ---
+
+#[test("MutSlice.ord - equal")]
+func mutSliceOrdEqual() bool {
+	var aArr = [3]i32 { 1, 2, 3 };
+	var bArr = [3]i32 { 1, 2, 3 };
+	var a: mut []i32 = aArr;
+	var b: []i32 = bArr;
+	return a.ord(b) == Ordering::Equal;
+}
+
+#[test("MutSlice.ord - less")]
+func mutSliceOrdLess() bool {
+	var aArr = [3]i32 { 1, 2, 3 };
+	var bArr = [3]i32 { 1, 2, 4 };
+	var a: mut []i32 = aArr;
+	var b: []i32 = bArr;
+	return a.ord(b) == Ordering::Less;
+}
+
+#[test("MutSlice.ord - greater")]
+func mutSliceOrdGreater() bool {
+	var aArr = [3]i32 { 1, 2, 4 };
+	var bArr = [3]i32 { 1, 2, 3 };
+	var a: mut []i32 = aArr;
+	var b: []i32 = bArr;
+	return a.ord(b) == Ordering::Greater;
+}
+
+#[test("MutSlice.ord - size fallback")]
+func mutSliceOrdSizeFallback() bool {
+	var aArr = [2]i32 { 1, 2 };
+	var bArr = [3]i32 { 1, 2, 3 };
+	var a: mut []i32 = aArr;
+	var b: []i32 = bArr;
+	return a.ord(b) == Ordering::Less;
+}

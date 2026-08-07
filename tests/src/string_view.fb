@@ -69,3 +69,38 @@ func eqFalse() bool {
 func index() bool {
 	return "Hello"[2u] == 'l';
 }
+
+#[test("StringView::ord() - equal")]
+func ordEqual() bool {
+	return "abc".ord("abc") == Ordering::Equal;
+}
+
+#[test("StringView::ord() - less")]
+func ordLess() bool {
+	return "abc".ord("abd") == Ordering::Less;
+}
+
+#[test("StringView::ord() - greater")]
+func ordGreater() bool {
+	return "abd".ord("abc") == Ordering::Greater;
+}
+
+#[test("StringView::ord() - shorter prefix is less")]
+func ordShorterIsLess() bool {
+	return "ab".ord("abc") == Ordering::Less;
+}
+
+#[test("StringView::ord() - longer is greater")]
+func ordLongerIsGreater() bool {
+	return "abc".ord("ab") == Ordering::Greater;
+}
+
+#[test("StringView::ord() - both empty")]
+func ordBothEmpty() bool {
+	return "".ord("") == Ordering::Equal;
+}
+
+#[test("StringView::ord() - empty is less")]
+func ordEmptyIsLess() bool {
+	return "".ord("a") == Ordering::Less;
+}

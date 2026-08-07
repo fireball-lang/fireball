@@ -93,6 +93,26 @@ impl StringView : Eq[StringView] {
 	}
 }
 
+impl StringView : Ord[StringView] {
+	pub func ord(self, rhs: StringView) Ordering {
+		var size = self.size;
+		if (rhs.size < size) size = rhs.size;
+
+		for (var i = 0u; i < size; i++) {
+			var left = self.ptr[i];
+			var right = rhs.ptr[i];
+
+			if (left < right) return Ordering::Less;
+			if (left > right) return Ordering::Greater;
+		}
+
+		if (self.size < rhs.size) return Ordering::Less;
+		if (self.size > rhs.size) return Ordering::Greater;
+
+		return Ordering::Equal;
+	}
+}
+
 impl StringView : Index[u32] {
 	type Result = u8;
 
