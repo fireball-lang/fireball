@@ -67,6 +67,8 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 	if !a.locals.Add(symbol) {
 		a.Error(v.Name, "variable '%s' already exists in the current scope", symbol.Name)
 	}
+
+	a.varAccessed[v] = false
 }
 
 func (a *analyzer) VisitIf(i *ast.If) {

@@ -380,6 +380,10 @@ func (c *common) Error(node ast.Node, format string, args ...any) ExprInfo {
 	return c.ErrorRange(node.Range(), format, args...)
 }
 
+func (c *common) Warning(node ast.Node, format string, args ...any) {
+	c.WarningRange(node.Range(), format, args...)
+}
+
 func (c *common) ErrorRange(range_ core.Range, format string, args ...any) ExprInfo {
 	c.diagnostics = append(c.diagnostics, core.Diagnostic{
 		Kind:    core.Error,
@@ -389,4 +393,13 @@ func (c *common) ErrorRange(range_ core.Range, format string, args ...any) ExprI
 	})
 
 	return ExprInfo{Type: types.Invalid}
+}
+
+func (c *common) WarningRange(range_ core.Range, format string, args ...any) {
+	c.diagnostics = append(c.diagnostics, core.Diagnostic{
+		Kind:    core.Warning,
+		Path:    c.path,
+		Range:   range_,
+		Message: fmt.Sprintf(format, args...),
+	})
 }

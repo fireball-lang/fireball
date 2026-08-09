@@ -494,6 +494,14 @@ func (f *Func) IsMethod() bool {
 	return ok
 }
 
+func (f *Func) IsInterfaceMethod() bool {
+	if impl, ok := f.Parent().(*Impl); ok {
+		return impl.Interface != nil
+	}
+
+	return false
+}
+
 func (f *Func) GetTestName() string {
 	if test := GetAttribute[*Test](f); test != nil {
 		name := ""

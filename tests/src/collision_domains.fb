@@ -18,7 +18,7 @@ func testTypeAndFunc() bool {
 
 #[test("type and variable with same name")]
 func testTypeAndVar() bool {
-    var f = foo { value: 10 };
+    var _f = foo { value: 10 };
     return foo == 0;
 }
 

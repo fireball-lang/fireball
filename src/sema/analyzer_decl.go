@@ -519,7 +519,38 @@ func (a *analyzer) VisitFuncInner(f *ast.Func, typ *types.Func, receiverTyp type
 
 	// Body
 	a.funcType = typ
+	a.varAccessed = make(map[ast.Node]bool)
+
+	if f.Name().Token.Text == "bar" {
+		print()
+	}
+
+	if !f.IsExtern() && !f.IsInterfaceMethod() {
+		for _, param := range f.Params {
+			a.varAccessed[param] = false
+		}
+	}
+
 	a.AnalyzeStmt(f.Body)
+
+	for node, accessed := range a.varAccessed {
+		var kind string
+		var name *ast.Leaf
+
+		if v, ok := node.(*ast.Var); ok {
+			kind = "variable"
+			name = v.Name
+		} else {
+			kind = "parameter"
+			name = node.(*ast.Param).Name
+		}
+
+		if !accessed && !strings.HasPrefix(name.Token.Text, "_") {
+			a.Warning(name, "unused %s '%s'", kind, name.Token.Text)
+		}
+	}
+
+	a.varAccessed = nil
 	a.funcType = nil
 
 	a.locals.Pop()

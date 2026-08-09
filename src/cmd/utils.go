@@ -114,6 +114,7 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*
 	}
 
 	// Print diagnostics
+	hasDiagnostics := false
 	hasErrors := false
 
 	for _, proj := range projMap {
@@ -126,6 +127,8 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*
 			for diag := range file.Diagnostics() {
 				printDiagnostic(path, diag)
 
+				hasDiagnostics = true
+
 				if diag.Kind == core.Error {
 					hasErrors = true
 				}
@@ -133,11 +136,14 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*
 		}
 	}
 
+	if hasDiagnostics {
+		fmt.Println()
+	}
+
 	if hasErrors {
 		if start != nil {
 			duration := time.Since(*start)
 
-			fmt.Println()
 			_, _ = color.New(color.FgRed, color.Bold).Print("Build failed\n")
 			color.White("  took %s", duration)
 		}

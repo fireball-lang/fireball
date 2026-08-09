@@ -34,8 +34,9 @@ type analyzer struct {
 
 	stringViewType types.Type
 
-	funcType *types.Func
-	loop     int
+	funcType    *types.Func
+	varAccessed map[ast.Node]bool
+	loop        int
 }
 
 var fileAllowedAttributes = []reflect.Type{
