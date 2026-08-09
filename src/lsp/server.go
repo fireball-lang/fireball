@@ -147,6 +147,7 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 				TriggerCharacters:   []string{"("},
 				RetriggerCharacters: []string{","},
 			},
+			HoverProvider: &protocol.HoverOptions{},
 		},
 		ServerInfo: &protocol.ServerInfo{
 			Name:    "fireball",

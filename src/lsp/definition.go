@@ -4,6 +4,7 @@ import (
 	"context"
 	"fireball/ast"
 	"fireball/core"
+	"fireball/lexer"
 	"fireball/project"
 	"fireball/symbols"
 	"fireball/types"
@@ -32,6 +33,14 @@ func (s *Server) Definition(ctx context.Context, params *protocol.DefinitionPara
 		return nil, nil
 	}
 
+	// Only resolve definitions when the cursor is positioned on an identifier
+	// token, so that empty space doesn't resolve to an enclosing declaration.
+	leaf, ok := node.(*ast.Leaf)
+	if !ok || leaf.Token.Kind != lexer.Identifier {
+		return nil, nil
+	}
+
+	// Resolve definition
 	defNode := s.resolveDefinition(file, node)
 	if core.IsNil(defNode) {
 		return nil, nil
@@ -41,34 +50,47 @@ func (s *Server) Definition(ctx context.Context, params *protocol.DefinitionPara
 }
 
 func (s *Server) resolveDefinition(file *project.File, node ast.Node) ast.Node {
+outer:
 	for !core.IsNil(node) {
 		switch n := node.(type) {
 
 		// Variable, function, static-method identifier
 		case *ast.Identifier:
-			if info, ok := file.ExprInfos[n]; ok && !core.IsNil(info.Node) {
-				return info.Node
+			info, ok := file.ExprInfos[n]
+			if !ok || core.IsNil(info.Node) {
+				break outer
 			}
+
+			return info.Node
 
 		// Member access: field, method
 		case *ast.Member:
-			if info, ok := file.ExprInfos[n]; ok && !core.IsNil(info.Node) {
-				return info.Node
+			info, ok := file.ExprInfos[n]
+			if !ok || core.IsNil(info.Node) {
+				break outer
 			}
+
+			return info.Node
 
 		// Type annotation
 		case *ast.IdentifierType:
-			if typ, ok := file.NodeTypes[n]; ok {
-				return s.findTypeDeclaration(typ)
+			typ, ok := file.NodeTypes[n]
+			if !ok {
+				break outer
 			}
+
+			return s.findTypeDeclaration(typ)
 
 		// Leaf
 		case *ast.Leaf:
 			// Import symbols
 			if _, ok := n.Parent().(*ast.Import); ok {
-				if typ, ok := file.NodeTypes[n]; ok {
-					return s.findTypeDeclaration(typ)
+				typ, ok := file.NodeTypes[n]
+				if !ok {
+					break outer
 				}
+
+				return s.findTypeDeclaration(typ)
 			}
 
 		// IdentifierEntry
@@ -85,9 +107,12 @@ func (s *Server) resolveDefinition(file *project.File, node ast.Node) ast.Node {
 			isLast := path[len(path)-1] == n
 
 			if !isLast {
-				if typ, ok := file.NodeTypes[n]; ok {
-					return s.findTypeDeclaration(typ)
+				typ, ok := file.NodeTypes[n]
+				if !ok {
+					break outer
 				}
+
+				return s.findTypeDeclaration(typ)
 			}
 		}
 

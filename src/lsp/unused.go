@@ -95,10 +95,6 @@ func (s *Server) Formatting(ctx context.Context, params *protocol.DocumentFormat
 	return nil, errors.New("not implemented")
 }
 
-func (s *Server) Hover(ctx context.Context, params *protocol.HoverParams) (result *protocol.Hover, err error) {
-	return nil, errors.New("not implemented")
-}
-
 func (s *Server) Implementation(ctx context.Context, params *protocol.ImplementationParams) (result []protocol.Location, err error) {
 	return nil, errors.New("not implemented")
 }
