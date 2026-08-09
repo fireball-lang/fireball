@@ -54,17 +54,9 @@ outer:
 	for !core.IsNil(node) {
 		switch n := node.(type) {
 
-		// Variable, function, static-method identifier
-		case *ast.Identifier:
-			info, ok := file.ExprInfos[n]
-			if !ok || core.IsNil(info.Node) {
-				break outer
-			}
-
-			return info.Node
-
-		// Member access: field, method
-		case *ast.Member:
+		// Variable, function, static-method identifier, member access
+		// (field, method) and struct initializer field
+		case *ast.Identifier, *ast.Member, *ast.FieldInitializer:
 			info, ok := file.ExprInfos[n]
 			if !ok || core.IsNil(info.Node) {
 				break outer

@@ -30,7 +30,7 @@ type File struct {
 
 	resolveDiagnostics []core.Diagnostic
 
-	ExprInfos       map[ast.Expr]sema.ExprInfo
+	ExprInfos       map[ast.Node]sema.ExprInfo
 	NodeTypes       map[ast.Node]types.Type
 	Instantiations  *types.InstantiationCache
 	TypeEnv         *sema.TypeEnvironment

@@ -30,7 +30,7 @@ type analyzer struct {
 
 	topLevelModule string
 
-	exprInfos map[ast.Expr]ExprInfo
+	exprInfos map[ast.Node]ExprInfo
 
 	stringViewType types.Type
 
@@ -47,7 +47,7 @@ var importAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
 }
 
-func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, nodeTypes map[ast.Node]types.Type, topLevelModule, path string) (map[ast.Expr]ExprInfo, []core.Diagnostic) {
+func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, nodeTypes map[ast.Node]types.Type, topLevelModule, path string) (map[ast.Node]ExprInfo, []core.Diagnostic) {
 	defer core.Scope()()
 
 	// Setup
@@ -56,7 +56,7 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 		common:         setupCommon(file, fileSymbols, root, instantiations, typeEnv, nodeTypes, path),
 		locals:         &symbols.BlockScope{},
 		topLevelModule: topLevelModule,
-		exprInfos:      make(map[ast.Expr]ExprInfo),
+		exprInfos:      make(map[ast.Node]ExprInfo),
 	}
 
 	a.checkTypeConstraints = true

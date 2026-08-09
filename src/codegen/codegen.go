@@ -14,7 +14,7 @@ import (
 )
 
 type FileData struct {
-	ExprInfos map[ast.Expr]sema.ExprInfo
+	ExprInfos map[ast.Node]sema.ExprInfo
 	NodeTypes map[ast.Node]types.Type
 }
 
@@ -34,7 +34,7 @@ type codegen struct {
 
 	arch      abi.Arch
 	callConv  abi.CallConv
-	exprInfos map[ast.Expr]sema.ExprInfo
+	exprInfos map[ast.Node]sema.ExprInfo
 	nodeTypes map[ast.Node]types.Type
 	typeEnv   *sema.TypeEnvironment
 

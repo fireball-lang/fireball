@@ -98,6 +98,11 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 			continue
 		}
 
+		a.exprInfos[field] = ExprInfo{
+			Type: f.Type,
+			Node: a.resolveFieldNode(t, field.Name.Token.Text),
+		}
+
 		value := a.AnalyzeExpr(field.Value)
 		a.ExpectType(f.Type, value, field.Value)
 	}
@@ -637,25 +642,9 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 					a.Error(m.Name, "field '%s' is private", m.Name.Token.Text)
 				}
 
-				var fieldNode ast.Node
-				lookupStruct := t
-
-				if t.Generic != nil {
-					lookupStruct = t.Generic
-				}
-
-				if structNode := a.typeEnv.GetStructNode(lookupStruct); structNode != nil {
-					for _, f := range structNode.Fields {
-						if f.Name.Token.Text == m.Name.Token.Text {
-							fieldNode = f
-							break
-						}
-					}
-				}
-
 				return ExprInfo{
 					Type:    field.Type,
-					Node:    fieldNode,
+					Node:    a.resolveFieldNode(t, m.Name.Token.Text),
 					Mutable: mutable,
 					Address: address,
 				}
@@ -712,6 +701,23 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 	}
 
 	return a.Error(m.Expr, "expected a struct, enum or a pointer to a struct, got '%s'", expr.Type)
+}
+
+func (a *analyzer) resolveFieldNode(t *types.Struct, name string) ast.Node {
+	lookupStruct := t
+	if t.Generic != nil {
+		lookupStruct = t.Generic
+	}
+
+	if structNode := a.typeEnv.GetStructNode(lookupStruct); structNode != nil {
+		for _, f := range structNode.Fields {
+			if f.Name.Token.Text == name {
+				return f
+			}
+		}
+	}
+
+	return nil
 }
 
 func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {

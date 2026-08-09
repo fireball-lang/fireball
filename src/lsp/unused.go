@@ -111,10 +111,6 @@ func (s *Server) RangeFormatting(ctx context.Context, params *protocol.DocumentR
 	return nil, errors.New("not implemented")
 }
 
-func (s *Server) References(ctx context.Context, params *protocol.ReferenceParams) (result []protocol.Location, err error) {
-	return nil, errors.New("not implemented")
-}
-
 func (s *Server) Rename(ctx context.Context, params *protocol.RenameParams) (result *protocol.WorkspaceEdit, err error) {
 	return nil, errors.New("not implemented")
 }
