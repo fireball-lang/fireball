@@ -250,7 +250,7 @@ func VTableLinkName(in *types.Interface, typ types.Type) string {
 
 	// Concrete type args
 	if len(substitutions) > 0 {
-		sb.WriteString(":[")
+		sb.WriteString("[")
 
 		for i, sub := range substitutions {
 			if i > 0 {
@@ -270,7 +270,7 @@ func VTableLinkName(in *types.Interface, typ types.Type) string {
 
 	// Interface type args
 	if in.Generic != nil {
-		sb.WriteString(":[")
+		sb.WriteString("[")
 
 		for i, sub := range in.Substitutions {
 			if i > 0 {
@@ -314,7 +314,7 @@ func TypeInfoLinkName(typ types.Type, kind string) string {
 
 	// Concrete type args
 	if len(substitutions) > 0 {
-		sb.WriteString(":[")
+		sb.WriteString("[")
 
 		for i, sub := range substitutions {
 			if i > 0 {

@@ -164,7 +164,7 @@ func (i *IdentifierType) String() string {
 		sb.WriteString(entry.Name.Token.Text)
 
 		if len(entry.TypeArgs) > 0 {
-			sb.WriteString(":[")
+			sb.WriteString("[")
 
 			for _, arg := range entry.TypeArgs {
 				sb.WriteString(arg.String())
