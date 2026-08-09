@@ -65,7 +65,7 @@ func (s *Server) References(ctx context.Context, params *protocol.ReferenceParam
 		})
 	}
 
-	s.collectReferences(defNode, add)
+	s.collectReferences(defNode, true, add)
 
 	if params.Context.IncludeDeclaration {
 		if rng := declNameRange(defNode); rng != (core.Range{}) {
@@ -136,13 +136,13 @@ func (s *Server) declarationAt(node ast.Node) ast.Node {
 	return nil
 }
 
-func (s *Server) collectReferences(defNode ast.Node, add func(*project.File, core.Range)) {
+func (s *Server) collectReferences(defNode ast.Node, includeSelf bool, add func(*project.File, core.Range)) {
 	for _, workspace := range s.workspaces {
 		workspace.mutex.RLock()
 
 		for _, proj := range workspace.projMap {
 			for _, file := range proj.Files {
-				s.collectFileReferences(file, defNode, add)
+				s.collectFileReferences(file, defNode, includeSelf, add)
 			}
 		}
 
@@ -150,7 +150,7 @@ func (s *Server) collectReferences(defNode ast.Node, add func(*project.File, cor
 	}
 }
 
-func (s *Server) collectFileReferences(file *project.File, defNode ast.Node, add func(*project.File, core.Range)) {
+func (s *Server) collectFileReferences(file *project.File, defNode ast.Node, includeSelf bool, add func(*project.File, core.Range)) {
 	// Expression references: variables, functions, members, enum cases, ...
 	for expr, info := range file.ExprInfos {
 		if core.IsNil(info.Node) || info.Node != defNode {
@@ -168,6 +168,9 @@ func (s *Server) collectFileReferences(file *project.File, defNode ast.Node, add
 
 		case *ast.FieldInitializer:
 			add(file, n.Name.Range())
+
+		case *ast.OffsetOf:
+			add(file, n.Field.Range())
 		}
 	}
 
@@ -188,15 +191,27 @@ func (s *Server) collectFileReferences(file *project.File, defNode ast.Node, add
 			}
 
 		case *ast.IdentifierEntry:
-			if n.Name != nil {
+			if !includeSelf && n.Name != nil && n.Name.Token.Text == "Self" {
+				break
+			}
+
+			switch parent := n.Parent().(type) {
+			case *ast.IdentifierType:
 				add(file, n.Name.Range())
+
+			case *ast.Identifier:
+				if len(parent.Path) > 0 && parent.Path[len(parent.Path)-1] != n {
+					add(file, n.Name.Range())
+				}
 			}
 
 		case *ast.Leaf:
 			add(file, n.Range())
 
 		case *ast.SelfType:
-			add(file, n.Range())
+			if includeSelf {
+				add(file, n.Range())
+			}
 		}
 	}
 }

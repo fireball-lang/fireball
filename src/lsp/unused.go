@@ -103,15 +103,7 @@ func (s *Server) OnTypeFormatting(ctx context.Context, params *protocol.Document
 	return nil, errors.New("not implemented")
 }
 
-func (s *Server) PrepareRename(ctx context.Context, params *protocol.PrepareRenameParams) (result *protocol.Range, err error) {
-	return nil, errors.New("not implemented")
-}
-
 func (s *Server) RangeFormatting(ctx context.Context, params *protocol.DocumentRangeFormattingParams) (result []protocol.TextEdit, err error) {
-	return nil, errors.New("not implemented")
-}
-
-func (s *Server) Rename(ctx context.Context, params *protocol.RenameParams) (result *protocol.WorkspaceEdit, err error) {
 	return nil, errors.New("not implemented")
 }
 

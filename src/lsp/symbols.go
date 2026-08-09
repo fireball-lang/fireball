@@ -53,9 +53,13 @@ func (s *Server) Symbols(_ context.Context, _ *protocol.WorkspaceSymbolParams) (
 	for _, workspace := range s.workspaces {
 		var files []*project.File
 
+		workspace.mutex.RLock()
+
 		for _, proj := range workspace.projMap {
 			files = append(files, proj.Files...)
 		}
+
+		workspace.mutex.RUnlock()
 
 		getSymbols(&symbols, files)
 	}

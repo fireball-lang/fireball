@@ -144,6 +144,9 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 			WorkspaceSymbolProvider: &protocol.WorkspaceSymbolOptions{},
 			DefinitionProvider:      &protocol.DefinitionOptions{},
 			ReferencesProvider:      &protocol.ReferencesOptions{},
+			RenameProvider: &protocol.RenameOptions{
+				PrepareProvider: true,
+			},
 			SignatureHelpProvider: &protocol.SignatureHelpOptions{
 				TriggerCharacters:   []string{"("},
 				RetriggerCharacters: []string{","},

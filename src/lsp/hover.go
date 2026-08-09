@@ -36,11 +36,14 @@ func (s *Server) Hover(ctx context.Context, params *protocol.HoverParams) (resul
 }
 
 func (s *Server) resolveHover(file *project.File, node ast.Node) *protocol.Hover {
-	// Only resolve hover when the cursor is positioned on an identifier token, so
-	// that hovering empty space (e.g. between parenthesis or brackets) doesn't
-	// match an enclosing declaration.
-	leaf, ok := node.(*ast.Leaf)
-	if !ok || leaf.Token.Kind != lexer.Identifier {
+	// Only resolve hover when the cursor is positioned on an identifier token (or
+	// the 'Self' type), so that hovering empty space (e.g. between parenthesis
+	// or brackets) doesn't match an enclosing declaration.
+	if leaf, ok := node.(*ast.Leaf); ok {
+		if leaf.Token.Kind != lexer.Identifier {
+			return nil
+		}
+	} else if _, ok := node.(*ast.SelfType); !ok {
 		return nil
 	}
 
@@ -51,8 +54,8 @@ outer:
 		switch n := node.(type) {
 
 		// Variable, function, static-method identifier, member access
-		// (field, method) and struct initializer field
-		case *ast.Identifier, *ast.Member, *ast.FieldInitializer:
+		// (field, method), struct initializer field and offsetof field
+		case *ast.Identifier, *ast.Member, *ast.FieldInitializer, *ast.OffsetOf:
 			info, ok := file.ExprInfos[n]
 			if !ok || core.IsNil(info.Node) {
 				break outer
@@ -64,6 +67,19 @@ outer:
 		case *ast.IdentifierType:
 			typ, ok := file.NodeTypes[n]
 			if !ok {
+				break outer
+			}
+
+			if decl := s.findTypeDeclaration(typ); !core.IsNil(decl) {
+				return s.buildHover(file, decl, rng)
+			}
+
+			return s.buildTypeHover(typ, rng)
+
+		// Self type
+		case *ast.SelfType:
+			typ := s.resolveSelf(file, n)
+			if core.IsNil(typ) {
 				break outer
 			}
 

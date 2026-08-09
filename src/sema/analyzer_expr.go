@@ -161,6 +161,11 @@ func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) ExprInfo {
 	if s, ok := typ.(*types.Struct); ok {
 		if field := s.Field(o.Field.Token.Text); field == nil {
 			a.Error(o.Field, "field '%s' doesn't exist on '%s'", o.Field.Token.Text, s)
+		} else {
+			a.exprInfos[o] = ExprInfo{
+				Type: field.Type,
+				Node: a.resolveFieldNode(s, o.Field.Token.Text),
+			}
 		}
 	} else {
 		a.Error(o.Type, "expected a struct type, not '%s'", typ)

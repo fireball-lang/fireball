@@ -34,9 +34,13 @@ func (s *Server) Definition(ctx context.Context, params *protocol.DefinitionPara
 	}
 
 	// Only resolve definitions when the cursor is positioned on an identifier
-	// token, so that empty space doesn't resolve to an enclosing declaration.
-	leaf, ok := node.(*ast.Leaf)
-	if !ok || leaf.Token.Kind != lexer.Identifier {
+	// token (or the 'Self' type), so that empty space doesn't resolve to an
+	// enclosing declaration.
+	if leaf, ok := node.(*ast.Leaf); ok {
+		if leaf.Token.Kind != lexer.Identifier {
+			return nil, nil
+		}
+	} else if _, ok := node.(*ast.SelfType); !ok {
 		return nil, nil
 	}
 
@@ -55,8 +59,8 @@ outer:
 		switch n := node.(type) {
 
 		// Variable, function, static-method identifier, member access
-		// (field, method) and struct initializer field
-		case *ast.Identifier, *ast.Member, *ast.FieldInitializer:
+		// (field, method), struct initializer field and offsetof field
+		case *ast.Identifier, *ast.Member, *ast.FieldInitializer, *ast.OffsetOf:
 			info, ok := file.ExprInfos[n]
 			if !ok || core.IsNil(info.Node) {
 				break outer
@@ -72,6 +76,10 @@ outer:
 			}
 
 			return s.findTypeDeclaration(typ)
+
+		// Self type
+		case *ast.SelfType:
+			return s.findTypeDeclaration(s.resolveSelf(file, n))
 
 		// Leaf
 		case *ast.Leaf:
@@ -109,6 +117,22 @@ outer:
 		}
 
 		node = node.Parent()
+	}
+
+	return nil
+}
+
+func (s *Server) resolveSelf(file *project.File, n *ast.SelfType) types.Type {
+	if impl := ast.GetClosestParent[*ast.Impl](n); !core.IsNil(impl) {
+		if typ, ok := file.NodeTypes[impl.Type]; ok {
+			return typ
+		}
+	}
+
+	if iface := ast.GetClosestParent[*ast.Interface](n); !core.IsNil(iface) {
+		if typ, ok := file.NodeTypes[iface]; ok {
+			return typ
+		}
 	}
 
 	return nil
