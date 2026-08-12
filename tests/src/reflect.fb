@@ -1,0 +1,198 @@
+mod tests::reflect;
+
+enum Color {
+	Red,
+	Green,
+	Blue,
+}
+
+struct Point {
+	pub x: i32,
+	pub y: i32,
+	secret: u8,
+}
+
+struct Box[T] {
+	value: T,
+}
+
+interface Named {
+	func name(self) StringView;
+}
+
+struct Label {
+	text: StringView,
+}
+
+impl Label : Named {
+	func name(self) StringView {
+		return self.text;
+	}
+}
+
+// ── typeof / primitives ───────────────────────────────────────────────────────
+
+#[test("typeof(i32) kind and primitive kind")]
+func typeofPrimitiveKind() bool {
+	var info = typeof(i32);
+	return info.kind == TypeKind::Primitive && info.primitive_kind() == PrimitiveKind::I32;
+}
+
+#[test("typeof(i32) size and alignment")]
+func typeofPrimitiveSize() bool {
+	var info = typeof(i32);
+	return info.size == sizeof(i32) && info.alignment == alignof(i32);
+}
+
+#[test("typeof(bool) primitive kind")]
+func typeofBool() bool {
+	return typeof(bool).primitive_kind() == PrimitiveKind::Bool;
+}
+
+#[test("typeof(u16) is unsigned integer")]
+func typeofUnsignedInteger() bool {
+	return typeof(u16).primitive_kind().is_unsigned_integer();
+}
+
+#[test("typeof(i64) is signed integer")]
+func typeofSignedInteger() bool {
+	return typeof(i64).primitive_kind().is_signed_integer();
+}
+
+#[test("typeof(i8) is integer")]
+func typeofInteger() bool {
+	return typeof(i8).primitive_kind().is_integer();
+}
+
+#[test("typeof(f32) is floating")]
+func typeofFloating() bool {
+	return typeof(f32).primitive_kind().is_floating();
+}
+
+// ── array / pointer / function ────────────────────────────────────────────────
+
+#[test("typeof([4]i32) kind, size and element")]
+func typeofArray() bool {
+	var info = typeof([4]i32);
+	return info.kind == TypeKind::Array && info.array_size() == 4u && info.element().primitive_kind() == PrimitiveKind::I32;
+}
+
+#[test("typeof([4]i32) element kind is primitive")]
+func typeofArrayElementKind() bool {
+	return typeof([4]i32).element().kind == TypeKind::Primitive;
+}
+
+#[test("typeof(*i32) kind and pointee")]
+func typeofPointer() bool {
+	var info = typeof(*i32);
+	return info.kind == TypeKind::Pointer && info.pointee().primitive_kind() == PrimitiveKind::I32;
+}
+
+#[test("typeof(func) kind")]
+func typeofFunction() bool {
+	return typeof(func(i32, i32) i32).kind == TypeKind::Function;
+}
+
+// ── enums ─────────────────────────────────────────────────────────────────────
+
+#[test("typeof(Color) kind and decl name")]
+func typeofEnumKind() bool {
+	var info = typeof(Color);
+	return info.kind == TypeKind::Enum && info.decl_name() == "Color";
+}
+
+#[test("typeof(Color) cases")]
+func typeofEnumCases() bool {
+	var cases = typeof(Color).cases();
+
+	if (cases.size != 3u) return false;
+	if (cases[0u].name != "Red") return false;
+	if (cases[1u].name != "Green") return false;
+	if (cases[2u].name != "Blue") return false;
+
+	return cases[0u].value as u32 == 0u && cases[1u].value as u32 == 1u && cases[2u].value as u32 == 2u;
+}
+
+#[test("typeof(Color) cases not negative")]
+func typeofEnumCasesNotNegative() bool {
+	var cases = typeof(Color).cases();
+
+	return !cases[0u].negative && !cases[1u].negative && !cases[2u].negative;
+}
+
+// ── structs ───────────────────────────────────────────────────────────────────
+
+#[test("typeof(Point) kind and decl name")]
+func typeofStructKind() bool {
+	var info = typeof(Point);
+	return info.kind == TypeKind::Struct && info.decl_name() == "Point";
+}
+
+#[test("typeof(Point) field count")]
+func typeofStructFieldCount() bool {
+	return typeof(Point).fields().size == 3u;
+}
+
+#[test("typeof(Point) field names")]
+func typeofStructFieldNames() bool {
+	var fields = typeof(Point).fields();
+
+	if (fields[0u].name != "x") return false;
+	if (fields[1u].name != "y") return false;
+	if (fields[2u].name != "secret") return false;
+
+	return true;
+}
+
+#[test("typeof(Point) field offsets match offsetof")]
+func typeofStructFieldOffsets() bool {
+	var fields = typeof(Point).fields();
+
+	return fields[0u].offset == offsetof(Point, x) && fields[1u].offset == offsetof(Point, y);
+}
+
+#[test("typeof(Point) field type info")]
+func typeofStructFieldTypes() bool {
+	var fields = typeof(Point).fields();
+
+	return fields[0u].type_info.primitive_kind() == PrimitiveKind::I32 && fields[1u].type_info.primitive_kind() == PrimitiveKind::I32;
+}
+
+#[test("typeof(Point) field public flags")]
+func typeofStructFieldPublic() bool {
+	var fields = typeof(Point).fields();
+
+	return fields[0u].public && fields[1u].public && !fields[2u].public;
+}
+
+// ── is_decl / generics / implements ───────────────────────────────────────────
+
+#[test("is_decl on declarations")]
+func isDeclTrue() bool {
+	return typeof(Color).kind.is_decl() && typeof(Point).kind.is_decl() && typeof(Named).kind.is_decl();
+}
+
+#[test("is_decl on non declarations")]
+func isDeclFalse() bool {
+	var array = typeof([4]i32);
+	var ptr = typeof(*i32);
+	var fun = typeof(func(i32) i32);
+
+	return !typeof(i32).kind.is_decl() && !array.kind.is_decl() && !ptr.kind.is_decl() && !fun.kind.is_decl();
+}
+
+#[test("typeof generic decl_name strips generics")]
+func typeofGenericDeclName() bool {
+	var info = typeof(Box[i32]);
+	return info.decl_name() == "Box" && info.name.contains("Box[i32]");
+}
+
+#[test("typeof implements interface")]
+func typeofImplements() bool {
+	return typeof(Label).implements(typeof(Named));
+}
+
+#[test("typeof does not implement unrelated interface")]
+func typeofNotImplements() bool {
+	return !typeof(Point).implements(typeof(Named));
+}

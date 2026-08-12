@@ -1,16 +1,170 @@
 mod core;
 
+/// Every possible type a `TypeInfo` can represent.
+pub enum TypeKind : u8 {
+	Primitive = 0,
+	Array = 1,
+	Pointer = 2,
+	Function = 3,
+	Enum = 4,
+	Struct = 5,
+	Interface = 6,
+}
+
+impl TypeKind {
+	/// Returns `true` if the type kind is either an enum, a struct or an interface.
+	pub func is_decl(self) bool {
+		return *self == TypeKind::Enum || *self == TypeKind::Struct || *self == TypeKind::Interface;
+	}
+}
+
+/// Every possible type that a `TypeKind::Primitive` can represent.
+/// Values need to match with `types.PrimitiveKind` in the compiler.
+pub enum PrimitiveKind : u8 {
+	Void = 0,
+	Bool = 1,
+
+	U8 = 2,
+	U16 = 3,
+	U32 = 4,
+	U64 = 5,
+
+	I8 = 6,
+	I16 = 7,
+	I32 = 8,
+	I64 = 9,
+
+	F32 = 10,
+	F64 = 11,
+}
+
+impl PrimitiveKind {
+	pub func is_unsigned_integer(self) bool {
+		return *self as u8 >= PrimitiveKind::U8 as u8 && *self as u8 <= PrimitiveKind::U64 as u8;
+	}
+
+	pub func is_signed_integer(self) bool {
+		return *self as u8 >= PrimitiveKind::I8 as u8 && *self as u8 <= PrimitiveKind::I64 as u8;
+	}
+
+	pub func is_integer(self) bool {
+		return *self as u8 >= PrimitiveKind::U8 as u8 && *self as u8 <= PrimitiveKind::I64 as u8;
+	}
+
+	pub func is_floating(self) bool {
+		return *self == PrimitiveKind::F32 || *self == PrimitiveKind::F64;
+	}
+}
+
+/// Stores RTTI for enum cases.
+pub struct Case {
+	/// Name of the case as it appears in the source code.
+	pub name: StringView,
+
+	/// True if the value is negative.
+	pub negative: bool,
+
+	/// Absolute value of the case.
+	pub value: u64,
+}
+
+/// Stores RTTI for struct fields.
+pub struct Field {
+	/// Name of the field as it appears in the source code.
+	pub name: StringView,
+
+	/// Type info of the field.
+	pub type_info: *TypeInfo,
+
+	/// True if the field is public.
+	pub public: bool,
+
+	/// The offset of the field in bytes from the start of the struct.
+	pub offset: u32,
+}
+
 /// Stores RTTI (runtime type information) of every type in the type system.
 pub struct TypeInfo {
-	implements: Slice[*TypeInfo],
+	/// What type this type info represents.
+	pub kind: TypeKind,
+
+	/// The fully qualified name of the type (including module path and generic types) or empty if the type isn't a declaration, see `TypeKind::is_decl()`.
+	pub name: StringView,
+
+	/// The size in bytes of this type.
+	pub size: u32,
+
+	/// The alignment in bytes of this type.
+	pub alignment: u32,
+
+	/// A slice of all implemented interfaces on this type.
+	pub implements: []*TypeInfo,
+
+	// Data
+
+	data_int: u64,
+	data_ptr: *void,
 }
 
 impl TypeInfo {
+	/// Returns the name of the type declaration without including the module path and generic types.
+	/// Or an empty string if it isn't a declaration, see `TypeKind::is_decl()`.
+	pub func decl_name(self) StringView {
+		if (!self.kind.is_decl()) return "";
+
+		var name = self.name;
+
+		var i = name.index_of("[");
+		if (i != -1) name = name.slice(0u, i as u32);
+
+		i = name.index_of_last("::");
+		if (i != -1) name = name.slice(i as u32 + 2u, name.size);
+
+		return name;
+	}
+
+	/// Returns `true` if the type info in `other` is found in the `self.implements` slice.
 	pub func implements(self, other: *TypeInfo) bool {
 		for (var i = 0u; i < self.implements.size; i++) {
 			if (self.implements[i] == other) return true;
 		}
 
 		return false;
+	}
+
+	/// Returns the `PrimitiveKind` if this type is a primitive or panics.
+	pub func primitive_kind(self) PrimitiveKind {
+		if (self.kind != TypeKind::Primitive) panic("self.kind is not `TypeKind::Primitive`");
+		return self.data_int as PrimitiveKind;
+	}
+
+	/// Returns the array size if this type is an array or panics.
+	pub func array_size(self) u32 {
+		if (self.kind != TypeKind::Array) panic("self.kind is not `TypeKind::Array`");
+		return self.data_int as u32;
+	}
+
+	/// Returns the array element type if this type is an array or panics.
+	pub func element(self) *TypeInfo {
+		if (self.kind != TypeKind::Array) panic("self.kind is not `TypeKind::Array`");
+		return self.data_ptr as *TypeInfo;
+	}
+
+	/// Returns the pointee type if this type is a pointer or panics.
+	pub func pointee(self) *TypeInfo {
+		if (self.kind != TypeKind::Pointer) panic("self.kind is not `TypeKind::Pointer`");
+		return self.data_ptr as *TypeInfo;
+	}
+
+	/// Returns a slice of cases if this type is an enum or panics.
+	pub func cases(self) []Case {
+		if (self.kind != TypeKind::Enum) panic("self.kind is not `TypeKind::Enum`");
+		return Slice:[Case] { ptr: self.data_ptr as *Case, size: self.data_int };
+	}
+
+	/// Returns a slice of fields if this type is a struct or panics.
+	pub func fields(self) []Field {
+		if (self.kind != TypeKind::Struct) panic("self.kind is not `TypeKind::Struct`");
+		return Slice:[Field] { ptr: self.data_ptr as *Field, size: self.data_int };
 	}
 }

@@ -59,6 +59,7 @@ const (
 	Sizeof
 	Alignof
 	Offsetof
+	Typeof
 
 	// Misc
 

@@ -174,6 +174,12 @@ func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) ExprInfo {
 	return ExprInfo{Type: types.PrimitiveU32}
 }
 
+func (a *analyzer) VisitTypeOf(t *ast.TypeOf) ExprInfo {
+	a.ResolveAndAnalyzeType(t.Type)
+
+	return ExprInfo{Type: &types.Pointer{Pointee: a.typeInfoType}}
+}
+
 func (a *analyzer) VisitPrefix(p *ast.Prefix) ExprInfo {
 	expr := a.AnalyzeExpr(p.Expr)
 	if expr.Invalid() {

@@ -383,6 +383,8 @@ func (l *Lexer) keywordIdentifier() Token {
 		token.Kind = Alignof
 	case "offsetof":
 		token.Kind = Offsetof
+	case "typeof":
+		token.Kind = Typeof
 	}
 
 	return token

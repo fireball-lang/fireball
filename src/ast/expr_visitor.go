@@ -13,6 +13,7 @@ type ExprVisitor[T any] interface {
 	VisitSizeOf(s *SizeOf) T
 	VisitAlignOf(a *AlignOf) T
 	VisitOffsetOf(o *OffsetOf) T
+	VisitTypeOf(t *TypeOf) T
 
 	VisitPrefix(p *Prefix) T
 	VisitPostfix(p *Postfix) T
@@ -51,6 +52,8 @@ func VisitExpr[V ExprVisitor[T], T any](visitor V, expr Expr) T {
 		return visitor.VisitAlignOf(expr)
 	case *OffsetOf:
 		return visitor.VisitOffsetOf(expr)
+	case *TypeOf:
+		return visitor.VisitTypeOf(expr)
 
 	case *Prefix:
 		return visitor.VisitPrefix(expr)

@@ -206,6 +206,24 @@ func (o *OffsetOf) Children() iter.Seq[Node] {
 
 func (o *OffsetOf) _isExpr() {}
 
+// TypeOf
+
+type TypeOf struct {
+	baseNode
+
+	Type Type
+}
+
+func (t *TypeOf) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(t.Type) {
+			return
+		}
+	}
+}
+
+func (t *TypeOf) _isExpr() {}
+
 // Prefix
 
 type PrefixOp uint8

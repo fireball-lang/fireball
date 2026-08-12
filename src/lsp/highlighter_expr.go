@@ -66,6 +66,12 @@ func (hi *highlighter) VisitOffsetOf(o *ast.OffsetOf) int {
 	return 0
 }
 
+func (hi *highlighter) VisitTypeOf(t *ast.TypeOf) int {
+	hi.VisitType(t.Type)
+
+	return 0
+}
+
 func (hi *highlighter) VisitPrefix(p *ast.Prefix) int {
 	hi.VisitExpr(p.Expr)
 

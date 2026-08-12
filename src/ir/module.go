@@ -41,7 +41,7 @@ func (m *Module) IsEmpty() bool {
 // Named structs
 
 func (m *Module) NamedStruct(name string, s StructType) *RefStructType {
-	if m.symbolExists(name) {
+	if m.SymbolExists(name) {
 		panic("ir.Module.NamedStruct() - Symbol with the name '" + name + "' already exists")
 	}
 
@@ -68,7 +68,7 @@ func (m *Module) NamedStructs() iter.Seq2[string, StructType] {
 // Global variables
 
 func (m *Module) NewGlobalVar(name string, typ Type) *GlobalVar {
-	if m.symbolExists(name) {
+	if m.SymbolExists(name) {
 		panic("ir.Module.NewGlobalVar() - Symbol with the name '" + name + "' already exists")
 	}
 
@@ -82,6 +82,16 @@ func (m *Module) NewGlobalVar(name string, typ Type) *GlobalVar {
 	return gVar
 }
 
+func (m *Module) GetGlobalVar(name string) *GlobalVar {
+	for _, gVar := range m.globalVars {
+		if gVar.Name == name {
+			return gVar
+		}
+	}
+
+	return nil
+}
+
 func (m *Module) GlobalVars() iter.Seq[*GlobalVar] {
 	return slices.Values(m.globalVars)
 }
@@ -89,7 +99,7 @@ func (m *Module) GlobalVars() iter.Seq[*GlobalVar] {
 // Functions
 
 func (m *Module) NewFunction(name string, sig *Signature, paramNames []string) *Function {
-	if m.symbolExists(name) {
+	if m.SymbolExists(name) {
 		panic("ir.Module.NewFunction() - Symbol with the name '" + name + "' already exists")
 	}
 
@@ -116,6 +126,16 @@ func (m *Module) NewFunction(name string, sig *Signature, paramNames []string) *
 
 	m.functions = append(m.functions, fun)
 	return fun
+}
+
+func (m *Module) GetFunction(name string) *Function {
+	for _, fun := range m.functions {
+		if fun.Name == name {
+			return fun
+		}
+	}
+
+	return nil
 }
 
 func (m *Module) Functions() iter.Seq[*Function] {
@@ -220,7 +240,7 @@ func (m *Module) Summaries() iter.Seq2[Summary, SummaryRef] {
 
 // Utils
 
-func (m *Module) symbolExists(name string) bool {
+func (m *Module) SymbolExists(name string) bool {
 	if _, ok := m.namedStructs[name]; ok {
 		return true
 	}

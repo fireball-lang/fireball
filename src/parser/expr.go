@@ -86,6 +86,9 @@ func (p *parser) parsePrefixExpr() (ast.Expr, int) {
 	case lexer.Offsetof:
 		return p.parseOffsetOf()
 
+	case lexer.Typeof:
+		return p.parseTypeOf()
+
 	default:
 		rightPower := prefixExprPower(p.current)
 
@@ -390,6 +393,42 @@ func (p *parser) parseOffsetOf() (o *ast.OffsetOf, recoverId int) {
 
 	// ')'
 	if recoverId = p.expect(lexer.RightParen, "expected ')' after field"); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseTypeOf() (t *ast.TypeOf, recoverId int) {
+	t = &ast.TypeOf{}
+	t.Range_.Start = p.current.Range.Start
+	defer func() {
+		t.Range_.End = p.previous.Range.End
+
+		if core.IsNil(t.Type) {
+			t.Type = p.badType()
+		}
+	}()
+
+	recoverId = -1
+
+	// 'typeof'
+	if recoverId = p.expect(lexer.Typeof, "expected 'typeof'"); recoverId >= 0 {
+		return
+	}
+
+	// '('
+	if recoverId = p.expect(lexer.LeftParen, "expected '(' before type"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if t.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
+	}
+
+	// ')'
+	if recoverId = p.expect(lexer.RightParen, "expected ')' after type"); recoverId >= 0 {
 		return
 	}
 

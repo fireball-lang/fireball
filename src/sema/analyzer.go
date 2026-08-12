@@ -33,6 +33,7 @@ type analyzer struct {
 	exprInfos map[ast.Node]ExprInfo
 
 	stringViewType types.Type
+	typeInfoType   types.Type
 
 	funcType    *types.Func
 	varAccessed map[ast.Node]bool
@@ -74,6 +75,16 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 	}
 
 	a.stringViewType = stringViewSymbol.Type
+
+	typeInfoSymbol, ok := a.GetSymbol(symbols.Type, []*ast.IdentifierEntry{
+		{Name: &ast.Leaf{Token: lexer.Token{Text: "core"}}},
+		{Name: &ast.Leaf{Token: lexer.Token{Text: "TypeInfo"}}},
+	})
+	if !ok {
+		panic("analyze.Analyze() - Failed to find 'core::TypeInfo'")
+	}
+
+	a.typeInfoType = typeInfoSymbol.Type
 
 	// Module
 

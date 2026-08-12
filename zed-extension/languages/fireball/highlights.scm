@@ -30,6 +30,7 @@
 "sizeof" @keyword
 "alignof" @keyword
 "offsetof" @keyword
+"typeof" @keyword
 
 ; Mod
 

@@ -12,7 +12,10 @@ import (
 // Visitor
 
 func (c *common) VisitPrimitiveType(t *ast.PrimitiveType) types.Type {
-	return types.GetPrimitive(t.Kind)
+	typ := types.GetPrimitive(t.Kind)
+
+	c.nodeTypes[t] = typ
+	return typ
 }
 
 func (c *common) VisitArrayType(t *ast.ArrayType) types.Type {

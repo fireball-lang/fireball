@@ -63,48 +63,7 @@ func (c *codegen) VisitCharacter(e *ast.Character) ir.Value {
 }
 
 func (c *codegen) VisitString(s *ast.String) ir.Value {
-	// Global
-
-	literal := ir.NewString(s.Runes, true)
-
-	global := c.module.NewGlobalVar(fmt.Sprintf("string.%s.%d", c.uid, c.stringCount), literal.Type())
-	c.stringCount++
-
-	global.Flags = ir.Private | ir.UnnamedAddr | ir.Constant
-	global.Initializer = literal
-
-	// Value
-
-	sb := c.Struct(c.UnderlyingExprType(s).(*types.Struct))
-
-	sb.Set("ptr", global)
-	sb.Set("size", &ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, uint64(literal.Size))})
-
-	value := sb.Build()
-
-	// Summary
-
-	if c.moduleSummaryRef.Valid() {
-		ref := c.module.AddSummary(&ir.VariableSummary{
-			Module: c.moduleSummaryRef,
-			Name:   global.Name,
-			LinkFlags: ir.LinkSummaryFlags{
-				Linkage:             ir.LinkagePrivate,
-				Visibility:          ir.VisibilityDefault,
-				NotEligibleToImport: true,
-				Live:                false,
-				DsoLocal:            true,
-				CanAutoHide:         true,
-				ImportType:          ir.ImportDefinition,
-			},
-			Flags: ir.VarReadOnly | ir.VarConstant,
-			Refs:  nil,
-		})
-
-		c.summaryRefs = append(c.summaryRefs, ref)
-	}
-
-	return value
+	return c.StringView(s.Runes)
 }
 
 func (c *codegen) VisitNull(_ *ast.Null) ir.Value {
@@ -195,6 +154,11 @@ func (c *codegen) VisitOffsetOf(o *ast.OffsetOf) ir.Value {
 		Typ:   ir.I32,
 		Value: core.Unsigned(false, uint64(field.Offset)),
 	}
+}
+
+func (c *codegen) VisitTypeOf(t *ast.TypeOf) ir.Value {
+	typ := c.ResolveType(c.nodeTypes[t.Type])
+	return c.GetTypeInfo(typ)
 }
 
 func (c *codegen) VisitPrefix(p *ast.Prefix) ir.Value {
@@ -819,6 +783,51 @@ func (c *codegen) VisitBadExpr(_ *ast.BadExpr) ir.Value {
 
 // Utils
 
+func (c *codegen) StringView(runes []rune) ir.Value {
+	// Global
+
+	literal := ir.NewString(runes, true)
+
+	global := c.module.NewGlobalVar(fmt.Sprintf("string.%s.%d", c.uid, c.stringCount), literal.Type())
+	c.stringCount++
+
+	global.Flags = ir.Private | ir.UnnamedAddr | ir.Constant
+	global.Initializer = literal
+
+	// Value
+
+	sb := c.Struct(c.needed.StringView)
+
+	sb.Set("ptr", global)
+	sb.Set("size", &ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, uint64(literal.Size))})
+
+	value := sb.Build()
+
+	// Summary
+
+	if c.moduleSummaryRef.Valid() {
+		ref := c.module.AddSummary(&ir.VariableSummary{
+			Module: c.moduleSummaryRef,
+			Name:   global.Name,
+			LinkFlags: ir.LinkSummaryFlags{
+				Linkage:             ir.LinkagePrivate,
+				Visibility:          ir.VisibilityDefault,
+				NotEligibleToImport: true,
+				Live:                false,
+				DsoLocal:            true,
+				CanAutoHide:         true,
+				ImportType:          ir.ImportDefinition,
+			},
+			Flags: ir.VarReadOnly | ir.VarConstant,
+			Refs:  nil,
+		})
+
+		c.summaryRefs = append(c.summaryRefs, ref)
+	}
+
+	return value
+}
+
 func (c *codegen) CallMethodExpr(fTyp *types.Func, fName string, calleeExpr ast.Expr, args []ast.Expr) ir.Value {
 	var callee ir.Value
 	var sig *ir.Signature
@@ -1118,7 +1127,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			targetTypeInfoPtr := c.GetTypeInfo(to)
 
 			// Call 'src.implements(target)'
-			symbol, ok := c.typeEnv.GetInstanceMethod(c.typeInfo, "implements")
+			symbol, ok := c.typeEnv.GetInstanceMethod(c.needed.TypeInfo, "implements")
 			if !ok {
 				panic("codegen.codegen.Cast() - Failed to find 'implements' method on 'core::TypeInfo'")
 			}
@@ -1131,7 +1140,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			c.AddSummaryCallee(f, typ, nil, true)
 			receiver := srcTypeInfoPtr
 
-			isTarget := c.EmitCall(callee, sig, typ, receiver, []ir.Value{targetTypeInfoPtr}, []types.Type{&types.Pointer{Pointee: c.typeInfo}}, types.PrimitiveBool)
+			isTarget := c.EmitCall(callee, sig, typ, receiver, []ir.Value{targetTypeInfoPtr}, []types.Type{&types.Pointer{Pointee: c.needed.TypeInfo}}, types.PrimitiveBool)
 
 			// Extract pointer or null
 			value = c.ExtractPointerFromInterfaceOrNull(value, isTarget)

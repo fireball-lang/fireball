@@ -209,7 +209,12 @@ func (c *codegen) GlobalVar(name string, constant bool, linkOnce bool, value ir.
 	}
 
 	// Summary
+	c.GlobalVarSummary(name, constant, linkOnce, value)
 
+	return gVar
+}
+
+func (c *codegen) GlobalVarSummary(name string, constant bool, linkOnce bool, value ir.Value) {
 	if c.moduleSummaryRef.Valid() {
 		linkage := ir.LinkageExternal
 		if linkOnce {
@@ -225,7 +230,7 @@ func (c *codegen) GlobalVar(name string, constant bool, linkOnce bool, value ir.
 
 		c.module.AddSummary(&ir.VariableSummary{
 			Module: c.moduleSummaryRef,
-			Name:   gVar.Name,
+			Name:   name,
 			LinkFlags: ir.LinkSummaryFlags{
 				Linkage:             linkage,
 				Visibility:          ir.VisibilityDefault,
@@ -239,6 +244,4 @@ func (c *codegen) GlobalVar(name string, constant bool, linkOnce bool, value ir.
 			Refs:  refs,
 		})
 	}
-
-	return gVar
 }

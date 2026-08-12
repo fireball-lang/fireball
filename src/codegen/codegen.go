@@ -19,6 +19,11 @@ type FileData struct {
 }
 
 type Types struct {
+	StringView *types.Struct
+
+	Case  *types.Struct
+	Field *types.Struct
+
 	TypeInfo *types.Struct
 }
 
@@ -38,7 +43,7 @@ type codegen struct {
 	nodeTypes map[ast.Node]types.Type
 	typeEnv   *sema.TypeEnvironment
 
-	typeInfo *types.Struct
+	needed Types
 
 	scope       symbolScope
 	stringCount uint32
@@ -87,7 +92,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		nodeTypes: fileDataMap[file].NodeTypes,
 		typeEnv:   typeEnv,
 
-		typeInfo: neededTypes.TypeInfo,
+		needed: neededTypes,
 
 		instantiations: instantiations,
 		fileDataMap:    fileDataMap,
@@ -179,6 +184,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 	// Type Infos
 
 	if strings.HasSuffix(filepath.ToSlash(path), "build/dependencies/core/src/reflect.fb") {
+		c.CreateTypeInfo(types.PrimitiveVoid, false)
 		c.CreateTypeInfo(types.PrimitiveBool, false)
 
 		c.CreateTypeInfo(types.PrimitiveU8, false)

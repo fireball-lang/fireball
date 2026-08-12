@@ -123,7 +123,25 @@ func getNeededTypes(projMap map[string]*project.Project) codegen.Types {
 		panic("build.getNeededTypes() - Failed to get 'core' project")
 	}
 
-	symbol, ok := proj.Module.GetSymbol(symbols.Type, "TypeInfo")
+	symbol, ok := proj.Module.GetSymbol(symbols.Type, "StringView")
+	if !ok {
+		panic("build.getNeededTypes() - Failed to get 'core::StringView' type")
+	}
+	needed.StringView = symbol.Type.(*types.Struct)
+
+	symbol, ok = proj.Module.GetSymbol(symbols.Type, "Case")
+	if !ok {
+		panic("build.getNeededTypes() - Failed to get 'core::Case' type")
+	}
+	needed.Case = symbol.Type.(*types.Struct)
+
+	symbol, ok = proj.Module.GetSymbol(symbols.Type, "Field")
+	if !ok {
+		panic("build.getNeededTypes() - Failed to get 'core::Field' type")
+	}
+	needed.Field = symbol.Type.(*types.Struct)
+
+	symbol, ok = proj.Module.GetSymbol(symbols.Type, "TypeInfo")
 	if !ok {
 		panic("build.getNeededTypes() - Failed to get 'core::TypeInfo' type")
 	}

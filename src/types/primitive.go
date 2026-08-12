@@ -7,22 +7,23 @@ import (
 
 type PrimitiveKind uint8
 
+// values need to match with `core::PrimitiveKind`
 const (
-	Void PrimitiveKind = iota
-	Bool
+	Void PrimitiveKind = 0
+	Bool               = 1
 
-	U8
-	U16
-	U32
-	U64
+	U8  = 2
+	U16 = 3
+	U32 = 4
+	U64 = 5
 
-	I8
-	I16
-	I32
-	I64
+	I8  = 6
+	I16 = 7
+	I32 = 8
+	I64 = 9
 
-	F32
-	F64
+	F32 = 10
+	F64 = 11
 )
 
 func IsUnsignedInteger(p PrimitiveKind) bool {

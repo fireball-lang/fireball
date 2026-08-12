@@ -143,7 +143,7 @@
             "name": "constant.language.fb"
         },
 		"keyword": {
-			"match": "\\b(pub|mut|mod|import|struct|enum|interface|impl|type|func|var|if|else|while|for|return|break|continue|as|sizeof|alignof|offsetof|or)\\b",
+			"match": "\\b(pub|mut|mod|import|struct|enum|interface|impl|type|func|var|if|else|while|for|return|break|continue|as|sizeof|alignof|offsetof|typeof|or)\\b",
 			"name": "keyword.fb"
 		},
 		"attribute": {
