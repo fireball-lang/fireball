@@ -55,6 +55,7 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 		}
 
 		r.ResolveTypeParams(impl.TypeParams, typeParams)
+		r.typeEnv.RegisterImplParams(impl, typeParams)
 		defer r.scopes.Pop()
 	}
 
@@ -114,6 +115,13 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 			if !r.typeEnv.AddConformance(methodTyp, in) {
 				r.Error(impl.Type, "type '%s' already implements interface '%s'", typ, in)
 			}
+
+			inGeneric := in.Generic
+			if inGeneric == nil {
+				inGeneric = in
+			}
+
+			r.typeEnv.RegisterImplNode(methodTyp, inGeneric, impl)
 
 			// Associated types
 			matchedNodes := make([]*ast.AssociatedType, 0, len(impl.AssociatedTypes))

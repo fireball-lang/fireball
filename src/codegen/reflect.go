@@ -5,6 +5,7 @@ import (
 	"fireball/core"
 	"fireball/ir"
 	"fireball/types"
+	"fmt"
 	"slices"
 	"strings"
 )
@@ -78,88 +79,91 @@ func (c *codegen) GetVTable(in *types.Interface, typ types.Type) ir.Value {
 
 	// Instantiate generic implementation
 	if s, ok := typ.(*types.Struct); ok && s.Generic != nil {
-		inGeneric := in.Generic
-		if inGeneric == nil {
-			inGeneric = in
-		}
-
-		implNode := c.typeEnv.GetImplNode(s.Generic, inGeneric)
-		return c.CreateGenericVTable(name, in, s, implNode)
+		return c.CreateVTable(typ, in, true)
 	}
 
 	// Extern vtable
-	gVar := c.module.NewGlobalVar(name, &ir.StructType{Fields: []ir.Field{
-		{Name: "type_info", Type: ir.Pointer},
-		{Name: "methods", Type: &ir.ArrayType{
-			Length:  uint32(len(in.InstanceMethods)),
-			Element: ir.Pointer,
-		}},
-	}})
+	gVar := c.module.NewGlobalVar(name, c.types.Get(c.VtableStruct(in)))
 	gVar.Flags = ir.External
 
 	return gVar
 }
 
-func (c *codegen) CreateGenericVTable(name string, in *types.Interface, s *types.Struct, impl *ast.Impl) ir.Value {
-	implFileTypes := c.fileDataMap[ast.GetFile(impl)].NodeTypes
-
-	// Collect methods
-	methods := make([]ir.Value, 0, len(in.InstanceMethods))
-
-	for _, inMethod := range in.InstanceMethods {
-		implMethod := findImplMethod(impl, inMethod)
-
-		implMethodType := implFileTypes[implMethod].(*types.Func)
-		instantiatedImplMethodType := c.instantiations.Get(implMethodType, s.Substitutions).(*types.Func)
-
-		methods = append(methods, c.GetFunction(implMethod, instantiatedImplMethodType, in))
-	}
-
-	// Create
-	return c.CreateVTableVar(name, s, methods, true)
-}
-
-func (c *codegen) CreateVTable(impl *ast.Impl) ir.Value {
-	in := c.nodeTypes[impl.Interface].(*types.Interface)
-
-	// Collect methods
-	methods := make([]ir.Value, 0, len(in.InstanceMethods))
-
-	for _, inMethod := range in.InstanceMethods {
-		implMethod := findImplMethod(impl, inMethod)
-		implMethodType := c.nodeTypes[implMethod].(*types.Func)
-
-		methods = append(methods, c.GetFunction(implMethod, implMethodType, in))
-	}
-
-	// Create
-	var typ types.Type
-
-	if p, ok := impl.Type.(*ast.PrimitiveType); ok {
-		typ = types.GetPrimitive(p.Kind)
-	} else {
-		typ = c.nodeTypes[impl.Type]
-	}
-
+func (c *codegen) CreateVTable(typ types.Type, in *types.Interface, linkOnce bool) *ir.GlobalVar {
+	// Vtables are keyed on the canonical (non-mutable) interface.
+	in = in.AsImmutable()
 	name := VTableLinkName(in, typ)
-	return c.CreateVTableVar(name, typ, methods, false)
+
+	gVar := c.module.GetGlobalVar(name)
+
+	if gVar == nil {
+		gVar = c.module.NewGlobalVar(name, c.types.Get(c.VtableStruct(in)))
+	}
+	if !core.IsNil(gVar.Initializer) {
+		return gVar
+	}
+
+	value := c.CreateVTableInitializer(typ, in)
+
+	gVar.Flags = ir.Constant
+	if linkOnce {
+		gVar.Flags |= ir.LinkOnce
+	}
+
+	gVar.Initializer = value
+
+	c.GlobalVarSummary(name, true, linkOnce, value)
+
+	return gVar
 }
 
-func findImplMethod(impl *ast.Impl, inMethod types.Method) *ast.Func {
-	var implMethod *ast.Func
+func (c *codegen) CreateVTableInitializer(typ types.Type, in *types.Interface) ir.Value {
+	t := c.VtableStruct(in)
+	sb := c.Struct(t)
 
-	for _, method := range impl.Methods {
-		if method.Receiver != nil && method.Name().Token.Text == inMethod.Name {
-			implMethod = method
-			break
-		}
+	sb.Set("type_info", c.GetTypeInfo(typ))
+
+	ab := c.Array(t.Fields[1].Type.(*types.Array))
+
+	for _, im := range in.InstanceMethods {
+		ab.Add(c.VtableMethod(typ, in, im))
 	}
 
-	if implMethod == nil {
-		panic("codegen.findImplMethod() - vtable method not found in impl block")
+	sb.Set("methods", ab.Build())
+
+	return sb.Build()
+}
+
+func (c *codegen) VtableStruct(in *types.Interface) *types.Struct {
+	return &types.Struct{Layout: types.C, Fields: []types.Field{
+		{Name: "type_info", Type: &types.Pointer{Pointee: c.needed.TypeInfo}},
+		{Name: "methods", Type: &types.Array{
+			Size:    uint32(len(in.InstanceMethods)),
+			Element: &types.Pointer{Pointee: types.PrimitiveVoid},
+		}},
+	}}
+}
+
+func (c *codegen) VtableMethod(typ types.Type, in *types.Interface, im types.Method) ir.Value {
+	// For generic structs, methods live on the template.
+	lookupTyp := typ
+	if s, ok := typ.(*types.Struct); ok && s.Generic != nil {
+		lookupTyp = s.Generic
 	}
 
-	return implMethod
+	sym, ok := c.typeEnv.GetInstanceMethod(lookupTyp, im.Name)
+	if !ok {
+		panic(fmt.Sprintf("codegen.vtableMethod() - interface method '%s' not found on '%s'", im.Name, typ))
+	}
+
+	concreteFunc := sym.Node.(*ast.Func)
+	concreteTyp := sym.Type.(*types.Func)
+
+	if s, ok := typ.(*types.Struct); ok && s.Generic != nil {
+		concreteTyp = c.instantiations.Substitute(concreteTyp, s.Substitutions).(*types.Func)
+	}
+
+	return c.GetFunction(concreteFunc, concreteTyp, in)
 }
 
 func (c *codegen) CreateTypeInfo(typ types.Type, linkOnce bool) *ir.GlobalVar {
@@ -259,25 +263,25 @@ func (c *codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 		sb.Set("alignment", &ir.Integer{Typ: c.types.Get(field.Type), Value: core.Unsigned(false, uint64(info.Align))})
 	}
 
-	// implements
+	// implementations
 	{
-		field := c.needed.TypeInfo.Field("implements")
+		field := c.needed.TypeInfo.Field("implementations")
 		if field == nil {
-			panic("codegen.codegen.CreateTypeInfo() - Failed to find 'implements' field on 'core::TypeInfo'")
+			panic("codegen.codegen.CreateTypeInfo() - Failed to find 'implementations' field on 'core::TypeInfo'")
 		}
 
-		implementsSb := c.Struct(field.Type.(*types.Struct))
+		implementationsSb := c.Struct(field.Type.(*types.Struct))
 
-		implements := c.CreateTypeInfoImplements(typ, linkOnce)
+		implementations := c.CreateTypeInfoImplementations(typ, linkOnce)
 
-		if implements != nil {
-			implementsSb.Set("ptr", implements)
+		if implementations != nil {
+			implementationsSb.Set("ptr", implementations)
 
-			size := &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(implements.Typ.(*ir.ArrayType).Length))}
-			implementsSb.Set("size", size)
+			size := &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(implementations.Typ.(*ir.ArrayType).Length))}
+			implementationsSb.Set("size", size)
 		}
 
-		sb.Set("implements", implementsSb.Build())
+		sb.Set("implementations", implementationsSb.Build())
 	}
 
 	// data
@@ -285,45 +289,44 @@ func (c *codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 		switch typ := typ.(type) {
 		case *types.Primitive:
 			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(typ.Kind))})
-			sb.Set("data_ptr", &ir.Null{})
+			sb.Set("data_ptr1", &ir.Null{})
+			sb.Set("data_ptr2", &ir.Null{})
 
 		case *types.Array:
 			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(typ.Size))})
-			sb.Set("data_ptr", c.GetTypeInfo(typ.Element))
+			sb.Set("data_ptr1", c.GetTypeInfo(typ.Element))
+			sb.Set("data_ptr2", &ir.Null{})
 
 		case *types.Pointer:
 			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, 0)})
-			sb.Set("data_ptr", c.GetTypeInfo(typ.Pointee))
+			sb.Set("data_ptr1", c.GetTypeInfo(typ.Pointee))
+			sb.Set("data_ptr2", &ir.Null{})
 
 		case *types.Func:
-			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, 0)})
-			sb.Set("data_ptr", &ir.Null{})
+			parameters := c.CreateTypeInfoParameters(typ, linkOnce)
+
+			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(parameters.Typ.(*ir.ArrayType).Length))})
+			sb.Set("data_ptr1", parameters)
+			sb.Set("data_ptr2", c.GetTypeInfo(typ.Returns))
 
 		case *types.Enum:
 			cases := c.CreateTypeInfoCases(typ, linkOnce)
 
-			if cases != nil {
-				sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(cases.Typ.(*ir.ArrayType).Length))})
-				sb.Set("data_ptr", cases)
-			} else {
-				sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, 0)})
-				sb.Set("data_ptr", &ir.Null{})
-			}
+			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(cases.Typ.(*ir.ArrayType).Length))})
+			sb.Set("data_ptr1", cases)
+			sb.Set("data_ptr2", c.GetTypeInfo(typ.Underlying()))
 
 		case *types.Struct:
 			fields := c.CreateTypeInfoFields(typ, linkOnce)
 
-			if fields != nil {
-				sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(fields.Typ.(*ir.ArrayType).Length))})
-				sb.Set("data_ptr", fields)
-			} else {
-				sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, 0)})
-				sb.Set("data_ptr", &ir.Null{})
-			}
+			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(fields.Typ.(*ir.ArrayType).Length))})
+			sb.Set("data_ptr1", fields)
+			sb.Set("data_ptr2", &ir.Null{})
 
 		case *types.Interface:
 			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, 0)})
-			sb.Set("data_ptr", &ir.Null{})
+			sb.Set("data_ptr1", &ir.Null{})
+			sb.Set("data_ptr2", &ir.Null{})
 
 		default:
 			panic("codegen.codegen.CreateTypeInfo() - Invalid type")
@@ -333,7 +336,7 @@ func (c *codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 	return sb.Build()
 }
 
-func (c *codegen) CreateTypeInfoImplements(typ types.Type, linkOnce bool) *ir.GlobalVar {
+func (c *codegen) CreateTypeInfoImplementations(typ types.Type, linkOnce bool) *ir.GlobalVar {
 	interfaces := c.typeEnv.GetConformances(typ)
 	if len(interfaces) == 0 {
 		return nil
@@ -341,101 +344,89 @@ func (c *codegen) CreateTypeInfoImplements(typ types.Type, linkOnce bool) *ir.Gl
 
 	ab := c.Array(&types.Array{
 		Size:    uint32(len(interfaces)),
-		Element: &types.Pointer{Pointee: c.needed.TypeInfo},
+		Element: c.needed.Implementation,
 	})
 
 	for _, in := range interfaces {
-		ab.Add(c.GetTypeInfo(in))
+		sb := c.Struct(c.needed.Implementation)
+
+		sb.Set("type_info", c.GetTypeInfo(in))
+		sb.Set("vtable", c.GetVTable(in, typ))
+
+		ab.Add(sb.Build())
 	}
 
-	name := TypeInfoLinkName(typ, "type_info_implements")
+	name := TypeInfoLinkName(typ, "type_info_implementations")
 	return c.GlobalVar(name, true, linkOnce, ab.Build())
 }
 
-func (c *codegen) CreateTypeInfoCases(typ types.Type, linkOnce bool) *ir.GlobalVar {
-	if e, ok := typ.(*types.Enum); ok {
-		ab := c.Array(&types.Array{
-			Size:    uint32(len(e.Cases)),
-			Element: c.needed.Case,
-		})
+func (c *codegen) CreateTypeInfoParameters(typ *types.Func, linkOnce bool) *ir.GlobalVar {
+	ab := c.Array(&types.Array{
+		Size:    uint32(len(typ.Params)),
+		Element: &types.Pointer{Pointee: c.needed.TypeInfo},
+	})
 
-		for _, case_ := range e.Cases {
-			sb := c.Struct(c.needed.Case)
-
-			negative := ir.False
-			if case_.Value.Negative() {
-				negative = ir.True
-			}
-
-			sb.Set("name", c.StringView([]rune(case_.Name)))
-			sb.Set("negative", negative)
-			sb.Set("value", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, case_.Value.Raw())})
-
-			ab.Add(sb.Build())
-		}
-
-		name := TypeInfoLinkName(typ, "type_info_cases")
-		return c.GlobalVar(name, true, linkOnce, ab.Build())
+	for _, param := range typ.Params {
+		ab.Add(c.GetTypeInfo(param))
 	}
 
-	return nil
+	name := TypeInfoLinkName(typ, "type_info_parameters")
+	return c.GlobalVar(name, true, linkOnce, ab.Build())
 }
 
-func (c *codegen) CreateTypeInfoFields(typ types.Type, linkOnce bool) *ir.GlobalVar {
-	if s, ok := typ.(*types.Struct); ok {
-		ab := c.Array(&types.Array{
-			Size:    uint32(len(s.Fields)),
-			Element: c.needed.Field,
-		})
+func (c *codegen) CreateTypeInfoCases(typ *types.Enum, linkOnce bool) *ir.GlobalVar {
+	ab := c.Array(&types.Array{
+		Size:    uint32(len(typ.Cases)),
+		Element: c.needed.Case,
+	})
 
-		info := c.arch.Info(s)
+	for _, case_ := range typ.Cases {
+		sb := c.Struct(c.needed.Case)
 
-		for _, infoField := range info.Fields {
-			sb := c.Struct(c.needed.Field)
-
-			field := s.Fields[infoField.Index]
-
-			public := ir.False
-			if field.Public {
-				public = ir.True
-			}
-
-			sb.Set("name", c.StringView([]rune(field.Name)))
-			sb.Set("type_info", c.GetTypeInfo(field.Type))
-			sb.Set("public", public)
-			sb.Set("offset", &ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, uint64(infoField.Offset))})
-
-			ab.Add(sb.Build())
+		negative := ir.False
+		if case_.Value.Negative() {
+			negative = ir.True
 		}
 
-		name := TypeInfoLinkName(typ, "type_info_fields")
-		return c.GlobalVar(name, true, linkOnce, ab.Build())
+		sb.Set("name", c.StringView([]rune(case_.Name)))
+		sb.Set("negative", negative)
+		sb.Set("value", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, case_.Value.Raw())})
+
+		ab.Add(sb.Build())
 	}
 
-	return nil
+	name := TypeInfoLinkName(typ, "type_info_cases")
+	return c.GlobalVar(name, true, linkOnce, ab.Build())
 }
 
-func (c *codegen) CreateVTableVar(name string, typ types.Type, methods []ir.Value, linkOnce bool) *ir.GlobalVar {
-	methodsTyp := &types.Array{Size: uint32(len(methods)), Element: &types.Pointer{Pointee: types.PrimitiveVoid}}
+func (c *codegen) CreateTypeInfoFields(typ *types.Struct, linkOnce bool) *ir.GlobalVar {
+	ab := c.Array(&types.Array{
+		Size:    uint32(len(typ.Fields)),
+		Element: c.needed.Field,
+	})
 
-	sb := c.Struct(&types.Struct{Layout: types.C, Fields: []types.Field{
-		{Name: "type_info", Type: &types.Pointer{Pointee: c.needed.TypeInfo}},
-		{Name: "methods", Type: methodsTyp},
-	}})
+	info := c.arch.Info(typ)
 
-	sb.Set("type_info", c.GetTypeInfo(typ))
+	for _, infoField := range info.Fields {
+		sb := c.Struct(c.needed.Field)
 
-	{
-		ab := c.Array(methodsTyp)
+		field := typ.Fields[infoField.Index]
 
-		for _, method := range methods {
-			ab.Add(method)
+		public := ir.False
+		if field.Public {
+			public = ir.True
 		}
 
-		sb.Set("methods", ab.Build())
+		sb.Set("name", c.StringView([]rune(field.Name)))
+		sb.Set("type_info", c.GetTypeInfo(field.Type))
+		sb.Set("public", public)
+		sb.Set("offset", &ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, uint64(infoField.Offset))})
+
+		ab.Add(sb.Build())
 	}
 
-	return c.GlobalVar(name, true, linkOnce, sb.Build())
+	name := TypeInfoLinkName(typ, "type_info_fields")
+	return c.GlobalVar(name, true, linkOnce, ab.Build())
 }
 
 func VTableLinkName(in *types.Interface, typ types.Type) string {

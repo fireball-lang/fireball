@@ -141,6 +141,12 @@ func getNeededTypes(projMap map[string]*project.Project) codegen.Types {
 	}
 	needed.Field = symbol.Type.(*types.Struct)
 
+	symbol, ok = proj.Module.GetSymbol(symbols.Type, "Implementation")
+	if !ok {
+		panic("build.getNeededTypes() - Failed to get 'core::Implementation' type")
+	}
+	needed.Implementation = symbol.Type.(*types.Struct)
+
 	symbol, ok = proj.Module.GetSymbol(symbols.Type, "TypeInfo")
 	if !ok {
 		panic("build.getNeededTypes() - Failed to get 'core::TypeInfo' type")

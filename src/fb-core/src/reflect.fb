@@ -18,6 +18,11 @@ impl TypeKind {
 	}
 }
 
+struct Implementation {
+	type_info: *TypeInfo,
+	vtable: *void,
+}
+
 /// Every possible type that a `TypeKind::Primitive` can represent.
 /// Values need to match with `types.PrimitiveKind` in the compiler.
 pub enum PrimitiveKind : u8 {
@@ -97,13 +102,13 @@ pub struct TypeInfo {
 	/// The alignment in bytes of this type.
 	pub alignment: u32,
 
-	/// A slice of all implemented interfaces on this type.
-	pub implements: []*TypeInfo,
+	implementations: []Implementation,
 
-	// Data
+	// Kind specific data
 
 	data_int: u64,
-	data_ptr: *void,
+	data_ptr1: *void,
+	data_ptr2: *void,
 }
 
 impl TypeInfo {
@@ -123,14 +128,17 @@ impl TypeInfo {
 		return name;
 	}
 
-	/// Returns `true` if the type info in `other` is found in the `self.implements` slice.
-	pub func implements(self, other: *TypeInfo) bool {
-		for (var i = 0u; i < self.implements.size; i++) {
-			if (self.implements[i] == other) return true;
+	/// Returns a pointer to the vtable of the implementation of the interface `inter` or null if the type doesn't implement it.
+	pub func get_vtable(self, inter: *TypeInfo) *void {
+		for (var i = 0u; i < self.implementations.size; i++) {
+			var imp = self.implementations[i];
+			if (imp.type_info == inter) return imp.vtable;
 		}
 
-		return false;
+		return null;
 	}
+
+	// Data
 
 	/// Returns the `PrimitiveKind` if this type is a primitive or panics.
 	pub func primitive_kind(self) PrimitiveKind {
@@ -147,24 +155,42 @@ impl TypeInfo {
 	/// Returns the array element type if this type is an array or panics.
 	pub func element(self) *TypeInfo {
 		if (self.kind != TypeKind::Array) panic("self.kind is not `TypeKind::Array`");
-		return self.data_ptr as *TypeInfo;
+		return self.data_ptr1 as *TypeInfo;
 	}
 
 	/// Returns the pointee type if this type is a pointer or panics.
 	pub func pointee(self) *TypeInfo {
 		if (self.kind != TypeKind::Pointer) panic("self.kind is not `TypeKind::Pointer`");
-		return self.data_ptr as *TypeInfo;
+		return self.data_ptr1 as *TypeInfo;
+	}
+
+	/// Returns the return type if this type is a function or panics.
+	pub func returns(self) *TypeInfo {
+		if (self.kind != TypeKind::Function) panic("self.kind is not `TypeKind::Function`");
+		return self.data_ptr2 as *TypeInfo;
+	}
+
+	/// Returns a slice of parameter types if this type is a function or panics.
+	pub func parameters(self) []*TypeInfo {
+		if (self.kind != TypeKind::Function) panic("self.kind is not `TypeKind::Function`");
+		return Slice:[*TypeInfo] { ptr: self.data_ptr1 as **TypeInfo, size: self.data_int };
+	}
+
+	/// Returns the type that represents the enum (eg. u8) or panics.
+	pub func enum_underlying(self) *TypeInfo {
+		if (self.kind != TypeKind::Enum) panic("self.kind is not `TypeKind::Enum`");
+		return self.data_ptr2 as *TypeInfo;
 	}
 
 	/// Returns a slice of cases if this type is an enum or panics.
 	pub func cases(self) []Case {
 		if (self.kind != TypeKind::Enum) panic("self.kind is not `TypeKind::Enum`");
-		return Slice:[Case] { ptr: self.data_ptr as *Case, size: self.data_int };
+		return Slice:[Case] { ptr: self.data_ptr1 as *Case, size: self.data_int };
 	}
 
 	/// Returns a slice of fields if this type is a struct or panics.
 	pub func fields(self) []Field {
 		if (self.kind != TypeKind::Struct) panic("self.kind is not `TypeKind::Struct`");
-		return Slice:[Field] { ptr: self.data_ptr as *Field, size: self.data_int };
+		return Slice:[Field] { ptr: self.data_ptr1 as *Field, size: self.data_int };
 	}
 }

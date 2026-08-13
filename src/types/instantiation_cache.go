@@ -317,6 +317,20 @@ func getSubstitution(substitutions []Substitution, param *Param) Type {
 		}
 	}
 
+	var match Substitution
+	matches := 0
+
+	for i := range substitutions {
+		if substitutions[i].Param != nil && substitutions[i].Param.Name == param.Name {
+			match = substitutions[i]
+			matches++
+		}
+	}
+
+	if matches == 1 {
+		return match.Type
+	}
+
 	return param
 }
 

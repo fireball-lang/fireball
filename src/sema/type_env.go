@@ -5,6 +5,7 @@ import (
 	"fireball/core"
 	"fireball/symbols"
 	"fireball/types"
+	"slices"
 )
 
 type implKey struct {
@@ -18,6 +19,7 @@ type TypeEnvironment struct {
 
 	typeDeclNodes map[types.Type]ast.Decl
 	implNodes     map[implKey]*ast.Impl
+	implParams    map[*ast.Impl][]*types.Param
 
 	conformances map[types.Type][]*types.Interface
 
@@ -32,6 +34,7 @@ func NewTypeEnvironment(instantiations *types.InstantiationCache) *TypeEnvironme
 		instance:       make(map[types.Type][]symbols.Symbol),
 		typeDeclNodes:  make(map[types.Type]ast.Decl),
 		implNodes:      make(map[implKey]*ast.Impl),
+		implParams:     make(map[*ast.Impl][]*types.Param),
 		conformances:   make(map[types.Type][]*types.Interface),
 		paramScopes:    make(map[*types.Param]symbols.Scope),
 		instantiations: instantiations,
@@ -118,6 +121,10 @@ func (e *TypeEnvironment) RegisterImplNode(typ types.Type, in *types.Interface, 
 	e.implNodes[implKey{Type: typ, Interface: in}] = impl
 }
 
+func (e *TypeEnvironment) RegisterImplParams(impl *ast.Impl, params []*types.Param) {
+	e.implParams[impl] = params
+}
+
 func (e *TypeEnvironment) GetImplNode(structGeneric types.Type, ifaceGeneric *types.Interface) *ast.Impl {
 	return e.implNodes[implKey{Type: structGeneric, Interface: ifaceGeneric}]
 }
@@ -125,10 +132,8 @@ func (e *TypeEnvironment) GetImplNode(structGeneric types.Type, ifaceGeneric *ty
 func (e *TypeEnvironment) AddConformance(typ types.Type, in *types.Interface) bool {
 	in = in.AsImmutable()
 
-	for _, in2 := range e.conformances[typ] {
-		if in2 == in {
-			return false
-		}
+	if slices.Contains(e.conformances[typ], in) {
+		return false
 	}
 
 	e.conformances[typ] = append(e.conformances[typ], in)
@@ -152,11 +157,88 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 	copy(result, direct)
 
 	for _, in := range templateConfs {
+		if !e.implConstraintsSatisfied(s, in) {
+			continue
+		}
+
 		instantiated := e.instantiations.Substitute(in, s.Substitutions).(*types.Interface)
 		result = append(result, instantiated)
 	}
 
 	return result
+}
+
+func (e *TypeEnvironment) implConstraintsSatisfied(s *types.Struct, in *types.Interface) bool {
+	template := in.AsImmutable()
+	if template.Generic != nil {
+		template = template.Generic
+	}
+
+	impl := e.implNodes[implKey{Type: s.Generic, Interface: template}]
+	if impl == nil {
+		return true
+	}
+
+	params := e.implParams[impl]
+	if len(params) == 0 {
+		return true
+	}
+
+	// Substitute every implementation type parameter with its concrete type argument.
+	subs := make([]types.Substitution, 0, len(params))
+	for i, param := range params {
+		if i >= len(s.Substitutions) {
+			break
+		}
+
+		subs = append(subs, types.Substitution{Param: param, Type: s.Substitutions[i].Type})
+	}
+
+	for i, param := range params {
+		if i >= len(s.Substitutions) {
+			break
+		}
+
+		for _, constraint := range param.Constraints {
+			if !e.satisfiesConstraint(s.Substitutions[i].Type, constraint, subs) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (e *TypeEnvironment) satisfiesConstraint(typ types.Type, constraint *types.Interface, substitutions []types.Substitution) bool {
+	instantiated := e.instantiations.Substitute(constraint, substitutions).(*types.Interface)
+	instantiated = instantiated.AsImmutable()
+
+	// Type parameter: satisfied if any of its own constraints matches.
+	if p, ok := typ.(*types.Param); ok {
+		for _, c := range p.Constraints {
+			if c.AsImmutable().Equals(instantiated) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Pointer: constraints apply to the pointee.
+	if ptr, ok := typ.(*types.Pointer); ok {
+		return e.satisfiesInterface(ptr.Pointee, instantiated)
+	}
+
+	return e.satisfiesInterface(typ, instantiated)
+}
+
+func (e *TypeEnvironment) satisfiesInterface(typ types.Type, in *types.Interface) bool {
+	for _, conf := range e.GetConformances(typ) {
+		if conf.AsImmutable().Equals(in) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (e *TypeEnvironment) AddStaticMethod(typ types.Type, symbol symbols.Symbol) bool {

@@ -6,6 +6,12 @@ enum Color {
 	Blue,
 }
 
+enum Status : i32 {
+	Idle,
+	Busy,
+	Done,
+}
+
 struct Point {
 	pub x: i32,
 	pub y: i32,
@@ -93,6 +99,38 @@ func typeofFunction() bool {
 	return typeof(func(i32, i32) i32).kind == TypeKind::Function;
 }
 
+#[test("typeof(func) return type")]
+func typeofFunctionReturn() bool {
+	return typeof(func(i32, i32) i32).returns().primitive_kind() == PrimitiveKind::I32;
+}
+
+#[test("typeof(func) return void")]
+func typeofFunctionReturnVoid() bool {
+	return typeof(func() void).returns().primitive_kind() == PrimitiveKind::Void;
+}
+
+#[test("typeof(func) return kind for non primitive")]
+func typeofFunctionReturnKind() bool {
+	return typeof(func() Color).returns().kind == TypeKind::Enum;
+}
+
+#[test("typeof(func) parameter count")]
+func typeofFunctionParameterCount() bool {
+	return typeof(func(i32, bool) f32).parameters().size == 2u;
+}
+
+#[test("typeof(func) parameter types")]
+func typeofFunctionParameterTypes() bool {
+	var params = typeof(func(i32, bool) f32).parameters();
+
+	return params[0u].primitive_kind() == PrimitiveKind::I32 && params[1u].primitive_kind() == PrimitiveKind::Bool;
+}
+
+#[test("typeof(func) no parameters")]
+func typeofFunctionNoParameters() bool {
+	return typeof(func() i32).parameters().size == 0u;
+}
+
 // ── enums ─────────────────────────────────────────────────────────────────────
 
 #[test("typeof(Color) kind and decl name")]
@@ -118,6 +156,16 @@ func typeofEnumCasesNotNegative() bool {
 	var cases = typeof(Color).cases();
 
 	return !cases[0u].negative && !cases[1u].negative && !cases[2u].negative;
+}
+
+#[test("typeof(Color) underlying type")]
+func typeofEnumUnderlying() bool {
+	return typeof(Color).enum_underlying().primitive_kind() == PrimitiveKind::U8;
+}
+
+#[test("typeof(Status) explicit underlying type")]
+func typeofEnumExplicitUnderlying() bool {
+	return typeof(Status).enum_underlying().primitive_kind() == PrimitiveKind::I32;
 }
 
 // ── structs ───────────────────────────────────────────────────────────────────
@@ -189,10 +237,10 @@ func typeofGenericDeclName() bool {
 
 #[test("typeof implements interface")]
 func typeofImplements() bool {
-	return typeof(Label).implements(typeof(Named));
+	return typeof(Label).get_vtable(typeof(Named)) != null;
 }
 
 #[test("typeof does not implement unrelated interface")]
 func typeofNotImplements() bool {
-	return !typeof(Point).implements(typeof(Named));
+	return typeof(Point).get_vtable(typeof(Named)) == null;
 }

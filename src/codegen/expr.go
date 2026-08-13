@@ -1126,10 +1126,10 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			srcTypeInfoPtr := c.emitter.Load(ir.Pointer, srcTypeInfoPtrPtr)
 			targetTypeInfoPtr := c.GetTypeInfo(to)
 
-			// Call 'src.implements(target)'
-			symbol, ok := c.typeEnv.GetInstanceMethod(c.needed.TypeInfo, "implements")
+			// Call 'src.get_vtable(target)'
+			symbol, ok := c.typeEnv.GetInstanceMethod(c.needed.TypeInfo, "get_vtable")
 			if !ok {
-				panic("codegen.codegen.Cast() - Failed to find 'implements' method on 'core::TypeInfo'")
+				panic("codegen.codegen.Cast() - Failed to find 'get_vtable' method on 'core::TypeInfo'")
 			}
 
 			f := symbol.Node.(*ast.Func)
@@ -1140,17 +1140,24 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			c.AddSummaryCallee(f, typ, nil, true)
 			receiver := srcTypeInfoPtr
 
-			isTarget := c.EmitCall(callee, sig, typ, receiver, []ir.Value{targetTypeInfoPtr}, []types.Type{&types.Pointer{Pointee: c.needed.TypeInfo}}, types.PrimitiveBool)
+			vtable := c.EmitCall(callee, sig, typ, receiver, []ir.Value{targetTypeInfoPtr}, []types.Type{&types.Pointer{Pointee: c.needed.TypeInfo}}, typ.Returns)
+			isTarget := c.emitter.ICmp(ir.Ne, false, vtable, &ir.ZeroInitializer{Typ: ir.I64})
 
 			// Extract pointer or null
-			value = c.ExtractPointerFromInterfaceOrNull(value, isTarget)
+			ptr := c.ExtractPointerFromInterfaceOrNull(value, isTarget)
+
+			// Reconstruct interface with the new value and vtable
+			value = &ir.ZeroInitializer{Typ: toTyp}
+
+			value = c.emitter.InsertValue(value, ptr, 0)
+			value = c.emitter.InsertValue(value, vtable, 1)
 		}
 		valid = c.emitter.Block()
 		c.emitter.Br(exit)
 
 		// Exit
 		c.emitter.Begin(exit)
-		value = c.emitter.Phi(ir.PhiPair{Block: valid, Value: value}, ir.PhiPair{Block: start, Value: &ir.ZeroInitializer{Typ: c.types.Get(to)}})
+		value = c.emitter.Phi(ir.PhiPair{Block: valid, Value: value}, ir.PhiPair{Block: start, Value: &ir.ZeroInitializer{Typ: toTyp}})
 
 	case sema.TypeToOption:
 		to := to.(*types.Struct)

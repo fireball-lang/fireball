@@ -24,6 +24,8 @@ type Types struct {
 	Case  *types.Struct
 	Field *types.Struct
 
+	Implementation *types.Struct
+
 	TypeInfo *types.Struct
 }
 
@@ -181,6 +183,24 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		}
 	}
 
+	// V-Tables
+
+	for _, decl := range file.Decls {
+		if impl, ok := decl.(*ast.Impl); ok && impl.Interface != nil && len(impl.TypeParams) == 0 {
+			in := c.nodeTypes[impl.Interface].(*types.Interface)
+
+			var typ types.Type
+
+			if p, ok := impl.Type.(*ast.PrimitiveType); ok {
+				typ = types.GetPrimitive(p.Kind)
+			} else {
+				typ = c.nodeTypes[impl.Type]
+			}
+
+			c.CreateVTable(typ, in, false)
+		}
+	}
+
 	// Type Infos
 
 	if strings.HasSuffix(filepath.ToSlash(path), "build/dependencies/core/src/reflect.fb") {
@@ -216,14 +236,6 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 			if !c.HasTypeParams(decl) {
 				c.CreateTypeInfo(c.nodeTypes[decl], false)
 			}
-		}
-	}
-
-	// V-Tables
-
-	for _, decl := range file.Decls {
-		if impl, ok := decl.(*ast.Impl); ok && impl.Interface != nil && len(impl.TypeParams) == 0 {
-			c.CreateVTable(impl)
 		}
 	}
 

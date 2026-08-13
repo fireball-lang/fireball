@@ -7,7 +7,9 @@ interface Animal {
 	func set(mut self, foo: i32);
 }
 
-interface Foo {}
+interface Foo {
+	func get_true(self) bool;
+}
 
 struct Dog {
 	foo: i32,
@@ -27,7 +29,11 @@ impl Cat : Animal {
 	func set(mut self, foo: i32) { self.foo = foo; }
 }
 
-impl Cat : Foo {}
+impl Cat : Foo {
+	func get_true(self) bool {
+		return true;
+	}
+}
 
 // Tests
 
@@ -123,7 +129,7 @@ func interfaceToInterfaceValid() bool {
 	var animal: Animal = &cat;
 	var foo = animal as Foo;
 
-	return foo != null;
+	return foo.get_true();
 }
 
 #[test("interface -> interface (invalid)")]

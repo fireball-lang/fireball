@@ -346,8 +346,6 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 				a.Error(f.Name_, "method '%s' is not part of interface '%s'", name, in)
 			}
 		}
-
-		a.typeEnv.RegisterImplNode(lookupTyp, inGeneric, i)
 	}
 }
 
