@@ -73,31 +73,13 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 		}
 	}
 
-	// Rebuild the scope using the canonical struct's TypeParams
+	// Set up the method type-param scope
 	methodTyp := typ
 
 	if s, ok := typ.(*types.Struct); ok {
-		template := s
-		if s.Generic != nil {
-			template = s.Generic
-		}
-
-		if len(template.TypeParams) > 0 && len(impl.TypeParams) == len(template.TypeParams) {
-			methodTyp = s.Generic
-
-			implNames := make([]string, len(impl.TypeParams))
-			for i, param := range impl.TypeParams {
-				implNames[i] = param.Name.Token.Text
-			}
-
-			r.scopes.Push(&symbols.ParamScope{
-				Names:  implNames,
-				Params: template.TypeParams,
-				Nodes:  impl.TypeParams,
-			})
-
-			defer r.scopes.Pop()
-		}
+		var pop func()
+		methodTyp, pop = r.pushImplScope(impl, s)
+		defer pop()
 	}
 
 	r.typeEnv.RegisterImplTarget(methodTyp, impl)

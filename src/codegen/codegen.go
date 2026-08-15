@@ -284,6 +284,16 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		c.substitutions = pending.typ.Substitutions
 		c.funcTyp = pending.typ
 
+		if types.HasParam(pending.typ) {
+			r := pending.f.Range()
+
+			panic(fmt.Sprintf(
+				"codegen.Generate() - function instantiation contains unresolved type parameters:\n  function: %s (%s:%d:%d)\n  type: %s\n  substitutions: %s",
+				FuncLinkName(pending.f, pending.typ, nil), ast.GetFile(pending.f).Path, r.Start.Line, r.Start.Column,
+				pending.typ.String(), typeSubsString(pending.typ.Substitutions),
+			))
+		}
+
 		c.VisitFunc(pending.f, pending.typ, pending.fun)
 
 		c.funcTyp = nil
@@ -308,6 +318,24 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 }
 
 // Utils
+
+func typeSubsString(subs []types.Substitution) string {
+	var sb strings.Builder
+	sb.WriteString("[")
+
+	for i, s := range subs {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+
+		sb.WriteString(s.Param.Name)
+		sb.WriteString(" -> ")
+		sb.WriteString(s.Type.String())
+	}
+
+	sb.WriteString("]")
+	return sb.String()
+}
 
 func (c *codegen) HasTypeParams(decl ast.Decl) bool {
 	switch decl := decl.(type) {

@@ -13,6 +13,23 @@ type implKey struct {
 	Interface *types.Interface
 }
 
+// TypeEnvironment stores cross-file type information gathered during resolution
+// and consumed by semantics and codegen.
+//
+// # Impl method storage
+//
+// A generic struct impl's methods and interface conformances are registered
+// under a "target" type:
+//
+//   - Full generic impls (impl[K, V] ArrayMap[K, V]) register under the struct's
+//     canonical *template*; their signatures reference the template's type params.
+//   - Partially/full-specialized impls (impl[V] ArrayMap[String, V], impl ... of
+//     a concrete type) register under an *instantiation* of the template whose
+//     substitutions mix fixed types (String) with params. Lookups for a concrete
+//     type (e.g. ArrayMap[String, bool]) therefore search: the exact type, the
+//     template, then every indexed partial target that unifies with it.
+//
+// Constraint satisfaction is implemented in constraints.go.
 type TypeEnvironment struct {
 	static   map[types.Type][]symbols.Symbol
 	instance map[types.Type][]symbols.Symbol
@@ -220,6 +237,8 @@ func (e *TypeEnvironment) matchPartialTarget(s, pt *types.Struct) ([]types.Subst
 	return subs, true
 }
 
+// implParamsSatisfied checks that every impl type parameter constraint holds for
+// the concrete type it is substituted with by `subs`.
 func (e *TypeEnvironment) implParamsSatisfied(impl *ast.Impl, subs []types.Substitution) bool {
 	for _, param := range e.implParams[impl] {
 		var concrete types.Type
@@ -271,86 +290,7 @@ func (e *TypeEnvironment) implConstraintsSatisfied(s *types.Struct, in *types.In
 		subs = append(subs, types.Substitution{Param: param, Type: s.Substitutions[i].Type})
 	}
 
-	for i, param := range params {
-		if i >= len(s.Substitutions) {
-			break
-		}
-
-		for _, constraint := range param.Constraints {
-			if !e.satisfiesConstraint(s.Substitutions[i].Type, constraint, subs) {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
-func (e *TypeEnvironment) satisfiesConstraint(typ types.Type, constraint *types.Interface, substitutions []types.Substitution) bool {
-	instantiated := e.instantiations.Substitute(constraint, substitutions).(*types.Interface)
-	instantiated = instantiated.AsImmutable()
-
-	// Type parameter: satisfied if any of its own constraints matches.
-	if p, ok := typ.(*types.Param); ok {
-		for _, c := range p.Constraints {
-			if c.AsImmutable().Equals(instantiated) {
-				return true
-			}
-		}
-		return false
-	}
-
-	// Pointer: constraints apply to the pointee.
-	if ptr, ok := typ.(*types.Pointer); ok {
-		return e.satisfiesInterface(ptr.Pointee, instantiated)
-	}
-
-	return e.satisfiesInterface(typ, instantiated)
-}
-
-func (e *TypeEnvironment) satisfiesInterface(typ types.Type, in *types.Interface) bool {
-	for _, conf := range e.GetConformances(typ) {
-		if e.interfaceMatches(conf, in) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (e *TypeEnvironment) interfaceMatches(conf, in *types.Interface) bool {
-	conf = conf.AsImmutable()
-	in = in.AsImmutable()
-
-	confTemplate := conf
-	if conf.Generic != nil {
-		confTemplate = conf.Generic
-	}
-
-	inTemplate := in
-	if in.Generic != nil {
-		inTemplate = in.Generic
-	}
-
-	if confTemplate != inTemplate {
-		return false
-	}
-
-	if in.Generic == nil {
-		return true
-	}
-
-	if len(in.Substitutions) != len(conf.Substitutions) {
-		return false
-	}
-
-	for i, sub := range in.Substitutions {
-		if _, ok := GetImplicitCast(e, ExprInfo{Type: sub.Type}, conf.Substitutions[i].Type); !ok {
-			return false
-		}
-	}
-
-	return true
+	return e.implParamsSatisfied(impl, subs)
 }
 
 func (e *TypeEnvironment) AddStaticMethod(typ types.Type, symbol symbols.Symbol) bool {
@@ -396,7 +336,25 @@ func (e *TypeEnvironment) GetInstanceMethod(typ types.Type, name string) (symbol
 }
 
 func (e *TypeEnvironment) GetInstanceMethodWithSubs(typ types.Type, name string) (symbols.Symbol, []types.Substitution, bool) {
-	if sym, ok := e.GetInstanceMethod(typ, name); ok {
+	return e.getMethodWithSubs(false, typ, name)
+}
+
+func (e *TypeEnvironment) GetStaticMethodWithSubs(typ types.Type, name string) (symbols.Symbol, []types.Substitution, bool) {
+	return e.getMethodWithSubs(true, typ, name)
+}
+
+// getMethodWithSubs resolves a method on `typ`, which may be a concrete
+// instantiation of a generic struct. It returns the method symbol together with
+// the substitutions needed to instantiate its type for `typ`. Lookup order:
+// exact registration, methods on the canonical template (full generic impls),
+// then partial specializations that unify with `typ`.
+func (e *TypeEnvironment) getMethodWithSubs(isStatic bool, typ types.Type, name string) (symbols.Symbol, []types.Substitution, bool) {
+	get := e.GetInstanceMethod
+	if isStatic {
+		get = e.GetStaticMethod
+	}
+
+	if sym, ok := get(typ, name); ok {
 		return sym, nil, true
 	}
 
@@ -406,7 +364,7 @@ func (e *TypeEnvironment) GetInstanceMethodWithSubs(typ types.Type, name string)
 	}
 
 	// Full generic impl: methods live on the canonical template.
-	if sym, ok := e.GetInstanceMethod(s.Generic, name); ok {
+	if sym, ok := get(s.Generic, name); ok {
 		return sym, s.Substitutions, true
 	}
 
@@ -421,39 +379,7 @@ func (e *TypeEnvironment) GetInstanceMethodWithSubs(typ types.Type, name string)
 			continue
 		}
 
-		if sym, ok := e.GetInstanceMethod(pt, name); ok {
-			return sym, subs, true
-		}
-	}
-
-	return symbols.Symbol{}, nil, false
-}
-
-func (e *TypeEnvironment) GetStaticMethodWithSubs(typ types.Type, name string) (symbols.Symbol, []types.Substitution, bool) {
-	if sym, ok := e.GetStaticMethod(typ, name); ok {
-		return sym, nil, true
-	}
-
-	s, ok := typ.(*types.Struct)
-	if !ok || s.Generic == nil {
-		return symbols.Symbol{}, nil, false
-	}
-
-	if sym, ok := e.GetStaticMethod(s.Generic, name); ok {
-		return sym, s.Substitutions, true
-	}
-
-	for _, pt := range e.implTargets[s.Generic] {
-		subs, ok := e.matchPartialTarget(s, pt)
-		if !ok {
-			continue
-		}
-
-		if impl := e.implForTarget[pt]; impl != nil && !e.implParamsSatisfied(impl, subs) {
-			continue
-		}
-
-		if sym, ok := e.GetStaticMethod(pt, name); ok {
+		if sym, ok := get(pt, name); ok {
 			return sym, subs, true
 		}
 	}

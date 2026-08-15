@@ -388,3 +388,47 @@ func (c *common) WarningRange(range_ core.Range, format string, args ...any) {
 		Message: fmt.Sprintf(format, args...),
 	})
 }
+
+// pushImplScope sets up the type-param scope used to resolve an impl's method
+// signatures and bodies, and returns the type the impl's methods are registered
+// under (and looked up through). Callers must call the returned pop function.
+func (c *common) pushImplScope(impl *ast.Impl, typ *types.Struct) (*types.Struct, func()) {
+	template := typ
+	if typ.Generic != nil {
+		template = typ.Generic
+	}
+
+	full := len(template.TypeParams) > 0 && len(impl.TypeParams) == len(template.TypeParams)
+
+	lookup := typ
+	if full {
+		lookup = template
+	}
+
+	if full || (len(template.TypeParams) > 0 && len(impl.TypeParams) > 0) {
+		names := make([]string, len(impl.TypeParams))
+		params := make([]*types.Param, len(impl.TypeParams))
+
+		for j, param := range impl.TypeParams {
+			names[j] = param.Name.Token.Text
+
+			if full {
+				params[j] = template.TypeParams[j]
+			} else if resolved, ok := c.nodeTypes[param].(*types.Param); ok {
+				params[j] = resolved
+			} else {
+				params[j] = &types.Param{Name: names[j]}
+			}
+		}
+
+		c.scopes.Push(&symbols.ParamScope{
+			Names:  names,
+			Params: params,
+			Nodes:  impl.TypeParams,
+		})
+
+		return lookup, func() { c.scopes.Pop() }
+	}
+
+	return lookup, func() {}
+}

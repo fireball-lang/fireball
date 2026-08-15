@@ -127,39 +127,14 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	// Attributes
 	a.CheckAttributes(i.Attributes(), implAllowedAttributes)
 
+	// Impl type-param scope + method registration target
+	var lookupTyp types.Type
+	var popScope func()
+
 	if prev, ok := a.nodeTypes[i.Type]; ok {
 		if s, ok := prev.(*types.Struct); ok {
-			template := s
-			if s.Generic != nil {
-				template = s.Generic
-			}
-
-			if len(template.TypeParams) > 0 && len(i.TypeParams) > 0 {
-				implNames := make([]string, len(i.TypeParams))
-				params := make([]*types.Param, len(i.TypeParams))
-
-				full := len(i.TypeParams) == len(template.TypeParams)
-
-				for j, param := range i.TypeParams {
-					implNames[j] = param.Name.Token.Text
-
-					if full {
-						params[j] = template.TypeParams[j]
-					} else if resolved, ok := a.nodeTypes[param].(*types.Param); ok {
-						params[j] = resolved
-					} else {
-						params[j] = &types.Param{Name: implNames[j]}
-					}
-				}
-
-				a.scopes.Push(&symbols.ParamScope{
-					Names:  implNames,
-					Params: params,
-					Nodes:  i.TypeParams,
-				})
-
-				defer a.scopes.Pop()
-			}
+			lookupTyp, popScope = a.pushImplScope(i, s)
+			defer popScope()
 		}
 	}
 
@@ -169,19 +144,11 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		return
 	}
 
-	a.nodeTypes[i] = typ
-	lookupTyp := typ
-
-	if s, ok := typ.(*types.Struct); ok {
-		template := s
-		if s.Generic != nil {
-			template = s.Generic
-		}
-
-		if len(i.TypeParams) > 0 && len(i.TypeParams) == len(template.TypeParams) {
-			lookupTyp = template
-		}
+	if core.IsNil(lookupTyp) {
+		lookupTyp = typ
 	}
+
+	a.nodeTypes[i] = typ
 
 	// Self
 	prevSelf := a.selfType

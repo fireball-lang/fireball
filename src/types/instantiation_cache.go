@@ -5,6 +5,24 @@ import (
 	"sync"
 )
 
+// InstantiationCache memoizes generic type instantiations and provides the two
+// fundamental operations used to manipulate generic types:
+//
+//   - Get instantiates a raw generic (a *Struct/*Interface/*Func that is a
+//     template, i.e. has TypeParams) with concrete substitutions. The result is
+//     a "thin" instance: it stores {Generic, Substitutions} and its dependent
+//     parts (struct Fields, interface methods, function Params) are filled in
+//     lazily, either eagerly when SubstituteDependentTypes runs or on demand.
+//
+//   - Substitute resolves Param references anywhere within an arbitrary type,
+//     composing with any substitutions an already-instantiated value already
+//     holds (it "remaps" through Strictly, Generic is the underlying template).
+//
+// The two overlap (Substitute of a raw generic with a full substitution is
+// equivalent to Get), but they are NOT interchangeable once a type is already
+// instantiated: calling Get on an instance would wrap the instance as the
+// "Generic" of a fresh instance, leaving the original's internal Params
+// untouched. Always use Substitute for types that may already be instantiated.
 type InstantiationCache struct {
 	types map[Type][]cacheEntry
 	mu    sync.Mutex
@@ -27,7 +45,10 @@ func NewInstantiationCache() *InstantiationCache {
 	return &InstantiationCache{types: make(map[Type][]cacheEntry)}
 }
 
-// Get creates or retrieves the instantiation of a generic *Struct or *Func.
+// Get creates or retrieves the instantiation of a generic *Struct, *Interface or
+// *Func. `generic` must be a raw template (not an already-instantiated value);
+// for composing substitution layers on top of an existing instantiation use
+// Substitute instead.
 func (c *InstantiationCache) Get(generic Type, substitutions []Substitution) Type {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -35,7 +56,10 @@ func (c *InstantiationCache) Get(generic Type, substitutions []Substitution) Typ
 	return c.get(generic, substitutions)
 }
 
-// Substitute resolves type params within typ using substitutions.
+// Substitute resolves type params within typ using `substitutions`. If typ is
+// already an instantiated generic, the substitutions compose with the ones it
+// already holds. This is the safe operation to apply to types that may have been
+// instantiated earlier, and to concrete types produced by the sema pass.
 func (c *InstantiationCache) Substitute(typ Type, substitutions []Substitution) Type {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -310,6 +334,10 @@ func (c *InstantiationCache) getRemapped(generic Type, stored []Substitution, ou
 	return c.get(generic, remapped)
 }
 
+// getSubstitution resolves a single param against a substitution list. It first
+// matches by pointer identity, then falls back to a unique name match. The name
+// fallback is what lets template params from different declarations (which are
+// distinct objects with the same name) still line up.
 func getSubstitution(substitutions []Substitution, param *Param) Type {
 	for _, s := range substitutions {
 		if s.Param == param {
