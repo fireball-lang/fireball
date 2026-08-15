@@ -291,14 +291,15 @@ func (t *TypeCache) createStructMeta(typ *types.Struct) ir.MetaRef {
 
 	fields := make([]ir.MetaRef, len(typ.Fields))
 
-	for i, field := range typ.Fields {
+	for i, infoField := range info.Fields {
+		field := typ.Fields[infoField.Index]
 		fieldInfo := t.Arch.Info(field.Type)
 
 		fields[i] = t.Module.AddMeta(&ir.DerivedTypeMeta{
 			Name:   field.Name,
 			Kind:   ir.MetaMember,
 			Base:   t.GetMeta(field.Type),
-			Offset: info.Fields[i].Offset * 8,
+			Offset: infoField.Offset * 8,
 			Size:   fieldInfo.Size * 8,
 			Align:  fieldInfo.Align * 8,
 		})
