@@ -161,8 +161,15 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	a.nodeTypes[i] = typ
 	lookupTyp := typ
 
-	if s, ok := typ.(*types.Struct); ok && s.Generic != nil && len(i.TypeParams) > 0 {
-		lookupTyp = s.Generic
+	if s, ok := typ.(*types.Struct); ok {
+		template := s
+		if s.Generic != nil {
+			template = s.Generic
+		}
+
+		if len(i.TypeParams) > 0 && len(i.TypeParams) == len(template.TypeParams) {
+			lookupTyp = template
+		}
 	}
 
 	// Self
