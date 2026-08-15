@@ -663,35 +663,18 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		}
 
 		// Instance method
-		if sym, ok := a.typeEnv.GetInstanceMethod(t, m.Name.Token.Text); ok {
+		if sym, subs, ok := a.typeEnv.GetInstanceMethodWithSubs(t, m.Name.Token.Text); ok {
 			if a.checkVisibility && !sym.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
 				a.Error(m.Name, "method '%s' is private", m.Name.Token.Text)
 			}
 
 			methodType := sym.Type
-			if t.Generic != nil {
-				methodType = a.instantiations.Get(methodType, t.Substitutions).(*types.Func)
+			if len(subs) > 0 {
+				methodType = a.instantiations.Get(methodType, subs).(*types.Func)
 			}
 
 			a.nodeTypes[sym.Node] = methodType
 			return ExprInfo{Type: methodType, Node: sym.Node}
-		}
-
-		// Static method
-		if t.Generic != nil {
-			if sym, ok := a.typeEnv.GetInstanceMethod(t.Generic, m.Name.Token.Text); ok {
-				if a.checkVisibility && !sym.Public && !slices.Equal(t.Generic.ModulePath, a.fileModPath) {
-					a.Error(m.Name, "method '%s' is private", m.Name.Token.Text)
-				}
-
-				methodType := sym.Type
-				if t.Generic != nil {
-					methodType = a.instantiations.Get(methodType, t.Substitutions).(*types.Func)
-				}
-
-				a.nodeTypes[sym.Node] = methodType
-				return ExprInfo{Type: methodType, Node: sym.Node}
-			}
 		}
 
 		return a.Error(m.Name, "member '%s' doesn't exist on type '%s'", m.Name.Token.Text, t)
@@ -781,7 +764,7 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 
 			// Instantiate
 			if len(subs) > 0 {
-				f = a.instantiations.Get(f, subs).(*types.Func)
+				f = a.instantiations.Substitute(f, subs).(*types.Func)
 				a.nodeTypes[funcNode] = f
 				a.nodeTypes[c] = f
 			}
@@ -889,19 +872,14 @@ func GetUnaryMethod(typeEnv *TypeEnvironment, instantiations *types.Instantiatio
 
 	for _, in := range typeEnv.GetConformances(calleeType) {
 		if in.Name == inName {
-			typ := calleeType
-			if s, ok := calleeType.(*types.Struct); ok && s.Generic != nil {
-				typ = s.Generic
+			if sym, subs, ok := typeEnv.GetInstanceMethodWithSubs(calleeType, in.InstanceMethods[0].Name); ok {
+				fTyp := sym.Type
+				if len(subs) > 0 {
+					fTyp = instantiations.Get(fTyp, subs).(*types.Func)
+				}
+
+				return fTyp.(*types.Func), sym.Name
 			}
-
-			symbol, _ := typeEnv.GetInstanceMethod(typ, in.InstanceMethods[0].Name)
-			fTyp := symbol.Type
-
-			if s, ok := calleeType.(*types.Struct); ok && s.Generic != nil {
-				fTyp = instantiations.Get(fTyp, s.Substitutions)
-			}
-
-			return fTyp.(*types.Func), symbol.Name
 		}
 	}
 
@@ -932,19 +910,14 @@ func GetBinaryMethod(typeEnv *TypeEnvironment, instantiations *types.Instantiati
 	for _, in := range typeEnv.GetConformances(calleeType) {
 		if in.Name == inName && len(in.Substitutions) == 1 {
 			if _, ok := GetImplicitCast(typeEnv, ExprInfo{Type: rhsType}, in.Substitutions[0].Type); ok {
-				typ := calleeType
-				if s, ok := calleeType.(*types.Struct); ok && s.Generic != nil {
-					typ = s.Generic
+				if sym, subs, ok := typeEnv.GetInstanceMethodWithSubs(calleeType, in.InstanceMethods[0].Name); ok {
+					fTyp := sym.Type
+					if len(subs) > 0 {
+						fTyp = instantiations.Get(fTyp, subs).(*types.Func)
+					}
+
+					return fTyp.(*types.Func), sym.Name
 				}
-
-				symbol, _ := typeEnv.GetInstanceMethod(typ, in.InstanceMethods[0].Name)
-				fTyp := symbol.Type
-
-				if s, ok := calleeType.(*types.Struct); ok && s.Generic != nil {
-					fTyp = instantiations.Get(fTyp, s.Substitutions)
-				}
-
-				return fTyp.(*types.Func), symbol.Name
 			}
 		}
 	}

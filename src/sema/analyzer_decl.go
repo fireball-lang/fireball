@@ -134,16 +134,27 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 				template = s.Generic
 			}
 
-			if len(template.TypeParams) > 0 && len(i.TypeParams) == len(template.TypeParams) {
+			if len(template.TypeParams) > 0 && len(i.TypeParams) > 0 {
 				implNames := make([]string, len(i.TypeParams))
+				params := make([]*types.Param, len(i.TypeParams))
+
+				full := len(i.TypeParams) == len(template.TypeParams)
 
 				for j, param := range i.TypeParams {
 					implNames[j] = param.Name.Token.Text
+
+					if full {
+						params[j] = template.TypeParams[j]
+					} else if resolved, ok := a.nodeTypes[param].(*types.Param); ok {
+						params[j] = resolved
+					} else {
+						params[j] = &types.Param{Name: implNames[j]}
+					}
 				}
 
 				a.scopes.Push(&symbols.ParamScope{
 					Names:  implNames,
-					Params: template.TypeParams,
+					Params: params,
 					Nodes:  i.TypeParams,
 				})
 

@@ -337,25 +337,10 @@ func (c *common) CheckConstraint(typ types.Type, constraint *types.Interface, no
 		checkTyp = ptr.Pointee
 	}
 
-	// Resolve canonical generic template of the constraint
-	constraintCanon := constraint.AsImmutable()
-	constraintTemplate := constraintCanon
-	if constraintCanon.Generic != nil {
-		constraintTemplate = constraintCanon.Generic
-	}
-
 	// Check interface conformances
 	for _, conf := range c.typeEnv.GetConformances(checkTyp) {
-		conf = conf.AsImmutable()
-		confTemplate := conf
-		if conf.Generic != nil {
-			confTemplate = conf.Generic
-		}
-
-		if constraintTemplate == confTemplate {
-			if constraint.Generic == nil || conf == constraintCanon {
-				return true
-			}
+		if c.typeEnv.interfaceMatches(conf, constraint) {
+			return true
 		}
 	}
 

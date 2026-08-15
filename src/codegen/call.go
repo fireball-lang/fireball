@@ -220,34 +220,25 @@ func (c *codegen) ResolveInterfaceMethod(receiverType types.Type, methodName str
 		receiverType = p.Pointee
 	}
 
-	// For generic structs, methods live on the template
-	lookupTyp := receiverType
-	if s, ok := receiverType.(*types.Struct); ok && s.Generic != nil {
-		lookupTyp = s.Generic
-	}
-
-	// Look up the method
 	var sym symbols.Symbol
+	var subs []types.Substitution
 	var ok bool
 
 	if isStatic {
-		sym, ok = c.typeEnv.GetStaticMethod(lookupTyp, methodName)
-		if !ok || sym.Kind != symbols.Func {
-			panic(fmt.Sprintf("codegen.codegen.ResolveInterfaceMethod() - static method '%s' not found on '%s'", methodName, receiverType))
-		}
+		sym, subs, ok = c.typeEnv.GetStaticMethodWithSubs(receiverType, methodName)
 	} else {
-		sym, ok = c.typeEnv.GetInstanceMethod(lookupTyp, methodName)
-		if !ok {
-			panic(fmt.Sprintf("codegen.codegen.ResolveInterfaceMethod() - method '%s' not found on '%s'", methodName, receiverType))
-		}
+		sym, subs, ok = c.typeEnv.GetInstanceMethodWithSubs(receiverType, methodName)
+	}
+
+	if !ok || sym.Kind != symbols.Func {
+		panic(fmt.Sprintf("codegen.codegen.ResolveInterfaceMethod() - method '%s' not found on '%s'", methodName, receiverType))
 	}
 
 	concreteFunc := sym.Node.(*ast.Func)
 	concreteTyp := sym.Type.(*types.Func)
 
-	// Substitute generics if needed
-	if s, ok := receiverType.(*types.Struct); ok && s.Generic != nil {
-		concreteTyp = c.instantiations.Substitute(concreteTyp, s.Substitutions).(*types.Func)
+	if len(subs) > 0 {
+		concreteTyp = c.instantiations.Substitute(concreteTyp, subs).(*types.Func)
 	}
 
 	in := c.GetFuncInterface(concreteFunc)

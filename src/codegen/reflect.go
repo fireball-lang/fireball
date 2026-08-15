@@ -145,13 +145,7 @@ func (c *codegen) VtableStruct(in *types.Interface) *types.Struct {
 }
 
 func (c *codegen) VtableMethod(typ types.Type, in *types.Interface, im types.Method) ir.Value {
-	// For generic structs, methods live on the template.
-	lookupTyp := typ
-	if s, ok := typ.(*types.Struct); ok && s.Generic != nil {
-		lookupTyp = s.Generic
-	}
-
-	sym, ok := c.typeEnv.GetInstanceMethod(lookupTyp, im.Name)
+	sym, subs, ok := c.typeEnv.GetInstanceMethodWithSubs(typ, im.Name)
 	if !ok {
 		panic(fmt.Sprintf("codegen.vtableMethod() - interface method '%s' not found on '%s'", im.Name, typ))
 	}
@@ -159,8 +153,8 @@ func (c *codegen) VtableMethod(typ types.Type, in *types.Interface, im types.Met
 	concreteFunc := sym.Node.(*ast.Func)
 	concreteTyp := sym.Type.(*types.Func)
 
-	if s, ok := typ.(*types.Struct); ok && s.Generic != nil {
-		concreteTyp = c.instantiations.Substitute(concreteTyp, s.Substitutions).(*types.Func)
+	if len(subs) > 0 {
+		concreteTyp = c.instantiations.Substitute(concreteTyp, subs).(*types.Func)
 	}
 
 	return c.GetFunction(concreteFunc, concreteTyp, in)

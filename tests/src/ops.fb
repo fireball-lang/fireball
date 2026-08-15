@@ -437,3 +437,43 @@ func implicitAsImplParam() bool {
 	var point3 = wrap.to_vec();
 	return point3.x == 4 && point3.y == 5;
 }
+
+// A type whose only Eq conformance is on a type it is implicitly castable to.
+// It must still satisfy the `Eq[T]` constraint, mirroring how `String` satisfies
+// `Eq[String]` through its `Eq[StringView]` + `ImplicitAs[StringView]` impls.
+
+struct Alpha {
+	x: i32,
+	y: i32,
+}
+
+struct Beta {
+	x: i32,
+	y: i32,
+}
+
+impl Beta : Eq[Alpha] {
+	pub func eq(self, rhs: Alpha) bool {
+		return self.x == rhs.x && self.y == rhs.y;
+	}
+}
+
+impl Beta : ImplicitAs[Alpha] {
+	pub func implicit_as(self) Alpha {
+		return Alpha { x: self.x, y: self.y };
+	}
+}
+
+func eq_generic[T: Eq[T]](a: T, b: T) bool {
+	return a == b;
+}
+
+#[test("Eq constraint satisfied through ImplicitAs")]
+func eqConstraintThroughImplicitAs() bool {
+	return eq_generic:[Beta](Beta { x: 1, y: 2 }, Beta { x: 1, y: 2 });
+}
+
+#[test("Eq constraint through ImplicitAs - not equal")]
+func eqConstraintThroughImplicitAsNotEqual() bool {
+	return !eq_generic:[Beta](Beta { x: 1, y: 2 }, Beta { x: 1, y: 3 });
+}

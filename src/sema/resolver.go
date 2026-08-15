@@ -82,27 +82,25 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 			template = s.Generic
 		}
 
-		if len(template.TypeParams) > 0 && len(impl.TypeParams) > 0 {
-			if len(impl.TypeParams) != len(template.TypeParams) {
-				r.Error(impl.Type, "implementation of generic struct '%s' must declare %d type parameter(s), got %d", template.Name, len(template.TypeParams), len(impl.TypeParams))
-			} else {
-				methodTyp = s.Generic
+		if len(template.TypeParams) > 0 && len(impl.TypeParams) == len(template.TypeParams) {
+			methodTyp = s.Generic
 
-				implNames := make([]string, len(impl.TypeParams))
-				for i, param := range impl.TypeParams {
-					implNames[i] = param.Name.Token.Text
-				}
-
-				r.scopes.Push(&symbols.ParamScope{
-					Names:  implNames,
-					Params: template.TypeParams,
-					Nodes:  impl.TypeParams,
-				})
-
-				defer r.scopes.Pop()
+			implNames := make([]string, len(impl.TypeParams))
+			for i, param := range impl.TypeParams {
+				implNames[i] = param.Name.Token.Text
 			}
+
+			r.scopes.Push(&symbols.ParamScope{
+				Names:  implNames,
+				Params: template.TypeParams,
+				Nodes:  impl.TypeParams,
+			})
+
+			defer r.scopes.Pop()
 		}
 	}
+
+	r.typeEnv.RegisterImplTarget(methodTyp, impl)
 
 	// Interface
 	if impl.Interface != nil {

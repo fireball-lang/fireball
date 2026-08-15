@@ -323,3 +323,182 @@ func implDependent() bool {
 	var box = Box:[i32] { value: 5 };
 	return box.eq(box);
 }
+
+// Partial implementation specializations (impl with fewer type params than the struct)
+//
+// `Pair` has two type params `[A, B]`; these impls fix `A = i32` and leave `B` free.
+
+impl[B] Pair[i32, B] {
+	// Method that only applies to the specialization with an i32 first field
+	func double_first(self) i32 {
+		return self.first * 2;
+	}
+
+	// Method using the free type param
+	func get_second(self) B {
+		return self.second;
+	}
+
+	func set_second(mut self, value: B) {
+		self.second = value;
+	}
+}
+
+#[test("partial impl: fixed-arg method")]
+func testPartialImplFirst() bool {
+	var p: Pair[i32, i64];
+	p.first = 21;
+	p.second = 7;
+	return p.double_first() == 42;
+}
+
+#[test("partial impl: free-param method")]
+func testPartialImplFreeParam() bool {
+	var p: Pair[i32, i64];
+	p.second = 123456789;
+	return p.get_second() == 123456789;
+}
+
+#[test("partial impl: free-param method on a different instantiation")]
+func testPartialImplFreeParamBool() bool {
+	var p: Pair[i32, bool];
+	p.second = true;
+	return p.get_second() == true;
+}
+
+#[test("partial impl: mutating free param")]
+func testPartialImplSet() bool {
+	var p: Pair[i32, i64];
+	p.set_second(9);
+	return p.get_second() == 9;
+}
+
+// Partial impl of an interface (exercises conformance + vtable dispatch)
+
+interface PartialGetter {
+	func get(self) i32;
+}
+
+impl[B] Pair[i32, B] : PartialGetter {
+	func get(self) i32 {
+		return self.first;
+	}
+}
+
+#[test("partial impl of interface through vtable")]
+func testPartialImplInterface() bool {
+	var p: Pair[i32, i64];
+	p.first = 33;
+
+	var getter: PartialGetter = &p;
+	return getter.get() == 33;
+}
+
+// Operators through partial impls
+
+impl[B] Pair[i32, B] : Neg {
+	type Result = Pair[i32, B];
+
+	pub func neg(self) Pair[i32, B] {
+		return Pair:[i32, B] { first: -self.first, second: self.second };
+	}
+}
+
+impl[B] Pair[i32, B] : Add[Pair[i32, B]] {
+	type Result = Pair[i32, B];
+
+	pub func add(self, rhs: Pair[i32, B]) Pair[i32, B] {
+		return Pair:[i32, B] { first: self.first + rhs.first, second: rhs.second };
+	}
+}
+
+impl[B] Pair[i32, B] : Eq[Pair[i32, B]] {
+	pub func eq(self, rhs: Pair[i32, B]) bool {
+		return self.first == rhs.first;
+	}
+}
+
+#[test("partial impl: unary operator - (Neg)")]
+func testPartialNeg() bool {
+	var p = -Pair:[i32, i64] { first: 3, second: 5 };
+	return p.first == -3 && p.second == 5;
+}
+
+#[test("partial impl: unary operator - on a different instantiation")]
+func testPartialNegBool() bool {
+	var p = -Pair:[i32, bool] { first: 3, second: true };
+	return p.first == -3 && p.second == true;
+}
+
+#[test("partial impl: binary operator + (Add)")]
+func testPartialAdd() bool {
+	var p = Pair:[i32, i64] { first: 10, second: 1 } + Pair:[i32, i64] { first: 5, second: 2 };
+	return p.first == 15 && p.second == 2;
+}
+
+#[test("partial impl: equality operator ==")]
+func testPartialEqEqual() bool {
+	return Pair:[i32, i64] { first: 7, second: 1 } == Pair:[i32, i64] { first: 7, second: 9 };
+}
+
+#[test("partial impl: inequality operator !=")]
+func testPartialEqNotEqual() bool {
+	return Pair:[i32, i64] { first: 7, second: 1 } != Pair:[i32, i64] { first: 8, second: 9 };
+}
+
+// Nested generic instantiation: a method on a generic struct whose field is
+// itself a generic instantiation with a type param (e.g. ArrayList[Item[K, V]]).
+// Regression test for a double-instantiation that left type params in the
+// instantiated method's signature and crashed ABI layout.
+
+struct Boxed[T] {
+	value: T,
+}
+
+impl[T] Boxed[T] {
+	func get(self) T {
+		return self.value;
+	}
+}
+
+struct OuterBox[A, B] {
+	inner: Boxed[A],
+	tag:   B,
+}
+
+impl[A, B] OuterBox[A, B] {
+	func read_inner(self) A {
+		return self.inner.get();
+	}
+
+	func read_inner_twice(self) A {
+		return self.read_inner();
+	}
+}
+
+#[test("nested generic method call through parent instantiation")]
+func testNestedGenericCall() bool {
+	var o = OuterBox:[i32, i64] {
+		inner: Boxed:[i32] { value: 42 },
+		tag:   7,
+	};
+	return o.read_inner() == 42;
+}
+
+#[test("nested generic method call on another instantiation")]
+func testNestedGenericCallBool() bool {
+	var o = OuterBox:[bool, i32] {
+		inner: Boxed:[bool] { value: true },
+		tag:   3,
+	};
+	return o.read_inner() == true;
+}
+
+#[test("nested generic method call through a second generic method")]
+func testNestedGenericCallTwice() bool {
+	var o = OuterBox:[i32, i64] {
+		inner: Boxed:[i32] { value: 99 },
+		tag:   1,
+	};
+	return o.read_inner_twice() == 99;
+}
