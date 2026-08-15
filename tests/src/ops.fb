@@ -408,3 +408,32 @@ func implicitAsStruct() bool {
 	var point3: Vec3 = Vec2::new(2, 3);
 	return point3.y == 3;
 }
+
+// ImplicitAs cast from a constrained type parameter
+
+func implicit_as_param[T: ImplicitAs[Vec3]](v: T) Vec3 {
+	return v as Vec3;
+}
+
+#[test("ImplicitAs cast on a constrained type parameter")]
+func implicitAsParam() bool {
+	var point3 = implicit_as_param:[Vec2](Vec2::new(2, 3));
+	return point3.y == 3 && point3.z == 0;
+}
+
+struct Wrap[T] {
+	value: T,
+}
+
+impl[T: ImplicitAs[Vec3]] Wrap[T] {
+	pub func to_vec(self) Vec3 {
+		return self.value as Vec3;
+	}
+}
+
+#[test("ImplicitAs cast on a constrained type param inside an impl")]
+func implicitAsImplParam() bool {
+	var wrap = Wrap:[Vec2] { value: Vec2::new(4, 5) };
+	var point3 = wrap.to_vec();
+	return point3.x == 4 && point3.y == 5;
+}

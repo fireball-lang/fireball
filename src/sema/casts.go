@@ -260,6 +260,13 @@ func GetImplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 		if to, ok := to.(*types.Interface); ok && !to.Mutable && fromT.Mutable && fromT.AsImmutable() == to {
 			return Noop, true
 		}
+
+	case *types.Param:
+		for _, in := range fromT.Constraints {
+			if in.Name == "core::ImplicitAs" && len(in.Substitutions) == 1 && in.Substitutions[0].Type.Equals(to) {
+				return ImplicitAs, true
+			}
+		}
 	}
 
 	if toInner := getOptionInnerType(to); !core.IsNil(toInner) {
