@@ -5,6 +5,7 @@ import (
 	"fireball/core"
 	"fireball/symbols"
 	"fireball/types"
+	"slices"
 )
 
 // Visitor
@@ -52,6 +53,12 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 	if typ == types.PrimitiveVoid {
 		a.Error(v.Name, "variable cannot be of type 'void'")
 		typ = types.Invalid
+	}
+
+	if typ != types.Invalid && core.IsNil(v.Initializer) {
+		if !slices.Contains(a.typeEnv.GetConformances(typ), a.builtins.Zeroable) {
+			a.Error(v.Name, "cannot zero-initialize a non Zeroable type '%s'", typ)
+		}
 	}
 
 	a.nodeTypes[v] = typ

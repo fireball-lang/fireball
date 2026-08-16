@@ -331,6 +331,11 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 				a.Error(f.Name_, "method '%s' is not part of interface '%s'", name, in)
 			}
 		}
+
+		// Zeroable
+		if in == a.builtins.Zeroable {
+			a.Error(i.Type, "marker interface 'Zeroable' cannot be implemented manually")
+		}
 	}
 }
 
@@ -367,6 +372,13 @@ var globalVarAllowedAttributes = []reflect.Type{
 func (a *analyzer) VisitGlobalVar(g *ast.GlobalVar) {
 	// Attributes
 	a.CheckAttributes(g.Attributes(), globalVarAllowedAttributes)
+
+	// Zeroable
+	typ := a.nodeTypes[g.Type]
+
+	if !slices.Contains(a.typeEnv.GetConformances(typ), a.builtins.Zeroable) {
+		a.Error(g.Name(), "cannot zero-initialize a non Zeroable type '%s'", typ)
+	}
 }
 
 var funcAllowedAttributes = []reflect.Type{

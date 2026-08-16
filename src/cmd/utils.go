@@ -96,11 +96,12 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*
 	}
 
 	// Resolve
+	builtins := project.GetBuiltins(projMap)
 	instantiations := types.NewInstantiationCache()
-	typeEnv := sema.NewTypeEnvironment(instantiations)
+	typeEnv := sema.NewTypeEnvironment(instantiations, builtins)
 
 	for _, proj := range ordered {
-		proj.Resolve(depMap, instantiations, typeEnv)
+		proj.Resolve(depMap, instantiations, typeEnv, builtins)
 	}
 
 	instantiations.SubstituteDependentTypes()
@@ -110,7 +111,7 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*
 
 	// Analyze
 	for _, proj := range ordered {
-		proj.Analyze(depMap, instantiations, typeEnv)
+		proj.Analyze(depMap, instantiations, typeEnv, builtins)
 	}
 
 	// Print diagnostics

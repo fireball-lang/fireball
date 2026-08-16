@@ -18,6 +18,7 @@ type common struct {
 
 	instantiations *types.InstantiationCache
 	typeEnv        *TypeEnvironment
+	builtins       types.Builtins
 
 	checkVisibility      bool
 	checkTypeConstraints bool
@@ -27,7 +28,7 @@ type common struct {
 	diagnostics []core.Diagnostic
 }
 
-func setupCommon(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, nodeTypes map[ast.Node]types.Type, path string) common {
+func setupCommon(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, builtins types.Builtins, nodeTypes map[ast.Node]types.Type, path string) common {
 	fileModPath := make([]string, 0, len(file.Mod.Path))
 	for _, entry := range file.Mod.Path {
 		fileModPath = append(fileModPath, entry.Token.Text)
@@ -37,6 +38,7 @@ func setupCommon(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scop
 		path:                 path,
 		fileModPath:          fileModPath,
 		instantiations:       instantiations,
+		builtins:             builtins,
 		typeEnv:              typeEnv,
 		checkVisibility:      true,
 		checkTypeConstraints: false,
@@ -333,8 +335,6 @@ func (c *common) CheckConstraint(typ types.Type, constraint *types.Interface, no
 			c.Error(node, "type '%s' does not satisfy constraint '%s': pointer must be mutable ('mut %s')", typ, constraint, typ)
 			return false
 		}
-
-		checkTyp = ptr.Pointee
 	}
 
 	// Check interface conformances

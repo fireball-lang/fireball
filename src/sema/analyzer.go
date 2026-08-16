@@ -48,13 +48,13 @@ var importAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
 }
 
-func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, nodeTypes map[ast.Node]types.Type, topLevelModule, path string) (map[ast.Node]ExprInfo, []core.Diagnostic) {
+func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, builtins types.Builtins, nodeTypes map[ast.Node]types.Type, topLevelModule, path string) (map[ast.Node]ExprInfo, []core.Diagnostic) {
 	defer core.Scope()()
 
 	// Setup
 
 	a := analyzer{
-		common:         setupCommon(file, fileSymbols, root, instantiations, typeEnv, nodeTypes, path),
+		common:         setupCommon(file, fileSymbols, root, instantiations, typeEnv, builtins, nodeTypes, path),
 		locals:         &symbols.BlockScope{},
 		topLevelModule: topLevelModule,
 		exprInfos:      make(map[ast.Node]ExprInfo),

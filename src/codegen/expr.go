@@ -796,7 +796,7 @@ func (c *codegen) StringView(runes []rune) ir.Value {
 
 	// Value
 
-	sb := c.Struct(c.needed.StringView)
+	sb := c.Struct(c.builtins.StringView)
 
 	sb.Set("ptr", global)
 	sb.Set("size", &ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, uint64(literal.Size))})
@@ -1127,7 +1127,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			targetTypeInfoPtr := c.GetTypeInfo(to)
 
 			// Call 'src.get_vtable(target)'
-			symbol, ok := c.typeEnv.GetInstanceMethod(c.needed.TypeInfo, "get_vtable")
+			symbol, ok := c.typeEnv.GetInstanceMethod(c.builtins.TypeInfo, "get_vtable")
 			if !ok {
 				panic("codegen.codegen.Cast() - Failed to find 'get_vtable' method on 'core::TypeInfo'")
 			}
@@ -1140,7 +1140,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			c.AddSummaryCallee(f, typ, nil, true)
 			receiver := srcTypeInfoPtr
 
-			vtable := c.EmitCall(callee, sig, typ, receiver, []ir.Value{targetTypeInfoPtr}, []types.Type{&types.Pointer{Pointee: c.needed.TypeInfo}}, typ.Returns)
+			vtable := c.EmitCall(callee, sig, typ, receiver, []ir.Value{targetTypeInfoPtr}, []types.Type{&types.Pointer{Pointee: c.builtins.TypeInfo}}, typ.Returns)
 			isTarget := c.emitter.ICmp(ir.Ne, false, vtable, &ir.ZeroInitializer{Typ: ir.I64})
 
 			// Extract pointer or null

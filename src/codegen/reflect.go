@@ -48,7 +48,7 @@ func (c *codegen) GetTypeInfo(typ types.Type) ir.Value {
 	}
 
 	// Extern type info
-	gVar := c.module.NewGlobalVar(name, c.types.Get(c.needed.TypeInfo))
+	gVar := c.module.NewGlobalVar(name, c.types.Get(c.builtins.TypeInfo))
 	gVar.Flags = ir.External
 
 	return gVar
@@ -77,9 +77,12 @@ func (c *codegen) GetVTable(in *types.Interface, typ types.Type) ir.Value {
 		}
 	}
 
-	// Instantiate generic implementation
-	if s, ok := typ.(*types.Struct); ok && s.Generic != nil {
-		return c.CreateVTable(typ, in, true)
+	// Instantiate generic / pseudo-generic implementation
+	switch typ := typ.(type) {
+	case *types.Struct:
+		if typ.Generic != nil {
+			return c.CreateVTable(typ, in, true)
+		}
 	}
 
 	// Extern vtable
@@ -136,7 +139,7 @@ func (c *codegen) CreateVTableInitializer(typ types.Type, in *types.Interface) i
 
 func (c *codegen) VtableStruct(in *types.Interface) *types.Struct {
 	return &types.Struct{Layout: types.C, Fields: []types.Field{
-		{Name: "type_info", Type: &types.Pointer{Pointee: c.needed.TypeInfo}},
+		{Name: "type_info", Type: &types.Pointer{Pointee: c.builtins.TypeInfo}},
 		{Name: "methods", Type: &types.Array{
 			Size:    uint32(len(in.InstanceMethods)),
 			Element: &types.Pointer{Pointee: types.PrimitiveVoid},
@@ -165,7 +168,7 @@ func (c *codegen) CreateTypeInfo(typ types.Type, linkOnce bool) *ir.GlobalVar {
 	gVar := c.module.GetGlobalVar(name)
 
 	if gVar == nil {
-		gVar = c.module.NewGlobalVar(name, c.types.Get(c.needed.TypeInfo))
+		gVar = c.module.NewGlobalVar(name, c.types.Get(c.builtins.TypeInfo))
 	}
 	if !core.IsNil(gVar.Initializer) {
 		return gVar
@@ -187,11 +190,11 @@ func (c *codegen) CreateTypeInfo(typ types.Type, linkOnce bool) *ir.GlobalVar {
 
 func (c *codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Value {
 	info := c.arch.Info(typ)
-	sb := c.Struct(c.needed.TypeInfo)
+	sb := c.Struct(c.builtins.TypeInfo)
 
 	// kind
 	{
-		field := c.needed.TypeInfo.Field("kind")
+		field := c.builtins.TypeInfo.Field("kind")
 		if field == nil {
 			panic("codegen.codegen.CreateTypeInfo() - Failed to find 'kind' field on 'core::TypeInfo'")
 		}
@@ -223,7 +226,7 @@ func (c *codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 
 	// name
 	{
-		field := c.needed.TypeInfo.Field("name")
+		field := c.builtins.TypeInfo.Field("name")
 		if field == nil {
 			panic("codegen.codegen.CreateTypeInfo() - Failed to find 'name' field on 'core::TypeInfo'")
 		}
@@ -239,7 +242,7 @@ func (c *codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 
 	// size
 	{
-		field := c.needed.TypeInfo.Field("size")
+		field := c.builtins.TypeInfo.Field("size")
 		if field == nil {
 			panic("codegen.codegen.CreateTypeInfo() - Failed to find 'size' field on 'core::TypeInfo'")
 		}
@@ -249,7 +252,7 @@ func (c *codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 
 	// alignment
 	{
-		field := c.needed.TypeInfo.Field("alignment")
+		field := c.builtins.TypeInfo.Field("alignment")
 		if field == nil {
 			panic("codegen.codegen.CreateTypeInfo() - Failed to find 'alignment' field on 'core::TypeInfo'")
 		}
@@ -259,7 +262,7 @@ func (c *codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 
 	// implementations
 	{
-		field := c.needed.TypeInfo.Field("implementations")
+		field := c.builtins.TypeInfo.Field("implementations")
 		if field == nil {
 			panic("codegen.codegen.CreateTypeInfo() - Failed to find 'implementations' field on 'core::TypeInfo'")
 		}
@@ -338,14 +341,27 @@ func (c *codegen) CreateTypeInfoImplementations(typ types.Type, linkOnce bool) *
 
 	ab := c.Array(&types.Array{
 		Size:    uint32(len(interfaces)),
-		Element: c.needed.Implementation,
+		Element: c.builtins.Implementation,
 	})
 
 	for _, in := range interfaces {
-		sb := c.Struct(c.needed.Implementation)
+		sb := c.Struct(c.builtins.Implementation)
+
+		var vtable ir.Value
+		if len(in.InstanceMethods) == 0 {
+			vtable = &ir.Null{}
+		} else {
+			t := typ
+
+			if p, ok := t.(*types.Pointer); ok {
+				t = p.Pointee
+			}
+
+			vtable = c.GetVTable(in, t)
+		}
 
 		sb.Set("type_info", c.GetTypeInfo(in))
-		sb.Set("vtable", c.GetVTable(in, typ))
+		sb.Set("vtable", vtable)
 
 		ab.Add(sb.Build())
 	}
@@ -357,7 +373,7 @@ func (c *codegen) CreateTypeInfoImplementations(typ types.Type, linkOnce bool) *
 func (c *codegen) CreateTypeInfoParameters(typ *types.Func, linkOnce bool) *ir.GlobalVar {
 	ab := c.Array(&types.Array{
 		Size:    uint32(len(typ.Params)),
-		Element: &types.Pointer{Pointee: c.needed.TypeInfo},
+		Element: &types.Pointer{Pointee: c.builtins.TypeInfo},
 	})
 
 	for _, param := range typ.Params {
@@ -371,11 +387,11 @@ func (c *codegen) CreateTypeInfoParameters(typ *types.Func, linkOnce bool) *ir.G
 func (c *codegen) CreateTypeInfoCases(typ *types.Enum, linkOnce bool) *ir.GlobalVar {
 	ab := c.Array(&types.Array{
 		Size:    uint32(len(typ.Cases)),
-		Element: c.needed.Case,
+		Element: c.builtins.Case,
 	})
 
 	for _, case_ := range typ.Cases {
-		sb := c.Struct(c.needed.Case)
+		sb := c.Struct(c.builtins.Case)
 
 		negative := ir.False
 		if case_.Value.Negative() {
@@ -396,13 +412,13 @@ func (c *codegen) CreateTypeInfoCases(typ *types.Enum, linkOnce bool) *ir.Global
 func (c *codegen) CreateTypeInfoFields(typ *types.Struct, linkOnce bool) *ir.GlobalVar {
 	ab := c.Array(&types.Array{
 		Size:    uint32(len(typ.Fields)),
-		Element: c.needed.Field,
+		Element: c.builtins.Field,
 	})
 
 	info := c.arch.Info(typ)
 
 	for _, infoField := range info.Fields {
-		sb := c.Struct(c.needed.Field)
+		sb := c.Struct(c.builtins.Field)
 
 		field := typ.Fields[infoField.Index]
 
@@ -430,14 +446,15 @@ func VTableLinkName(in *types.Interface, typ types.Type) string {
 	var name string
 	var substitutions []types.Substitution
 
-	if t, ok := typ.(*types.Primitive); ok {
-		name = t.Kind.String()
-	} else if t, ok := typ.(*types.Enum); ok {
-		name = t.Name
-	} else if t, ok := typ.(*types.Struct); ok {
-		name = t.Name
-		substitutions = t.Substitutions
-	} else {
+	switch typ := typ.(type) {
+	case *types.Primitive, *types.Array, *types.Pointer, *types.Enum:
+		name = typ.String()
+
+	case *types.Struct:
+		name = typ.Name
+		substitutions = typ.Substitutions
+
+	default:
 		panic("codegen.VTableLinkName() - Invalid type")
 	}
 

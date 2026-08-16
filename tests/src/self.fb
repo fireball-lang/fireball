@@ -44,10 +44,10 @@ struct Wrapper[T] {
 
 impl[T] Wrapper[T] {
     func with_tag(self, tag: i32) Self {
-        var w: Self;
-        w.value = self.value;
-        w.tag   = tag;
-        return w;
+        return Self {
+        	value: self.value,
+        	tag: tag,
+        };
     }
 
     func get_tag(self) i32 {

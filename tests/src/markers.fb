@@ -1,0 +1,13 @@
+mod tests::markers;
+
+// Zeroable
+
+func get_zero[T: Zeroable]() T {
+	var zero: T;
+	return zero;
+}
+
+#[test("zeroable generic constraint")]
+func zeroableGenericConstraint() bool {
+	return get_zero:[i32]() == 0;
+}

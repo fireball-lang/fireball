@@ -12,11 +12,11 @@ type resolver struct {
 	common
 }
 
-func Resolve(file *ast.File, fileSymbols []symbols.Symbol, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, root symbols.Scope, path string) (map[ast.Node]types.Type, []core.Diagnostic) {
+func Resolve(file *ast.File, fileSymbols []symbols.Symbol, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, builtins types.Builtins, root symbols.Scope, path string) (map[ast.Node]types.Type, []core.Diagnostic) {
 	defer core.Scope()()
 
 	r := resolver{
-		common: setupCommon(file, fileSymbols, root, instantiations, typeEnv, make(map[ast.Node]types.Type), path),
+		common: setupCommon(file, fileSymbols, root, instantiations, typeEnv, builtins, make(map[ast.Node]types.Type), path),
 	}
 
 	r.checkTypeConstraints = false

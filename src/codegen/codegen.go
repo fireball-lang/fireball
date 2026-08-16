@@ -18,17 +18,6 @@ type FileData struct {
 	NodeTypes map[ast.Node]types.Type
 }
 
-type Types struct {
-	StringView *types.Struct
-
-	Case  *types.Struct
-	Field *types.Struct
-
-	Implementation *types.Struct
-
-	TypeInfo *types.Struct
-}
-
 type pendingInstantiation struct {
 	f   *ast.Func
 	typ *types.Func
@@ -45,7 +34,7 @@ type codegen struct {
 	nodeTypes map[ast.Node]types.Type
 	typeEnv   *sema.TypeEnvironment
 
-	needed Types
+	builtins types.Builtins
 
 	scope       symbolScope
 	stringCount uint32
@@ -78,7 +67,7 @@ type codegen struct {
 	fileDataMap map[*ast.File]FileData
 }
 
-func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]FileData, neededTypes Types, path string, summary bool) *ir.Module {
+func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]FileData, builtins types.Builtins, path string, summary bool) *ir.Module {
 	defer core.Scope()()
 
 	module := ir.NewModule()
@@ -94,7 +83,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		nodeTypes: fileDataMap[file].NodeTypes,
 		typeEnv:   typeEnv,
 
-		needed: neededTypes,
+		builtins: builtins,
 
 		instantiations: instantiations,
 		fileDataMap:    fileDataMap,
@@ -186,18 +175,21 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 	// V-Tables
 
 	for _, decl := range file.Decls {
-		if impl, ok := decl.(*ast.Impl); ok && impl.Interface != nil && len(impl.TypeParams) == 0 {
-			in := c.nodeTypes[impl.Interface].(*types.Interface)
+		switch decl := decl.(type) {
+		case *ast.Impl:
+			if decl.Interface != nil && len(decl.TypeParams) == 0 {
+				in := c.nodeTypes[decl.Interface].(*types.Interface)
 
-			var typ types.Type
+				var typ types.Type
 
-			if p, ok := impl.Type.(*ast.PrimitiveType); ok {
-				typ = types.GetPrimitive(p.Kind)
-			} else {
-				typ = c.nodeTypes[impl.Type]
+				if p, ok := decl.Type.(*ast.PrimitiveType); ok {
+					typ = types.GetPrimitive(p.Kind)
+				} else {
+					typ = c.nodeTypes[decl.Type]
+				}
+
+				c.CreateVTable(typ, in, false)
 			}
-
-			c.CreateVTable(typ, in, false)
 		}
 	}
 

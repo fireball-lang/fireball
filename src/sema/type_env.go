@@ -46,9 +46,10 @@ type TypeEnvironment struct {
 	implForTarget map[*types.Struct]*ast.Impl
 
 	instantiations *types.InstantiationCache
+	builtins       types.Builtins
 }
 
-func NewTypeEnvironment(instantiations *types.InstantiationCache) *TypeEnvironment {
+func NewTypeEnvironment(instantiations *types.InstantiationCache, builtins types.Builtins) *TypeEnvironment {
 	return &TypeEnvironment{
 		static:         make(map[types.Type][]symbols.Symbol),
 		instance:       make(map[types.Type][]symbols.Symbol),
@@ -60,6 +61,7 @@ func NewTypeEnvironment(instantiations *types.InstantiationCache) *TypeEnvironme
 		implTargets:    make(map[*types.Struct][]*types.Struct),
 		implForTarget:  make(map[*types.Struct]*ast.Impl),
 		instantiations: instantiations,
+		builtins:       builtins,
 	}
 }
 
@@ -176,15 +178,69 @@ func (e *TypeEnvironment) AddConformance(typ types.Type, in *types.Interface) bo
 }
 
 func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
+	// Compute Zeroable
+	var result []*types.Interface
+
+	switch t := typ.(type) {
+	case *types.Primitive:
+		result = []*types.Interface{e.builtins.Zeroable}
+
+	case *types.Array:
+		if slices.Contains(e.GetConformances(t.Element), e.builtins.Zeroable) {
+			return []*types.Interface{e.builtins.Zeroable}
+		}
+
+		return nil
+
+	case *types.Pointer:
+		result = []*types.Interface{e.builtins.Zeroable}
+		typ = t.Pointee
+
+	case *types.Func:
+		return []*types.Interface{e.builtins.Zeroable}
+
+	case *types.Enum:
+		result = []*types.Interface{e.builtins.Zeroable}
+
+	case *types.Struct:
+		zeroable := true
+
+		for _, field := range t.Fields {
+			if !slices.Contains(e.GetConformances(field.Type), e.builtins.Zeroable) {
+				zeroable = false
+				break
+			}
+		}
+
+		if zeroable {
+			result = []*types.Interface{e.builtins.Zeroable}
+		}
+
+	case *types.Interface:
+		return []*types.Interface{e.builtins.Zeroable}
+
+	case *types.Param:
+		return t.Constraints
+	}
+
+	// Check direct conformances
 	direct := e.conformances[typ]
 
 	s, ok := typ.(*types.Struct)
 	if !ok || s.Generic == nil {
-		return direct
+		if result == nil {
+			return direct
+		}
+
+		return append(result, direct...)
 	}
 
-	result := make([]*types.Interface, len(direct), len(direct)+8)
-	copy(result, direct)
+	if result == nil {
+		result = make([]*types.Interface, len(direct), len(direct)+8)
+		copy(result, direct)
+	} else {
+		result = append(result, direct...)
+	}
 
 	// Full generic impls (registered on the template)
 	for _, in := range e.conformances[s.Generic] {

@@ -8,9 +8,7 @@ import (
 	"fireball/ir"
 	"fireball/ir/llvm"
 	"fireball/project"
-	"fireball/symbols"
 	"fireball/toolchain"
-	"fireball/types"
 	"io"
 	"os"
 	"path/filepath"
@@ -78,7 +76,7 @@ func (s *System) CompileProjectHierarchy(projMap map[string]*project.Project) ([
 		}
 	}
 
-	neededTypes := getNeededTypes(projMap)
+	builtins := project.GetBuiltins(projMap)
 
 	err := core.ParallelFor(files, func(i int, file *project.File) error {
 		buildPath := filepath.Join(s.profilePath, file.Proj.Config.Name)
@@ -97,7 +95,7 @@ func (s *System) CompileProjectHierarchy(projMap map[string]*project.Project) ([
 		}
 
 		name := getBuildFileName(file)
-		module := codegen.Generate(file.Ast, s.target.Arch, s.target.CallConv, file.Instantiations, file.TypeEnv, fileDataMap, neededTypes, file.Path, s.profile.Lto)
+		module := codegen.Generate(file.Ast, s.target.Arch, s.target.CallConv, file.Instantiations, file.TypeEnv, fileDataMap, builtins, file.Path, s.profile.Lto)
 
 		if module.IsEmpty() {
 			return nil
@@ -113,47 +111,6 @@ func (s *System) CompileProjectHierarchy(projMap map[string]*project.Project) ([
 	})
 
 	return objFilePaths, err
-}
-
-func getNeededTypes(projMap map[string]*project.Project) codegen.Types {
-	var needed codegen.Types
-
-	proj := projMap["core"]
-	if proj == nil {
-		panic("build.getNeededTypes() - Failed to get 'core' project")
-	}
-
-	symbol, ok := proj.Module.GetSymbol(symbols.Type, "StringView")
-	if !ok {
-		panic("build.getNeededTypes() - Failed to get 'core::StringView' type")
-	}
-	needed.StringView = symbol.Type.(*types.Struct)
-
-	symbol, ok = proj.Module.GetSymbol(symbols.Type, "Case")
-	if !ok {
-		panic("build.getNeededTypes() - Failed to get 'core::Case' type")
-	}
-	needed.Case = symbol.Type.(*types.Struct)
-
-	symbol, ok = proj.Module.GetSymbol(symbols.Type, "Field")
-	if !ok {
-		panic("build.getNeededTypes() - Failed to get 'core::Field' type")
-	}
-	needed.Field = symbol.Type.(*types.Struct)
-
-	symbol, ok = proj.Module.GetSymbol(symbols.Type, "Implementation")
-	if !ok {
-		panic("build.getNeededTypes() - Failed to get 'core::Implementation' type")
-	}
-	needed.Implementation = symbol.Type.(*types.Struct)
-
-	symbol, ok = proj.Module.GetSymbol(symbols.Type, "TypeInfo")
-	if !ok {
-		panic("build.getNeededTypes() - Failed to get 'core::TypeInfo' type")
-	}
-	needed.TypeInfo = symbol.Type.(*types.Struct)
-
-	return needed
 }
 
 func (s *System) CompileEntrypoint(fn EntrypointFn) (string, error) {

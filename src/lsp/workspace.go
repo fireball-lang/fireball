@@ -110,11 +110,12 @@ func (w *Workspace) parseFiles(files []*project.File) {
 	}
 
 	// Resolve
+	builtins := project.GetBuiltins(w.projMap)
 	instantiations := types.NewInstantiationCache()
-	typeEnv := sema.NewTypeEnvironment(instantiations)
+	typeEnv := sema.NewTypeEnvironment(instantiations, builtins)
 
 	for _, proj := range ordered {
-		proj.Resolve(w.depMap, instantiations, typeEnv)
+		proj.Resolve(w.depMap, instantiations, typeEnv, builtins)
 	}
 
 	instantiations.SubstituteDependentTypes()
@@ -124,7 +125,7 @@ func (w *Workspace) parseFiles(files []*project.File) {
 
 	// Analyze
 	for _, proj := range ordered {
-		proj.Analyze(w.depMap, instantiations, typeEnv)
+		proj.Analyze(w.depMap, instantiations, typeEnv, builtins)
 	}
 }
 

@@ -128,7 +128,18 @@ impl TypeInfo {
 		return name;
 	}
 
+	/// Returns whenever the type `self` implements the interfaces `inter`.
+	/// This method returns *true* for marker interfaces that don't have any methods and thus don't have a vtable.
+	pub func implements(self, inter: *TypeInfo) bool {
+		for (var i = 0u; i < self.implementations.size; i++) {
+			if (self.implementations[i].type_info == inter) return true;
+		}
+
+		return false;
+	}
+
 	/// Returns a pointer to the vtable of the implementation of the interface `inter` or null if the type doesn't implement it.
+	/// This method returns *null* for marker interfaces that don't have any methods and thus don't have a vtable.
 	pub func get_vtable(self, inter: *TypeInfo) *void {
 		for (var i = 0u; i < self.implementations.size; i++) {
 			var imp = self.implementations[i];
