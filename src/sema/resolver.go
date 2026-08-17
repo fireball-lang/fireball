@@ -173,7 +173,7 @@ func (r *resolver) ResolveMethod(f *ast.Func, okType bool, typ, methodTyp types.
 	t.VarArgs = f.VarArgs
 
 	if f.Receiver != nil {
-		t.Params = append(t.Params, &types.Pointer{Mutable: f.Receiver.Mutable, Pointee: methodTyp})
+		t.Params = append(t.Params, &types.Reference{Mutable: f.Receiver.Mutable, Pointee: methodTyp})
 	}
 
 	for _, param := range f.Params {

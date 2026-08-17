@@ -84,11 +84,11 @@ func funcPointerAsArgument() bool {
 #[test("mutable method assigned to function pointer")]
 func mutableMethodFunctionPointer() bool {
 	var wrapper = Wrapper:[i32] { value: 5 };
-	var setter: func(mut *Wrapper[i32], i32);
+	var setter: func(mut &Wrapper[i32], i32);
 	setter = wrapper.set;
 	setter(&wrapper, 9);
 
-	var getter: func(*Wrapper[i32]) i32;
+	var getter: func(&Wrapper[i32]) i32;
 	getter = wrapper.get;
 	return getter(&wrapper) == 9;
 }

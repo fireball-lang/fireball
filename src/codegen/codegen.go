@@ -312,8 +312,12 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 
 // Utils
 
-func (c *codegen) EmitPanic(format string, args ...any) {
-	msg := c.StringView([]rune(fmt.Sprintf(format, args...)))
+func (c *codegen) EmitPanic(node ast.Node, format string, args ...any) {
+	file := ast.GetFile(node)
+	loc := node.Range().Start
+
+	str := fmt.Sprintf("at '%s' (%d:%d):\n    %s", file.Path, loc.Line, loc.Column, fmt.Sprintf(format, args...))
+	msg := c.StringView([]rune(str))
 
 	f := c.builtins.PanicNode
 	typ := c.builtins.PanicType

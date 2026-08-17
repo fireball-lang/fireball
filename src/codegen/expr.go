@@ -734,7 +734,7 @@ func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 
 	if hasReceiver && isInterfaceDispatch {
 		// Interface dispatch
-		callee, receiver = c.LookupInterfaceMethod(c.ExprType(m.Expr).(*types.Interface), c.Load(m.Expr), m.Name.Token.Text)
+		callee, receiver = c.LookupInterfaceMethod(c.ExprType(m.Expr).(*types.Interface), c.Load(m.Expr), m.Name.Token.Text, m.Name)
 		sig = c.BuildCallSignature(typ, true)
 	} else if hasReceiver && isInterfaceMethod(f) {
 		// Method from interface, resolved to concrete impl
@@ -841,7 +841,7 @@ func (c *codegen) CallMethodExpr(fTyp *types.Func, fName string, calleeExpr ast.
 
 	if isInterfaceDispatch {
 		// Interface dispatch
-		callee, receiver = c.LookupInterfaceMethod(typ.(*types.Interface), c.Load(calleeExpr), fName)
+		callee, receiver = c.LookupInterfaceMethod(typ.(*types.Interface), c.Load(calleeExpr), fName, calleeExpr)
 		sig = c.BuildCallSignature(fTyp, true)
 	} else {
 		// Method from interface, resolved to concrete impl
@@ -862,7 +862,7 @@ func (c *codegen) CallMethod(fTyp *types.Func, fName string, calleeExpr ast.Expr
 
 	if isInterfaceDispatch {
 		// Interface dispatch
-		callee, receiver = c.LookupInterfaceMethod(typ.(*types.Interface), c.Load(calleeExpr), fName)
+		callee, receiver = c.LookupInterfaceMethod(typ.(*types.Interface), c.Load(calleeExpr), fName, calleeExpr)
 		sig = c.BuildCallSignature(fTyp, true)
 	} else {
 		// Method from interface, resolved to concrete impl
@@ -1036,20 +1036,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 		value = c.emitter.PtrToInt(value, toTyp)
 
 	case sema.PointerToReference:
-		// Check pointer for null
-		null := c.fun.NewBlock("ptr_to_ref.null")
-		valid := c.fun.NewBlock("ptr_to_ref.valid")
-
-		isNull := c.emitter.ICmp(ir.Eq, false, value, &ir.Null{})
-		c.emitter.BrCond(isNull, null, valid)
-
-		// Null
-		c.emitter.Begin(null)
-		c.EmitPanic("encountered a null pointer when converting '%s' to '%s'", from.Type, to)
-		c.emitter.Br(valid) // no-op terminator instruction
-
-		// Valid
-		c.emitter.Begin(valid)
+		c.CheckNull(value, from.Node, "encountered a null pointer when converting '%s' to '%s'", from.Type, to)
 
 	case sema.ReferenceToInterface, sema.PointerToInterface:
 		typ := c.types.Get(to)
@@ -1191,6 +1178,22 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 	}
 
 	return value
+}
+
+func (c *codegen) CheckNull(value ir.Value, node ast.Node, format string, args ...any) {
+	null := c.fun.NewBlock("null_check.null")
+	valid := c.fun.NewBlock("null_check.valid")
+
+	isNull := c.emitter.ICmp(ir.Eq, false, value, &ir.Null{})
+	c.emitter.BrCond(isNull, null, valid)
+
+	// Null
+	c.emitter.Begin(null)
+	c.EmitPanic(node, format, args...)
+	c.emitter.Br(valid) // no-op terminator instruction
+
+	// Valid
+	c.emitter.Begin(valid)
 }
 
 func (c *codegen) SafeInterfaceToPointer(value ir.Value, pointee types.Type) ir.Value {

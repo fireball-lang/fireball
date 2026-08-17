@@ -26,12 +26,19 @@ func isInterfaceStatic(f *ast.Func, callee ast.Expr) bool {
 }
 
 func (c *codegen) ResolveReceiver(node ast.Expr) ir.Value {
-	if _, ok := getPointee(c.UnderlyingExprType(node)); ok {
+	switch typ := c.UnderlyingExprType(node).(type) {
+	case *types.Reference:
 		return c.Load(node)
-	}
 
-	value := c.GenerateExpr(node)
-	return c.ReceiverToPointer(value, c.UnderlyingExprType(node), c.exprInfos[node].Address)
+	case *types.Pointer:
+		ptr := c.Load(node)
+		c.CheckNull(ptr, node, "encountered a null pointer when calling a method on '%s'", typ.Pointee)
+		return ptr
+
+	default:
+		value := c.GenerateExpr(node)
+		return c.ReceiverToPointer(value, c.UnderlyingExprType(node), c.exprInfos[node].Address)
+	}
 }
 
 func (c *codegen) ReceiverToPointer(value ir.Value, typ types.Type, addressable bool) ir.Value {
@@ -49,11 +56,13 @@ func (c *codegen) ReceiverToPointer(value ir.Value, typ types.Type, addressable 
 func (c *codegen) ResolveInterfaceCallee(m *ast.Member) (callee ir.Value, receiver ir.Value) {
 	interfaceValue := c.Load(m.Expr)
 	interfaceType := c.ExprType(m.Expr).(*types.Interface)
-	return c.LookupInterfaceMethod(interfaceType, interfaceValue, m.Name.Token.Text)
+	return c.LookupInterfaceMethod(interfaceType, interfaceValue, m.Name.Token.Text, m.Name)
 }
 
-func (c *codegen) LookupInterfaceMethod(iface *types.Interface, interfaceValue ir.Value, methodName string) (callee ir.Value, receiver ir.Value) {
+func (c *codegen) LookupInterfaceMethod(iface *types.Interface, interfaceValue ir.Value, methodName string, node ast.Node) (callee ir.Value, receiver ir.Value) {
 	receiver = c.emitter.ExtractValue(interfaceValue, 0)
+	c.CheckNull(receiver, node, "encountered a null pointer when calling a method on '%s'", iface)
+
 	vtablePtr := c.emitter.ExtractValue(interfaceValue, 1)
 
 	methodIndex := -1

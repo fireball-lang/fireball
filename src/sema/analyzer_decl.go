@@ -282,8 +282,8 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 
 			// Check receiver mutability using the substituted interface method type.
 			if len(substituted.Params) > 0 && len(concrete.Params) > 0 {
-				inRecv, inOk := substituted.Params[0].(*types.Pointer)
-				conRecv, conOk := concrete.Params[0].(*types.Pointer)
+				inRecv, inOk := substituted.Params[0].(*types.Reference)
+				conRecv, conOk := concrete.Params[0].(*types.Reference)
 
 				if inOk && conOk && inRecv.Mutable != conRecv.Mutable {
 					a.Error(i.Type, "method '%s' receiver mutability does not match interface '%s'", method.Name, in)

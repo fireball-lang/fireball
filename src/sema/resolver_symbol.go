@@ -165,8 +165,8 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 			r.ResolveFunc(f, m.Type)
 
 			if f.Receiver != nil {
-				selfPtr := &types.Pointer{Mutable: f.Receiver.Mutable, Pointee: inType.SelfParam}
-				m.Type.Params = append([]types.Type{selfPtr}, m.Type.Params...)
+				selfRef := &types.Reference{Mutable: f.Receiver.Mutable, Pointee: inType.SelfParam}
+				m.Type.Params = append([]types.Type{selfRef}, m.Type.Params...)
 
 				inType.InstanceMethods = append(inType.InstanceMethods, m)
 			} else {
