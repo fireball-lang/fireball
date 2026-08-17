@@ -104,6 +104,7 @@
 
 (array_type size: (number) @number)
 
+(reference_type "&" @punctuation.special)
 (pointer_type "*" @punctuation.special)
 
 (identifier_type (identifier) @type)
