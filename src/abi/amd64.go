@@ -18,7 +18,7 @@ func (a *amd64) Info(typ types.Type) Info {
 		s := typ.Kind.Size()
 		return Info{Size: s, Align: s}
 
-	case *types.Pointer:
+	case *types.Reference, *types.Pointer:
 		return Info{Size: 8, Align: 8}
 
 	case *types.Array:

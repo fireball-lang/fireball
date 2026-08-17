@@ -37,7 +37,7 @@ func flatten(arch Arch, typ types.Type, offset uint32, regs []register) []regist
 			regs = append(regs, register{offset, class})
 		}
 
-	case *types.Pointer:
+	case *types.Reference, *types.Pointer:
 		regs = append(regs, register{offset, Integer})
 
 	case *types.Array:

@@ -3,6 +3,7 @@ package sema
 import (
 	"fireball/ast"
 	"fireball/core"
+	"fireball/fb-core"
 	"fireball/symbols"
 	"fireball/types"
 	"slices"
@@ -12,7 +13,7 @@ type resolver struct {
 	common
 }
 
-func Resolve(file *ast.File, fileSymbols []symbols.Symbol, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, builtins types.Builtins, root symbols.Scope, path string) (map[ast.Node]types.Type, []core.Diagnostic) {
+func Resolve(file *ast.File, fileSymbols []symbols.Symbol, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, builtins fb_core.Builtins, root symbols.Scope, path string) (map[ast.Node]types.Type, []core.Diagnostic) {
 	defer core.Scope()()
 
 	r := resolver{

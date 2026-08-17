@@ -18,6 +18,12 @@ func (hi *highlighter) VisitArrayType(a *ast.ArrayType) int {
 	return 0
 }
 
+func (hi *highlighter) VisitReferenceType(r *ast.ReferenceType) int {
+	hi.VisitType(r.Pointee)
+
+	return 0
+}
+
 func (hi *highlighter) VisitPointerType(p *ast.PointerType) int {
 	hi.VisitType(p.Pointee)
 
@@ -81,6 +87,10 @@ func (hi *highlighter) AddType(node ast.Node, typ types.Type) {
 	case *types.Array:
 		if node, ok := node.(*ast.ArrayType); ok {
 			hi.AddType(node.Type, typ.Element)
+		}
+	case *types.Reference:
+		if node, ok := node.(*ast.ReferenceType); ok {
+			hi.AddType(node.Pointee, typ.Pointee)
 		}
 	case *types.Pointer:
 		if node, ok := node.(*ast.PointerType); ok {

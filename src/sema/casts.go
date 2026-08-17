@@ -24,6 +24,9 @@ const (
 	IntToPointer
 	PointerToInt
 
+	PointerToReference
+	ReferenceToInterface
+
 	PointerToInterface
 	InterfaceToPointer
 	InterfaceToInterface
@@ -50,6 +53,31 @@ func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
 					return a
 				}
 				return b
+			}
+		}
+
+	case *types.Reference:
+		switch b := b.(type) {
+		case *types.Reference:
+			if a.Pointee == types.PrimitiveVoid {
+				return a
+			}
+			if b.Pointee == types.PrimitiveVoid {
+				return b
+			}
+
+		case *types.Func:
+			if a.Pointee == types.PrimitiveVoid {
+				return a
+			}
+
+		case *types.Interface:
+			if a.Pointee == types.PrimitiveVoid || slices.Contains(env.GetConformances(a.Pointee), b.AsImmutable()) {
+				common := b.AsImmutable()
+				if a.Mutable {
+					common = b.AsMutable()
+				}
+				return common
 			}
 		}
 
@@ -88,6 +116,15 @@ func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
 
 	case *types.Interface:
 		switch b := b.(type) {
+		case *types.Reference:
+			if b.Pointee == types.PrimitiveVoid || slices.Contains(env.GetConformances(b.Pointee), a.AsImmutable()) {
+				common := a.AsImmutable()
+				if b.Mutable {
+					common = a.AsMutable()
+				}
+				return common
+			}
+
 		case *types.Pointer:
 			if b.Pointee == types.PrimitiveVoid || slices.Contains(env.GetConformances(b.Pointee), a.AsImmutable()) {
 				common := a.AsImmutable()
@@ -143,6 +180,17 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 			}
 		}
 
+	case *types.Reference:
+		switch to := to.(type) {
+		case *types.Primitive:
+			if to.Kind == types.U64 {
+				return PointerToInt, true
+			}
+
+		case *types.Reference, *types.Pointer, *types.Func:
+			return Noop, true
+		}
+
 	case *types.Pointer:
 		switch to := to.(type) {
 		case *types.Primitive:
@@ -150,12 +198,18 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 				return PointerToInt, true
 			}
 
+		case *types.Reference:
+			return PointerToReference, true
+
 		case *types.Pointer, *types.Func:
 			return Noop, true
 		}
 
 	case *types.Func:
 		switch to.(type) {
+		case *types.Reference:
+			return PointerToReference, true
+
 		case *types.Pointer, *types.Func:
 			return Noop, true
 		}
@@ -232,6 +286,28 @@ func GetImplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 	case *types.Array:
 		if to, ok := to.(*types.Struct); ok && from.Address && (to.Name == "core::Slice" || (from.Mutable && to.Name == "core::MutSlice")) && len(to.Substitutions) == 1 && to.Substitutions[0].Type.Equals(fromT.Element) {
 			return ArrayToSlice, true
+		}
+
+	case *types.Reference:
+		switch to := to.(type) {
+		case *types.Reference:
+			if (fromT.Pointee.Equals(to.Pointee) || to.Pointee == types.PrimitiveVoid) && (fromT.Mutable == to.Mutable || (fromT.Mutable && !to.Mutable)) {
+				return Noop, true
+			}
+
+		case *types.Pointer:
+			if (fromT.Pointee.Equals(to.Pointee) || to.Pointee == types.PrimitiveVoid) && (fromT.Mutable == to.Mutable || (fromT.Mutable && !to.Mutable)) {
+				return Noop, true
+			}
+
+		case *types.Interface:
+			if fromT.Pointee == types.PrimitiveVoid || slices.Contains(env.GetConformances(fromT.Pointee), to.AsImmutable()) {
+				if to.Mutable && !fromT.Mutable {
+					break
+				}
+
+				return ReferenceToInterface, true
+			}
 		}
 
 	case *types.Pointer:

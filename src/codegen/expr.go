@@ -640,7 +640,10 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 	var pointer bool
 	var s *types.Struct
 
-	if p, ok := typ.(*types.Pointer); ok {
+	if r, ok := typ.(*types.Reference); ok {
+		pointer = true
+		s = r.Pointee.(*types.Struct)
+	} else if p, ok := typ.(*types.Pointer); ok {
 		pointer = true
 		s = p.Pointee.(*types.Struct)
 	} else {
@@ -1032,10 +1035,26 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 	case sema.PointerToInt:
 		value = c.emitter.PtrToInt(value, toTyp)
 
-	case sema.PointerToInterface:
+	case sema.PointerToReference:
+		// Check pointer for null
+		null := c.fun.NewBlock("ptr_to_ref.null")
+		valid := c.fun.NewBlock("ptr_to_ref.valid")
+
+		isNull := c.emitter.ICmp(ir.Eq, false, value, &ir.Null{})
+		c.emitter.BrCond(isNull, null, valid)
+
+		// Null
+		c.emitter.Begin(null)
+		c.EmitPanic("encountered a null pointer when converting '%s' to '%s'", from.Type, to)
+		c.emitter.Br(valid) // no-op terminator instruction
+
+		// Valid
+		c.emitter.Begin(valid)
+
+	case sema.ReferenceToInterface, sema.PointerToInterface:
 		typ := c.types.Get(to)
 
-		if p, ok := from.Type.(*types.Pointer); ok && p.Pointee == types.PrimitiveVoid {
+		if pointee, ok := getPointee(from.Type); ok && pointee == types.PrimitiveVoid {
 			value = &ir.ZeroInitializer{Typ: typ}
 		} else {
 			// Check pointer for null
@@ -1054,11 +1073,13 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			// Valid
 			c.emitter.Begin(valid)
 
+			pointee, _ := getPointee(from.Type)
+
 			validValue := c.emitter.InsertValue(&ir.Struct{
 				Typ: typ,
 				Fields: []ir.Value{
 					&ir.Null{},
-					c.GetVTable(to.(*types.Interface), from.Type.(*types.Pointer).Pointee),
+					c.GetVTable(to.(*types.Interface), pointee),
 				},
 			}, value, 0)
 
@@ -1072,8 +1093,8 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 	case sema.InterfaceToPointer:
 		// Check pointer for null
 		start := c.emitter.Block()
-		valid := c.fun.NewBlock("interface_to_pointer.valid")
-		exit := c.fun.NewBlock("interface_to_pointer.exit")
+		valid := c.fun.NewBlock("interface_to_ptr.valid")
+		exit := c.fun.NewBlock("interface_to_ptr.exit")
 
 		dataPtr := c.emitter.ExtractValue(value, 0)
 
@@ -1082,21 +1103,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 
 		// Valid
 		c.emitter.Begin(valid)
-		{
-			// Get type info pointers
-			vtablePtr := c.emitter.ExtractValue(value, 1)
-			vtableTyp := &ir.StructType{Fields: []ir.Field{{Name: "type_info", Type: ir.Pointer}}}
-
-			srcTypeInfoPtrPtr := c.emitter.GetElementPtrConst(vtableTyp, vtablePtr, 0, 0)
-			srcTypeInfoPtr := c.emitter.Load(ir.Pointer, srcTypeInfoPtrPtr)
-			targetTypeInfoPtr := c.GetTypeInfo(to.(*types.Pointer).Pointee)
-
-			// Check if pointers are the same
-			isTarget := c.emitter.ICmp(ir.Eq, false, srcTypeInfoPtr, targetTypeInfoPtr)
-
-			// Extract pointer or null
-			value = c.ExtractPointerFromInterfaceOrNull(value, isTarget)
-		}
+		value = c.SafeInterfaceToPointer(value, to.(*types.Pointer).Pointee)
 		valid = c.emitter.Block()
 		c.emitter.Br(exit)
 
@@ -1186,6 +1193,22 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 	return value
 }
 
+func (c *codegen) SafeInterfaceToPointer(value ir.Value, pointee types.Type) ir.Value {
+	// Get type info pointers
+	vtablePtr := c.emitter.ExtractValue(value, 1)
+	vtableTyp := &ir.StructType{Fields: []ir.Field{{Name: "type_info", Type: ir.Pointer}}}
+
+	srcTypeInfoPtrPtr := c.emitter.GetElementPtrConst(vtableTyp, vtablePtr, 0, 0)
+	srcTypeInfoPtr := c.emitter.Load(ir.Pointer, srcTypeInfoPtrPtr)
+	targetTypeInfoPtr := c.GetTypeInfo(pointee)
+
+	// Check if pointers are the same
+	isTarget := c.emitter.ICmp(ir.Eq, false, srcTypeInfoPtr, targetTypeInfoPtr)
+
+	// Extract pointer or null
+	return c.ExtractPointerFromInterfaceOrNull(value, isTarget)
+}
+
 func (c *codegen) ExtractPointerFromInterfaceOrNull(value, isTarget ir.Value) ir.Value {
 	start := c.emitter.Block()
 	ptr := c.fun.NewBlock("interface_check.ptr")
@@ -1238,6 +1261,11 @@ func (c *codegen) EmitCmp(op ir.CmpOp, left, right ast.Expr) ir.Value {
 
 	// Pointer
 	if _, ok := common.(*types.Pointer); ok {
+		return c.emitter.ICmp(op, false, leftV, rightV)
+	}
+
+	// Reference
+	if _, ok := common.(*types.Reference); ok {
 		return c.emitter.ICmp(op, false, leftV, rightV)
 	}
 

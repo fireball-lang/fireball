@@ -231,18 +231,31 @@ func (a *analyzer) VisitPrefix(p *ast.Prefix) ExprInfo {
 			return a.Error(p.Expr, "cannot take address of a temporary expression")
 		}
 
-		return ExprInfo{Type: &types.Pointer{Mutable: expr.Mutable, Pointee: expr.Type}}
-
-	case ast.Dereference:
-		if p, ok := expr.Type.(*types.Pointer); ok {
-			return ExprInfo{
-				Type:    p.Pointee,
-				Mutable: p.Mutable,
-				Address: true,
-			}
+		if a.AddressDerivedFromRawPointer(p.Expr) {
+			return ExprInfo{Type: &types.Pointer{Mutable: expr.Mutable, Pointee: expr.Type}}
 		}
 
-		return a.Error(p.Expr, "can only dereference pointers, not '%s'", expr.Type)
+		return ExprInfo{Type: &types.Reference{Mutable: expr.Mutable, Pointee: expr.Type}}
+
+	case ast.Dereference:
+		switch typ := expr.Type.(type) {
+		case *types.Reference:
+			return ExprInfo{
+				Type:    typ.Pointee,
+				Mutable: typ.Mutable,
+				Address: true,
+			}
+
+		case *types.Pointer:
+			return ExprInfo{
+				Type:    typ.Pointee,
+				Mutable: typ.Mutable,
+				Address: true,
+			}
+
+		default:
+			return a.Error(p.Expr, "can only dereference references and pointers, not '%s'", expr.Type)
+		}
 
 	default:
 		panic("sema.analyzer.VisitPrefix() - Invalid operator kind")
@@ -401,9 +414,9 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 		}
 
 		switch left.Type.(type) {
-		case *types.Primitive, *types.Pointer, *types.Func, *types.Enum, *types.Interface:
+		case *types.Primitive, *types.Reference, *types.Pointer, *types.Func, *types.Enum, *types.Interface:
 		default:
-			return a.Error(b, "equality operators only work on primitive types, pointers, function pointers or enums, not %s", left.Type)
+			return a.Error(b, "equality operators only work on primitive types, references, pointers, function pointers or enums, not %s", left.Type)
 		}
 
 		return ExprInfo{Type: types.PrimitiveBool}
@@ -636,8 +649,12 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		return a.Error(m.Name, "method '%s' does not exist on constraint '%s'", m.Name.Token.Text, sb.String())
 	}
 
-	// Pointer
-	if p, ok := typ.(*types.Pointer); ok {
+	// Reference / Pointer
+	if r, ok := typ.(*types.Reference); ok {
+		address = true
+		mutable = r.Mutable
+		typ = r.Pointee
+	} else if p, ok := typ.(*types.Pointer); ok {
 		address = true
 		mutable = p.Mutable
 		typ = p.Pointee
@@ -731,7 +748,10 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 			if funcNode.IsMethod() {
 				if member, ok := c.Callee.(*ast.Member); ok {
 					receiverType := a.exprInfos[member.Expr].Type
-					if p, ok := receiverType.(*types.Pointer); ok {
+
+					if r, ok := receiverType.(*types.Reference); ok {
+						receiverType = r.Pointee
+					} else if p, ok := receiverType.(*types.Pointer); ok {
 						receiverType = p.Pointee
 					}
 
@@ -776,6 +796,9 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 
 				if funcNode.Receiver.Mutable {
 					if member, ok := c.Callee.(*ast.Member); ok {
+						if r, ok := a.exprInfos[member.Expr].Type.(*types.Reference); ok && !r.Mutable {
+							a.Error(member.Expr, "cannot call mutable method '%s' on an immutable reference", funcNode.Name().Token.Text)
+						}
 						if p, ok := a.exprInfos[member.Expr].Type.(*types.Pointer); ok && !p.Mutable {
 							a.Error(member.Expr, "cannot call mutable method '%s' on an immutable pointer", funcNode.Name().Token.Text)
 						}
@@ -923,6 +946,31 @@ func GetBinaryMethod(typeEnv *TypeEnvironment, instantiations *types.Instantiati
 	}
 
 	return nil, ""
+}
+
+func (a *analyzer) AddressDerivedFromRawPointer(node ast.Expr) bool {
+	switch e := node.(type) {
+	case *ast.Member:
+		return a.AddressDerivedFromRawPointer(e.Expr)
+
+	case *ast.Index:
+		if _, ok := a.exprInfos[e.Expr].Type.(*types.Pointer); ok {
+			return true
+		}
+
+		return a.AddressDerivedFromRawPointer(e.Expr)
+
+	case *ast.Prefix:
+		if e.Op != ast.Dereference {
+			return false
+		}
+
+		_, isRaw := a.exprInfos[e.Expr].Type.(*types.Pointer)
+		return isRaw
+
+	default:
+		return false
+	}
 }
 
 func (a *analyzer) WantsFunction(node ast.Node) bool {

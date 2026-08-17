@@ -4,6 +4,7 @@ import (
 	"fireball/abi"
 	"fireball/ast"
 	"fireball/core"
+	"fireball/fb-core"
 	"fireball/ir"
 	"fireball/sema"
 	"fireball/types"
@@ -34,7 +35,7 @@ type codegen struct {
 	nodeTypes map[ast.Node]types.Type
 	typeEnv   *sema.TypeEnvironment
 
-	builtins types.Builtins
+	builtins fb_core.Builtins
 
 	scope       symbolScope
 	stringCount uint32
@@ -67,7 +68,7 @@ type codegen struct {
 	fileDataMap map[*ast.File]FileData
 }
 
-func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]FileData, builtins types.Builtins, path string, summary bool) *ir.Module {
+func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]FileData, builtins fb_core.Builtins, path string, summary bool) *ir.Module {
 	defer core.Scope()()
 
 	module := ir.NewModule()
@@ -310,6 +311,29 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 }
 
 // Utils
+
+func (c *codegen) EmitPanic(format string, args ...any) {
+	msg := c.StringView([]rune(fmt.Sprintf(format, args...)))
+
+	f := c.builtins.PanicNode
+	typ := c.builtins.PanicType
+
+	callee := c.GetFunction(f, typ, nil)
+	c.AddSummaryCallee(f, typ, nil, true)
+
+	c.EmitCall(callee, callee.Signature, typ, nil, []ir.Value{msg}, typ.Params, typ.Returns)
+}
+
+func getPointee(typ types.Type) (types.Type, bool) {
+	switch typ := typ.(type) {
+	case *types.Reference:
+		return typ.Pointee, true
+	case *types.Pointer:
+		return typ.Pointee, true
+	default:
+		return nil, false
+	}
+}
 
 func typeSubsString(subs []types.Substitution) string {
 	var sb strings.Builder

@@ -4,6 +4,7 @@ import (
 	"fireball/ast"
 	"fireball/cfg"
 	"fireball/core"
+	"fireball/fb-core"
 	"fireball/parser"
 	"fireball/sema"
 	"fireball/symbols"
@@ -66,13 +67,13 @@ func (f *File) parse(env cfg.Env) {
 	f.Symbols = symbols.Collect(f.Ast)
 }
 
-func (f *File) resolve(root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins types.Builtins) {
+func (f *File) resolve(root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins fb_core.Builtins) {
 	f.Instantiations = instantiations
 	f.TypeEnv = typeEnv
 	f.NodeTypes, f.resolveDiagnostics = sema.Resolve(f.Ast, f.Symbols, instantiations, typeEnv, builtins, root, f.Path)
 }
 
-func (f *File) analyze(root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins types.Builtins) {
+func (f *File) analyze(root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins fb_core.Builtins) {
 	f.ExprInfos, f.semaDiagnostics = sema.Analyze(f.Ast, f.Symbols, root, instantiations, typeEnv, builtins, f.NodeTypes, f.Proj.Config.Name, f.Path)
 }
 

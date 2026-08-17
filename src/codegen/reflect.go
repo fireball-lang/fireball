@@ -33,7 +33,7 @@ func (c *codegen) GetTypeInfo(typ types.Type) ir.Value {
 
 	// Instantiate generic / pseudo-generic implementation
 	switch typ := typ.(type) {
-	case *types.Array, *types.Pointer, *types.Func:
+	case *types.Array, *types.Reference, *types.Pointer, *types.Func:
 		return c.CreateTypeInfo(typ, true)
 
 	case *types.Struct:
@@ -206,16 +206,18 @@ func (c *codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 			kind = 0
 		case *types.Array:
 			kind = 1
-		case *types.Pointer:
+		case *types.Reference:
 			kind = 2
-		case *types.Func:
+		case *types.Pointer:
 			kind = 3
-		case *types.Enum:
+		case *types.Func:
 			kind = 4
-		case *types.Struct:
+		case *types.Enum:
 			kind = 5
-		case *types.Interface:
+		case *types.Struct:
 			kind = 6
+		case *types.Interface:
+			kind = 7
 
 		default:
 			panic("codegen.codegen.CreateTypeInfo() - Invalid type")
@@ -294,6 +296,11 @@ func (c *codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 			sb.Set("data_ptr1", c.GetTypeInfo(typ.Element))
 			sb.Set("data_ptr2", &ir.Null{})
 
+		case *types.Reference:
+			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, 0)})
+			sb.Set("data_ptr1", c.GetTypeInfo(typ.Pointee))
+			sb.Set("data_ptr2", &ir.Null{})
+
 		case *types.Pointer:
 			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, 0)})
 			sb.Set("data_ptr1", c.GetTypeInfo(typ.Pointee))
@@ -353,8 +360,8 @@ func (c *codegen) CreateTypeInfoImplementations(typ types.Type, linkOnce bool) *
 		} else {
 			t := typ
 
-			if p, ok := t.(*types.Pointer); ok {
-				t = p.Pointee
+			if pointee, ok := getPointee(t); ok {
+				t = pointee
 			}
 
 			vtable = c.GetVTable(in, t)
@@ -447,7 +454,7 @@ func VTableLinkName(in *types.Interface, typ types.Type) string {
 	var substitutions []types.Substitution
 
 	switch typ := typ.(type) {
-	case *types.Primitive, *types.Array, *types.Pointer, *types.Enum:
+	case *types.Primitive, *types.Array, *types.Reference, *types.Pointer, *types.Enum:
 		name = typ.String()
 
 	case *types.Struct:
@@ -509,7 +516,7 @@ func TypeInfoLinkName(typ types.Type, kind string) string {
 	var substitutions []types.Substitution
 
 	switch typ := typ.(type) {
-	case *types.Primitive, *types.Array, *types.Pointer, *types.Func:
+	case *types.Primitive, *types.Array, *types.Reference, *types.Pointer, *types.Func:
 		name = typ.String()
 
 	case *types.Enum:

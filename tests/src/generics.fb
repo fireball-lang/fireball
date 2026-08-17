@@ -288,7 +288,7 @@ func testChooseBox() bool {
 func testBoxGetViaPointer() bool {
     var b: Box[i32];
     b.value = 123;
-    var p = &b;
+    var p = &b as *Box[i32];
     return p.get() == 123;
 }
 
@@ -296,7 +296,7 @@ func testBoxGetViaPointer() bool {
 func testBoxSetViaPointer() bool {
     var b: Box[i32];
     b.value = 0;
-    var p = &b;
+    var p = &b as mut *Box[i32];
     p.set(456);
     return b.value == 456;
 }
@@ -306,7 +306,7 @@ func testPairGetFirstViaPointer() bool {
     var p: Pair[i32, i32];
     p.first  = 77;
     p.second = 0;
-    var ptr = &p;
+    var ptr = &p as *Pair[i32, i32];
     return ptr.get_first() == 77;
 }
 

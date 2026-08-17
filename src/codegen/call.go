@@ -26,7 +26,7 @@ func isInterfaceStatic(f *ast.Func, callee ast.Expr) bool {
 }
 
 func (c *codegen) ResolveReceiver(node ast.Expr) ir.Value {
-	if _, ok := c.UnderlyingExprType(node).(*types.Pointer); ok {
+	if _, ok := getPointee(c.UnderlyingExprType(node)); ok {
 		return c.Load(node)
 	}
 
@@ -216,8 +216,8 @@ func (c *codegen) EmitCall(callee ir.Value, sig *ir.Signature, funcType *types.F
 }
 
 func (c *codegen) ResolveInterfaceMethod(receiverType types.Type, methodName string, isStatic bool) (ir.Value, *ir.Signature, *types.Func) {
-	if p, ok := receiverType.(*types.Pointer); ok {
-		receiverType = p.Pointee
+	if pointee, ok := getPointee(receiverType); ok {
+		receiverType = pointee
 	}
 
 	var sym symbols.Symbol

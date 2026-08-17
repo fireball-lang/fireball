@@ -1,0 +1,228 @@
+mod tests::references;
+
+// ── types ──────────────────────────────────────────────────────────────────────
+
+struct Item {
+    value: i32,
+}
+
+impl Item {
+    func new(start: i32) Item {
+        return Item { value: start };
+    }
+
+    func get(self) i32 {
+        return self.value;
+    }
+
+    func set(mut self, v: i32) {
+        self.value = v;
+    }
+}
+
+interface Sized {
+    func size(self) i32;
+}
+
+struct Widget {
+    area: i32,
+}
+
+impl Widget : Sized {
+    func size(self) i32 {
+        return self.area;
+    }
+}
+
+struct Holder {
+    r: mut &i32,
+}
+
+// ── creation / deref ──────────────────────────────────────────────────────────
+
+#[test("create reference and deref read")]
+func testRefCreateDeref() bool {
+    var x: i32 = 7;
+    var r = &x;
+    return *r == 7;
+}
+
+#[test("deref write through reference")]
+func testRefDerefWrite() bool {
+    var x: i32 = 1;
+    var r = &x;
+    *r = 42;
+    return x == 42;
+}
+
+#[test("immutable reference from mutable variable")]
+func testRefImmutable() bool {
+    var x: i32 = 5;
+    var r: &i32 = &x;
+    return *r == 5;
+}
+
+// ── function parameters ───────────────────────────────────────────────────────
+
+func refRead(r: &i32) i32 {
+    return *r;
+}
+
+func refWrite(r: mut &i32, v: i32) {
+    *r = v;
+}
+
+#[test("pass reference to immutable parameter")]
+func testRefParamRead() bool {
+    var x: i32 = 99;
+    return refRead(&x) == 99;
+}
+
+#[test("pass reference to mutable parameter")]
+func testRefParamWrite() bool {
+    var x: i32 = 0;
+    refWrite(&x, 55);
+    return x == 55;
+}
+
+// ── member access ─────────────────────────────────────────────────────────────
+
+#[test("member read through reference")]
+func testRefFieldRead() bool {
+    var it = Item::new(10);
+    var r = &it;
+    return r.value == 10;
+}
+
+#[test("member write through reference")]
+func testRefFieldWrite() bool {
+    var it: Item;
+    var r = &it;
+    r.value = 33;
+    return it.value == 33;
+}
+
+// ── methods ───────────────────────────────────────────────────────────────────
+
+#[test("instance getter via reference")]
+func testRefMethodGet() bool {
+    var it = Item::new(5);
+    var r = &it;
+    return r.get() == 5;
+}
+
+#[test("instance mutator via reference affects original")]
+func testRefMethodSet() bool {
+    var it = Item::new(0);
+    var r = &it;
+    r.set(9);
+    return it.value == 9;
+}
+
+// ── equality ──────────────────────────────────────────────────────────────────
+
+#[test("reference equality")]
+func testRefEquality() bool {
+    var x: i32;
+    var y: i32;
+    var r1 = &x;
+    var r2 = &x;
+    var r3 = &y;
+    return r1 == r2 && r1 != r3;
+}
+
+#[test("address-of equality")]
+func testAddrOfEquality() bool {
+    var x: i32;
+    var y: i32;
+    return (&x == &x) && (&x != &y);
+}
+
+// ── casts ─────────────────────────────────────────────────────────────────────
+
+#[test("pointer to reference cast")]
+func testPtrToRef() bool {
+    var x = 123;
+    var p: *i32 = &x as *i32;
+    var r: &i32 = p as &i32;
+    return *r == 123;
+}
+
+#[test("explicit reference to pointer (same pointee)")]
+func testExplicitRefToPtrSame() bool {
+    var x: i32 = 123;
+    var r: &i32 = &x;
+    var p = r as *i32;
+    return *p == 123;
+}
+
+#[test("explicit reference to pointer (different pointee)")]
+func testExplicitRefToPtrDiff() bool {
+    var x: i32 = 123;
+    var r: &i32 = &x;
+    return (r as *u8) == (&x as *u8);
+}
+
+#[test("explicit mutable reference to pointer, write through")]
+func testExplicitRefToPtrMutable() bool {
+    var x: i32 = 5;
+    var r: mut &i32 = &x;
+    var p = r as mut *i32;
+    *p = 77;
+    return x == 77;
+}
+
+#[test("explicit reference to reference (different pointee)")]
+func testExplicitRefToRefDiff() bool {
+    var x: i32 = 99;
+    var r: &i32 = &x;
+    var q = r as &u8;
+    return (q as &i32) == r;
+}
+
+#[test("explicit reference to integer")]
+func testExplicitRefToInt() bool {
+    var a: i32;
+    var b: i32;
+    var ra = &a;
+    var rb = &b;
+    return (ra as u64) != (rb as u64);
+}
+
+#[test("reference to interface")]
+func testRefToInterface() bool {
+    var w = Widget { area: 42 };
+    var s: Sized = &w;
+    return s.size() == 42;
+}
+
+// ── single instance / arrays ──────────────────────────────────────────────────
+
+#[test("reference to array element")]
+func testRefArrayElement() bool {
+    var arr: [3]i32;
+    var r = &arr[1];
+    *r = 8;
+    return arr[0] == 0 && arr[1] == 8 && arr[2] == 0;
+}
+
+// ── returns / struct fields ───────────────────────────────────────────────────
+
+func refIdentity(r: &i32) &i32 {
+    return r;
+}
+
+#[test("reference returned from function")]
+func testRefReturn() bool {
+    var x = 5;
+    var r = refIdentity(&x);
+    return *r == 5;
+}
+
+#[test("reference stored in struct field")]
+func testRefStructField() bool {
+    var x: i32 = 7;
+    var h = Holder { r: &x };
+    *h.r = 77;
+    return x == 77;
+}

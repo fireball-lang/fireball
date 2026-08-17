@@ -3,6 +3,7 @@ package sema
 import (
 	"fireball/ast"
 	"fireball/core"
+	"fireball/fb-core"
 	"fireball/symbols"
 	"fireball/types"
 	"slices"
@@ -46,10 +47,10 @@ type TypeEnvironment struct {
 	implForTarget map[*types.Struct]*ast.Impl
 
 	instantiations *types.InstantiationCache
-	builtins       types.Builtins
+	builtins       fb_core.Builtins
 }
 
-func NewTypeEnvironment(instantiations *types.InstantiationCache, builtins types.Builtins) *TypeEnvironment {
+func NewTypeEnvironment(instantiations *types.InstantiationCache, builtins fb_core.Builtins) *TypeEnvironment {
 	return &TypeEnvironment{
 		static:         make(map[types.Type][]symbols.Symbol),
 		instance:       make(map[types.Type][]symbols.Symbol),
@@ -191,6 +192,9 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 		}
 
 		return nil
+
+	case *types.Reference:
+		typ = t.Pointee
 
 	case *types.Pointer:
 		result = []*types.Interface{e.builtins.Zeroable}

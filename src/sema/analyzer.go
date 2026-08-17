@@ -3,6 +3,7 @@ package sema
 import (
 	"fireball/ast"
 	"fireball/core"
+	"fireball/fb-core"
 	"fireball/lexer"
 	"fireball/symbols"
 	"fireball/types"
@@ -48,7 +49,7 @@ var importAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
 }
 
-func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, builtins types.Builtins, nodeTypes map[ast.Node]types.Type, topLevelModule, path string) (map[ast.Node]ExprInfo, []core.Diagnostic) {
+func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, builtins fb_core.Builtins, nodeTypes map[ast.Node]types.Type, topLevelModule, path string) (map[ast.Node]ExprInfo, []core.Diagnostic) {
 	defer core.Scope()()
 
 	// Setup

@@ -94,6 +94,32 @@ func typeofPointer() bool {
 	return info.kind == TypeKind::Pointer && info.pointee().primitive_kind() == PrimitiveKind::I32;
 }
 
+#[test("typeof(&i32) kind and pointee")]
+func typeofReference() bool {
+	var info = typeof(&i32);
+	return info.kind == TypeKind::Reference && info.pointee().primitive_kind() == PrimitiveKind::I32;
+}
+
+#[test("typeof(&i32) is not a pointer")]
+func typeofReferenceNotPointer() bool {
+	return typeof(&i32).kind != TypeKind::Pointer && typeof(&i32).kind != TypeKind::Array;
+}
+
+#[test("typeof(&i32) pointee kind is primitive")]
+func typeofReferencePointeeKind() bool {
+	return typeof(&i32).pointee().kind == TypeKind::Primitive;
+}
+
+#[test("typeof(&i32) size matches pointer")]
+func typeofReferenceSize() bool {
+	return typeof(&i32).size == typeof(*i32).size;
+}
+
+#[test("typeof(&Point) pointee kind is struct")]
+func typeofReferenceStructPointee() bool {
+	return typeof(&Point).pointee().kind == TypeKind::Struct;
+}
+
 #[test("typeof(func) kind")]
 func typeofFunction() bool {
 	return typeof(func(i32, i32) i32).kind == TypeKind::Function;

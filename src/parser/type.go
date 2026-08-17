@@ -9,7 +9,7 @@ import (
 
 func (p *parser) canStartType() bool {
 	switch p.current.Kind {
-	case lexer.Mut, lexer.Identifier, lexer.LeftBracket, lexer.Star, lexer.Func, lexer.QuestionMark:
+	case lexer.Mut, lexer.Identifier, lexer.LeftBracket, lexer.Ampersand, lexer.Star, lexer.Func, lexer.QuestionMark:
 		return true
 	default:
 		return false
@@ -19,6 +19,9 @@ func (p *parser) canStartType() bool {
 func (p *parser) parseType() (ast.Type, int) {
 	switch p.current.Kind {
 	case lexer.Mut:
+		if p.next.Kind == lexer.Ampersand {
+			return p.parseReferenceType()
+		}
 		if p.next.Kind == lexer.Star {
 			return p.parsePointerType()
 		}
@@ -33,6 +36,8 @@ func (p *parser) parseType() (ast.Type, int) {
 			return p.parseSliceType()
 		}
 		return p.parseArrayType()
+	case lexer.Ampersand:
+		return p.parseReferenceType()
 	case lexer.Star:
 		return p.parsePointerType()
 	case lexer.Func:
@@ -178,6 +183,34 @@ func (p *parser) parseArrayType() (a *ast.ArrayType, recoverId int) {
 
 	// Type
 	if a.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseReferenceType() (t *ast.ReferenceType, recoverId int) {
+	t = &ast.ReferenceType{}
+	t.Range_.Start = p.current.Range.Start
+	defer func() {
+		t.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'mut'
+	if p.current.Kind == lexer.Mut {
+		p.advance()
+		t.Mutable = true
+	}
+
+	// '&'
+	if recoverId = p.expect(lexer.Ampersand, "expected '&' before pointee type"); recoverId >= 0 {
+		return
+	}
+
+	// Pointee
+	if t.Pointee, recoverId = p.parseType(); recoverId >= 0 {
 		return
 	}
 

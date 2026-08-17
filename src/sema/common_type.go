@@ -51,6 +51,25 @@ func (c *common) VisitArrayType(t *ast.ArrayType) types.Type {
 	return typ
 }
 
+func (c *common) VisitReferenceType(t *ast.ReferenceType) types.Type {
+	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
+		return typ
+	}
+
+	pointee := c.ResolveAndAnalyzeType(t.Pointee)
+	if pointee == types.Invalid {
+		return types.Invalid
+	}
+
+	typ := &types.Reference{
+		Mutable: t.Mutable,
+		Pointee: pointee,
+	}
+
+	c.nodeTypes[t] = typ
+	return typ
+}
+
 func (c *common) VisitPointerType(t *ast.PointerType) types.Type {
 	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
 		return typ

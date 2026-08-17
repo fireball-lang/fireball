@@ -28,7 +28,7 @@ func (w *win64) Classify(arch Arch, typ types.Type) ([]Class, Info) {
 
 		return []Class{class}, info
 
-	case *types.Pointer:
+	case *types.Reference, *types.Pointer:
 		return []Class{Integer}, info
 
 	case *types.Array, *types.Struct:

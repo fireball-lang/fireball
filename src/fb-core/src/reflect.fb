@@ -4,11 +4,12 @@ mod core;
 pub enum TypeKind : u8 {
 	Primitive = 0,
 	Array = 1,
-	Pointer = 2,
-	Function = 3,
-	Enum = 4,
-	Struct = 5,
-	Interface = 6,
+	Reference = 2,
+	Pointer = 3,
+	Function = 4,
+	Enum = 5,
+	Struct = 6,
+	Interface = 7,
 }
 
 impl TypeKind {
@@ -169,9 +170,9 @@ impl TypeInfo {
 		return self.data_ptr1 as *TypeInfo;
 	}
 
-	/// Returns the pointee type if this type is a pointer or panics.
+	/// Returns the pointee type if this type is a reference or a pointer or panics.
 	pub func pointee(self) *TypeInfo {
-		if (self.kind != TypeKind::Pointer) panic("self.kind is not `TypeKind::Pointer`");
+		if (self.kind != TypeKind::Reference && self.kind != TypeKind::Pointer) panic("self.kind is not either `TypeKind::Reference` or `TypeKind::Pointer`");
 		return self.data_ptr1 as *TypeInfo;
 	}
 

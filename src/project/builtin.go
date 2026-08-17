@@ -1,12 +1,14 @@
 package project
 
 import (
+	"fireball/ast"
+	"fireball/fb-core"
 	"fireball/symbols"
 	"fireball/types"
 )
 
-func GetBuiltins(projMap map[string]*Project) types.Builtins {
-	var builtins types.Builtins
+func GetBuiltins(projMap map[string]*Project) fb_core.Builtins {
+	var builtins fb_core.Builtins
 
 	proj := projMap["core"]
 	if proj == nil {
@@ -24,6 +26,13 @@ func GetBuiltins(projMap map[string]*Project) types.Builtins {
 		panic("project.GetBuiltins() - Failed to get 'core::Zeroable' type")
 	}
 	builtins.Zeroable = symbol.Type.(*types.Interface)
+
+	symbol, ok = proj.Module.GetSymbol(symbols.Function, "panic")
+	if !ok {
+		panic("project.GetBuiltins() - Failed to get 'core::panic' function")
+	}
+	builtins.PanicNode = symbol.Node.(*ast.Func)
+	builtins.PanicType = symbol.Type.(*types.Func)
 
 	// Reflection
 

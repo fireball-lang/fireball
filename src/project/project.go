@@ -4,6 +4,7 @@ import (
 	"fireball/ast"
 	"fireball/cfg"
 	"fireball/core"
+	"fireball/fb-core"
 	"fireball/sema"
 	"fireball/symbols"
 	"fireball/types"
@@ -98,7 +99,7 @@ func (p *Project) Parse(files []*File, env cfg.Env) {
 	}
 }
 
-func (p *Project) Resolve(depMap map[Dependency]*Project, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins types.Builtins) {
+func (p *Project) Resolve(depMap map[Dependency]*Project, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins fb_core.Builtins) {
 	defer core.Scope()()
 
 	root := p.getRootScope(depMap)
@@ -108,7 +109,7 @@ func (p *Project) Resolve(depMap map[Dependency]*Project, instantiations *types.
 	}
 }
 
-func (p *Project) Analyze(depMap map[Dependency]*Project, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins types.Builtins) {
+func (p *Project) Analyze(depMap map[Dependency]*Project, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins fb_core.Builtins) {
 	defer core.Scope()()
 
 	root := p.getRootScope(depMap)

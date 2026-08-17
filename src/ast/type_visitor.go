@@ -3,6 +3,7 @@ package ast
 type TypeVisitor[T any] interface {
 	VisitPrimitiveType(p *PrimitiveType) T
 	VisitArrayType(a *ArrayType) T
+	VisitReferenceType(r *ReferenceType) T
 	VisitPointerType(p *PointerType) T
 	VisitFuncType(f *FuncType) T
 
@@ -21,6 +22,8 @@ func VisitType[V TypeVisitor[T], T any](visitor V, typ Type) T {
 		return visitor.VisitPrimitiveType(typ)
 	case *ArrayType:
 		return visitor.VisitArrayType(typ)
+	case *ReferenceType:
+		return visitor.VisitReferenceType(typ)
 	case *PointerType:
 		return visitor.VisitPointerType(typ)
 	case *FuncType:

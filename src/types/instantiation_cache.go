@@ -111,6 +111,17 @@ func (c *InstantiationCache) resolve(typ Type, substitutions []Substitution) Typ
 	case *invalid, *Primitive:
 		return typ
 
+	case *Reference:
+		pointee := c.resolve(typ.Pointee, substitutions)
+		if pointee == typ.Pointee {
+			return typ
+		}
+
+		return &Reference{
+			Mutable: typ.Mutable,
+			Pointee: pointee,
+		}
+
 	case *Pointer:
 		pointee := c.resolve(typ.Pointee, substitutions)
 		if pointee == typ.Pointee {

@@ -102,14 +102,14 @@ func testDoubledOnTemp() bool {
 #[test("instance getter via pointer")]
 func testGetViaPointer() bool {
     var c = Counter::new(99);
-    var p = &c;
+    var p = &c as *Counter;
     return p.get() == 99;
 }
 
 #[test("instance mutator via pointer affects original")]
 func testMutateViaPointer() bool {
     var c = Counter::new(20);
-    var p = &c;
+    var p = &c as mut *Counter;
     p.increment();
     return c.value == 21;
 }

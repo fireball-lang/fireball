@@ -54,8 +54,8 @@ func (t *TypeCache) Get(typ types.Type) ir.Type {
 	switch typ := typ.(type) {
 	case *types.Primitive:
 		irTyp = t.createPrimitiveType(typ)
-	case *types.Pointer:
-		irTyp = t.createPointerType(typ)
+	case *types.Reference, *types.Pointer:
+		irTyp = t.createPointerType()
 	case *types.Array:
 		irTyp = t.createArrayType(typ)
 	case *types.Struct:
@@ -88,8 +88,10 @@ func (t *TypeCache) GetMeta(typ types.Type) ir.MetaRef {
 	switch typ := typ.(type) {
 	case *types.Primitive:
 		return t.createPrimitiveMeta(typ)
+	case *types.Reference:
+		return t.createPointerMeta(typ, typ.Pointee)
 	case *types.Pointer:
-		return t.createPointerMeta(typ)
+		return t.createPointerMeta(typ, typ.Pointee)
 	case *types.Array:
 		return t.createArrayMeta(typ)
 	case *types.Struct:
@@ -178,11 +180,11 @@ func (t *TypeCache) createPrimitiveMeta(typ *types.Primitive) ir.MetaRef {
 
 // types.Pointer
 
-func (t *TypeCache) createPointerType(_ *types.Pointer) ir.Type {
+func (t *TypeCache) createPointerType() ir.Type {
 	return ir.Pointer
 }
 
-func (t *TypeCache) createPointerMeta(typ *types.Pointer) ir.MetaRef {
+func (t *TypeCache) createPointerMeta(typ types.Type, pointee types.Type) ir.MetaRef {
 	info := t.Arch.Info(typ)
 
 	node := &ir.DerivedTypeMeta{
@@ -194,7 +196,7 @@ func (t *TypeCache) createPointerMeta(typ *types.Pointer) ir.MetaRef {
 
 	ref := t.AddMeta(typ, t.Module.AddMeta(node))
 
-	node.Base = t.GetMeta(typ.Pointee)
+	node.Base = t.GetMeta(pointee)
 
 	return ref
 }

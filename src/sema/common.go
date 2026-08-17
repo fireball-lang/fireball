@@ -3,6 +3,7 @@ package sema
 import (
 	"fireball/ast"
 	"fireball/core"
+	"fireball/fb-core"
 	"fireball/symbols"
 	"fireball/types"
 	"fmt"
@@ -18,7 +19,7 @@ type common struct {
 
 	instantiations *types.InstantiationCache
 	typeEnv        *TypeEnvironment
-	builtins       types.Builtins
+	builtins       fb_core.Builtins
 
 	checkVisibility      bool
 	checkTypeConstraints bool
@@ -28,7 +29,7 @@ type common struct {
 	diagnostics []core.Diagnostic
 }
 
-func setupCommon(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, builtins types.Builtins, nodeTypes map[ast.Node]types.Type, path string) common {
+func setupCommon(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, builtins fb_core.Builtins, nodeTypes map[ast.Node]types.Type, path string) common {
 	fileModPath := make([]string, 0, len(file.Mod.Path))
 	for _, entry := range file.Mod.Path {
 		fileModPath = append(fileModPath, entry.Token.Text)
@@ -330,8 +331,15 @@ func (c *common) CheckConstraint(typ types.Type, constraint *types.Interface, no
 	// Pointer
 	checkTyp := typ
 
-	if ptr, ok := typ.(*types.Pointer); ok {
-		if constraint.Mutable && !ptr.Mutable {
+	switch typ := typ.(type) {
+	case *types.Reference:
+		if constraint.Mutable && !typ.Mutable {
+			c.Error(node, "type '%s' does not satisfy constraint '%s': reference must be mutable ('mut %s')", typ, constraint, typ)
+			return false
+		}
+
+	case *types.Pointer:
+		if constraint.Mutable && !typ.Mutable {
 			c.Error(node, "type '%s' does not satisfy constraint '%s': pointer must be mutable ('mut %s')", typ, constraint, typ)
 			return false
 		}

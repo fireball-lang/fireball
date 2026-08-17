@@ -55,6 +55,31 @@ func (a *ArrayType) String() string {
 
 func (a *ArrayType) _isType() {}
 
+// Reference
+
+type ReferenceType struct {
+	baseNode
+
+	Mutable bool
+	Pointee Type
+}
+
+func (r *ReferenceType) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		yield(r.Pointee)
+	}
+}
+
+func (r *ReferenceType) String() string {
+	if r.Mutable {
+		return "mut &" + r.Pointee.String()
+	}
+
+	return "&" + r.Pointee.String()
+}
+
+func (r *ReferenceType) _isType() {}
+
 // Pointer
 
 type PointerType struct {

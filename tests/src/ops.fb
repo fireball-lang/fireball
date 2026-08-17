@@ -390,7 +390,7 @@ func indexStructVar() bool {
 #[test("core::Index[T] - struct pointer")]
 func indexStructPointer() bool {
 	var point = Vec2::new(1, 2);
-	var ptr = &point;
+	var ptr = &point as *Vec2;
 
 	return ptr[1] == 2;
 }
