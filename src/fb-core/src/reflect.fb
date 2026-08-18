@@ -206,3 +206,12 @@ impl TypeInfo {
 		return Slice:[Field] { ptr: self.data_ptr1 as *Field, size: self.data_int };
 	}
 }
+
+/// This is the internal representation of interface values and allows access to the two underlying pointers.
+/// It should not be used unless in very specific situations such as reflection based serialization.
+///
+/// The struct needs to match with `types.InterfaceUnderlying` in the compiler.
+pub struct Interface {
+	pub data: mut *void,
+	pub vtable: *void,
+}

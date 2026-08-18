@@ -22,22 +22,24 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 			defer r.scopes.Pop()
 		}
 
-		t.Fields = make([]types.Field, len(s.Fields))
+		if t.Name != "core::Interface" {
+			t.Fields = make([]types.Field, len(s.Fields))
 
-		for i := 0; i < len(s.Fields); i++ {
-			typ := r.ResolveAndAnalyzeType(s.Fields[i].Type)
+			for i := 0; i < len(s.Fields); i++ {
+				typ := r.ResolveAndAnalyzeType(s.Fields[i].Type)
 
-			if typ == types.PrimitiveVoid {
-				typ = types.Invalid
-			} else if typ == t {
-				r.Error(s.Fields[i].Type, "recursive structs are not allowed without pointers")
-				typ = types.Invalid
-			}
+				if typ == types.PrimitiveVoid {
+					typ = types.Invalid
+				} else if typ == t {
+					r.Error(s.Fields[i].Type, "recursive structs are not allowed without pointers")
+					typ = types.Invalid
+				}
 
-			t.Fields[i] = types.Field{
-				Name:   s.Fields[i].Name.Token.Text,
-				Type:   typ,
-				Public: s.Fields[i].Public,
+				t.Fields[i] = types.Field{
+					Name:   s.Fields[i].Name.Token.Text,
+					Type:   typ,
+					Public: s.Fields[i].Public,
+				}
 			}
 		}
 

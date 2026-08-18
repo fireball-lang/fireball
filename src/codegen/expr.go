@@ -104,17 +104,15 @@ func (c *codegen) VisitStructInitializer(s *ast.StructInitializer) ir.Value {
 
 func (c *codegen) VisitArrayInitializer(a *ast.ArrayInitializer) ir.Value {
 	typ := c.ExprType(a).(*types.Array)
-	t := c.types.Get(typ)
 
-	value := ir.Value(&ir.ZeroInitializer{Typ: t})
+	ab := c.Array(typ)
 
-	for i, element := range a.Elements {
-		elementValue := c.LoadImplicitCast(element, typ.Element)
-
-		value = c.emitter.InsertValue(value, elementValue, uint32(i))
+	for _, element := range a.Elements {
+		value := c.LoadImplicitCast(element, typ.Element)
+		ab.Add(value)
 	}
 
-	return value
+	return ab.Build()
 }
 
 func (c *codegen) VisitSizeOf(s *ast.SizeOf) ir.Value {
@@ -1062,13 +1060,10 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 
 			pointee, _ := getPointee(from.Type)
 
-			validValue := c.emitter.InsertValue(&ir.Struct{
-				Typ: typ,
-				Fields: []ir.Value{
-					&ir.Null{},
-					c.GetVTable(to.(*types.Interface), pointee),
-				},
-			}, value, 0)
+			validSb := c.Struct(types.InterfaceUnderlying)
+			validSb.Set("data", value)
+			validSb.Set("vtable", c.GetVTable(to.(*types.Interface), pointee))
+			validValue := validSb.Build()
 
 			c.emitter.Br(exit)
 
@@ -1078,12 +1073,17 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 		}
 
 	case sema.InterfaceToPointer:
+		_, dataI := c.types.Get(types.InterfaceUnderlying).(ir.StructLikeType).Field("data")
+		if dataI < 0 {
+			panic("codegen.codegen.VisitBinary() - Failed to find 'data' field on 'core::Interface'")
+		}
+
 		// Check pointer for null
 		start := c.emitter.Block()
 		valid := c.fun.NewBlock("interface_to_ptr.valid")
 		exit := c.fun.NewBlock("interface_to_ptr.exit")
 
-		dataPtr := c.emitter.ExtractValue(value, 0)
+		dataPtr := c.emitter.ExtractValue(value, uint32(dataI))
 
 		isNull := c.emitter.ICmp(ir.Eq, false, dataPtr, &ir.Null{})
 		c.emitter.BrCond(isNull, exit, valid)
@@ -1099,12 +1099,17 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 		value = c.emitter.Phi(ir.PhiPair{Block: valid, Value: value}, ir.PhiPair{Block: start, Value: &ir.Null{}})
 
 	case sema.InterfaceToInterface:
+		_, dataI := c.types.Get(types.InterfaceUnderlying).(ir.StructLikeType).Field("data")
+		if dataI < 0 {
+			panic("codegen.codegen.VisitBinary() - Failed to find 'data' field on 'core::Interface'")
+		}
+
 		// Check pointer for null
 		start := c.emitter.Block()
 		valid := c.fun.NewBlock("interface_to_pointer.valid")
 		exit := c.fun.NewBlock("interface_to_pointer.exit")
 
-		dataPtr := c.emitter.ExtractValue(value, 0)
+		dataPtr := c.emitter.ExtractValue(value, uint32(dataI))
 
 		isNull := c.emitter.ICmp(ir.Eq, false, dataPtr, &ir.Null{})
 		c.emitter.BrCond(isNull, exit, valid)
@@ -1113,7 +1118,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 		c.emitter.Begin(valid)
 		{
 			// Get type info pointers
-			vtablePtr := c.emitter.ExtractValue(value, 1)
+			vtablePtr := c.emitter.ExtractValue(value, uint32(1-dataI))
 			vtableTyp := &ir.StructType{Fields: []ir.Field{{Name: "type_info", Type: ir.Pointer}}}
 
 			srcTypeInfoPtrPtr := c.emitter.GetElementPtrConst(vtableTyp, vtablePtr, 0, 0)
@@ -1141,10 +1146,12 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			ptr := c.ExtractPointerFromInterfaceOrNull(value, isTarget)
 
 			// Reconstruct interface with the new value and vtable
-			value = &ir.ZeroInitializer{Typ: toTyp}
+			sb := c.Struct(types.InterfaceUnderlying)
 
-			value = c.emitter.InsertValue(value, ptr, 0)
-			value = c.emitter.InsertValue(value, vtable, 1)
+			sb.Set("data", ptr)
+			sb.Set("vtable", vtable)
+
+			value = sb.Build()
 		}
 		valid = c.emitter.Block()
 		c.emitter.Br(exit)
@@ -1197,8 +1204,13 @@ func (c *codegen) CheckNull(value ir.Value, node ast.Node, format string, args .
 }
 
 func (c *codegen) SafeInterfaceToPointer(value ir.Value, pointee types.Type) ir.Value {
+	_, vtableI := c.types.Get(types.InterfaceUnderlying).(ir.StructLikeType).Field("vtable")
+	if vtableI < 0 {
+		panic("codegen.codegen.VisitBinary() - Failed to find 'vtable' field on 'core::Interface'")
+	}
+
 	// Get type info pointers
-	vtablePtr := c.emitter.ExtractValue(value, 1)
+	vtablePtr := c.emitter.ExtractValue(value, uint32(vtableI))
 	vtableTyp := &ir.StructType{Fields: []ir.Field{{Name: "type_info", Type: ir.Pointer}}}
 
 	srcTypeInfoPtrPtr := c.emitter.GetElementPtrConst(vtableTyp, vtablePtr, 0, 0)
@@ -1213,6 +1225,11 @@ func (c *codegen) SafeInterfaceToPointer(value ir.Value, pointee types.Type) ir.
 }
 
 func (c *codegen) ExtractPointerFromInterfaceOrNull(value, isTarget ir.Value) ir.Value {
+	_, dataI := c.types.Get(types.InterfaceUnderlying).(ir.StructLikeType).Field("data")
+	if dataI < 0 {
+		panic("codegen.codegen.VisitBinary() - Failed to find 'data' field on 'core::Interface'")
+	}
+
 	start := c.emitter.Block()
 	ptr := c.fun.NewBlock("interface_check.ptr")
 	exit := c.fun.NewBlock("interface_check.exit")
@@ -1221,7 +1238,7 @@ func (c *codegen) ExtractPointerFromInterfaceOrNull(value, isTarget ir.Value) ir
 
 	// Ptr
 	c.emitter.Begin(ptr)
-	value = c.emitter.ExtractValue(value, 0)
+	value = c.emitter.ExtractValue(value, uint32(dataI))
 	c.emitter.Br(exit)
 
 	// Exit
@@ -1243,14 +1260,19 @@ func (c *codegen) EmitCmp(op ir.CmpOp, left, right ast.Expr) ir.Value {
 
 	// Interface
 	if _, ok := common.(*types.Interface); ok {
+		_, dataI := c.types.Get(types.InterfaceUnderlying).(ir.StructLikeType).Field("data")
+		if dataI < 0 {
+			panic("codegen.codegen.VisitBinary() - Failed to find 'data' field on 'core::Interface'")
+		}
+
 		leftPtr := leftV
-		if s, ok := leftV.Type().(*ir.RefStructType); ok && s.Name == "__interface" {
-			leftPtr = c.emitter.ExtractValue(leftV, 0)
+		if s, ok := leftV.Type().(*ir.RefStructType); ok && s.Name == types.InterfaceUnderlying.Name {
+			leftPtr = c.emitter.ExtractValue(leftV, uint32(dataI))
 		}
 
 		rightPtr := rightV
-		if s, ok := rightV.Type().(*ir.RefStructType); ok && s.Name == "__interface" {
-			rightPtr = c.emitter.ExtractValue(rightV, 0)
+		if s, ok := rightV.Type().(*ir.RefStructType); ok && s.Name == types.InterfaceUnderlying.Name {
+			rightPtr = c.emitter.ExtractValue(rightV, uint32(dataI))
 		}
 
 		return c.emitter.ICmp(op, false, leftPtr, rightPtr)

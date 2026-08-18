@@ -26,8 +26,10 @@ type Interface struct {
 	oppositeMutabilityVariant *Interface
 }
 
-var interfaceUnderlying = &Struct{
-	Name: "__interface",
+// InterfaceUnderlying needs to be kept *perfectly* in sync with 'core::Interface' defined in 'reflect.fb'.
+var InterfaceUnderlying = &Struct{
+	Name:       "core::Interface",
+	ModulePath: []string{"core"},
 	Fields: []Field{
 		{
 			Name: "data",
@@ -49,7 +51,7 @@ var interfaceUnderlying = &Struct{
 }
 
 func (i *Interface) Underlying() Type {
-	return interfaceUnderlying
+	return InterfaceUnderlying
 }
 
 func (i *Interface) AsMutable() *Interface {

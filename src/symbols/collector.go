@@ -12,21 +12,29 @@ func Collect(file *ast.File) []Symbol {
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
 		case *ast.Struct:
-			sb := strings.Builder{}
+			var typ *types.Struct
 
-			modulePath := make([]string, 0, len(file.Mod.Path))
-			for _, entry := range file.Mod.Path {
-				modulePath = append(modulePath, entry.Token.Text)
-				sb.WriteString(entry.Token.Text)
-				sb.WriteString("::")
-			}
+			if decl.Name().Token.Text == "Interface" && len(file.Mod.Path) == 1 && file.Mod.Path[0].Token.Text == "core" {
+				typ = types.InterfaceUnderlying
+			} else {
+				sb := strings.Builder{}
 
-			sb.WriteString(decl.Name().Token.Text)
+				modulePath := make([]string, 0, len(file.Mod.Path))
+				for _, entry := range file.Mod.Path {
+					modulePath = append(modulePath, entry.Token.Text)
+					sb.WriteString(entry.Token.Text)
+					sb.WriteString("::")
+				}
 
-			typeParams := make([]*types.Param, 0, len(decl.TypeParams))
+				sb.WriteString(decl.Name().Token.Text)
 
-			for _, param := range decl.TypeParams {
-				typeParams = append(typeParams, &types.Param{Name: param.Name.Token.Text})
+				typeParams := make([]*types.Param, 0, len(decl.TypeParams))
+
+				for _, param := range decl.TypeParams {
+					typeParams = append(typeParams, &types.Param{Name: param.Name.Token.Text})
+				}
+
+				typ = &types.Struct{Name: sb.String(), ModulePath: modulePath, Layout: decl.GetLayout(), TypeParams: typeParams} // filled in type resolver
 			}
 
 			symbols = append(symbols, Symbol{
@@ -34,7 +42,7 @@ func Collect(file *ast.File) []Symbol {
 				Public: decl.Public,
 				Name:   decl.Name().Token.Text,
 				Node:   decl,
-				Type:   &types.Struct{Name: sb.String(), ModulePath: modulePath, Layout: decl.GetLayout(), TypeParams: typeParams}, // filled in type resolver
+				Type:   typ,
 			})
 
 		case *ast.Enum:
