@@ -61,15 +61,18 @@ func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 		value := fun.ParamValues[paramI]
 		paramI++
 
-		params = params[1:]
 		c.emitter.SetDebugLocation(f.Range().Start)
 
 		ptr := c.emitter.Alloca(ir.Pointer, 1)
 		ptr.SetName("param.self")
 
+		c.emitDbgDeclare("self", params[0], ptr, 0, f.Receiver)
+
 		c.emitter.Store(value, ptr)
 
 		c.scope.Add("self", ptr)
+
+		params = params[1:]
 	}
 
 	// Parameters
