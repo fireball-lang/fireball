@@ -288,7 +288,7 @@ func (c *codegen) VisitBinary(b *ast.Binary) ir.Value {
 		typ := c.ExprType(b)
 
 		leftVal := c.emitter.Load(c.types.Get(c.UnderlyingExprType(b.Left)), ptr)
-		left := c.ImplicitCast(leftVal, c.ExprInfo(b.Left), typ)
+		left := c.ImplicitCast(leftVal, c.ExprInfo(b.Left), typ, b)
 		right := c.LoadImplicitCast(b.Right, typ)
 
 		op := b.Op.CompoundAssignBase()
@@ -777,7 +777,7 @@ func (c *codegen) VisitCast(e *ast.Cast) ir.Value {
 	// Normal
 	value := c.Load(e.Expr)
 
-	return c.Cast(value, kind, c.ExprInfo(e.Expr), to)
+	return c.Cast(value, kind, c.ExprInfo(e.Expr), to, e)
 }
 
 func (c *codegen) VisitBadExpr(_ *ast.BadExpr) ir.Value {
@@ -888,12 +888,12 @@ func (c *codegen) LoadImplicitCast(expr ast.Expr, typ types.Type) ir.Value {
 
 	// Normal
 	value := c.Load(expr)
-	return c.Cast(value, kind, from, typ)
+	return c.Cast(value, kind, from, typ, expr)
 }
 
-func (c *codegen) ImplicitCast(value ir.Value, from sema.ExprInfo, to types.Type) ir.Value {
+func (c *codegen) ImplicitCast(value ir.Value, from sema.ExprInfo, to types.Type, errNode ast.Node) ir.Value {
 	if kind, ok := sema.GetImplicitCast(c.typeEnv, from, to); ok {
-		value = c.Cast(value, kind, from, to)
+		value = c.Cast(value, kind, from, to, errNode)
 	}
 
 	return value
@@ -923,7 +923,7 @@ func (c *codegen) CastArrayToSlice(expr ast.Expr, to types.Type) ir.Value {
 	return sb.Build()
 }
 
-func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, to types.Type) ir.Value {
+func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, to types.Type, errNode ast.Node) ir.Value {
 	if kind == sema.Noop {
 		return value
 	}
@@ -957,7 +957,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			sb := c.Struct(to.(*types.Struct))
 
 			sb.Set("has_value", ir.True)
-			sb.Set("value", c.ImplicitCast(value, from, to.(*types.Struct).Substitutions[0].Type))
+			sb.Set("value", c.ImplicitCast(value, from, to.(*types.Struct).Substitutions[0].Type, errNode))
 
 			return sb.Build()
 
@@ -976,7 +976,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			sb := c.Struct(to.(*types.Struct))
 
 			sb.Set("has_value", ir.True)
-			sb.Set("value", c.ImplicitCast(value, from, to.(*types.Struct).Substitutions[0].Type))
+			sb.Set("value", c.ImplicitCast(value, from, to.(*types.Struct).Substitutions[0].Type, errNode))
 
 			return sb.Build()
 
@@ -995,7 +995,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			sb := c.Struct(to.(*types.Struct))
 
 			sb.Set("has_value", ir.True)
-			sb.Set("value", c.ImplicitCast(value, from, to.(*types.Struct).Substitutions[0].Type))
+			sb.Set("value", c.ImplicitCast(value, from, to.(*types.Struct).Substitutions[0].Type, errNode))
 
 			return sb.Build()
 
@@ -1036,7 +1036,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 		value = c.emitter.PtrToInt(value, toTyp)
 
 	case sema.PointerToReference:
-		c.CheckNull(value, from.Node, "encountered a null pointer when converting '%s' to '%s'", from.Type, to)
+		c.CheckNull(value, errNode, "encountered a null pointer when converting '%s' to '%s'", from.Type, to)
 
 	case sema.ReferenceToInterface, sema.PointerToInterface:
 		typ := c.types.Get(to)
@@ -1160,7 +1160,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 		sb := c.Struct(to)
 
 		sb.Set("has_value", ir.True)
-		sb.Set("value", c.ImplicitCast(value, from, toInner))
+		sb.Set("value", c.ImplicitCast(value, from, toInner, errNode))
 
 		return sb.Build()
 

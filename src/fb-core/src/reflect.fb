@@ -80,7 +80,7 @@ pub struct Field {
 	pub name: StringView,
 
 	/// Type info of the field.
-	pub type_info: *TypeInfo,
+	pub type_info: &TypeInfo,
 
 	/// True if the field is public.
 	pub public: bool,
@@ -165,33 +165,33 @@ impl TypeInfo {
 	}
 
 	/// Returns the array element type if this type is an array or panics.
-	pub func element(self) *TypeInfo {
+	pub func element(self) &TypeInfo {
 		if (self.kind != TypeKind::Array) panic("self.kind is not `TypeKind::Array`");
-		return self.data_ptr1 as *TypeInfo;
+		return self.data_ptr1 as &TypeInfo;
 	}
 
 	/// Returns the pointee type if this type is a reference or a pointer or panics.
-	pub func pointee(self) *TypeInfo {
+	pub func pointee(self) &TypeInfo {
 		if (self.kind != TypeKind::Reference && self.kind != TypeKind::Pointer) panic("self.kind is not either `TypeKind::Reference` or `TypeKind::Pointer`");
-		return self.data_ptr1 as *TypeInfo;
+		return self.data_ptr1 as &TypeInfo;
 	}
 
 	/// Returns the return type if this type is a function or panics.
-	pub func returns(self) *TypeInfo {
+	pub func returns(self) &TypeInfo {
 		if (self.kind != TypeKind::Function) panic("self.kind is not `TypeKind::Function`");
-		return self.data_ptr2 as *TypeInfo;
+		return self.data_ptr2 as &TypeInfo;
 	}
 
 	/// Returns a slice of parameter types if this type is a function or panics.
-	pub func parameters(self) []*TypeInfo {
+	pub func parameters(self) []&TypeInfo {
 		if (self.kind != TypeKind::Function) panic("self.kind is not `TypeKind::Function`");
-		return Slice:[*TypeInfo] { ptr: self.data_ptr1 as **TypeInfo, size: self.data_int };
+		return Slice:[&TypeInfo] { ptr: self.data_ptr1 as *&TypeInfo, size: self.data_int };
 	}
 
 	/// Returns the type that represents the enum (eg. u8) or panics.
-	pub func enum_underlying(self) *TypeInfo {
+	pub func enum_underlying(self) &TypeInfo {
 		if (self.kind != TypeKind::Enum) panic("self.kind is not `TypeKind::Enum`");
-		return self.data_ptr2 as *TypeInfo;
+		return self.data_ptr2 as &TypeInfo;
 	}
 
 	/// Returns a slice of cases if this type is an enum or panics.

@@ -177,7 +177,7 @@ func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) ExprInfo {
 func (a *analyzer) VisitTypeOf(t *ast.TypeOf) ExprInfo {
 	a.ResolveAndAnalyzeType(t.Type)
 
-	return ExprInfo{Type: &types.Pointer{Pointee: a.typeInfoType}}
+	return ExprInfo{Type: &types.Reference{Pointee: a.typeInfoType}}
 }
 
 func (a *analyzer) VisitPrefix(p *ast.Prefix) ExprInfo {
