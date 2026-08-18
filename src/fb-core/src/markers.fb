@@ -2,10 +2,14 @@ mod core;
 
 // Zeroable
 
-/// This is a marker interface (meaning it has no methods) that is automatically implemented on types by the compiler.
+/// This is a marker interface (meaning it has no methods) that is usually automatically implemented on types by the compiler.
 /// Types that implement this interface can be zero-initialized by variables with no initializers.
-/// - Primitives, Pointers, Enums, Functions and Interfaces are always `Zeroable`.
-/// - References are *NOT* `Zeroable`.
+/// - Primitives, Pointers, Enums and Functions are always `Zeroable`.
+/// - References and Interfaces are *NOT* `Zeroable`.
 /// - Arrays are `Zeroable` if their inner type is `Zeroable`.
-/// - Structs are `Zeroable` if all their fields are `Zeroable`.
+/// - Structs are `Zeroable` if all their fields are `Zeroable` (unless overwritten by a manually implementation, see below).
+///
+/// This interface shouldn't be implemented on types manually, unless absolutely necessary.
+/// Where you can be sure, that a non `Zeroable` value will *never* be accessed before it is written.
+/// One example of this is the `Option` type.
 pub interface Zeroable {}

@@ -11,3 +11,9 @@ func get_zero[T: Zeroable]() T {
 func zeroableGenericConstraint() bool {
 	return get_zero:[i32]() == 0;
 }
+
+#[test("zeroable option type containing a non zeroable type")]
+func zeroableOptionNonZeroableInner() bool {
+	var opt: ?&i32;
+	return opt.is_none();
+}
