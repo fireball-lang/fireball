@@ -121,6 +121,10 @@ func (c *codegen) CreateVTable(typ types.Type, in *types.Interface, linkOnce boo
 }
 
 func (c *codegen) CreateVTableInitializer(typ types.Type, in *types.Interface) ir.Value {
+	if null, ok := typ.(*types.Null); ok {
+		typ = null.Underlying()
+	}
+
 	t := c.VtableStruct(in)
 	sb := c.Struct(t)
 
@@ -189,6 +193,10 @@ func (c *codegen) CreateTypeInfo(typ types.Type, linkOnce bool) *ir.GlobalVar {
 }
 
 func (c *codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Value {
+	if null, ok := typ.(*types.Null); ok {
+		typ = null.Underlying()
+	}
+
 	info := c.arch.Info(typ)
 	sb := c.Struct(c.builtins.TypeInfo)
 
@@ -447,6 +455,10 @@ func (c *codegen) CreateTypeInfoFields(typ *types.Struct, linkOnce bool) *ir.Glo
 }
 
 func VTableLinkName(in *types.Interface, typ types.Type) string {
+	if null, ok := typ.(*types.Null); ok {
+		typ = null.Underlying()
+	}
+
 	sb := strings.Builder{}
 	sb.WriteString("fb$vtable$")
 
@@ -507,6 +519,10 @@ func VTableLinkName(in *types.Interface, typ types.Type) string {
 }
 
 func TypeInfoLinkName(typ types.Type, kind string) string {
+	if null, ok := typ.(*types.Null); ok {
+		typ = null.Underlying()
+	}
+
 	sb := strings.Builder{}
 	sb.WriteString("fb$")
 	sb.WriteString(kind)

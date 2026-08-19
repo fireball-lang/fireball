@@ -6,16 +6,20 @@ import (
 )
 
 func defaultType(t types.Type) types.Type {
-	p, ok := t.(*types.Primitive)
-	if !ok {
-		return t
-	}
+	switch t := t.(type) {
+	case *types.Null:
+		return t.Underlying()
 
-	switch p.Kind {
-	case types.I8, types.I16:
-		return types.PrimitiveI32
-	case types.U8, types.U16:
-		return types.PrimitiveU32
+	case *types.Primitive:
+		switch t.Kind {
+		case types.I8, types.I16:
+			return types.PrimitiveI32
+		case types.U8, types.U16:
+			return types.PrimitiveU32
+		default:
+			return t
+		}
+
 	default:
 		return t
 	}
@@ -23,7 +27,7 @@ func defaultType(t types.Type) types.Type {
 
 func isLiteralExpr(expr ast.Expr) bool {
 	switch e := expr.(type) {
-	case *ast.Number, *ast.Bool, *ast.Character, *ast.String:
+	case *ast.Null, *ast.Number, *ast.Bool, *ast.Character, *ast.String:
 		return true
 
 	case *ast.Prefix:

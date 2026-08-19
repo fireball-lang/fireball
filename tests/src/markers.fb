@@ -17,3 +17,9 @@ func zeroableOptionNonZeroableInner() bool {
 	var opt: ?&i32;
 	return opt.is_none();
 }
+
+#[test("null literal into option of pointer")]
+func nullOptionPointer() bool {
+	var opt: ?*i32 = null;
+	return opt.is_some() && opt.unwrap() == null;
+}

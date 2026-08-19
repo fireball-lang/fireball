@@ -73,10 +73,10 @@ func (a *analyzer) VisitString(_ *ast.String) ExprInfo {
 	return ExprInfo{Type: a.stringViewType}
 }
 
-var voidPtrType = &types.Pointer{Pointee: types.PrimitiveVoid}
+var nullType = &types.Null{}
 
 func (a *analyzer) VisitNull(_ *ast.Null) ExprInfo {
-	return ExprInfo{Type: voidPtrType}
+	return ExprInfo{Type: nullType}
 }
 
 func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
@@ -414,7 +414,7 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 		}
 
 		switch left.Type.(type) {
-		case *types.Primitive, *types.Reference, *types.Pointer, *types.Func, *types.Enum, *types.Interface:
+		case *types.Null, *types.Primitive, *types.Reference, *types.Pointer, *types.Func, *types.Enum, *types.Interface:
 		default:
 			return a.Error(b, "equality operators only work on primitive types, references, pointers, function pointers or enums, not %s", left.Type)
 		}

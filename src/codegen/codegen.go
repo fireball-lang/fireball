@@ -330,6 +330,8 @@ func (c *codegen) EmitPanic(node ast.Node, format string, args ...any) {
 
 func getPointee(typ types.Type) (types.Type, bool) {
 	switch typ := typ.(type) {
+	case *types.Null:
+		return types.PrimitiveVoid, true
 	case *types.Reference:
 		return typ.Pointee, true
 	case *types.Pointer:
