@@ -121,6 +121,9 @@ func (s *System) CompileEntrypoint(fn EntrypointFn) (string, error) {
 	module.Path = "__entrypoint"
 
 	if strings.Contains(s.target.Name, "windows") {
+		// Apparently adding a summary node for '_fltused' causes LTO to remove the global,
+		// even if it is marked as "live" and referenced by the entrypoint function.
+		// :shrug:
 		fltused := module.NewGlobalVar("_fltused", ir.I32)
 		fltused.Initializer = &ir.Integer{Typ: ir.I32, Value: core.Signed(1)}
 	}
@@ -134,33 +137,6 @@ func (s *System) CompileEntrypoint(fn EntrypointFn) (string, error) {
 	fun.Flags = ir.DsoLocal
 
 	proj := fn(module, fun)
-
-	// Add summary for '_fltused'
-	if strings.Contains(s.target.Name, "windows") {
-		for summary, ref := range module.Summaries() {
-			if _, ok := summary.(*ir.ModuleSummary); !ok {
-				continue
-			}
-
-			module.AddSummary(&ir.VariableSummary{
-				Module: ref,
-				Name:   "_fltused",
-				LinkFlags: ir.LinkSummaryFlags{
-					Linkage:             ir.LinkageExternal,
-					Visibility:          ir.VisibilityDefault,
-					NotEligibleToImport: false,
-					Live:                true,
-					DsoLocal:            false,
-					CanAutoHide:         false,
-					ImportType:          ir.ImportDefinition,
-				},
-				Flags: ir.VarReadOnly,
-				Refs:  nil,
-			})
-
-			break
-		}
-	}
 
 	// Get paths
 	s.mainProjName = proj.Config.Name
