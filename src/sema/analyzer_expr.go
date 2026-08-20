@@ -6,7 +6,7 @@ import (
 	"fireball/lexer"
 	"fireball/symbols"
 	"fireball/types"
-	"math"
+	"math/bits"
 	"slices"
 	"strings"
 )
@@ -22,26 +22,20 @@ func (a *analyzer) VisitNumber(n *ast.Number) ExprInfo {
 	case lexer.BinaryInteger, lexer.HexInteger, lexer.UnsignedInteger:
 		value := lexer.ParseInteger(n.Token).Raw()
 
-		if value <= math.MaxUint8 {
-			return ExprInfo{Type: types.PrimitiveU8}
-		} else if value <= math.MaxUint16 {
-			return ExprInfo{Type: types.PrimitiveU16}
-		} else if value <= math.MaxUint32 {
-			return ExprInfo{Type: types.PrimitiveU32}
-		}
-		return ExprInfo{Type: types.PrimitiveU64}
+		return ExprInfo{Type: &types.Integer{
+			Negative: false,
+			Unsigned: true,
+			RawBits:  uint32(bits.Len64(value)),
+		}}
 
 	case lexer.SignedInteger:
 		value := lexer.ParseInteger(n.Token).Raw()
 
-		if value <= math.MaxInt8 {
-			return ExprInfo{Type: types.PrimitiveI8}
-		} else if value <= math.MaxInt16 {
-			return ExprInfo{Type: types.PrimitiveI16}
-		} else if value <= math.MaxInt32 {
-			return ExprInfo{Type: types.PrimitiveI32}
-		}
-		return ExprInfo{Type: types.PrimitiveI64}
+		return ExprInfo{Type: &types.Integer{
+			Negative: false,
+			Unsigned: false,
+			RawBits:  uint32(bits.Len64(value)),
+		}}
 
 	case lexer.Decimal:
 		return ExprInfo{Type: types.PrimitiveF64}
@@ -55,18 +49,11 @@ func (a *analyzer) VisitNumber(n *ast.Number) ExprInfo {
 }
 
 func (a *analyzer) VisitCharacter(c *ast.Character) ExprInfo {
-	v := uint64(c.Rune)
-	var typ *types.Primitive
-
-	if v <= math.MaxUint8 {
-		typ = types.PrimitiveU8
-	} else if v <= math.MaxUint16 {
-		typ = types.PrimitiveU16
-	} else {
-		typ = types.PrimitiveU32
-	}
-
-	return ExprInfo{Type: typ}
+	return ExprInfo{Type: &types.Integer{
+		Negative: false,
+		Unsigned: true,
+		RawBits:  uint32(bits.Len64(uint64(c.Rune))),
+	}}
 }
 
 func (a *analyzer) VisitString(_ *ast.String) ExprInfo {
@@ -200,6 +187,18 @@ func (a *analyzer) VisitPrefix(p *ast.Prefix) ExprInfo {
 	// Built-in
 	switch p.Op {
 	case ast.Negate:
+		if i, ok := expr.Type.(*types.Integer); ok {
+			if i.Unsigned {
+				return a.Error(p.Expr, "expected signed numeric type, got '%s'", i)
+			}
+
+			return ExprInfo{Type: &types.Integer{
+				Negative: !i.Negative,
+				Unsigned: false,
+				RawBits:  i.RawBits,
+			}}
+		}
+
 		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsSigned, "signed numeric", expr, p.Expr)}
 
 	case ast.Not:
@@ -414,7 +413,7 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 		}
 
 		switch left.Type.(type) {
-		case *types.Null, *types.Primitive, *types.Reference, *types.Pointer, *types.Func, *types.Enum, *types.Interface:
+		case *types.Null, *types.Integer, *types.Primitive, *types.Reference, *types.Pointer, *types.Func, *types.Enum, *types.Interface:
 		default:
 			return a.Error(b, "equality operators only work on primitive types, references, pointers, function pointers or enums, not %s", left.Type)
 		}

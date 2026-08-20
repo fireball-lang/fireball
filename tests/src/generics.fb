@@ -50,8 +50,17 @@ impl[T] Box[T] {
         return self.value;
     }
 
-    func set(mut self, v: T) {
+func set(mut self, v: T) {
         self.value = v;
+    }
+
+    // Regression: inside a generic method, codegen keeps integer literals as
+    // *types.Integer across substitution (instantiation_cache.resolve returns
+    // them bare). A signed literal passed to an unsigned u64 parameter must be
+    // zero-extended, not bitcast through a 1-byte alloca (which read OOB).
+    // Mirrors std::ArrayList::add -> ensure_capacity(1).
+    func take_u64(self, n: u64) u64 {
+        return n;
     }
 }
 
@@ -191,6 +200,15 @@ func testBoxSet() bool {
     b.value = 1;
     b.set(77);
     return b.value == 77;
+}
+
+// Regression: passing a signed integer literal to a u64 parameter inside a
+// generic method must zero-extend (via Integer literal typing), not corrupt the
+// argument. Previously this read OOB through a 1-byte alloca and crashed.
+#[test("signed literal to u64 param in generic method")]
+func testBoxTakeU64() bool {
+    var b: Box[i32];
+    return b.take_u64(1) == 1 && b.take_u64(0) == 0 && b.take_u64(300) == 300;
 }
 
 #[test("Box[i32] specific inc method")]

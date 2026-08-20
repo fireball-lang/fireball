@@ -26,6 +26,66 @@ func testF32Lit() bool {
 	return 1.0f == 1.0_0f;
 }
 
+#[test("signed literal fits u8")]
+func testSignedLiteralFitsU8() bool {
+	var num: u8 = 200;
+	return num == 200u;
+}
+
+#[test("signed literal u8 max")]
+func testSignedLiteralU8Max() bool {
+	var num: u8 = 255;
+	return num == 255u;
+}
+
+#[test("signed literal u16 max")]
+func testSignedLiteralU16Max() bool {
+	var num: u16 = 65535;
+	return num == 65535u;
+}
+
+#[test("signed literal u32 max")]
+func testSignedLiteralU32Max() bool {
+	var num: u32 = 4294967295;
+	return num == 4294967295u;
+}
+
+#[test("hex literal u64 no-op")]
+func testHexLiteralU64() bool {
+	var num: u64 = 0xFFFF_FFFF_FFFF_FFFF;
+	return num == 0xFFFF_FFFF_FFFF_FFFF;
+}
+
+#[test("signed literal i8 max boundary")]
+func testSignedLiteralI8Max() bool {
+	var num: i8 = 127;
+	return num == 127;
+}
+
+#[test("signed literal i16 max boundary")]
+func testSignedLiteralI16Max() bool {
+	var num: i16 = 32767;
+	return num == 32767;
+}
+
+#[test("signed literal i32 max boundary")]
+func testSignedLiteralI32Max() bool {
+	var num: i32 = 2147483647;
+	return num == 2147483647;
+}
+
+#[test("negative literal assignment")]
+func testNegLiteralAssign() bool {
+	var num: i8 = -5;
+	return num == -5;
+}
+
+#[test("unsigned suffix nominal")]
+func testUnsignedSuffix() bool {
+	var num: u8 = 5u;
+	return num == 5u;
+}
+
 #[test("null pointer")]
 func testNull() bool {
 	var ptr: *i32;

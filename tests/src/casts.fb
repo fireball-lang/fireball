@@ -294,20 +294,147 @@ func takesFunc(f: func(i32, i32) i32) bool {
 }
 
 func returnsNullPtr() *i32 {
-    return null;
+	return null;
 }
 
 #[test("null literal as pointer argument")]
 func testNullPtrArg() bool {
-    return takesPtr(null);
+	return takesPtr(null);
 }
 
 #[test("null literal as function pointer argument")]
 func testNullFuncArg() bool {
-    return takesFunc(null);
+	return takesFunc(null);
 }
 
 #[test("null literal returned from pointer function")]
 func testNullPtrReturn() bool {
-    return returnsNullPtr() == null;
+	return returnsNullPtr() == null;
+}
+
+// --- Implicit casts from primitive variables ---
+// These exercise the *types.Primitive -> *types.Primitive path in GetImplicitCast,
+// which is only reachable through actual primitive variables (not literals).
+
+#[test("primitive var: i8 -> i32 (var)")]
+func testPrimitiveVarI8ToI32Var() bool {
+	var a: i8 = 5;
+	var b: i32 = a;
+	return b == 5;
+}
+
+#[test("primitive var: i8 -> i64 (assign)")]
+func testPrimitiveVarI8ToI64Assign() bool {
+	var b: i64 = 0;
+	var a: i8 = 5;
+	b = a;
+	return b == 5;
+}
+
+#[test("primitive var: u8 -> u64 (var)")]
+func testPrimitiveVarU8ToU64Var() bool {
+	var a: u8 = 5;
+	var b: u64 = a;
+	return b == 5u;
+}
+
+#[test("primitive var: i8 -> f64 (var)")]
+func testPrimitiveVarI8ToF64Var() bool {
+	var a: i8 = 5;
+	var f: f64 = a;
+	return f == 5.0;
+}
+
+#[test("primitive var: i16 -> f64 (var)")]
+func testPrimitiveVarI16ToF64Var() bool {
+	var a: i16 = 1000;
+	var f: f64 = a;
+	return f == 1000.0;
+}
+
+#[test("primitive var: i8 -> i64 (arg)")]
+func testPrimitiveVarI8ToI64Arg() bool {
+	var a: i8 = 5;
+	return takeI64(a) == 5;
+}
+
+#[test("primitive var: u8 -> u64 (arg)")]
+func testPrimitiveVarU8ToU64Arg() bool {
+	var a: u8 = 5;
+	return takeU64(a) == 5u;
+}
+
+#[test("primitive var: i32 -> f64 (arg)")]
+func testPrimitiveVarI32ToF64Arg() bool {
+	var a: i32 = 100000;
+	return takeF64(a) == 100000.0;
+}
+
+func returnI8() i8 {
+	return 99;
+}
+
+#[test("primitive var: i8 -> i32 (return)")]
+func testPrimitiveVarI8ToI32Ret() bool {
+	var r: i32 = returnI8();
+	return r == 99;
+}
+
+#[test("primitive var: i8 -> i32 (assign express)")]
+func testPrimitiveVarI8ToI32AssignExpr() bool {
+	var a: i8 = 5;
+	var b: i32 = 0;
+	b = a + 1;
+	return b == 6;
+}
+
+// --- Explicit casts from primitive variables ---
+// These exercise runtime cast ops; literal `as` uses compile-time re-typing.
+
+#[test("primitive var explicit: trunc i32 -> i8")]
+func testPrimitiveVarTruncI32ToI8() bool {
+	var i: i32 = 300;
+	return (i as i8) == 44;
+}
+
+#[test("primitive var explicit: reinterpret i8 -> u8")]
+func testPrimitiveVarReinterprets8ToU8() bool {
+	var i: i8 = -1;
+	return (i as u8) == 255u;
+}
+
+#[test("primitive var explicit: widen i8 -> i64")]
+func testPrimitiveVarWidenI8ToI64() bool {
+	var i: i8 = 5;
+	return (i as i64) == 5;
+}
+
+#[test("primitive var explicit: f64 -> i32 (truncate toward zero)")]
+func testPrimitiveVarF64ToI32() bool {
+	var f: f64 = 3.7;
+	return (f as i32) == 3;
+}
+
+#[test("primitive var explicit: f64 -> f32 (truncate)")]
+func testPrimitiveVarF64ToF32() bool {
+	var d: f64 = 3.5;
+	return (d as f32) == 3.5f;
+}
+
+#[test("primitive var explicit: i32 -> f64 (same size)")]
+func testPrimitiveVarI32ToF64() bool {
+	var i: i32 = 100000;
+	return (i as f64) == 100000.0;
+}
+
+#[test("primitive var explicit: i64 -> f64 (same size)")]
+func testPrimitiveVarI64ToF64() bool {
+	var i: i64 = 5000000;
+	return (i as f64) == 5000000.0;
+}
+
+#[test("primitive var explicit: i32 -> f32 (same size, requires as)")]
+func testPrimitiveVarI32ToF32() bool {
+	var i: i32 = 100000;
+	return (i as f32) == 100000.0f;
 }

@@ -37,6 +37,28 @@ const (
 )
 
 func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
+	if ia, ok := a.(*types.Integer); ok {
+		if pb, ok := b.(*types.Primitive); ok && (types.IsInteger(pb.Kind) || types.IsFloating(pb.Kind)) {
+			if _, ok := GetImplicitCast(env, ExprInfo{Type: ia}, pb); ok {
+				return pb
+			}
+		}
+	}
+	if ib, ok := b.(*types.Integer); ok {
+		if pa, ok := a.(*types.Primitive); ok && (types.IsInteger(pa.Kind) || types.IsFloating(pa.Kind)) {
+			if _, ok := GetImplicitCast(env, ExprInfo{Type: ib}, pa); ok {
+				return pa
+			}
+		}
+	}
+
+	if i, ok := a.(*types.Integer); ok {
+		a = i.ToPrimitive()
+	}
+	if i, ok := b.(*types.Integer); ok {
+		b = i.ToPrimitive()
+	}
+
 	switch a := a.(type) {
 	case *types.Null:
 		switch b.(type) {
@@ -163,6 +185,21 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 	}
 
 	switch fromT := from.Type.(type) {
+	case *types.Integer:
+		switch to := to.(type) {
+		case *types.Primitive:
+			if types.IsInteger(to.Kind) {
+				return getCastFromToInteger(fromT.ToPrimitive().Kind, to.Kind)
+			}
+
+			if types.IsFloating(to.Kind) {
+				return IntToFloat, true
+			}
+
+		case *types.Enum:
+			return getCastFromToInteger(fromT.ToPrimitive().Kind, to.CaseType.(*types.Primitive).Kind)
+		}
+
 	case *types.Primitive:
 		switch to := to.(type) {
 		case *types.Primitive:
@@ -273,6 +310,55 @@ func GetImplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 
 		case *types.Interface:
 			return PointerToInterface, true
+		}
+
+	case *types.Integer:
+		switch to := to.(type) {
+		case *types.Primitive:
+			if types.IsInteger(to.Kind) {
+				if fromT.Unsigned && types.IsSignedInteger(to.Kind) {
+					return Noop, false
+				}
+				if fromT.Negative && types.IsUnsignedInteger(to.Kind) {
+					return Noop, false
+				}
+
+				// Precise raw-bit value check
+				toBits := to.Kind.Size() * 8
+				maxRaw := toBits
+
+				if types.IsSignedInteger(to.Kind) {
+					maxRaw = toBits - 1
+				}
+				if fromT.RawBits > maxRaw {
+					return Noop, false
+				}
+
+				// Cast kind from materialized width
+				fromPrim := fromT.ToPrimitive()
+
+				if fromPrim.Kind.Size() == to.Kind.Size() {
+					return Noop, true
+				}
+				if fromPrim.Kind.Size() < to.Kind.Size() {
+					if fromT.Negative {
+						return SignExtend, true
+					}
+					return ZeroExtend, true
+				}
+
+				// Materialized width wider, but value still fits target -> re-type literal
+				return Truncate, true
+			}
+
+			if types.IsFloating(to.Kind) {
+				fromBits := fromT.Bits()
+				toBits := to.Kind.Size() * 8
+
+				if fromBits < toBits {
+					return IntToFloat, true
+				}
+			}
 		}
 
 	case *types.Primitive:

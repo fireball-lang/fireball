@@ -68,3 +68,31 @@ func decPost() bool {
 	var a = 5;
 	return a-- == 5;
 }
+
+#[test("primitive var mixed size multiply")]
+func testPrimitiveVarMul() bool {
+	var a: i8 = 4;
+	var b: i16 = 300;
+	return a * b == 1200;
+}
+
+#[test("primitive var mixed size divide")]
+func testPrimitiveVarDiv() bool {
+	var a: i16 = 1000;
+	var b: i8 = 10;
+	return a / b == 100;
+}
+
+#[test("primitive var add sign extension")]
+func testPrimitiveVarAdd() bool {
+	var a: i8 = -2;
+	var b: i16 = 5;
+	return a + b == 3;
+}
+
+#[test("primitive var u32 bitwise")]
+func testPrimitiveVarBitwise() bool {
+	var a: u16 = 0x00FF;
+	var b: u32 = 0x0F00;
+	return (a | b) == 0x0FFF;
+}

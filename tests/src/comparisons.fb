@@ -44,3 +44,95 @@ func testMixedEq() bool {
 func testMixedNe() bool {
 	return 5 != 300;
 }
+
+#[test("primitive var equal different widths")]
+func testPrimitiveVarEqDiffWidth() bool {
+	var a: i16 = 300;
+	var b: i32 = 300;
+	return a == b;
+}
+
+#[test("primitive var less than different widths")]
+func testPrimitiveVarLtDiffWidth() bool {
+	var a: i8 = 4;
+	var b: i16 = 5;
+	return a < b;
+}
+
+#[test("primitive var greater equal different widths")]
+func testPrimitiveVarGeDiffWidth() bool {
+	var a: i16 = 5;
+	var b: i8 = 4;
+	return a >= b;
+}
+
+#[test("primitive var u8 vs u32 equal")]
+func testPrimitiveVarUeqDiffWidth() bool {
+	var a: u8 = 200;
+	var b: u32 = 200u;
+	return a == b;
+}
+
+// --- unsigned / float primitives compared against small signed decimal literals ---
+// A decimal literal (e.g. `0`, `5`) is typed as signed; it must be able to adopt
+// the unsigned / float type of the other operand when its value fits.
+
+#[test("u64 equal decimal zero")]
+func testU64EqZero() bool {
+	var u: u64 = 5;
+	return !(u == 0);
+}
+
+#[test("u64 equal decimal")]
+func testU64EqDecimal() bool {
+	var u: u64 = 5;
+	return u == 5;
+}
+
+#[test("u64 greater decimal")]
+func testU64GtDecimal() bool {
+	var u: u64 = 5;
+	return u > 0;
+}
+
+#[test("u64 less decimal")]
+func testU64LtDecimal() bool {
+	var u: u64 = 5;
+	return u < 10;
+}
+
+#[test("u8 equal decimal zero")]
+func testU8EqZero() bool {
+	var u: u8 = 0;
+	return u == 0;
+}
+
+#[test("u8 not equal decimal")]
+func testU8NeDecimal() bool {
+	var u: u8 = 200;
+	return u != 5;
+}
+
+#[test("u64 equal fitting larger decimal")]
+func testU64EqFitDecimal() bool {
+	var u: u64 = 300;
+	return u == 300;
+}
+
+#[test("f64 equal decimal zero")]
+func testF64EqZero() bool {
+	var f: f64 = 0.0;
+	return f == 0;
+}
+
+#[test("f64 greater decimal")]
+func testF64GtDecimal() bool {
+	var f: f64 = 5.0;
+	return f > 0;
+}
+
+#[test("u32 bitwise with decimal")]
+func testU32BitwiseDecimal() bool {
+	var u: u32 = 0x000000FF;
+	return (u & 255) == 0xFF;
+}

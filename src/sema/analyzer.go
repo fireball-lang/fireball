@@ -125,8 +125,16 @@ func (a *analyzer) ExpectPrimitiveClass(predicate func(kind types.PrimitiveKind)
 		return types.Invalid
 	}
 
-	if t, ok := expr.Type.(*types.Primitive); ok && predicate(t.Kind) {
-		return t
+	switch typ := expr.Type.(type) {
+	case *types.Integer:
+		if predicate(typ.ToPrimitive().Kind) {
+			return typ
+		}
+
+	case *types.Primitive:
+		if predicate(typ.Kind) {
+			return typ
+		}
 	}
 
 	a.Error(node, "expected %s type, got '%s'", className, expr.Type)

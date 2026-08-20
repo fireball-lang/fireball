@@ -9,17 +9,22 @@ func defaultType(t types.Type) types.Type {
 	switch t := t.(type) {
 	case *types.Null:
 		return t.Underlying()
-
+	case *types.Integer:
+		return defaultPrimitiveType(t.ToPrimitive())
 	case *types.Primitive:
-		switch t.Kind {
-		case types.I8, types.I16:
-			return types.PrimitiveI32
-		case types.U8, types.U16:
-			return types.PrimitiveU32
-		default:
-			return t
-		}
+		return defaultPrimitiveType(t)
 
+	default:
+		return t
+	}
+}
+
+func defaultPrimitiveType(t *types.Primitive) types.Type {
+	switch t.Kind {
+	case types.I8, types.I16:
+		return types.PrimitiveI32
+	case types.U8, types.U16:
+		return types.PrimitiveU32
 	default:
 		return t
 	}

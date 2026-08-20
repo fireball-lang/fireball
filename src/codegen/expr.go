@@ -937,10 +937,21 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 
 		case sema.IntToFloat:
 			var floatValue float64
-			if types.IsSigned(from.Type.(*types.Primitive).Kind) {
-				floatValue = float64(value.Value.Signed())
-			} else {
-				floatValue = float64(value.Value.Raw())
+
+			switch typ := from.Type.(type) {
+			case *types.Integer:
+				if typ.Negative {
+					floatValue = float64(value.Value.Signed())
+				} else {
+					floatValue = float64(value.Value.Raw())
+				}
+
+			case *types.Primitive:
+				if types.IsSigned(typ.Kind) {
+					floatValue = float64(value.Value.Signed())
+				} else {
+					floatValue = float64(value.Value.Raw())
+				}
 			}
 
 			if toTyp == ir.Float {
@@ -1014,7 +1025,15 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 		value = c.emitter.Trunc(value, toTyp)
 
 	case sema.IntToFloat:
-		signed := types.IsSigned(from.Type.(*types.Primitive).Kind)
+		var signed bool
+
+		switch typ := from.Type.(type) {
+		case *types.Integer:
+			signed = typ.Negative
+		case *types.Primitive:
+			signed = types.IsSignedInteger(typ.Kind)
+		}
+
 		value = c.emitter.IntToFp(signed, value, toTyp)
 
 	case sema.FloatToInt:
