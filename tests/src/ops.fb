@@ -395,6 +395,16 @@ func indexStructPointer() bool {
 	return ptr[1] == 2;
 }
 
+func genericIndex[T](a: *T, i: i32) T {
+	return a[i];
+}
+
+#[test("generic ptr index - element type implements Index")]
+func genericPtrIndexVarIndex() bool {
+	var a = Vec2::new(1, 2);
+	return genericIndex:[Vec2](&a as *Vec2, 0).x == 1;
+}
+
 // ImplicitAs
 
 impl Vec2 : ImplicitAs[Vec3] {

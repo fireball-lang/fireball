@@ -594,7 +594,10 @@ func (c *codegen) VisitIndex(i *ast.Index) ir.Value {
 	typ := c.ExprType(i.Expr)
 
 	// core::Index[T]
-	if fTyp, fName := sema.GetBinaryMethod(c.typeEnv, c.instantiations, "core::Index", typ, c.ExprType(i.Index)); fTyp != nil {
+	rawType := c.exprInfos[i.Expr].Type
+	rawIndexType := c.exprInfos[i.Index].Type
+
+	if fTyp, fName := sema.GetBinaryMethod(c.typeEnv, c.instantiations, "core::Index", rawType, rawIndexType); fTyp != nil {
 		return c.CallMethodExpr(fTyp, fName, i.Expr, []ast.Expr{i.Index})
 	}
 

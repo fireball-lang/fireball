@@ -3,6 +3,7 @@ package ir
 import (
 	"fireball/core"
 	"math"
+	"reflect"
 )
 
 type Emitter struct {
@@ -328,6 +329,8 @@ func (e *Emitter) Load(typ Type, pointer Value) Instruction {
 		return dummy
 	}
 
+	assertPointerType(pointer)
+
 	return emit(e, &Load{
 		Typ:     typ,
 		Pointer: pointer,
@@ -338,6 +341,8 @@ func (e *Emitter) Store(value, pointer Value) Instruction {
 	if e.skip {
 		return dummy
 	}
+
+	assertPointerType(pointer)
 
 	return emit(e, &Store{
 		Value:   value,
@@ -350,6 +355,7 @@ func (e *Emitter) GetElementPtrConst(typ Type, pointer Value, indices ...uint32)
 		return dummy
 	}
 
+	assertPointerType(pointer)
 	if len(indices) > 4 {
 		panic("ir.Emitter.GetElementPtrConst() - Can only have at most 4 indices")
 	}
@@ -373,6 +379,7 @@ func (e *Emitter) GetElementPtrDyn(typ Type, pointer Value, indices ...Value) In
 		return dummy
 	}
 
+	assertPointerType(pointer)
 	if len(indices) > 4 {
 		panic("ir.Emitter.GetElementPtrDyn() - Can only have at most 4 indices")
 	}
@@ -440,6 +447,8 @@ func (e *Emitter) PtrToInt(value Value, typ Type) Instruction {
 	if e.skip {
 		return dummy
 	}
+
+	assertPointerType(value)
 
 	return emit(e, &PtrToInt{
 		Value: value,
@@ -524,6 +533,8 @@ func (e *Emitter) Call(sig *Signature, callee Value, args []Value) Instruction {
 		return dummy
 	}
 
+	assertPointerType(callee)
+
 	return emit(e, &Call{
 		Signature: sig,
 		Callee:    callee,
@@ -538,9 +549,19 @@ func (e *Emitter) DbgDeclare(pointer Value, variableRef, locationRef MetaRef) In
 		return dummy
 	}
 
+	assertPointerType(pointer)
+
 	return e.block.AddLast(&DbgDeclare{
 		Pointer:     pointer,
 		VariableRef: variableRef,
 		LocationRef: locationRef,
 	})
+}
+
+// Utils
+
+func assertPointerType(value Value) {
+	if typ, ok := value.Type().(*SimpleType); !ok || typ.Kind != PointerKind {
+		panic("ir.Emitter.() - Required a pointer, got " + reflect.TypeOf(value.Type()).String())
+	}
 }
