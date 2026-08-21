@@ -26,18 +26,24 @@ func isInterfaceStatic(f *ast.Func, callee ast.Expr) bool {
 }
 
 func (c *codegen) ResolveReceiver(node ast.Expr) ir.Value {
-	switch typ := c.UnderlyingExprType(node).(type) {
-	case *types.Reference:
-		return c.Load(node)
-
-	case *types.Pointer:
-		ptr := c.Load(node)
-		c.CheckNull(ptr, node, "encountered a null pointer when calling a method on '%s'", typ.Pointee)
-		return ptr
-
+	typ := c.UnderlyingExprType(node)
+	switch typ.(type) {
+	case *types.Reference, *types.Pointer:
+		return c.ValueToReceiver(c.Load(node), typ, false, node)
 	default:
-		value := c.GenerateExpr(node)
-		return c.ReceiverToPointer(value, c.UnderlyingExprType(node), c.exprInfos[node].Address)
+		return c.ValueToReceiver(c.GenerateExpr(node), typ, c.exprInfos[node].Address, node)
+	}
+}
+
+func (c *codegen) ValueToReceiver(value ir.Value, typ types.Type, addressable bool, node ast.Node) ir.Value {
+	switch t := typ.(type) {
+	case *types.Reference:
+		return value
+	case *types.Pointer:
+		c.CheckNull(value, node, "encountered a null pointer when calling a method on '%s'", t.Pointee)
+		return value
+	default:
+		return c.ReceiverToPointer(value, typ, addressable)
 	}
 }
 

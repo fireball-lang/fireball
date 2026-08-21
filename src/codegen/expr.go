@@ -1195,7 +1195,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 
 	case sema.ImplicitAs:
 		callee, sig, fTyp := c.ResolveInterfaceMethod(from.Type, "implicit_as", false)
-		receiver := c.ReceiverToPointer(value, from.Type, false)
+		receiver := c.ValueToReceiver(value, from.Type, false, errNode)
 
 		return c.EmitCallExpr(callee, sig, fTyp, receiver, nil, to)
 

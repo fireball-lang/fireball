@@ -1,0 +1,21 @@
+mod tests::other;
+
+struct String {
+	view: StringView,
+}
+
+impl String : ImplicitAs[StringView] {
+	func implicit_as(self) StringView {
+		return self.view;
+	}
+}
+
+func string_ref_to_view(str: &String) StringView {
+	return str;
+}
+
+#[test("string reference to view")]
+func string_ref_to_view_test() bool {
+	var str = String { view: "lol" };
+	return string_ref_to_view(&str) == "lol";
+}
