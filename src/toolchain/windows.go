@@ -13,7 +13,7 @@ func getTargetWindowsAmd64() (Target, error) {
 	return Target{
 		Name:                    "windows-amd64",
 		DataLayout:              "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
-		Triple:                  "x86_64-pc-windows-msvc",
+		Triple:                  "x86_64-pc-windows-gnu",
 		Arch:                    abi.AMD64,
 		CallConv:                abi.Win64,
 		ObjectFileExtension:     ".obj",
