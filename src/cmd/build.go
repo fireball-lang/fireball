@@ -3,6 +3,7 @@ package main
 import (
 	"fireball/cfg"
 	"fireball/project"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -22,8 +23,9 @@ func getBuildCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			if proj == nil {
-				return nil
+				os.Exit(1)
 			}
 
 			// Build

@@ -26,8 +26,9 @@ func getRunCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			if proj == nil {
-				return nil
+				os.Exit(1)
 			}
 
 			if proj.Config.Kind != project.Executable {

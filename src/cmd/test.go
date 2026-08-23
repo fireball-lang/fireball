@@ -32,8 +32,9 @@ func getTestCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			if proj == nil {
-				return nil
+				os.Exit(1)
 			}
 
 			// Get tests
