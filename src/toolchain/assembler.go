@@ -8,10 +8,10 @@ import (
 	"os/exec"
 )
 
-func Assemble(input io.Reader, output string) error {
+func Assemble(tc Toolchain, input io.Reader, output string) error {
 	defer core.Scope()()
 
-	cmd := exec.Command("llvm-as", "-o", output)
+	cmd := exec.Command(tc.LlvmAs, "-o", output)
 
 	cmd.Stdin = input
 

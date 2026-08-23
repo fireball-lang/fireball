@@ -19,8 +19,9 @@ import (
 type EntrypointFn func(module *ir.Module, fun *ir.Function) *project.Project
 
 type System struct {
-	target  toolchain.Target
-	profile project.Profile
+	toolchain toolchain.Toolchain
+	target    toolchain.Target
+	profile   project.Profile
 
 	profilePath string
 
@@ -33,7 +34,8 @@ type System struct {
 func Init(path string, profile project.Profile) (*System, error) {
 	defer core.Scope()()
 
-	if err := toolchain.Validate(); err != nil {
+	tc, err := toolchain.Validate()
+	if err != nil {
 		return nil, err
 	}
 
@@ -43,6 +45,7 @@ func Init(path string, profile project.Profile) (*System, error) {
 	}
 
 	return &System{
+		toolchain:   tc,
 		target:      target,
 		profile:     profile,
 		profilePath: filepath.Join(path, "build", target.Name, profile.Name),
@@ -180,7 +183,7 @@ func (s *System) Link(objFilePaths []string) (string, error) {
 		libc = new(lib)
 	}
 
-	if err := toolchain.Link(objFilePaths, exeFilePath, s.profile.Opt, s.target, libc); err != nil {
+	if err := toolchain.Link(s.toolchain, objFilePaths, exeFilePath, s.profile.Opt, s.target, libc); err != nil {
 		return "", err
 	}
 
@@ -239,7 +242,7 @@ func (s *System) compileModule(objPath, irPath string, name string, module *ir.M
 	if s.profile.Lto {
 		bcFilePath := filepath.Join(objPath, name+".bc")
 
-		if err := toolchain.Assemble(irReader, bcFilePath); err != nil {
+		if err := toolchain.Assemble(s.toolchain, irReader, bcFilePath); err != nil {
 			return "", err
 		}
 
@@ -249,7 +252,7 @@ func (s *System) compileModule(objPath, irPath string, name string, module *ir.M
 	// Compile to object file
 	objFilePath := filepath.Join(objPath, name+s.target.ObjectFileExtension)
 
-	if err := toolchain.Compile(irReader, objFilePath, s.profile.Opt); err != nil {
+	if err := toolchain.Compile(s.toolchain, irReader, objFilePath, s.profile.Opt); err != nil {
 		return "", err
 	}
 

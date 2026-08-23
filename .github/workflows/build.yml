@@ -4,23 +4,29 @@ on:
   - push
   - workflow_dispatch
 
+env:
+  LLVM_VERSION: "22.1.8"
+
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            artifact: Windows
+          - runs_on: windows-latest
+            os: "windows"
+            arch: "amd64"
             ext: ".exe"
-          - os: ubuntu-latest
-            artifact: Linux
+          - runs_on: ubuntu-latest
+            os: "linux"
+            arch: "amd64"
             ext: ""
-          - os: macos-latest
-            artifact: macOS
+          - runs_on: macos-latest
+            os: "macos"
+            arch: "aarch64"
             ext: ""
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs_on }}
 
     steps:
       - name: Checkout repo
@@ -40,26 +46,30 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact }}
+          name: "${{ matrix.os }}-${{ matrix.arch }}"
           path: fireball${{ matrix.ext }}
 
   test:
     needs: build
+
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            artifact: Windows
+          - runs_on: windows-latest
+            os: "windows"
+            arch: "amd64"
             ext: ".exe"
-          - os: ubuntu-latest
-            artifact: Linux
+          - runs_on: ubuntu-latest
+            os: "linux"
+            arch: "amd64"
             ext: ""
-          - os: macos-latest
-            artifact: macOS
+          - runs_on: macos-latest
+            os: "macos"
+            arch: "aarch64"
             ext: ""
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs_on }}
 
     steps:
       - name: Checkout repo
@@ -68,7 +78,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v8
         with:
-          name: ${{ matrix.artifact }}
+          name: "${{ matrix.os }}-${{ matrix.arch }}"
 
       - name: Restore executable bit
         if: runner.os != 'Windows'
@@ -78,7 +88,10 @@ jobs:
       - name: Setup LLVM
         uses: ./.github/actions/setup-llvm
         with:
-          version: "22.1.8"
+          version: ${{ env.LLVM_VERSION }}
+          os: ${{ matrix.os }}
+          arch: ${{ matrix.arch }}
+          path: "llvm"
 
       - name: Run tests (debug)
         shell: bash
@@ -89,6 +102,83 @@ jobs:
         shell: bash
         working-directory: tests
         run: ../fireball${{ matrix.ext }} test -p release
+
+  package:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      # Windows (amd64)
+      - name: Download Fireball (windows, amd64)
+        uses: actions/download-artifact@v8
+        with:
+          name: "windows-amd64"
+          path: "fireball-windows-amd64/bin"
+      - name: Download LLVM (windows, amd64)
+        uses: ./.github/actions/setup-llvm
+        with:
+          version: ${{ env.LLVM_VERSION }}
+          os: "windows"
+          arch: "amd64"
+          path: "fireball-windows-amd64/tools"
+      - name: Package (windows, amd64)
+        shell: bash
+        env:
+          FIREBALL: "fireball-windows-amd64"
+        run: 7z a "$FIREBALL.zip" "$FIREBALL/*"
+
+      # Linux (amd64)
+      - name: Download Fireball (linux, amd64)
+        uses: actions/download-artifact@v8
+        with:
+          name: "linux-amd64"
+          path: "fireball-linux-amd64/bin"
+      - name: Download LLVM (linux, amd64)
+        uses: ./.github/actions/setup-llvm
+        with:
+          version: ${{ env.LLVM_VERSION }}
+          os: "linux"
+          arch: "amd64"
+          path: "fireball-linux-amd64/tools"
+      - name: Package (linux, amd64)
+        shell: bash
+        env:
+          FIREBALL: "fireball-linux-amd64"
+        run: |
+          chmod +x "$FIREBALL/bin/fireball"
+          tar -czvf "$FIREBALL.tar.gz" "$FIREBALL/*"
+
+      # MacOS (aarch64)
+      - name: Download Fireball (macos, aarch64)
+        uses: actions/download-artifact@v8
+        with:
+          name: "macos-aarch64"
+          path: "fireball-macos-aarch64/bin"
+      - name: Download LLVM (macos, aarch64)
+        uses: ./.github/actions/setup-llvm
+        with:
+          version: ${{ env.LLVM_VERSION }}
+          os: "macos"
+          arch: "aarch64"
+          path: "fireball-macos-aarch64/tools"
+      - name: Package (macos, aarch64)
+        shell: bash
+        env:
+          FIREBALL: "fireball-macos-aarch64"
+        run: |
+          chmod +x "$FIREBALL/bin/fireball"
+          tar -czvf "$FIREBALL.tar.gz" "$FIREBALL/*"
+
+      # Update Release
+      - name: Update Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Fireball"
+          prerelease: true
+          files: |
+            fireball-windows-amd64.zip
+            fireball-linux-amd64.tar.gz
+            fireball-macos-aarch64.tar.gz
 
   package-vscode:
     runs-on: ubuntu-latest

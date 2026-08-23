@@ -8,15 +8,10 @@ import (
 	"strings"
 )
 
-func Link(inputs []string, output string, opt uint8, target Target, libc *LibC) error {
+func Link(tc Toolchain, inputs []string, output string, opt uint8, target Target, libc *LibC) error {
 	defer core.Scope()()
 
-	lld := "ld.lld"
-	if strings.Contains(target.Name, "darwin") {
-		lld = "ld64.lld"
-	}
-
-	cmd := exec.Command(lld, "-o", output)
+	cmd := exec.Command(tc.Lld, "-o", output)
 
 	if strings.Contains(target.Name, "linux") {
 		cmd.Args = append(cmd.Args, "--lto=thin")

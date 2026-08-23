@@ -8,10 +8,10 @@ import (
 	"os/exec"
 )
 
-func Compile(input io.Reader, output string, opt uint8) error {
+func Compile(tc Toolchain, input io.Reader, output string, opt uint8) error {
 	defer core.Scope()()
 
-	cmd := exec.Command("llc", fmt.Sprintf("-O%d", opt), "--filetype=obj", "-o", output)
+	cmd := exec.Command(tc.Llc, fmt.Sprintf("-O%d", opt), "--filetype=obj", "-o", output)
 
 	cmd.Stdin = input
 
