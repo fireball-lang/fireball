@@ -108,6 +108,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
       # Windows (amd64)
       - name: Download Fireball (windows, amd64)
         uses: actions/download-artifact@v8
