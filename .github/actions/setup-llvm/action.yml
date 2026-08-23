@@ -5,7 +5,7 @@ inputs:
   version:
     description: LLVM release version
     required: true
-    default: "22.1.9"
+    default: "22.1.8"
 
 runs:
   using: composite
@@ -15,7 +15,7 @@ runs:
       uses: actions/cache@v6
       with:
         path: llvm
-        key: llvm-for-c3-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
+        key: llvm-tools-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
 
     - name: Download LLVM
       if: steps.llvm-cache.outputs.cache-hit != 'true'
@@ -25,13 +25,13 @@ runs:
 
         case "$RUNNER_OS-$RUNNER_ARCH" in
           Linux-X64)
-            asset="llvm-linux-amd64.tar.xz"
+            asset="llvm-tools-${{ inputs.version }}-linux-amd64.tar.gz"
             ;;
           macOS-ARM64)
-            asset="llvm-darwin-aarch64.tar.xz"
+            asset="llvm-tools-${{ inputs.version }}-macos-aarch64.tar.gz"
             ;;
           Windows-X64)
-            asset="llvm-windows-amd64.tar.xz"
+            asset="llvm-tools-${{ inputs.version }}-windows-amd64.zip"
             ;;
           *)
             echo "Unsupported platform: $RUNNER_OS-$RUNNER_ARCH"
@@ -39,21 +39,20 @@ runs:
             ;;
         esac
 
-        url="https://github.com/c3lang/llvm-for-c3/releases/download/llvm_${{ inputs.version }}/$asset"
+        url="https://github.com/fireball-lang/llvm/releases/download/v${{ inputs.version }}/$asset"
         echo "Downloading LLVM: $url"
-        curl -fL "$url" -o llvm.tar.xz
+        curl -fL "$url" -o "$asset"
 
         mkdir -p llvm
-        tar xf llvm.tar.xz -C llvm --strip-components=1
-
-        if [ -d llvm/usr ]; then
-          mv llvm/usr/* llvm/
-          rmdir llvm/usr
+        if [[ "$asset" == *.zip ]]; then
+          7z x "$asset" -ollvm
+        else
+          tar xf "$asset" -C llvm
         fi
 
-        rm llvm.tar.xz
+        rm $asset
 
     - name: Add LLVM to PATH
       shell: bash
       run: |
-        echo "${{ github.workspace }}/llvm/bin" >> "$GITHUB_PATH"
+        echo "${{ github.workspace }}/llvm" >> "$GITHUB_PATH"
