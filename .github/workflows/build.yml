@@ -78,7 +78,7 @@ jobs:
       - name: Setup LLVM
         uses: ./.github/actions/setup-llvm
         with:
-          version: "22.1.9"
+          version: "22.1.8"
 
       - name: Run tests (debug)
         shell: bash
