@@ -176,6 +176,7 @@ jobs:
       - name: Update Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: "development"
           name: "Fireball"
           prerelease: true
           files: |
