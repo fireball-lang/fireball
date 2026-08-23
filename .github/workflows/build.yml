@@ -176,16 +176,18 @@ jobs:
           tar -czvf "$FIREBALL.tar.gz" "$FIREBALL"
 
       # Update Release
+      - name: Force-move development tag
+        run: |
+          git tag -f development
+          git push --force origin refs/tags/development:refs/tags/development
+
       - name: Update Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "development"
           name: "Fireball"
           prerelease: true
-          body: |
-            Latest bleeding-edge build from commit [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
-
-            **Commit message:** ${{ github.event.head_commit.message || 'Manual workflow run' }}
+          body: ${{ github.event.head_commit.message || 'Manual workflow run' }}
           files: |
             fireball-windows-amd64.zip
             fireball-linux-amd64.tar.gz
