@@ -23,7 +23,7 @@ runs:
       uses: actions/cache@v6
       with:
         path: llvm
-        key: ${{ inputs.path }}
+        key: "llvm-${{ inputs.version }}-${{ inputs.os }}-${{ inputs.arch }}"
 
     - name: Download LLVM
       if: steps.llvm-cache.outputs.cache-hit != 'true'
