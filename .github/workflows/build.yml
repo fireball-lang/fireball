@@ -182,6 +182,10 @@ jobs:
           tag_name: "development"
           name: "Fireball"
           prerelease: true
+          body: |
+            Latest bleeding-edge build from commit [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+
+            **Commit message:** ${{ github.event.head_commit.message || 'Manual workflow run' }}
           files: |
             fireball-windows-amd64.zip
             fireball-linux-amd64.tar.gz
