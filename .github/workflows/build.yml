@@ -128,7 +128,7 @@ jobs:
         shell: bash
         env:
           FIREBALL: "fireball-windows-amd64"
-        run: 7z a "$FIREBALL.zip" "$FIREBALL/*"
+        run: 7z a "$FIREBALL.zip" "$FIREBALL"
 
       # Linux (amd64)
       - name: Download Fireball (linux, amd64)
@@ -149,7 +149,7 @@ jobs:
           FIREBALL: "fireball-linux-amd64"
         run: |
           chmod +x "$FIREBALL/bin/fireball"
-          tar -czvf "$FIREBALL.tar.gz" "$FIREBALL/*"
+          tar -czvf "$FIREBALL.tar.gz" "$FIREBALL"
 
       # MacOS (aarch64)
       - name: Download Fireball (macos, aarch64)
@@ -170,7 +170,7 @@ jobs:
           FIREBALL: "fireball-macos-aarch64"
         run: |
           chmod +x "$FIREBALL/bin/fireball"
-          tar -czvf "$FIREBALL.tar.gz" "$FIREBALL/*"
+          tar -czvf "$FIREBALL.tar.gz" "$FIREBALL"
 
       # Update Release
       - name: Update Release

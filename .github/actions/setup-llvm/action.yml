@@ -54,6 +54,9 @@ runs:
           tar xf "$asset" -C "${{ inputs.path }}"
         fi
 
-        # Remove archive and add path to PATH
+        # Remove archive
         rm $asset
-        echo "${{ github.workspace }}/${{ inputs.path }}" >> "$GITHUB_PATH"
+
+    - name: Add LLVM to PATH
+      shell: bash
+      run: echo "${{ github.workspace }}/${{ inputs.path }}" >> "$GITHUB_PATH"
