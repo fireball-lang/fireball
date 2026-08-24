@@ -35,7 +35,7 @@ func getTargetLinuxAmd64() (Target, error) {
 		CallConv:                abi.SystemV,
 		ObjectFileExtension:     ".o",
 		ExecutableFileExtension: "",
-		AdditionalLinkArgs:      nil,
+		AdditionalLinkArgs:      []string{"--eh-frame-hdr"},
 	}, nil
 }
 
