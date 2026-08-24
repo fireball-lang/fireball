@@ -2,7 +2,9 @@ package toolchain
 
 import (
 	"bytes"
+	"embed"
 	"fireball/abi"
+	"fireball/core"
 	"fmt"
 	"os"
 	"os/exec"
@@ -42,7 +44,24 @@ func getTargetDarwinArm64() (Target, error) {
 	}, nil
 }
 
+//go:embed runtime/darwin-aarch64
+var runtimeDarwinAarch64Fs embed.FS
+
 func findLibcDarwin() (LibC, error) {
+	// Get cache path
+	cachePath, err := os.UserCacheDir()
+	if err != nil {
+		return LibC{}, err
+	}
+
+	// Extract runtime
+	runtimePath := filepath.Join(cachePath, "fireball", "runtime")
+
+	err = core.ExtractVersionedEmbedFs(runtimePath, "runtime/darwin-aarch64", runtimeDarwinAarch64Fs)
+	if err != nil {
+		return LibC{}, err
+	}
+
 	// Get SDK path
 	cmd := exec.Command("xcrun", "--show-sdk-path")
 
@@ -64,8 +83,8 @@ func findLibcDarwin() (LibC, error) {
 
 	// Return LibC
 	return LibC{
-		LibPaths:        []string{filepath.Join(path, "usr", "lib")},
-		Libs:            []string{"System"},
+		LibPaths:        []string{runtimePath, filepath.Join(path, "usr", "lib")},
+		Libs:            []string{"clang_rt.builtins_arm64_osx", "System"},
 		PreObjectPaths:  nil,
 		PostObjectPaths: nil,
 		AdditionalLinkArgs: []string{

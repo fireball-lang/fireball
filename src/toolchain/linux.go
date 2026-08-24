@@ -1,8 +1,10 @@
 package toolchain
 
 import (
+	"embed"
 	"errors"
 	"fireball/abi"
+	"fireball/core"
 	"os"
 	"path/filepath"
 )
@@ -37,7 +39,25 @@ func getTargetLinuxAmd64() (Target, error) {
 	}, nil
 }
 
+//go:embed runtime/linux-amd64
+var runtimeLinuxAmd64Fs embed.FS
+
 func findLibcLinux() (LibC, error) {
+	// Get cache path
+	cachePath, err := os.UserCacheDir()
+	if err != nil {
+		return LibC{}, err
+	}
+
+	// Extract runtime
+	runtimePath := filepath.Join(cachePath, "fireball", "runtime")
+
+	err = core.ExtractVersionedEmbedFs(runtimePath, "runtime/linux-amd64", runtimeLinuxAmd64Fs)
+	if err != nil {
+		return LibC{}, err
+	}
+
+	// Find LibC
 	for _, path := range linuxLibcPaths {
 		ok := true
 
@@ -53,8 +73,8 @@ func findLibcLinux() (LibC, error) {
 		if ok {
 			var libc LibC
 
-			libc.LibPaths = []string{path}
-			libc.Libs = []string{"c", "m"}
+			libc.LibPaths = []string{runtimePath, path}
+			libc.Libs = []string{"clang_rt.builtins-x86_64", "c", "m", ":libgcc_s.so.1"}
 
 			libc.PreObjectPaths = []string{filepath.Join(path, "crt1.o"), filepath.Join(path, "crti.o")}
 			libc.PostObjectPaths = []string{filepath.Join(path, "crtn.o")}

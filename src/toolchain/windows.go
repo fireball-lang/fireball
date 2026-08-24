@@ -25,25 +25,36 @@ func getTargetWindowsAmd64() (Target, error) {
 //go:embed mingw
 var mingwFs embed.FS
 
+//go:embed runtime/windows-amd64
+var runtimeWindowsAmd64Fs embed.FS
+
 func findLibcWindows() (LibC, error) {
-	// Get destination mingw path
-	path, err := os.UserCacheDir()
+	// Get cache path
+	cachePath, err := os.UserCacheDir()
 	if err != nil {
 		return LibC{}, err
 	}
 
-	path = filepath.Join(path, "fireball", "mingw")
+	// Extract runtime
+	runtimePath := filepath.Join(cachePath, "fireball", "runtime")
+
+	err = core.ExtractVersionedEmbedFs(runtimePath, "runtime/windows-amd64", runtimeWindowsAmd64Fs)
+	if err != nil {
+		return LibC{}, err
+	}
 
 	// Extract mingw
-	err = core.ExtractVersionedEmbedFs(path, "mingw", mingwFs)
+	mingwPath := filepath.Join(cachePath, "fireball", "mingw")
+
+	err = core.ExtractVersionedEmbedFs(mingwPath, "mingw", mingwFs)
 	if err != nil {
 		return LibC{}, err
 	}
 
 	// Return
 	return LibC{
-		LibPaths:           []string{path},
-		Libs:               []string{"gcc", "gcc_eh", "kernel32", "m", "mingw32", "mingwex", "ucrt", "ws2_32", "secur32"},
+		LibPaths:           []string{runtimePath, mingwPath},
+		Libs:               []string{"clang_rt.builtins-x86_64", "unwind", "kernel32", "m", "mingw32", "mingwex", "ucrt", "ws2_32", "secur32"},
 		PreObjectPaths:     []string{"crt2.o", "crtbegin.o"},
 		PostObjectPaths:    []string{"crtend.o"},
 		AdditionalLinkArgs: nil,
