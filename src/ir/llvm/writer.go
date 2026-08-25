@@ -271,6 +271,10 @@ func (w *writer) function(fun *ir.Function) error {
 
 	w.rune(')')
 
+	if fun.Flags&ir.Declare == 0 {
+		w.string(" uwtable")
+	}
+
 	if fun.Meta().Valid() {
 		w.string(" !dbg ")
 		w.metaRef(fun.Meta())
