@@ -1,14 +1,5 @@
 mod tests::intrinsics;
 
-#[intrinsic(memcpy)]
-func memcpy(dst: mut *u8, src: *u8, len: u64);
-
-#[intrinsic(memmove)]
-func memmove(dst: mut *u8, src: *u8, len: u64);
-
-#[intrinsic(memset)]
-func memset(dst: mut *u8, val: u8, len: u64);
-
 // ── memcpy ────────────────────────────────────────────────────────────────────
 
 #[test("memcpy full copy")]

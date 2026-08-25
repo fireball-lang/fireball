@@ -1,0 +1,10 @@
+mod core;
+
+#[intrinsic(memcpy)]
+pub func memcpy(dst: *void, src: *void, len: u64);
+
+#[intrinsic(memmove)]
+pub func memmove(dst: *void, src: *void, len: u64);
+
+#[intrinsic(memset)]
+pub func memset(dst: *void, value: u8, len: u64);

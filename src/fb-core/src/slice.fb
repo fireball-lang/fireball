@@ -141,6 +141,12 @@ impl[T] MutSlice[T] {
 			self.swap(i, self.size - 1u - i);
 		}
 	}
+
+	pub func copy_from(mut self, other: mut []T) {
+		if (self.size != other.size) panic("MutSlice.copy_from() - self.size != other.size");
+
+		memmove(self.ptr, other.ptr, self.size * sizeof(T));
+	}
 }
 
 impl[T: Eq[T]] MutSlice[T] {
