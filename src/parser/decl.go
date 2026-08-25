@@ -550,6 +550,10 @@ func (p *parser) parseFunc(documentation []*ast.Leaf, attributes []ast.Attribute
 		return
 	}
 
+	if f.Returns.Range() == (core.Range{}) {
+		f.Returns.(*ast.PrimitiveType).Range_ = f.Name().Range()
+	}
+
 	// Body
 	if p.current.Kind == lexer.LeftBrace {
 		if f.Body, recoverId = p.parseStmt(); recoverId >= 0 {

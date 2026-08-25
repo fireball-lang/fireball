@@ -71,6 +71,45 @@ func (l *LinkName) Children() iter.Seq[Node] {
 
 func (l *LinkName) _isAttribute() {}
 
+// Intrinsic
+
+type IntrinsicKind uint8
+
+const (
+	Syscall IntrinsicKind = iota
+	Memcpy
+	Memmove
+	Memset
+)
+
+func (i IntrinsicKind) String() string {
+	switch i {
+	case Syscall:
+		return "syscall"
+	case Memcpy:
+		return "memcpy"
+	case Memmove:
+		return "memmove"
+	case Memset:
+		return "memset"
+
+	default:
+		panic("ast.IntrinsicKind.String() - Invalid intrinsic")
+	}
+}
+
+type Intrinsic struct {
+	baseNode
+
+	Kind IntrinsicKind
+}
+
+func (i *Intrinsic) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {}
+}
+
+func (i *Intrinsic) _isAttribute() {}
+
 // Repr
 
 type Repr struct {

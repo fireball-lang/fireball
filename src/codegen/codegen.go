@@ -166,7 +166,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 			}
 
 		case *ast.Func:
-			if !c.HasTypeParams(decl) {
+			if !c.HasTypeParams(decl) && ast.GetAttribute[*ast.Intrinsic](decl) == nil {
 				typ := c.nodeTypes[decl].(*types.Func)
 				c.scope.Add(decl.Name().Token.Text, c.CreateFunction(decl, typ, false, nil))
 			}
@@ -252,7 +252,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 			}
 
 		case *ast.Func:
-			if !c.HasTypeParams(decl) {
+			if !c.HasTypeParams(decl) && ast.GetAttribute[*ast.Intrinsic](decl) == nil {
 				typ := c.nodeTypes[decl].(*types.Func)
 				fun := c.scope.Get(decl.Name().Token.Text).(*ir.Function)
 

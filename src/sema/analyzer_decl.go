@@ -381,6 +381,7 @@ var funcAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Test](),
 	reflect.TypeFor[ast.Extern](),
 	reflect.TypeFor[ast.LinkName](),
+	reflect.TypeFor[ast.Intrinsic](),
 	reflect.TypeFor[ast.Cfg](),
 }
 
@@ -391,6 +392,8 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	init := ast.GetAttribute[*ast.Init](f) != nil
 	test := ast.GetAttribute[*ast.Test](f) != nil
 	extern := ast.GetAttribute[*ast.Extern](f) != nil
+	linkName := ast.GetAttribute[*ast.LinkName](f) != nil
+	intrinsic := ast.GetAttribute[*ast.Intrinsic](f) != nil
 
 	// Type
 	symbol, _ := a.scopes.GetSymbol(symbols.Function, f.Name().Token.Text)
@@ -409,12 +412,16 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 		}
 
 		if test {
-			a.Error(ast.GetAttribute[*ast.Test](f), "'init' and 'test' attributes are mutually exclusive ")
+			a.Error(ast.GetAttribute[*ast.Test](f), "'init' and 'test' attributes are mutually exclusive")
 			test = false
 		}
 		if extern {
-			a.Error(ast.GetAttribute[*ast.Extern](f), "'init' and 'extern' attributes are mutually exclusive ")
+			a.Error(ast.GetAttribute[*ast.Extern](f), "'init' and 'extern' attributes are mutually exclusive")
 			extern = false
+		}
+		if intrinsic {
+			a.Error(ast.GetAttribute[*ast.Intrinsic](f), "'init' and 'intrinsic' attributes are mutually exclusive")
+			intrinsic = false
 		}
 	}
 
@@ -434,8 +441,22 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 		}
 
 		if extern {
-			a.Error(ast.GetAttribute[*ast.Extern](f), "'test' and 'extern' attributes are mutually exclusive ")
+			a.Error(ast.GetAttribute[*ast.Extern](f), "'test' and 'extern' attributes are mutually exclusive")
 			extern = false
+		}
+		if intrinsic {
+			a.Error(ast.GetAttribute[*ast.Intrinsic](f), "'test' and 'intrinsic' attributes are mutually exclusive")
+			intrinsic = false
+		}
+	}
+
+	// Intrinsic
+	if intrinsic {
+		a.CheckIntrinsic(f)
+
+		if linkName {
+			a.Error(ast.GetAttribute[*ast.Intrinsic](f), "'intrinsic' and 'link_name' attributes are mutually exclusive")
+			linkName = false
 		}
 	}
 
@@ -443,6 +464,10 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	if extern {
 		if !core.IsNil(f.Body) {
 			a.Error(f.Body, "extern functions cannot have a body")
+		}
+	} else if intrinsic {
+		if !core.IsNil(f.Body) {
+			a.Error(f.Body, "intrinsic functions cannot have a body")
 		}
 	} else {
 		if core.IsNil(f.Body) {
@@ -511,11 +536,7 @@ func (a *analyzer) VisitFuncInner(f *ast.Func, typ *types.Func, receiverTyp type
 	a.funcType = typ
 	a.varAccessed = make(map[ast.Node]bool)
 
-	if f.Name().Token.Text == "bar" {
-		print()
-	}
-
-	if !f.IsExtern() && !f.IsInterfaceMethod() {
+	if !core.IsNil(f.Body) && !f.IsInterfaceMethod() {
 		for _, param := range f.Params {
 			a.varAccessed[param] = false
 		}

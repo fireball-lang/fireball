@@ -533,7 +533,9 @@ func (e *Emitter) Call(sig *Signature, callee Value, args []Value) Instruction {
 		return dummy
 	}
 
-	assertPointerType(callee)
+	if _, ok := callee.(*Assembly); !ok {
+		assertPointerType(callee)
+	}
 
 	return emit(e, &Call{
 		Signature: sig,

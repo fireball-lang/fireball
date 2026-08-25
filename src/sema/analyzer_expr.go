@@ -494,6 +494,12 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 		}
 
 	case symbols.Func:
+		if ast.GetAttribute[*ast.Intrinsic](symbol.Node.(*ast.Func)) != nil {
+			if _, ok := i.Parent().(*ast.Call); !ok {
+				a.Error(i, "intrinsic functions can only be used directly in call expressions")
+			}
+		}
+
 		return ExprInfo{
 			Type:   symbol.Type,
 			Node:   symbol.Node,

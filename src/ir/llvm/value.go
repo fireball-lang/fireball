@@ -71,6 +71,27 @@ func (w *writer) value(value ir.Value) {
 	case *ir.Struct:
 		w.arrayLikeValue("{ ", " }", value.Fields)
 
+	case *ir.Assembly:
+		w.string("asm")
+
+		if value.SideEffect {
+			w.string(" sideeffect")
+		}
+
+		w.string(" \"")
+		w.string(value.Template)
+		w.string("\", \"")
+
+		for i, constraint := range value.Constraints {
+			if i > 0 {
+				w.rune(',')
+			}
+
+			w.string(constraint)
+		}
+
+		w.rune('"')
+
 	// Identifiers
 
 	case *ir.GlobalVar:

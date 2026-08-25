@@ -255,6 +255,7 @@ func (p *parser) parseFuncType() (f *ast.FuncType, recoverId int) {
 	recoverId = -1
 
 	// 'func'
+	funcRange := p.current.Range
 	if recoverId = p.expect(lexer.Func, "expected 'func'"); recoverId >= 0 {
 		return
 	}
@@ -262,6 +263,10 @@ func (p *parser) parseFuncType() (f *ast.FuncType, recoverId int) {
 	// Signature
 	if _, f.Params, f.VarArgs, f.Returns, recoverId = p.parseFuncSignature(false, false); recoverId >= 0 {
 		return
+	}
+
+	if f.Returns.Range() == (core.Range{}) {
+		f.Returns.(*ast.PrimitiveType).Range_ = funcRange
 	}
 
 	return

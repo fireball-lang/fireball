@@ -713,6 +713,13 @@ func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 		typ = c.ResolveType(instTyp).(*types.Func)
 	}
 
+	// Intrinsic
+	if isDecl {
+		if intrinsic := ast.GetAttribute[*ast.Intrinsic](funcNode); intrinsic != nil {
+			return c.EmitIntrinsic(intrinsic.Kind, typ, e.Args)
+		}
+	}
+
 	var callee ir.Value
 	var sig *ir.Signature
 	var receiver ir.Value

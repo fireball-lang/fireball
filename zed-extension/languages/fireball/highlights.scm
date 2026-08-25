@@ -120,6 +120,8 @@
 (link_name_attribute "link_name" @attribute)
 (repr_attribute "repr" @attribute)
 (repr_attribute layout: [ "Fireball" "C" "Union" ] @attribute)
+(intrinsic_attribute "intrinsic" @attribute)
+(intrinsic_attribute kind: [ "syscall" "memcpy" "memmove" "memset" ] @attribute)
 (cfg_attribute "cfg" @attribute)
 
 (option_cfg name: (identifier) @attribute)

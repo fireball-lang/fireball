@@ -74,6 +74,8 @@ func (p *parser) parseAttribute() (ast.Attribute, int) {
 		return p.parseExtern()
 	case "link_name":
 		return p.parseLinkName()
+	case "intrinsic":
+		return p.parseIntrinsic()
 	case "repr":
 		return p.parseRepr()
 	case "cfg":
@@ -189,6 +191,52 @@ func (p *parser) parseLinkName() (l *ast.LinkName, recoverId int) {
 
 	// ')'
 	if recoverId = p.expect(lexer.RightParen, "expected ')' after a link name"); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseIntrinsic() (i *ast.Intrinsic, recoverId int) {
+	i = &ast.Intrinsic{}
+	i.Range_.Start = p.current.Range.Start
+	defer func() {
+		i.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'intrinsic'
+	if recoverId = p.expect(lexer.Identifier, "expected 'intrinsic'"); recoverId >= 0 {
+		return
+	}
+
+	// '('
+	if recoverId = p.expect(lexer.LeftParen, "expected '(' before an intrinsic name"); recoverId >= 0 {
+		return
+	}
+
+	// Layout
+	if recoverId = p.expect(lexer.Identifier, "expected an identifier"); recoverId >= 0 {
+		return
+	}
+
+	switch p.previous.Text {
+	case "syscall":
+		i.Kind = ast.Syscall
+	case "memcpy":
+		i.Kind = ast.Memcpy
+	case "memmove":
+		i.Kind = ast.Memmove
+	case "memset":
+		i.Kind = ast.Memset
+
+	default:
+		p.reportError(p.previous.Range, "invalid intrinsic name")
+	}
+
+	// ')'
+	if recoverId = p.expect(lexer.RightParen, "expected ')' after an intrinsic layout"); recoverId >= 0 {
 		return
 	}
 

@@ -1,0 +1,82 @@
+mod tests::intrinsics;
+
+#[intrinsic(memcpy)]
+func memcpy(dst: mut *u8, src: *u8, len: u64);
+
+#[intrinsic(memmove)]
+func memmove(dst: mut *u8, src: *u8, len: u64);
+
+#[intrinsic(memset)]
+func memset(dst: mut *u8, val: u8, len: u64);
+
+// ── memcpy ────────────────────────────────────────────────────────────────────
+
+#[test("memcpy full copy")]
+func memcpyFull() bool {
+	var dst = [4]u8 { 0, 0, 0, 0 };
+	var src = [4]u8 { 1, 2, 3, 4 };
+
+	memcpy(&dst[0], &src[0], 4);
+
+	return dst[0] == 1 && dst[1] == 2 && dst[2] == 3 && dst[3] == 4;
+}
+
+#[test("memcpy partial copy")]
+func memcpyPartial() bool {
+	var dst = [4]u8 { 9, 9, 9, 9 };
+	var src = [4]u8 { 5, 6, 7, 8 };
+
+	memcpy(&dst[0], &src[0], 2);
+
+	return dst[0] == 5 && dst[1] == 6 && dst[2] == 9 && dst[3] == 9;
+}
+
+// ── memmove ───────────────────────────────────────────────────────────────────
+
+#[test("memmove overlapping")]
+func memmoveOverlapping() bool {
+	var buf = [6]u8 { 1, 2, 3, 4, 5, 6 };
+
+	memmove(&buf[2], &buf[0], 4);
+
+	return buf[0] == 1 && buf[1] == 2 && buf[2] == 1 && buf[3] == 2 && buf[4] == 3 && buf[5] == 4;
+}
+
+#[test("memmove non-overlapping")]
+func memmoveNonOverlapping() bool {
+	var dst = [4]u8 { 0, 0, 0, 0 };
+	var src = [4]u8 { 7, 8, 9, 10 };
+
+	memmove(&dst[0], &src[0], 4);
+
+	return dst[0] == 7 && dst[1] == 8 && dst[2] == 9 && dst[3] == 10;
+}
+
+// ── memset ────────────────────────────────────────────────────────────────────
+
+#[test("memset fill")]
+func memsetFill() bool {
+	var buf = [4]u8 { 0, 0, 0, 0 };
+
+	memset(&buf[0], 0xAA, 4);
+
+	return buf[0] == 170 && buf[1] == 170 && buf[2] == 170 && buf[3] == 170;
+}
+
+#[test("memset zero")]
+func memsetZero() bool {
+	var buf = [4]u8 { 1, 2, 3, 4 };
+
+	memset(&buf[0], 0, 4);
+
+	return buf[0] == 0 && buf[1] == 0 && buf[2] == 0 && buf[3] == 0;
+}
+
+#[test("memset partial")]
+func memsetPartial() bool {
+	var buf = [4]u8 { 9, 9, 9, 9 };
+
+	memset(&buf[0], 1, 2);
+
+	return buf[0] == 1 && buf[1] == 1 && buf[2] == 9 && buf[3] == 9;
+}

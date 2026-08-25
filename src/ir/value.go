@@ -158,6 +158,18 @@ func (s *Struct) Type() Type {
 	return s.Typ
 }
 
+// Assembly
+
+type Assembly struct {
+	SideEffect  bool
+	Constraints []string
+	Template    string
+}
+
+func (a *Assembly) Type() Type {
+	return Void
+}
+
 // Utils
 
 func IsConstant(value Value) bool {
