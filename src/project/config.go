@@ -50,6 +50,9 @@ type Config struct {
 
 	LibC bool `toml:"lib-c"`
 
+	LibPaths []string `toml:"lib-paths"`
+	Libs     []string `toml:"libs"`
+
 	Profiles     map[string]Profile `toml:"profile"`
 	Dependencies []Dependency       `toml:"dependency"`
 }
@@ -67,6 +70,9 @@ type rawConfig struct {
 	Kind string `toml:"type"`
 
 	LibC bool `toml:"lib-c"`
+
+	LibPaths []string `toml:"lib-paths"`
+	Libs     []string `toml:"libs"`
 
 	Profiles     map[string]rawProfile `toml:"profile"`
 	Dependencies []Dependency          `toml:"dependency"`
@@ -92,9 +98,23 @@ func readConfig(path string) (Config, error) {
 		return Config{}, fmt.Errorf("invalid project name: '%s'", raw.Name)
 	}
 
+	for _, libPath := range raw.LibPaths {
+		if err := validateStringExpansion(libPath); err != nil {
+			return Config{}, err
+		}
+	}
+
+	for _, lib := range raw.Libs {
+		if err := validateStringExpansion(lib); err != nil {
+			return Config{}, err
+		}
+	}
+
 	config := Config{
-		Name: raw.Name,
-		LibC: raw.LibC,
+		Name:     raw.Name,
+		LibC:     raw.LibC,
+		LibPaths: raw.LibPaths,
+		Libs:     raw.Libs,
 		Profiles: map[string]Profile{
 			"debug": {
 				Name:  "debug",
@@ -182,4 +202,36 @@ func (p Profile) merge(raw rawProfile) Profile {
 	}
 
 	return p
+}
+
+func validateStringExpansion(str string) error {
+	runes := []rune(str)
+
+	for i := 0; i < len(runes); i++ {
+		ch := runes[i]
+
+		if ch == '%' && i+1 < len(runes) && runes[i+1] == '(' {
+			i++
+			start := i + 1
+
+			for i+1 < len(runes) && runes[i+1] != ')' {
+				i++
+			}
+
+			if i+1 >= len(runes) || runes[i+1] != ')' {
+				return fmt.Errorf("unterminated string expansion")
+			}
+			i++
+
+			variable := string(runes[start:i])
+
+			switch variable {
+			case "OS", "ARCH":
+			default:
+				return fmt.Errorf("unknown variable '%s'", variable)
+			}
+		}
+	}
+
+	return nil
 }

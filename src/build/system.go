@@ -27,6 +27,9 @@ type System struct {
 
 	linkLibC bool
 
+	libPaths []string
+	libs     []string
+
 	mainProjName  string
 	mainBuildPath string
 }
@@ -56,6 +59,13 @@ func Init(path string, profile project.Profile) (*System, error) {
 func (s *System) CompileProjectHierarchy(projMap map[string]*project.Project) ([]string, error) {
 	defer core.Scope()()
 
+	split := strings.Split(s.target.Name, "-")
+
+	replacer := project.GetReplacer(project.Variables{
+		Os:   split[0],
+		Arch: split[1],
+	})
+
 	var files []*project.File
 	var objFilePaths []string
 
@@ -67,6 +77,14 @@ func (s *System) CompileProjectHierarchy(projMap map[string]*project.Project) ([
 
 		if proj.Config.LibC {
 			s.linkLibC = true
+		}
+
+		for _, path := range proj.Config.LibPaths {
+			s.libPaths = append(s.libPaths, replacer.Replace(path))
+		}
+
+		for _, lib := range proj.Config.Libs {
+			s.libs = append(s.libs, replacer.Replace(lib))
 		}
 	}
 
@@ -183,7 +201,7 @@ func (s *System) Link(objFilePaths []string) (string, error) {
 		libc = new(lib)
 	}
 
-	if err := toolchain.Link(s.toolchain, objFilePaths, exeFilePath, s.profile.Opt, s.target, libc); err != nil {
+	if err := toolchain.Link(s.toolchain, objFilePaths, exeFilePath, s.profile.Opt, s.target, libc, s.libPaths, s.libs); err != nil {
 		return "", err
 	}
 

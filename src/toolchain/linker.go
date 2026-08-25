@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func Link(tc Toolchain, inputs []string, output string, opt uint8, target Target, libc *LibC) error {
+func Link(tc Toolchain, inputs []string, output string, opt uint8, target Target, libc *LibC, libPaths []string, libs []string) error {
 	defer core.Scope()()
 
 	cmd := exec.Command(tc.Lld, "-o", output)
@@ -40,6 +40,14 @@ func Link(tc Toolchain, inputs []string, output string, opt uint8, target Target
 		for _, lib := range libc.Libs {
 			cmd.Args = append(cmd.Args, "-l"+lib)
 		}
+	}
+
+	for _, path := range libPaths {
+		cmd.Args = append(cmd.Args, "-L", path)
+	}
+
+	for _, lib := range libs {
+		cmd.Args = append(cmd.Args, "-l"+lib)
 	}
 
 	var stderr bytes.Buffer
