@@ -82,7 +82,26 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 	}
 
 	if t.Layout == types.Union && len(s.Fields) > 1 {
-		a.Error(s, "when initializing an union struct, only one field can be set at most")
+		a.Error(s.Type, "when initializing an union struct, only one field can be set at most")
+	}
+
+	for _, field := range t.Fields {
+		if !field.Required {
+			continue
+		}
+
+		ok := false
+
+		for _, initializer := range s.Fields {
+			if initializer.Name.Token.Text == field.Name {
+				ok = true
+				break
+			}
+		}
+
+		if !ok {
+			a.Error(s.Type, "struct '%s' has a required field '%s' that is not initialized", t, field.Name)
+		}
 	}
 
 	return ExprInfo{Type: typ}

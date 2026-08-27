@@ -116,6 +116,7 @@
 
 (attribute_group "#" @punctuation.special)
 
+(required_attribute) @attribute
 (init_attribute) @attribute
 (test_attribute "test" @attribute)
 (extern_attribute) @attribute

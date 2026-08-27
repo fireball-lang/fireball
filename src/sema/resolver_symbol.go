@@ -36,9 +36,10 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 				}
 
 				t.Fields[i] = types.Field{
-					Name:   s.Fields[i].Name.Token.Text,
-					Type:   typ,
-					Public: s.Fields[i].Public,
+					Name:     s.Fields[i].Name.Token.Text,
+					Type:     typ,
+					Public:   s.Fields[i].Public,
+					Required: ast.GetAttribute[*ast.Required](s.Fields[i]) != nil,
 				}
 			}
 		}

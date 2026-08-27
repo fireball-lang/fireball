@@ -11,6 +11,18 @@ type Attribute interface {
 	_isAttribute()
 }
 
+// Required
+
+type Required struct {
+	baseNode
+}
+
+func (r *Required) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {}
+}
+
+func (r *Required) _isAttribute() {}
+
 // Init
 
 type Init struct {

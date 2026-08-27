@@ -11,9 +11,11 @@ const (
 )
 
 type Field struct {
-	Name   string
-	Type   Type
-	Public bool
+	Name string
+	Type Type
+
+	Public   bool
+	Required bool
 }
 
 type Struct struct {

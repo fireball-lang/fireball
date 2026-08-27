@@ -19,6 +19,7 @@ var structAllowedAttributes = []reflect.Type{
 }
 
 var fieldAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Required](),
 	reflect.TypeFor[ast.Cfg](),
 }
 
@@ -50,6 +51,10 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 		}
 
 		a.CheckAttributes(field.Attributes(), fieldAllowedAttributes)
+
+		if typ.Fields[i].Required && typ.Layout == types.Union {
+			a.Error(field.Name, "union structs cannot have required fields")
+		}
 
 		names[name] = nil
 	}

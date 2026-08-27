@@ -210,7 +210,7 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 		zeroable := true
 
 		for _, field := range t.Fields {
-			if !slices.Contains(e.GetConformances(field.Type), e.builtins.Zeroable) {
+			if field.Required || !slices.Contains(e.GetConformances(field.Type), e.builtins.Zeroable) {
 				zeroable = false
 				break
 			}
