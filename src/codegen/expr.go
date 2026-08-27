@@ -606,7 +606,7 @@ func (c *codegen) VisitIndex(i *ast.Index) ir.Value {
 		irTyp := c.types.Get(p.Pointee)
 		ptr := c.Load(i.Expr)
 		index := c.Load(i.Index)
-		return c.emitter.GetElementPtrDyn(irTyp, ptr, index, nil)
+		return c.emitter.GetElementPtrDyn(irTyp, ptr, index)
 	}
 
 	// Array indexing
@@ -1057,7 +1057,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 		value = c.emitter.Trunc(value, toTyp)
 
 	case sema.IntToPointer:
-		value = c.emitter.IntToPtr(value, toTyp)
+		value = c.emitter.IntToPtr(value)
 
 	case sema.PointerToInt:
 		value = c.emitter.PtrToInt(value, toTyp)

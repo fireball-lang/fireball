@@ -34,6 +34,22 @@ const (
 	PointerKind
 )
 
+func (s SimpleKind) String() string {
+	switch s {
+	case VoidKind:
+		return "void"
+	case FloatKind:
+		return "float"
+	case DoubleKind:
+		return "double"
+	case PointerKind:
+		return "pointer"
+
+	default:
+		panic("ir.SimpleKind.String() - Invalid kind")
+	}
+}
+
 type SimpleType struct {
 	Kind SimpleKind
 }

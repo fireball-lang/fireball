@@ -190,7 +190,7 @@ func (w *writer) instruction(in ir.Instruction) {
 		w.toInstruction("ptrtoint ", in.Value, in.Typ)
 
 	case *ir.IntToPtr:
-		w.toInstruction("inttoptr ", in.Value, in.Typ)
+		w.toInstruction("inttoptr ", in.Value, ir.Pointer)
 
 	case *ir.BitCast:
 		w.toInstruction("bitcast ", in.Value, in.Typ)

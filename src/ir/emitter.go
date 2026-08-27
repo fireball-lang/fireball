@@ -2,8 +2,11 @@ package ir
 
 import (
 	"fireball/core"
+	"fmt"
 	"math"
 	"reflect"
+	"slices"
+	"strings"
 )
 
 type Emitter struct {
@@ -113,6 +116,8 @@ func (e *Emitter) BrCond(condition Value, ifTrue, ifFalse *Block) Instruction {
 	}
 	e.skip = true
 
+	assertIntegerType(condition.Type(), 1, 1)
+
 	return emit(e, &BrCond{
 		Condition: condition,
 		IfTrue:    ifTrue,
@@ -126,6 +131,8 @@ func (e *Emitter) Fneg(value Value) Instruction {
 	if e.skip {
 		return dummy
 	}
+
+	assertSimpleType(value.Type(), FloatKind, DoubleKind)
 
 	return emit(e, &FNeg{
 		Value: value,
@@ -198,6 +205,9 @@ func (e *Emitter) Shl(left, right Value) Instruction {
 		return dummy
 	}
 
+	assertIntegerType(left.Type(), 0, 255)
+	assertIntegerType(right.Type(), 0, 255)
+
 	return emit(e, &Shl{
 		Left:  left,
 		Right: right,
@@ -208,6 +218,9 @@ func (e *Emitter) Shr(signExt bool, left, right Value) Instruction {
 	if e.skip {
 		return dummy
 	}
+
+	assertIntegerType(left.Type(), 0, 255)
+	assertIntegerType(right.Type(), 0, 255)
 
 	return emit(e, &Shr{
 		SignExt: signExt,
@@ -221,6 +234,9 @@ func (e *Emitter) And(left, right Value) Instruction {
 		return dummy
 	}
 
+	assertIntegerType(left.Type(), 0, 255)
+	assertIntegerType(right.Type(), 0, 255)
+
 	return emit(e, &And{
 		Left:  left,
 		Right: right,
@@ -232,6 +248,9 @@ func (e *Emitter) Or(left, right Value) Instruction {
 		return dummy
 	}
 
+	assertIntegerType(left.Type(), 0, 255)
+	assertIntegerType(right.Type(), 0, 255)
+
 	return emit(e, &Or{
 		Left:  left,
 		Right: right,
@@ -242,6 +261,9 @@ func (e *Emitter) Xor(left, right Value) Instruction {
 	if e.skip {
 		return dummy
 	}
+
+	assertIntegerType(left.Type(), 0, 255)
+	assertIntegerType(right.Type(), 0, 255)
 
 	return emit(e, &Xor{
 		Left:  left,
@@ -256,6 +278,8 @@ func (e *Emitter) ExtractElement(value, index Value) Instruction {
 		return dummy
 	}
 
+	assertVectorType(value.Type())
+
 	return emit(e, &ExtractElement{
 		Value: value,
 		Index: index,
@@ -266,6 +290,8 @@ func (e *Emitter) InsertElement(value, element, index Value) Instruction {
 	if e.skip {
 		return dummy
 	}
+
+	assertVectorType(value.Type())
 
 	return emit(e, &InsertElement{
 		Value:   value,
@@ -278,6 +304,9 @@ func (e *Emitter) ShuffleVector(value1, value2, mask Value) Instruction {
 	if e.skip {
 		return dummy
 	}
+
+	assertVectorType(value1.Type())
+	assertVectorType(value2.Type())
 
 	return emit(e, &ShuffleVector{
 		Value1: value1,
@@ -293,6 +322,8 @@ func (e *Emitter) ExtractValue(value Value, indices ...uint32) Instruction {
 		return dummy
 	}
 
+	assertAggregateType(value.Type(), false)
+
 	return emit(e, &ExtractValue{
 		Value:   value,
 		Indices: indices,
@@ -303,6 +334,8 @@ func (e *Emitter) InsertValue(value, element Value, indices ...uint32) Instructi
 	if e.skip {
 		return dummy
 	}
+
+	assertAggregateType(value.Type(), false)
 
 	return emit(e, &InsertValue{
 		Value:   value,
@@ -329,7 +362,7 @@ func (e *Emitter) Load(typ Type, pointer Value) Instruction {
 		return dummy
 	}
 
-	assertPointerType(pointer)
+	assertSimpleType(pointer.Type(), PointerKind)
 
 	return emit(e, &Load{
 		Typ:     typ,
@@ -342,7 +375,7 @@ func (e *Emitter) Store(value, pointer Value) Instruction {
 		return dummy
 	}
 
-	assertPointerType(pointer)
+	assertSimpleType(pointer.Type(), PointerKind)
 
 	return emit(e, &Store{
 		Value:   value,
@@ -355,7 +388,7 @@ func (e *Emitter) GetElementPtrConst(typ Type, pointer Value, indices ...uint32)
 		return dummy
 	}
 
-	assertPointerType(pointer)
+	assertSimpleType(pointer.Type(), PointerKind)
 	if len(indices) > 4 {
 		panic("ir.Emitter.GetElementPtrConst() - Can only have at most 4 indices")
 	}
@@ -379,9 +412,13 @@ func (e *Emitter) GetElementPtrDyn(typ Type, pointer Value, indices ...Value) In
 		return dummy
 	}
 
-	assertPointerType(pointer)
+	assertSimpleType(pointer.Type(), PointerKind)
 	if len(indices) > 4 {
 		panic("ir.Emitter.GetElementPtrDyn() - Can only have at most 4 indices")
+	}
+
+	for _, index := range indices {
+		assertIntegerType(index.Type(), 0, 255)
 	}
 
 	gep := GetElementPtrDyn{
@@ -424,6 +461,9 @@ func (e *Emitter) FpToInt(signed bool, value Value, typ Type) Instruction {
 		return dummy
 	}
 
+	assertSimpleType(value.Type(), FloatKind, DoubleKind)
+	assertIntegerType(typ, 0, 255)
+
 	return emit(e, &FpToInt{
 		Signed: signed,
 		Value:  value,
@@ -435,6 +475,9 @@ func (e *Emitter) IntToFp(signed bool, value Value, typ Type) Instruction {
 	if e.skip {
 		return dummy
 	}
+
+	assertIntegerType(value.Type(), 0, 255)
+	assertSimpleType(typ, FloatKind, DoubleKind)
 
 	return emit(e, &IntToFp{
 		Signed: signed,
@@ -448,7 +491,7 @@ func (e *Emitter) PtrToInt(value Value, typ Type) Instruction {
 		return dummy
 	}
 
-	assertPointerType(value)
+	assertSimpleType(value.Type(), PointerKind)
 
 	return emit(e, &PtrToInt{
 		Value: value,
@@ -456,20 +499,28 @@ func (e *Emitter) PtrToInt(value Value, typ Type) Instruction {
 	})
 }
 
-func (e *Emitter) IntToPtr(value Value, typ Type) Instruction {
+func (e *Emitter) IntToPtr(value Value) Instruction {
 	if e.skip {
 		return dummy
 	}
 
+	assertIntegerType(value.Type(), 64, 64)
+
 	return emit(e, &IntToPtr{
 		Value: value,
-		Typ:   typ,
 	})
 }
 
 func (e *Emitter) BitCast(value Value, typ Type) Instruction {
 	if e.skip {
 		return dummy
+	}
+
+	assertAggregateType(value.Type(), true)
+	assertAggregateType(typ, true)
+
+	if value.Type().Info().Size != typ.Info().Size {
+		panic("ir.Emitter.BitCast() - BitCast needs types with the same size, got " + reflect.TypeOf(value.Type()).String() + " and " + reflect.TypeOf(typ).String())
 	}
 
 	return emit(e, &BitCast{
@@ -498,6 +549,9 @@ func (e *Emitter) FCmp(op CmpOp, ordered bool, left, right Value) Instruction {
 		return dummy
 	}
 
+	assertSimpleType(left.Type(), FloatKind, DoubleKind)
+	assertSimpleType(right.Type(), FloatKind, DoubleKind)
+
 	return emit(e, &FCmp{
 		Op:      op,
 		Ordered: ordered,
@@ -521,6 +575,8 @@ func (e *Emitter) Select(condition, ifTrue, ifFalse Value) Instruction {
 		return dummy
 	}
 
+	assertIntegerType(condition.Type(), 1, 1)
+
 	return emit(e, &Select{
 		Condition: condition,
 		IfTrue:    ifTrue,
@@ -534,7 +590,7 @@ func (e *Emitter) Call(sig *Signature, callee Value, args []Value) Instruction {
 	}
 
 	if _, ok := callee.(*Assembly); !ok {
-		assertPointerType(callee)
+		assertSimpleType(callee.Type(), PointerKind)
 	}
 
 	return emit(e, &Call{
@@ -551,7 +607,7 @@ func (e *Emitter) DbgDeclare(pointer Value, variableRef, locationRef MetaRef) In
 		return dummy
 	}
 
-	assertPointerType(pointer)
+	assertSimpleType(pointer.Type(), PointerKind)
 
 	return e.block.AddLast(&DbgDeclare{
 		Pointer:     pointer,
@@ -562,8 +618,44 @@ func (e *Emitter) DbgDeclare(pointer Value, variableRef, locationRef MetaRef) In
 
 // Utils
 
-func assertPointerType(value Value) {
-	if typ, ok := value.Type().(*SimpleType); !ok || typ.Kind != PointerKind {
-		panic("ir.Emitter.() - Required a pointer, got " + reflect.TypeOf(value.Type()).String())
+func assertSimpleType(typ Type, kinds ...SimpleKind) {
+	if typ, ok := typ.(*SimpleType); !ok || !slices.Contains(kinds, typ.Kind) {
+		var sb strings.Builder
+
+		for i, kind := range kinds {
+			if i > 0 {
+				sb.WriteString(" or a ")
+			}
+			sb.WriteString(kind.String())
+		}
+
+		panic("ir.Emitter.() - Required a " + sb.String() + ", got " + reflect.TypeOf(typ).String())
+	}
+}
+
+func assertIntegerType(typ Type, minBits, maxBits uint8) {
+	if typ, ok := typ.(*IntegerType); !ok || typ.Bits < minBits || typ.Bits > maxBits {
+		panic(fmt.Sprintf("ir.Emitter.() - Required a i%d - i%d, got %s", minBits, maxBits, reflect.TypeOf(typ).String()))
+	}
+}
+
+func assertVectorType(typ Type) {
+	if _, ok := typ.(*VectorType); !ok {
+		panic("ir.Emitter.() - Required a vector, got " + reflect.TypeOf(typ).String())
+	}
+}
+
+func assertAggregateType(typ Type, negate bool) {
+	ok := false
+
+	switch typ.(type) {
+	case *ArrayType, *StructType, *RefStructType:
+		ok = true
+	}
+
+	if negate && ok {
+		panic("ir.Emitter.() - Required a non-aggregate, got " + reflect.TypeOf(typ).String())
+	} else if !negate && !ok {
+		panic("ir.Emitter.() - Required an aggregate, got " + reflect.TypeOf(typ).String())
 	}
 }

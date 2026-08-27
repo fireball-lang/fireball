@@ -404,11 +404,10 @@ type IntToPtr struct {
 	baseInstruction
 
 	Value Value
-	Typ   Type
 }
 
 func (i *IntToPtr) Type() Type {
-	return i.Typ
+	return Pointer
 }
 
 type BitCast struct {

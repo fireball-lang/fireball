@@ -594,7 +594,7 @@ func (c *codegen) BitCast(value ir.Value, typ ir.Type) ir.Value {
 	// Int -> Ptr
 	if _, ok := value.Type().(*ir.IntegerType); ok {
 		if typ == ir.Pointer {
-			return c.emitter.IntToPtr(value, typ)
+			return c.emitter.IntToPtr(value)
 		}
 	}
 
