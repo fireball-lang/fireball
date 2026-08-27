@@ -247,3 +247,33 @@ func testSmallMemberVariable() bool {
     return u.small == (0x55667788 as i32);
 }
 
+
+// ── with expression on unions ─────────────────────────────────────────────────
+//
+// A union's IR type only holds the single largest member at index 0, so `with`
+// must force index 0 regardless of which member is being set (see codegen).
+
+#[test("with: union, largest member")]
+func testWithUnionLargest() bool {
+    var w = Mixed { a: 42 } with { d: 0x1122334455667788 as i64 };
+    return w.d == (0x1122334455667788 as i64);
+}
+
+#[test("with: union, non-largest member (regression)")]
+func testWithUnionNonLargest() bool {
+    var w = Mixed { d: 0x1122334455667788 as i64 } with { b: 0x55667788 as i32 };
+    return w.b == (0x55667788 as i32);
+}
+
+#[test("with: union, smallest member")]
+func testWithUnionSmallest() bool {
+    var w = Mixed { b: 0x55667788 as i32 } with { a: 127 };
+    return w.a == 127;
+}
+
+#[test("with: union overlap is preserved")]
+func testWithUnionOverlap() bool {
+    var w = SmallRead { small: 5 } with { big: 0x1122334455667788 as i64 };
+    return w.small == (0x55667788 as i32);
+}
+

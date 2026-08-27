@@ -511,6 +511,8 @@ func (p *parser) parseIdentifier() (i *ast.Identifier, recoverId int) {
 
 func (p *parser) parseInfixExpr(left ast.Expr, rightPower int) (ast.Expr, int) {
 	switch p.current.Kind {
+	case lexer.With:
+		return p.parseWith(left, rightPower)
 	case lexer.Dot:
 		return p.parseMember(left, rightPower)
 	case lexer.As:
@@ -614,6 +616,47 @@ func (p *parser) parseBinary(left ast.Expr, rightPower int) (b *ast.Binary, reco
 
 	// Right
 	if b.Right, recoverId = p.parseExprWithPower(rightPower); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseWith(left ast.Expr, _ int) (w *ast.With, recoverId int) {
+	w = &ast.With{}
+	w.Range_.Start = left.Range().Start
+	w.Expr = left
+	defer func() {
+		w.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'with'
+	if recoverId = p.expect(lexer.With, "expected 'with' before field"); recoverId >= 0 {
+		return
+	}
+
+	// '{'
+	if recoverId = p.expect(lexer.LeftBrace, "expected '{' before fields"); recoverId >= 0 {
+		return
+	}
+
+	// Fields
+	myRecoverId := p.pushRecoverPoint(lexer.RightBrace)
+	w.Fields, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightBrace, p.parseFieldInitializer)
+	p.popRecoverPoint()
+
+	if recoverId >= 0 {
+		if recoverId == myRecoverId {
+			recoverId = -1
+		} else {
+			return
+		}
+	}
+
+	// '}'
+	if recoverId = p.expect(lexer.RightBrace, "expected '}' after fields"); recoverId >= 0 {
 		return
 	}
 
@@ -971,6 +1014,8 @@ func init() {
 	infix(false, lexer.Plus, lexer.Minus)
 	// *, /, %
 	infix(false, lexer.Star, lexer.Slash, lexer.Percentage)
+	// with
+	infix(false, lexer.With)
 	// -x, !x, ++x, --x, &x, *x
 	prefix(lexer.Minus, lexer.Bang, lexer.PlusPlus, lexer.MinusMinus, lexer.Ampersand, lexer.Star)
 	// x++, x--, x?

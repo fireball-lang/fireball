@@ -78,20 +78,7 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 	}
 
 	for _, field := range s.Fields {
-		f := t.Field(field.Name.Token.Text)
-
-		if f == nil {
-			a.Error(field.Name, "field '%s' doesn't exist on struct '%s'", field.Name.Token.Text, t)
-			continue
-		}
-
-		a.exprInfos[field] = ExprInfo{
-			Type: f.Type,
-			Node: a.resolveFieldNode(t, field.Name.Token.Text),
-		}
-
-		value := a.AnalyzeExpr(field.Value)
-		a.ExpectType(f.Type, value, field.Value)
+		a.VisitFieldInitializer(t, field)
 	}
 
 	if t.Layout == types.Union && len(s.Fields) > 1 {
@@ -99,6 +86,45 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 	}
 
 	return ExprInfo{Type: typ}
+}
+
+func (a *analyzer) VisitWith(w *ast.With) ExprInfo {
+	expr := a.AnalyzeExpr(w.Expr)
+	if expr.Invalid() {
+		return ExprInfo{Type: types.Invalid}
+	}
+
+	t, ok := expr.Type.(*types.Struct)
+	if !ok {
+		return a.Error(w.Expr, "type '%s' is not a struct", expr.Type)
+	}
+
+	for _, field := range w.Fields {
+		a.VisitFieldInitializer(t, field)
+	}
+
+	if t.Layout == types.Union && len(w.Fields) > 1 {
+		a.Error(w, "when modifying an union struct, only one field can be set at most")
+	}
+
+	return ExprInfo{Type: t}
+}
+
+func (a *analyzer) VisitFieldInitializer(t *types.Struct, field *ast.FieldInitializer) {
+	f := t.Field(field.Name.Token.Text)
+
+	if f == nil {
+		a.Error(field.Name, "field '%s' doesn't exist on struct '%s'", field.Name.Token.Text, t)
+		return
+	}
+
+	a.exprInfos[field] = ExprInfo{
+		Type: f.Type,
+		Node: a.resolveFieldNode(t, field.Name.Token.Text),
+	}
+
+	value := a.AnalyzeExpr(field.Value)
+	a.ExpectType(f.Type, value, field.Value)
 }
 
 func (a *analyzer) VisitArrayInitializer(ai *ast.ArrayInitializer) ExprInfo {

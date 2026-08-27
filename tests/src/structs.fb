@@ -131,3 +131,75 @@ func testLinkedList() bool {
 
     return a.value == 1 && a.next.value == 2 && a.next.next.value == 3 && a.next.next.next == null;
 }
+
+// ── with expression (copy-modify) ─────────────────────────────────────────────
+
+#[test("with: copy with field replaced")]
+func testWithFieldReplaced() bool {
+    var w = makeVec(3, 4) with { x: 99 };
+    return w.x == 99 && w.y == 4;
+}
+
+#[test("with: replaces multiple fields")]
+func testWithMultipleFields() bool {
+    var w = makeVec(1, 2) with { x: 10, y: 20 };
+    return w.x == 10 && w.y == 20;
+}
+
+#[test("with: original value unchanged (copy)")]
+func testWithIsCopy() bool {
+    var v = makeVec(3, 4);
+    var w = v with { x: 10 };
+    return w.x == 10 && w.y == 4 && v.x == 3 && v.y == 4;
+}
+
+#[test("with: on a non-addressable temporary")]
+func testWithOnTemporary() bool {
+    return (makeVec(5, 6) with { x: 1 }).x == 1 && (makeVec(5, 6) with { x: 1 }).y == 6;
+}
+
+#[test("with: chained")]
+func testWithChained() bool {
+    var w = makeVec(1, 2) with { x: 10 } with { y: 20 };
+    return w.x == 10 && w.y == 20;
+}
+
+#[test("with: on a struct variable with a pointer field")]
+func testWithPointerField() bool {
+    var a: Node;
+    var b: Node;
+    a.value = 1;
+    b.value = 2;
+    a.next = &b;
+
+    var w = a with { value: 50 };
+    return w.value == 50 && w.next.value == 2 && a.value == 1;
+}
+
+// Mixed field sizes so the ABI layout order differs from the declaration order.
+// Declared: a(i8), b(i64), c(i32) — sorted by alignment in the Fireball layout.
+struct MixedSize {
+    a: i8,
+    b: i64,
+    c: i32,
+}
+
+func makeMixed(a: i8, b: i64, c: i32) MixedSize {
+    var m: MixedSize;
+    m.a = a;
+    m.b = b;
+    m.c = c;
+    return m;
+}
+
+#[test("with: field reordered by ABI layout")]
+func testWithReorderedFields() bool {
+    var w = makeMixed(1, 1000, 200) with { c: 300 };
+    return w.a == 1 && w.b == 1000 && w.c == 300;
+}
+
+#[test("with: multiple reordered fields")]
+func testWithReorderedFieldsMultiple() bool {
+    var w = makeMixed(1, 1000, 200) with { a: 9, b: 9000 };
+    return w.a == 9 && w.b == 9000 && w.c == 200;
+}

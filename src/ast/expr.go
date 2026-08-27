@@ -104,6 +104,30 @@ func (s *StructInitializer) Children() iter.Seq[Node] {
 
 func (s *StructInitializer) _isExpr() {}
 
+// With
+
+type With struct {
+	baseNode
+
+	Expr   Expr
+	Fields []*FieldInitializer
+}
+
+func (w *With) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(w.Expr) {
+			return
+		}
+		for _, field := range w.Fields {
+			if !yield(field) {
+				return
+			}
+		}
+	}
+}
+
+func (w *With) _isExpr() {}
+
 // FieldInitializer
 
 type FieldInitializer struct {

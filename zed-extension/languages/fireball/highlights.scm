@@ -23,8 +23,8 @@
 "break" @keyword.control
 "continue" @keyword.control
 
+"with" @keyword
 "as" @keyword
-
 "or" @keyword
 
 "sizeof" @keyword
@@ -76,6 +76,8 @@
 (offsetof field: (identifier) @property)
 
 (struct_initializer field: (field_initializer name: (identifier) @property))
+
+(with_expr field: (field_initializer name: (identifier) @property))
 
 ; Operators
 

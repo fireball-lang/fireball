@@ -37,6 +37,17 @@ func (hi *highlighter) VisitStructInitializer(s *ast.StructInitializer) int {
 	return 0
 }
 
+func (hi *highlighter) VisitWith(w *ast.With) int {
+	hi.VisitExpr(w.Expr)
+
+	for _, field := range w.Fields {
+		hi.AddFull(field.Name, propertyKind)
+		hi.VisitExpr(field.Value)
+	}
+
+	return 0
+}
+
 func (hi *highlighter) VisitArrayInitializer(a *ast.ArrayInitializer) int {
 	hi.VisitType(a.Type)
 

@@ -124,7 +124,11 @@ func (s *structBuilder) Build() ir.Value {
 
 	var fields []ir.Value
 	if constantCount > 0 {
-		fields = make([]ir.Value, len(s.typ.Fields))
+		if s.typ.Layout == types.Union {
+			fields = make([]ir.Value, 1)
+		} else {
+			fields = make([]ir.Value, len(s.typ.Fields))
+		}
 	}
 
 	init := &ir.Struct{

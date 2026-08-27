@@ -78,28 +78,51 @@ func (c *codegen) VisitStructInitializer(s *ast.StructInitializer) ir.Value {
 	sb := c.Struct(typ)
 
 	for _, field := range s.Fields {
-		name := field.Name.Token.Text
-		expr := field.Value
-
-		var fieldTyp types.Type
-
-		for _, f := range info.Fields {
-			if typ.Fields[f.Index].Name == field.Name.Token.Text {
-				fieldTyp = typ.Fields[f.Index].Type
-				break
-			}
-		}
-
-		value := c.LoadImplicitCast(expr, fieldTyp)
-
-		if typ.Layout == types.Union {
-			value = c.BitCast(value, t.Struct.Fields[0].Type)
-		}
-
-		sb.Set(name, value)
+		value, _ := c.VisitFieldInitializer(typ, t, info, field)
+		sb.Set(field.Name.Token.Text, value)
 	}
 
 	return sb.Build()
+}
+
+func (c *codegen) VisitWith(w *ast.With) ir.Value {
+	typ := c.ExprType(w).(*types.Struct)
+	t := c.types.Get(typ).(*ir.RefStructType)
+	info := c.arch.Info(typ)
+
+	structValue := c.Load(w.Expr)
+
+	for _, field := range w.Fields {
+		value, fieldI := c.VisitFieldInitializer(typ, t, info, field)
+		structValue = c.emitter.InsertValue(structValue, value, fieldI)
+	}
+
+	return structValue
+}
+
+func (c *codegen) VisitFieldInitializer(typ *types.Struct, t *ir.RefStructType, info abi.Info, field *ast.FieldInitializer) (ir.Value, uint32) {
+	name := field.Name.Token.Text
+	expr := field.Value
+
+	var fieldTyp types.Type
+	var fieldI uint32
+
+	for i, f := range info.Fields {
+		if typ.Fields[f.Index].Name == name {
+			fieldI = uint32(i)
+			fieldTyp = typ.Fields[f.Index].Type
+			break
+		}
+	}
+
+	value := c.LoadImplicitCast(expr, fieldTyp)
+
+	if typ.Layout == types.Union {
+		value = c.BitCast(value, t.Struct.Fields[0].Type)
+		fieldI = 0
+	}
+
+	return value, fieldI
 }
 
 func (c *codegen) VisitArrayInitializer(a *ast.ArrayInitializer) ir.Value {

@@ -52,8 +52,8 @@ const (
 	Break
 	Continue
 
+	With
 	As
-
 	Or
 
 	Sizeof

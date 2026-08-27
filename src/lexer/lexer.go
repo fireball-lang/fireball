@@ -371,9 +371,10 @@ func (l *Lexer) keywordIdentifier() Token {
 	case "continue":
 		token.Kind = Continue
 
+	case "with":
+		token.Kind = With
 	case "as":
 		token.Kind = As
-
 	case "or":
 		token.Kind = Or
 
