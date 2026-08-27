@@ -12,6 +12,8 @@ func (p *parser) parseDecl(documentation []*ast.Leaf, attributes []ast.Attribute
 	public := false
 	var publicToken lexer.Token
 
+	start := p.current
+
 	if p.current.Kind == lexer.Pub {
 		publicToken = p.advance()
 		public = true
@@ -19,11 +21,11 @@ func (p *parser) parseDecl(documentation []*ast.Leaf, attributes []ast.Attribute
 
 	switch p.current.Kind {
 	case lexer.Struct:
-		return p.parseStruct(documentation, attributes, public)
+		return p.parseStruct(documentation, attributes, public, start)
 	case lexer.Enum:
-		return p.parseEnum(documentation, attributes, public)
+		return p.parseEnum(documentation, attributes, public, start)
 	case lexer.Interface:
-		return p.parseInterface(documentation, attributes, public)
+		return p.parseInterface(documentation, attributes, public, start)
 	case lexer.Impl:
 		if public {
 			p.reportError(publicToken.Range, "implementation blocks cannot be marked as public")
@@ -31,9 +33,9 @@ func (p *parser) parseDecl(documentation []*ast.Leaf, attributes []ast.Attribute
 		return p.parseImpl(documentation, attributes)
 
 	case lexer.Var:
-		return p.parseGlobalVar(documentation, attributes, public)
+		return p.parseGlobalVar(documentation, attributes, public, start)
 	case lexer.Func:
-		return p.parseFunc(documentation, attributes, public, false)
+		return p.parseFunc(documentation, attributes, public, false, start)
 
 	default:
 		b := &ast.BadDecl{}
@@ -42,9 +44,9 @@ func (p *parser) parseDecl(documentation []*ast.Leaf, attributes []ast.Attribute
 	}
 }
 
-func (p *parser) parseStruct(documentation []*ast.Leaf, attributes []ast.Attribute, public bool) (s *ast.Struct, recoverId int) {
+func (p *parser) parseStruct(documentation []*ast.Leaf, attributes []ast.Attribute, public bool, start lexer.Token) (s *ast.Struct, recoverId int) {
 	s = &ast.Struct{}
-	s.Range_.Start = p.current.Range.Start
+	s.Range_.Start = start.Range.Start
 	s.Documentation_ = documentation
 	s.Attributes_ = attributes
 	s.Public = public
@@ -146,9 +148,9 @@ func (p *parser) parseField() (f *ast.Field, recoverId int) {
 	return
 }
 
-func (p *parser) parseEnum(documentation []*ast.Leaf, attributes []ast.Attribute, public bool) (e *ast.Enum, recoverId int) {
+func (p *parser) parseEnum(documentation []*ast.Leaf, attributes []ast.Attribute, public bool, start lexer.Token) (e *ast.Enum, recoverId int) {
 	e = &ast.Enum{}
-	e.Range_.Start = p.current.Range.Start
+	e.Range_.Start = start.Range.Start
 	e.Documentation_ = documentation
 	e.Attributes_ = attributes
 	e.Public = public
@@ -249,9 +251,9 @@ func (p *parser) parseCase() (c *ast.Case, recoverId int) {
 	return
 }
 
-func (p *parser) parseInterface(documentation []*ast.Leaf, attributes []ast.Attribute, public bool) (i *ast.Interface, recoverId int) {
+func (p *parser) parseInterface(documentation []*ast.Leaf, attributes []ast.Attribute, public bool, start lexer.Token) (i *ast.Interface, recoverId int) {
 	i = &ast.Interface{}
-	i.Range_.Start = p.current.Range.Start
+	i.Range_.Start = start.Range.Start
 	i.Documentation_ = documentation
 	i.Attributes_ = attributes
 	i.Public = public
@@ -305,7 +307,7 @@ func (p *parser) parseInterface(documentation []*ast.Leaf, attributes []ast.Attr
 		} else if p.current.Kind == lexer.Func {
 			// Method
 			var f *ast.Func
-			f, recoverId = p.parseFunc(documentation, nil, true, true)
+			f, recoverId = p.parseFunc(documentation, nil, true, true, p.current)
 			i.Methods = append(i.Methods, f)
 		} else {
 			// Invalid
@@ -391,6 +393,7 @@ func (p *parser) parseImpl(documentation []*ast.Leaf, attributes []ast.Attribute
 		} else if p.current.Kind == lexer.Pub || p.current.Kind == lexer.Func {
 			// Method
 			public := false
+			start := p.current
 
 			if p.current.Kind == lexer.Pub {
 				p.advance()
@@ -398,7 +401,7 @@ func (p *parser) parseImpl(documentation []*ast.Leaf, attributes []ast.Attribute
 			}
 
 			var f *ast.Func
-			f, recoverId = p.parseFunc(documentation, nil, public, true)
+			f, recoverId = p.parseFunc(documentation, nil, public, true, start)
 			i.Methods = append(i.Methods, f)
 		} else {
 			// Invalid
@@ -466,9 +469,9 @@ func (p *parser) parseAssociatedType(documentation []*ast.Leaf, hasType bool) (a
 	return
 }
 
-func (p *parser) parseGlobalVar(documentation []*ast.Leaf, attributes []ast.Attribute, public bool) (g *ast.GlobalVar, recoverId int) {
+func (p *parser) parseGlobalVar(documentation []*ast.Leaf, attributes []ast.Attribute, public bool, start lexer.Token) (g *ast.GlobalVar, recoverId int) {
 	g = &ast.GlobalVar{}
-	g.Range_.Start = p.current.Range.Start
+	g.Range_.Start = start.Range.Start
 	g.Documentation_ = documentation
 	g.Attributes_ = attributes
 	g.Public = public
@@ -511,9 +514,9 @@ func (p *parser) parseGlobalVar(documentation []*ast.Leaf, attributes []ast.Attr
 	return
 }
 
-func (p *parser) parseFunc(documentation []*ast.Leaf, attributes []ast.Attribute, public bool, allowReceiver bool) (f *ast.Func, recoverId int) {
+func (p *parser) parseFunc(documentation []*ast.Leaf, attributes []ast.Attribute, public bool, allowReceiver bool, start lexer.Token) (f *ast.Func, recoverId int) {
 	f = &ast.Func{}
-	f.Range_.Start = p.current.Range.Start
+	f.Range_.Start = start.Range.Start
 	f.Documentation_ = documentation
 	f.Attributes_ = attributes
 	f.Public = public
