@@ -108,7 +108,6 @@ func (p *parser) parseStruct(documentation []*ast.Leaf, attributes []ast.Attribu
 
 func (p *parser) parseField() (f *ast.Field, recoverId int) {
 	f = &ast.Field{}
-	f.Range_.Start = p.current.Range.Start
 	defer func() {
 		f.Range_.End = p.previous.Range.End
 
@@ -123,6 +122,13 @@ func (p *parser) parseField() (f *ast.Field, recoverId int) {
 	if p.current.Kind == lexer.Documentation {
 		f.Documentation = p.parseDocumentation()
 	}
+
+	// Attributes
+	if p.current.Kind == lexer.Hashtag {
+		f.Attributes_, _ = p.parseAttributes()
+	}
+
+	f.Range_.Start = p.current.Range.Start
 
 	// 'pub'
 	if p.current.Kind == lexer.Pub {
@@ -291,23 +297,28 @@ func (p *parser) parseInterface(documentation []*ast.Leaf, attributes []ast.Attr
 
 	// Methods
 	for p.current.Kind != lexer.RightBrace && p.current.Kind != lexer.EOF {
-		myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Documentation, lexer.Type, lexer.Func)
+		myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Documentation, lexer.Hashtag, lexer.Type, lexer.Func)
 
 		var documentation []*ast.Leaf
+		var attributes []ast.Attribute
 
 		if p.current.Kind == lexer.Documentation {
 			documentation = p.parseDocumentation()
 		}
 
+		if p.current.Kind == lexer.Hashtag {
+			attributes, _ = p.parseAttributes()
+		}
+
 		if p.current.Kind == lexer.Type {
 			// Associate type
 			var a *ast.AssociatedType
-			a, recoverId = p.parseAssociatedType(documentation, false)
+			a, recoverId = p.parseAssociatedType(documentation, attributes, false)
 			i.AssociatedTypes = append(i.AssociatedTypes, a)
 		} else if p.current.Kind == lexer.Func {
 			// Method
 			var f *ast.Func
-			f, recoverId = p.parseFunc(documentation, nil, true, true, p.current)
+			f, recoverId = p.parseFunc(documentation, attributes, true, true, p.current)
 			i.Methods = append(i.Methods, f)
 		} else {
 			// Invalid
@@ -377,18 +388,23 @@ func (p *parser) parseImpl(documentation []*ast.Leaf, attributes []ast.Attribute
 
 	// Methods
 	for p.current.Kind != lexer.RightBrace && p.current.Kind != lexer.EOF {
-		myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Documentation, lexer.Type, lexer.Pub, lexer.Func)
+		myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Documentation, lexer.Hashtag, lexer.Type, lexer.Pub, lexer.Func)
 
 		var documentation []*ast.Leaf
+		var attributes []ast.Attribute
 
 		if p.current.Kind == lexer.Documentation {
 			documentation = p.parseDocumentation()
 		}
 
+		if p.current.Kind == lexer.Hashtag {
+			attributes, _ = p.parseAttributes()
+		}
+
 		if p.current.Kind == lexer.Type {
 			// Associate type
 			var a *ast.AssociatedType
-			a, recoverId = p.parseAssociatedType(documentation, true)
+			a, recoverId = p.parseAssociatedType(documentation, attributes, true)
 			i.AssociatedTypes = append(i.AssociatedTypes, a)
 		} else if p.current.Kind == lexer.Pub || p.current.Kind == lexer.Func {
 			// Method
@@ -401,7 +417,7 @@ func (p *parser) parseImpl(documentation []*ast.Leaf, attributes []ast.Attribute
 			}
 
 			var f *ast.Func
-			f, recoverId = p.parseFunc(documentation, nil, public, true, start)
+			f, recoverId = p.parseFunc(documentation, attributes, public, true, start)
 			i.Methods = append(i.Methods, f)
 		} else {
 			// Invalid
@@ -427,10 +443,11 @@ func (p *parser) parseImpl(documentation []*ast.Leaf, attributes []ast.Attribute
 	return
 }
 
-func (p *parser) parseAssociatedType(documentation []*ast.Leaf, hasType bool) (a *ast.AssociatedType, recoverId int) {
+func (p *parser) parseAssociatedType(documentation []*ast.Leaf, attributes []ast.Attribute, hasType bool) (a *ast.AssociatedType, recoverId int) {
 	a = &ast.AssociatedType{}
 	a.Range_.Start = p.current.Range.Start
 	a.Documentation = documentation
+	a.Attributes_ = attributes
 	a.Name = emptyLeaf
 	defer func() {
 		a.Range_.End = p.previous.Range.End

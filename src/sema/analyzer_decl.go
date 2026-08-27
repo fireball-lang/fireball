@@ -18,6 +18,10 @@ var structAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
 }
 
+var fieldAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Cfg](),
+}
+
 func (a *analyzer) VisitStruct(s *ast.Struct) {
 	// Attributes
 	a.CheckAttributes(s.Attributes(), structAllowedAttributes)
@@ -44,6 +48,8 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 		if typ.Fields[i].Type == types.PrimitiveVoid {
 			a.Error(field.Type, "field cannot be of type 'void'")
 		}
+
+		a.CheckAttributes(field.Attributes(), fieldAllowedAttributes)
 
 		names[name] = nil
 	}
@@ -93,6 +99,14 @@ var interfaceAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
 }
 
+var associatedTypeAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Cfg](),
+}
+
+var methodAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Cfg](),
+}
+
 func (a *analyzer) VisitInterface(i *ast.Interface) {
 	// Attributes
 	a.CheckAttributes(i.Attributes(), interfaceAllowedAttributes)
@@ -103,6 +117,11 @@ func (a *analyzer) VisitInterface(i *ast.Interface) {
 	typ := symbol.Type.(*types.Interface)
 	a.nodeTypes[i] = typ
 
+	// Associated types
+	for _, assocType := range i.AssociatedTypes {
+		a.CheckAttributes(assocType.Attributes(), associatedTypeAllowedAttributes)
+	}
+
 	// Methods
 	for _, method := range i.Methods {
 		if !core.IsNil(method.Body) {
@@ -112,14 +131,12 @@ func (a *analyzer) VisitInterface(i *ast.Interface) {
 		if len(method.TypeParams) > 0 {
 			a.Error(method.Name_, "interface methods cannot have type parameters")
 		}
+
+		a.CheckAttributes(method.Attributes(), methodAllowedAttributes)
 	}
 }
 
 var implAllowedAttributes = []reflect.Type{
-	reflect.TypeFor[ast.Cfg](),
-}
-
-var methodAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
 }
 
@@ -175,6 +192,11 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 				}
 			}
 		}
+	}
+
+	// Associated types
+	for _, assocType := range i.AssociatedTypes {
+		a.CheckAttributes(assocType.Attributes(), associatedTypeAllowedAttributes)
 	}
 
 	// Methods

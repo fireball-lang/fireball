@@ -29,17 +29,7 @@ func (e *Env) Strip(f *ast.File) {
 
 	// Imports
 
-	var imports []*ast.Import
-
-	for _, import_ := range f.Imports {
-		if shouldKeep(e, import_) {
-			imports = append(imports, import_)
-		} else {
-			f.Stripped = append(f.Stripped, import_.Range_)
-		}
-	}
-
-	f.Imports = imports
+	f.Imports = getStrippedSlice(e, f, f.Imports)
 
 	// Decls
 
@@ -47,8 +37,17 @@ func (e *Env) Strip(f *ast.File) {
 
 	for _, decl := range f.Decls {
 		if shouldKeep(e, decl) {
-			if impl, ok := decl.(*ast.Impl); ok {
-				e.stripImpl(f, impl)
+			switch decl := decl.(type) {
+			case *ast.Struct:
+				decl.Fields = getStrippedSlice(e, f, decl.Fields)
+
+			case *ast.Interface:
+				decl.AssociatedTypes = getStrippedSlice(e, f, decl.AssociatedTypes)
+				decl.Methods = getStrippedSlice(e, f, decl.Methods)
+
+			case *ast.Impl:
+				decl.AssociatedTypes = getStrippedSlice(e, f, decl.AssociatedTypes)
+				decl.Methods = getStrippedSlice(e, f, decl.Methods)
 			}
 
 			decls = append(decls, decl)
@@ -60,21 +59,21 @@ func (e *Env) Strip(f *ast.File) {
 	f.Decls = decls
 }
 
-func (e *Env) stripImpl(f *ast.File, impl *ast.Impl) {
-	var methods []*ast.Func
+func getStrippedSlice[T ast.AttributeHolder](e *Env, f *ast.File, original []T) []T {
+	var nodes []T
 
-	for _, method := range impl.Methods {
-		if shouldKeep(e, method) {
-			methods = append(methods, method)
+	for _, node := range original {
+		if shouldKeep(e, node) {
+			nodes = append(nodes, node)
 		} else {
-			f.Stripped = append(f.Stripped, method.Range())
+			f.Stripped = append(f.Stripped, node.Range())
 		}
 	}
 
-	impl.Methods = methods
+	return nodes
 }
 
-func shouldKeep[N interface{ Attributes() []ast.Attribute }](e *Env, node N) bool {
+func shouldKeep[T ast.AttributeHolder](e *Env, node T) bool {
 	if cfg := ast.GetAttribute[*ast.Cfg](node); cfg != nil {
 		return e.Visit(cfg.Predicate)
 	}

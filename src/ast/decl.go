@@ -8,16 +8,21 @@ import (
 )
 
 type Decl interface {
-	Node
+	AttributeHolder
 
 	Documentation() []*Leaf
-	Attributes() []Attribute
 	Name() *Leaf
 
 	_isDecl()
 }
 
-func GetAttribute[A Attribute, N interface{ Attributes() []Attribute }](node N) A {
+type AttributeHolder interface {
+	Node
+
+	Attributes() []Attribute
+}
+
+func GetAttribute[A Attribute, N AttributeHolder](node N) A {
 	for _, attribute := range node.Attributes() {
 		if attr, ok := attribute.(A); ok {
 			return attr
@@ -98,6 +103,7 @@ type Field struct {
 	baseNode
 
 	Documentation []*Leaf
+	Attributes_   []Attribute
 	Public        bool
 
 	Name *Leaf
@@ -111,11 +117,20 @@ func (f *Field) Children() iter.Seq[Node] {
 				return
 			}
 		}
+		for _, attribute := range f.Attributes_ {
+			if !yield(attribute) {
+				return
+			}
+		}
 		if !yield(f.Name) {
 			return
 		}
 		yield(f.Type)
 	}
+}
+
+func (f *Field) Attributes() []Attribute {
+	return f.Attributes_
 }
 
 // Enum
@@ -336,6 +351,7 @@ type AssociatedType struct {
 	baseNode
 
 	Documentation []*Leaf
+	Attributes_   []Attribute
 
 	Name *Leaf
 	Type Type // nil for interface, non-nil for implementation block
@@ -348,6 +364,11 @@ func (a *AssociatedType) Children() iter.Seq[Node] {
 				return
 			}
 		}
+		for _, attribute := range a.Attributes_ {
+			if !yield(attribute) {
+				return
+			}
+		}
 		if !yield(a.Name) {
 			return
 		}
@@ -355,6 +376,10 @@ func (a *AssociatedType) Children() iter.Seq[Node] {
 			return
 		}
 	}
+}
+
+func (a *AssociatedType) Attributes() []Attribute {
+	return a.Attributes_
 }
 
 // GlobalVar
