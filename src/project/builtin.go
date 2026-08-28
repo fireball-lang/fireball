@@ -21,6 +21,12 @@ func GetBuiltins(projMap map[string]*Project) fb_core.Builtins {
 	}
 	builtins.StringView = symbol.Type.(*types.Struct)
 
+	symbol, ok = proj.Module.GetSymbol(symbols.Type, "Option")
+	if !ok {
+		panic("project.GetBuiltins() - Failed to get 'core::Option' type")
+	}
+	builtins.Option = symbol.Type.(*types.Struct)
+
 	symbol, ok = proj.Module.GetSymbol(symbols.Type, "Zeroable")
 	if !ok {
 		panic("project.GetBuiltins() - Failed to get 'core::Zeroable' type")

@@ -7,6 +7,7 @@ import (
 
 type Builtins struct {
 	StringView *types.Struct
+	Option     *types.Struct
 
 	Zeroable *types.Interface
 

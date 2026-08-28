@@ -796,7 +796,8 @@ func (c *codegen) VisitCall(e *ast.Call) ir.Value {
 }
 
 func (c *codegen) VisitCast(e *ast.Cast) ir.Value {
-	to := c.ExprType(e)
+	to := c.ResolveType(c.nodeTypes[e.Type])
+	final := c.ExprType(e)
 
 	kind, _ := sema.GetExplicitCast(c.typeEnv, c.ExprInfo(e.Expr), to)
 
@@ -808,7 +809,7 @@ func (c *codegen) VisitCast(e *ast.Cast) ir.Value {
 	// Normal
 	value := c.Load(e.Expr)
 
-	return c.Cast(value, kind, c.ExprInfo(e.Expr), to, e)
+	return c.Cast(value, kind, c.ExprInfo(e.Expr), to, final, e)
 }
 
 func (c *codegen) VisitBadExpr(_ *ast.BadExpr) ir.Value {
@@ -919,12 +920,12 @@ func (c *codegen) LoadImplicitCast(expr ast.Expr, typ types.Type) ir.Value {
 
 	// Normal
 	value := c.Load(expr)
-	return c.Cast(value, kind, from, typ, expr)
+	return c.Cast(value, kind, from, typ, typ, expr)
 }
 
 func (c *codegen) ImplicitCast(value ir.Value, from sema.ExprInfo, to types.Type, errNode ast.Node) ir.Value {
 	if kind, ok := sema.GetImplicitCast(c.typeEnv, from, to); ok {
-		value = c.Cast(value, kind, from, to, errNode)
+		value = c.Cast(value, kind, from, to, to, errNode)
 	}
 
 	return value
@@ -954,7 +955,7 @@ func (c *codegen) CastArrayToSlice(expr ast.Expr, to types.Type) ir.Value {
 	return sb.Build()
 }
 
-func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, to types.Type, errNode ast.Node) ir.Value {
+func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, to, final types.Type, errNode ast.Node) ir.Value {
 	if kind == sema.Noop {
 		return value
 	}
@@ -1150,7 +1151,7 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 		c.emitter.Begin(exit)
 		value = c.emitter.Phi(ir.PhiPair{Block: valid, Value: value}, ir.PhiPair{Block: start, Value: &ir.Null{}})
 
-	case sema.InterfaceToInterface:
+	case sema.InterfaceToOptionReference:
 		_, dataI := c.types.Get(types.InterfaceUnderlying).(ir.StructLikeType).Field("data")
 		if dataI < 0 {
 			panic("codegen.codegen.VisitBinary() - Failed to find 'data' field on 'core::Interface'")
@@ -1158,8 +1159,43 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 
 		// Check pointer for null
 		start := c.emitter.Block()
-		valid := c.fun.NewBlock("interface_to_pointer.valid")
-		exit := c.fun.NewBlock("interface_to_pointer.exit")
+		valid := c.fun.NewBlock("interface_to_ref.valid")
+		exit := c.fun.NewBlock("interface_to_ref.exit")
+
+		dataPtr := c.emitter.ExtractValue(value, uint32(dataI))
+
+		isNull := c.emitter.ICmp(ir.Eq, false, dataPtr, &ir.Null{})
+		c.emitter.BrCond(isNull, exit, valid)
+
+		// Valid
+		c.emitter.Begin(valid)
+		pointee, _ := getPointee(to)
+		value = c.SafeInterfaceToPointer(value, pointee)
+		valid = c.emitter.Block()
+		c.emitter.Br(exit)
+
+		// Exit
+		c.emitter.Begin(exit)
+		value = c.emitter.Phi(ir.PhiPair{Block: valid, Value: value}, ir.PhiPair{Block: start, Value: &ir.Null{}})
+
+		// Create an option
+		sb := c.Struct(final.(*types.Struct))
+
+		sb.Set("has_value", c.emitter.ICmp(ir.Ne, false, value, &ir.Null{}))
+		sb.Set("value", value)
+
+		value = sb.Build()
+
+	case sema.InterfaceToOptionInterface:
+		_, dataI := c.types.Get(types.InterfaceUnderlying).(ir.StructLikeType).Field("data")
+		if dataI < 0 {
+			panic("codegen.codegen.VisitBinary() - Failed to find 'data' field on 'core::Interface'")
+		}
+
+		// Check pointer for null
+		start := c.emitter.Block()
+		valid := c.fun.NewBlock("interface_to_interface.valid")
+		exit := c.fun.NewBlock("interface_to_interface.exit")
 
 		dataPtr := c.emitter.ExtractValue(value, uint32(dataI))
 
@@ -1210,7 +1246,17 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 
 		// Exit
 		c.emitter.Begin(exit)
-		value = c.emitter.Phi(ir.PhiPair{Block: valid, Value: value}, ir.PhiPair{Block: start, Value: &ir.ZeroInitializer{Typ: toTyp}})
+		value = c.emitter.Phi(ir.PhiPair{Block: valid, Value: value}, ir.PhiPair{Block: start, Value: &ir.ZeroInitializer{Typ: c.types.Get(types.InterfaceUnderlying)}})
+
+		// Create an option
+		sb := c.Struct(final.(*types.Struct))
+
+		dataPtr = c.emitter.ExtractValue(value, uint32(dataI))
+
+		sb.Set("has_value", c.emitter.ICmp(ir.Ne, false, dataPtr, &ir.Null{}))
+		sb.Set("value", value)
+
+		value = sb.Build()
 
 	case sema.TypeToOption:
 		to := to.(*types.Struct)

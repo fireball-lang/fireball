@@ -911,8 +911,19 @@ func (a *analyzer) VisitCast(c *ast.Cast) ExprInfo {
 		return ExprInfo{Type: types.Invalid}
 	}
 
-	if _, ok := GetExplicitCast(a.typeEnv, expr, to); ok {
-		return ExprInfo{Type: to}
+	if kind, ok := GetExplicitCast(a.typeEnv, expr, to); ok {
+		switch kind {
+		case InterfaceToOptionReference, InterfaceToOptionInterface:
+			opt := a.instantiations.Get(a.builtins.Option, []types.Substitution{{
+				Param: a.builtins.Option.TypeParams[0],
+				Type:  to,
+			}})
+
+			return ExprInfo{Type: opt}
+
+		default:
+			return ExprInfo{Type: to}
+		}
 	}
 
 	return a.Error(c, "'%s' cannot be cast to '%s'", expr.Type, to)

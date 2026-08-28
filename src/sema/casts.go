@@ -28,8 +28,9 @@ const (
 	ReferenceToInterface
 
 	PointerToInterface
+	InterfaceToOptionReference
 	InterfaceToPointer
-	InterfaceToInterface
+	InterfaceToOptionInterface
 
 	TypeToOption
 	ImplicitAs
@@ -275,6 +276,15 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 
 	case *types.Interface:
 		switch to := to.(type) {
+		case *types.Reference:
+			if slices.Contains(env.GetConformances(to.Pointee), fromT.AsImmutable()) {
+				if !fromT.Mutable && to.Mutable {
+					break
+				}
+
+				return InterfaceToOptionReference, true
+			}
+
 		case *types.Pointer:
 			if slices.Contains(env.GetConformances(to.Pointee), fromT.AsImmutable()) {
 				if !fromT.Mutable && to.Mutable {
@@ -289,7 +299,7 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 				break
 			}
 
-			return InterfaceToInterface, true
+			return InterfaceToOptionInterface, true
 		}
 	}
 
@@ -451,6 +461,7 @@ func GetImplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 				return Noop, true
 			}
 		}
+
 	case *types.Interface:
 		if to, ok := to.(*types.Interface); ok && !to.Mutable && fromT.Mutable && fromT.AsImmutable() == to {
 			return Noop, true
