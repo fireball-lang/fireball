@@ -201,7 +201,7 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 		typ = t.Pointee
 
 	case *types.Func:
-		return []*types.Interface{e.builtins.Zeroable}
+		return []*types.Interface{}
 
 	case *types.Enum:
 		result = []*types.Interface{e.builtins.Zeroable}

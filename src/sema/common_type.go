@@ -202,6 +202,7 @@ func (c *common) VisitOptionType(t *ast.OptionType) types.Type {
 		panic("sema.common.VisitOptionType() - Failed to find 'core::Option'")
 	}
 
+	c.nodeTypes[t] = symbol.Type
 	return symbol.Type
 }
 
@@ -230,6 +231,7 @@ func (c *common) VisitSliceType(t *ast.SliceType) types.Type {
 		panic("sema.common.VisitSliceType() - Failed to find 'core::" + name + "'")
 	}
 
+	c.nodeTypes[t] = symbol.Type
 	return symbol.Type
 }
 

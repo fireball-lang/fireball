@@ -19,7 +19,7 @@ func testRecursion() bool {
 	return factorial(5) == 120;
 }
 
-// --- function pointers ---
+// --- function references ---
 
 func is_positive(v: i32) bool {
 	return v > 0;
@@ -39,70 +39,67 @@ impl[T] Wrapper[T] {
 	}
 }
 
-// Higher-order helper: takes a function pointer as an argument.
+// Higher-order helper: takes a function reference as an argument.
 func apply(callback: func(i32) bool, v: i32) bool {
 	return callback(v);
 }
 
-// Returns a function pointer.
+// Returns a function reference.
 func makePred() func(i32) bool {
 	return is_positive;
 }
 
-// Struct holding a function pointer in a field.
+// Struct holding a function reference in a field.
 struct CallbackHolder {
 	pred: func(i32) bool,
 }
 
-#[test("call function pointer")]
-func callFunctionPointer() bool {
+#[test("call function reference")]
+func callFunctionReference() bool {
 	var fn: func(i32) bool = is_positive;
 	return fn(5);
 }
 
-#[test("call function pointer assigned from a method")]
-func methodFunctionPointer() bool {
+#[test("call function reference assigned from a method")]
+func methodFunctionReference() bool {
 	var wrapper = Wrapper:[i32] { value: 5 };
 	var fn = wrapper.get;
 	return fn(&wrapper) == 5;
 }
 
-#[test("function pointer with explicit type annotation and multiple args")]
-func funcPointerTypeAnnotation() bool {
+#[test("function reference with explicit type annotation and multiple args")]
+func funcRefTypeAnnotation() bool {
 	var pred: func(i32) bool = is_positive;
 	var addFn: func(i32, i32) i32 = add;
 
 	return pred(5) && addFn(2, 3) == 5;
 }
 
-#[test("function pointer passed as an argument (higher-order)")]
-func funcPointerAsArgument() bool {
+#[test("function reference passed as an argument (higher-order)")]
+func funcRefAsArgument() bool {
 	var pred: func(i32) bool = is_positive;
 	return apply(pred, 5) && apply(is_positive, -3) == false;
 }
 
-#[test("mutable method assigned to function pointer")]
-func mutableMethodFunctionPointer() bool {
+#[test("mutable method assigned to function reference")]
+func mutableMethodFunctionReference() bool {
 	var wrapper = Wrapper:[i32] { value: 5 };
-	var setter: func(mut &Wrapper[i32], i32);
-	setter = wrapper.set;
+	var setter: func(mut &Wrapper[i32], i32) = wrapper.set;
 	setter(&wrapper, 9);
 
-	var getter: func(&Wrapper[i32]) i32;
-	getter = wrapper.get;
+	var getter: func(&Wrapper[i32]) i32 = wrapper.get;
 	return getter(&wrapper) == 9;
 }
 
-#[test("function returning a function pointer")]
-func funcPointerReturn() bool {
+#[test("function returning a function reference")]
+func funcRefReturn() bool {
 	var pred = makePred();
 	return pred(4);
 }
 
-#[test("function pointer stored in a struct field")]
-func funcPointerInStructField() bool {
-	var h: CallbackHolder;
-	h.pred = is_positive;
+#[test("function reference stored in a struct field")]
+func funcRefInStructField() bool {
+	var h = CallbackHolder { pred: is_positive };
 	return h.pred(7);
 }
 
@@ -114,9 +111,23 @@ func doubleIt(v: i32) i32 {
 	return v * 2;
 }
 
-#[test("function pointer field takes precedence over same-named method when called")]
-func funcPointerFieldOverMethod() bool {
-	var h: NamedHolder;
-	h.run = doubleIt;
+#[test("function reference field takes precedence over same-named method when called")]
+func funcRefFieldOverMethod() bool {
+	var h = NamedHolder { run: doubleIt };
 	return h.run(21) == 42;
+}
+
+func sum(a: i32, b: i32) i32 {
+	return a + b;
+}
+
+#[test("optional function reference")]
+func optionalFuncRef() bool {
+	var none: ?func(i32, i32) i32;
+	if (!none.is_none()) return false;
+
+	var some: ?func(i32, i32) i32 = sum;
+	if (!some.is_some()) return false;
+
+	return some.unwrap()(2, 3) == 5;
 }

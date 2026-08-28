@@ -264,21 +264,7 @@ func testExplicitVoidPtrToFunc() bool {
     return f(2, 3) == 5;
 }
 
-// --- CommonType: func <-> *void (via equality) ---
-
-#[test("common: func == *void (null)")]
-func testCommonFuncVsVoidPtr() bool {
-    var f: func(i32, i32) i32 = sum;
-    return f != null && null != f;
-}
-
 // --- Null literal ---
-
-#[test("null function pointer")]
-func testNullFuncPtr() bool {
-    var f: func(i32, i32) i32 = null;
-    return f == null && null == f;
-}
 
 #[test("null equals null")]
 func testNullEqualsNull() bool {
@@ -289,10 +275,6 @@ func takesPtr(p: *i32) bool {
     return p == null;
 }
 
-func takesFunc(f: func(i32, i32) i32) bool {
-    return f == null;
-}
-
 func returnsNullPtr() *i32 {
 	return null;
 }
@@ -300,11 +282,6 @@ func returnsNullPtr() *i32 {
 #[test("null literal as pointer argument")]
 func testNullPtrArg() bool {
 	return takesPtr(null);
-}
-
-#[test("null literal as function pointer argument")]
-func testNullFuncArg() bool {
-	return takesFunc(null);
 }
 
 #[test("null literal returned from pointer function")]

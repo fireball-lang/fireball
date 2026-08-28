@@ -460,7 +460,7 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 		switch left.Type.(type) {
 		case *types.Null, *types.Integer, *types.Primitive, *types.Reference, *types.Pointer, *types.Func, *types.Enum, *types.Interface:
 		default:
-			return a.Error(b, "equality operators only work on primitive types, references, pointers, function pointers or enums, not %s", left.Type)
+			return a.Error(b, "equality operators only work on primitive types, references, pointers, function references or enums, not %s", left.Type)
 		}
 
 		return ExprInfo{Type: types.PrimitiveBool}
@@ -1027,16 +1027,12 @@ func (a *analyzer) WantsFunction(node ast.Node) bool {
 	switch parent := node.Parent().(type) {
 	case *ast.Var:
 		if parent.Initializer == node && !core.IsNil(parent.Type) {
-			if _, ok := a.ResolveAndAnalyzeType(parent.Type).(*types.Func); ok {
-				return true
-			}
+			return a.TypeWantsFunction(a.ResolveAndAnalyzeType(parent.Type))
 		}
 
 	case *ast.Return:
 		f := ast.GetClosestParent[*ast.Func](parent)
-		if _, ok := a.nodeTypes[f].(*types.Func).Returns.(*types.Func); ok {
-			return true
-		}
+		return a.TypeWantsFunction(a.nodeTypes[f].(*types.Func).Returns)
 
 	case *ast.Call:
 		if parent.Callee == node {
@@ -1046,26 +1042,33 @@ func (a *analyzer) WantsFunction(node ast.Node) bool {
 		for i, arg := range parent.Args {
 			if arg == node {
 				if f, ok := a.AnalyzeExpr(parent.Callee).Type.(*types.Func); ok && i < len(f.Params) {
-					_, ok := f.Params[i].(*types.Func)
-					return ok
+					return a.TypeWantsFunction(f.Params[i])
 				}
 			}
 		}
 
 	case *ast.Binary:
 		if parent.Op == ast.Assign && parent.Right == node {
-			if _, ok := a.exprInfos[parent.Left].Type.(*types.Func); ok {
-				return true
-			}
+			return a.TypeWantsFunction(a.exprInfos[parent.Left].Type)
 		}
 
 	case *ast.Cast:
-		if _, ok := a.ResolveAndAnalyzeType(parent.Type).(*types.Func); ok {
-			return true
-		}
+		return a.TypeWantsFunction(a.ResolveAndAnalyzeType(parent.Type))
+
+	case *ast.FieldInitializer:
+		return a.TypeWantsFunction(a.exprInfos[parent].Type)
 	}
 
 	return false
+}
+
+func (a *analyzer) TypeWantsFunction(typ types.Type) bool {
+	if inner := getOptionInnerType(typ); inner != nil {
+		typ = inner
+	}
+
+	_, ok := typ.(*types.Func)
+	return ok
 }
 
 func (a *analyzer) AnalyzeExpr(expr ast.Expr) ExprInfo {

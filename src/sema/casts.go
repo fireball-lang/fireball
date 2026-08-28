@@ -62,7 +62,7 @@ func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
 	switch a := a.(type) {
 	case *types.Null:
 		switch b.(type) {
-		case *types.Null, *types.Pointer, *types.Func:
+		case *types.Null, *types.Pointer:
 			return a.Underlying()
 
 		case *types.Interface:
@@ -142,8 +142,10 @@ func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
 
 	case *types.Func:
 		switch b := b.(type) {
-		case *types.Null:
-			return b.Underlying()
+		case *types.Reference:
+			if b.Pointee == types.PrimitiveVoid {
+				return b
+			}
 
 		case *types.Pointer:
 			if b.Pointee == types.PrimitiveVoid {
@@ -253,19 +255,16 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 				return PointerToInt, true
 			}
 
-		case *types.Reference:
+		case *types.Reference, *types.Func:
 			return PointerToReference, true
 
-		case *types.Pointer, *types.Func:
+		case *types.Pointer:
 			return Noop, true
 		}
 
 	case *types.Func:
 		switch to.(type) {
-		case *types.Reference:
-			return PointerToReference, true
-
-		case *types.Pointer, *types.Func:
+		case *types.Reference, *types.Pointer, *types.Func:
 			return Noop, true
 		}
 
@@ -305,7 +304,7 @@ func GetImplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 	switch fromT := from.Type.(type) {
 	case *types.Null:
 		switch to.(type) {
-		case *types.Pointer, *types.Func:
+		case *types.Pointer:
 			return Noop, true
 
 		case *types.Interface:
@@ -441,10 +440,17 @@ func GetImplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 		}
 
 	case *types.Func:
-		if to, ok := to.(*types.Pointer); ok && to.Pointee == types.PrimitiveVoid {
-			return Noop, true
-		}
+		switch to := to.(type) {
+		case *types.Reference:
+			if to.Pointee == types.PrimitiveVoid {
+				return Noop, true
+			}
 
+		case *types.Pointer:
+			if to.Pointee == types.PrimitiveVoid {
+				return Noop, true
+			}
+		}
 	case *types.Interface:
 		if to, ok := to.(*types.Interface); ok && !to.Mutable && fromT.Mutable && fromT.AsImmutable() == to {
 			return Noop, true
