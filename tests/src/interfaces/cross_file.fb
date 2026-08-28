@@ -19,9 +19,10 @@ func testCrossFileAddition() bool {
 	var b: Constant;
 	b.value = 6;
 
-	var add: Addition;
-	add.left = &a;
-	add.right = &b;
+	var add = Addition {
+		left: &a,
+		right: &b,
+	};
 
 	var g: Getter = &add;
 	return g.get() == 10;
@@ -63,8 +64,9 @@ func testCrossFileWrapperDedup() bool {
 	inner.value = 42;
 	inner.live = true;
 
-	var w: Wrapper[i32];
-	w.inner = &inner;
+	var w = Wrapper:[i32] {
+		inner: &inner,
+	};
 
 	var n: Number[i32] = &w;
 	return n.get() == 42 && n.valid() == true;

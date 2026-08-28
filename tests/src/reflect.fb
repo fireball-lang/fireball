@@ -263,10 +263,10 @@ func typeofGenericDeclName() bool {
 
 #[test("typeof implements interface")]
 func typeofImplements() bool {
-	return typeof(Label).get_vtable(typeof(Named)) != null;
+	return typeof(Label).get_vtable(typeof(Named)).is_some();
 }
 
 #[test("typeof does not implement unrelated interface")]
 func typeofNotImplements() bool {
-	return typeof(Point).get_vtable(typeof(Named)) == null;
+	return typeof(Point).get_vtable(typeof(Named)).is_none();
 }

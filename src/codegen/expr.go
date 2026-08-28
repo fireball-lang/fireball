@@ -1089,41 +1089,25 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 	case sema.PointerToReference:
 		c.CheckNull(value, errNode, "encountered a null pointer when converting '%s' to '%s'", from.Type, to)
 
-	case sema.ReferenceToInterface, sema.PointerToInterface:
-		typ := c.types.Get(to)
+	case sema.ReferenceToInterface:
+		pointee, _ := getPointee(from.Type)
+		sb := c.Struct(types.InterfaceUnderlying)
 
-		if pointee, ok := getPointee(from.Type); ok && pointee == types.PrimitiveVoid {
-			value = &ir.ZeroInitializer{Typ: typ}
-		} else {
-			// Check pointer for null
-			null := c.fun.NewBlock("ptr_to_interface.null")
-			valid := c.fun.NewBlock("ptr_to_interface.valid")
-			exit := c.fun.NewBlock("ptr_to_interface.exit")
+		sb.Set("data", value)
+		sb.Set("vtable", c.GetVTable(to.(*types.Interface), pointee))
 
-			isNull := c.emitter.ICmp(ir.Eq, false, value, &ir.Null{})
-			c.emitter.BrCond(isNull, null, valid)
+		value = sb.Build()
 
-			// Null
-			c.emitter.Begin(null)
-			nullValue := &ir.ZeroInitializer{Typ: typ}
-			c.emitter.Br(exit)
+	case sema.PointerToInterface:
+		c.CheckNull(value, errNode, "encountered a null pointer when converting '%s' to '%s'", from.Type, to)
 
-			// Valid
-			c.emitter.Begin(valid)
+		pointee, _ := getPointee(from.Type)
+		sb := c.Struct(types.InterfaceUnderlying)
 
-			pointee, _ := getPointee(from.Type)
+		sb.Set("data", value)
+		sb.Set("vtable", c.GetVTable(to.(*types.Interface), pointee))
 
-			validSb := c.Struct(types.InterfaceUnderlying)
-			validSb.Set("data", value)
-			validSb.Set("vtable", c.GetVTable(to.(*types.Interface), pointee))
-			validValue := validSb.Build()
-
-			c.emitter.Br(exit)
-
-			// Exit
-			c.emitter.Begin(exit)
-			value = c.emitter.Phi(ir.PhiPair{Block: null, Value: nullValue}, ir.PhiPair{Block: valid, Value: validValue})
-		}
+		value = sb.Build()
 
 	case sema.InterfaceToPointer:
 		_, dataI := c.types.Get(types.InterfaceUnderlying).(ir.StructLikeType).Field("data")
@@ -1192,6 +1176,11 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			panic("codegen.codegen.VisitBinary() - Failed to find 'data' field on 'core::Interface'")
 		}
 
+		_, valueI := c.types.Get(final).(ir.StructLikeType).Field("value")
+		if valueI < 0 {
+			panic("codegen.codegen.VisitBinary() - Failed to find 'value' field on 'core::Option'")
+		}
+
 		// Check pointer for null
 		start := c.emitter.Block()
 		valid := c.fun.NewBlock("interface_to_interface.valid")
@@ -1227,7 +1216,8 @@ func (c *codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			c.AddSummaryCallee(f, typ, nil, true)
 			receiver := srcTypeInfoPtr
 
-			vtable := c.EmitCall(callee, sig, typ, receiver, []ir.Value{targetTypeInfoPtr}, []types.Type{&types.Pointer{Pointee: c.builtins.TypeInfo}}, typ.Returns)
+			vtableOpt := c.EmitCall(callee, sig, typ, receiver, []ir.Value{targetTypeInfoPtr}, []types.Type{&types.Pointer{Pointee: c.builtins.TypeInfo}}, typ.Returns)
+			vtable := c.emitter.ExtractValue(vtableOpt, uint32(valueI))
 			isTarget := c.emitter.ICmp(ir.Ne, false, vtable, &ir.ZeroInitializer{Typ: ir.I64})
 
 			// Extract pointer or null

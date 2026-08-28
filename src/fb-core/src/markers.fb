@@ -4,8 +4,8 @@ mod core;
 
 /// This is a marker interface (meaning it has no methods) that is usually automatically implemented on types by the compiler.
 /// Types that implement this interface can be zero-initialized by variables with no initializers.
-/// - Primitives, Pointers, Enums, Functions and Interfaces are always `Zeroable`.
-/// - References are *NOT* `Zeroable`.
+/// - Primitives, Pointers and Enums are always `Zeroable`.
+/// - References, Functions and Interfaces are *NOT* `Zeroable`.
 /// - Arrays are `Zeroable` if their inner type is `Zeroable`.
 /// - Structs are `Zeroable` if all their fields are `Zeroable` (unless overwritten by a manually implementation, see below),
 ///   and if no field has the `required` attribute.

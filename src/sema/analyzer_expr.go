@@ -85,8 +85,19 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 		a.Error(s.Type, "when initializing an union struct, only one field can be set at most")
 	}
 
+	// Check for required and non Zeroable fields that are not initialized
+	skipZeroableFieldChecks := slices.Contains(a.typeEnv.GetConformances(t), a.builtins.Zeroable)
+
 	for _, field := range t.Fields {
-		if !field.Required {
+		kind := ""
+
+		if field.Required {
+			kind = "required"
+		} else if !skipZeroableFieldChecks && !slices.Contains(a.typeEnv.GetConformances(field.Type), a.builtins.Zeroable) {
+			kind = "non Zeroable"
+		}
+
+		if kind == "" {
 			continue
 		}
 
@@ -100,7 +111,7 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 		}
 
 		if !ok {
-			a.Error(s.Type, "struct '%s' has a required field '%s' that is not initialized", t, field.Name)
+			a.Error(s.Type, "struct '%s' has a %s field '%s' that is not initialized", t, kind, field.Name)
 		}
 	}
 

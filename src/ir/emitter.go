@@ -536,6 +536,9 @@ func (e *Emitter) ICmp(op CmpOp, signed bool, left, right Value) Instruction {
 		return dummy
 	}
 
+	assertIntegerOrPointerType(left.Type(), 0, 255)
+	assertIntegerOrPointerType(right.Type(), 0, 255)
+
 	return emit(e, &ICmp{
 		Op:     op,
 		Signed: signed,
@@ -636,6 +639,23 @@ func assertSimpleType(typ Type, kinds ...SimpleKind) {
 func assertIntegerType(typ Type, minBits, maxBits uint8) {
 	if typ, ok := typ.(*IntegerType); !ok || typ.Bits < minBits || typ.Bits > maxBits {
 		panic(fmt.Sprintf("ir.Emitter.() - Required a i%d - i%d, got %s", minBits, maxBits, reflect.TypeOf(typ).String()))
+	}
+}
+
+func assertIntegerOrPointerType(typ Type, minBits, maxBits uint8) {
+	var bits uint8
+
+	switch typ := typ.(type) {
+	case *IntegerType:
+		bits = typ.Bits
+	case *SimpleType:
+		if typ.Kind == PointerKind {
+			bits = 64
+		}
+	}
+
+	if bits == 0 || bits < minBits || bits > maxBits {
+		panic(fmt.Sprintf("ir.Emitter.() - Required a i%d - i%d (or a pointer), got %s", minBits, maxBits, reflect.TypeOf(typ).String()))
 	}
 }
 

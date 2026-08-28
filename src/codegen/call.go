@@ -67,8 +67,6 @@ func (c *codegen) ResolveInterfaceCallee(m *ast.Member) (callee ir.Value, receiv
 
 func (c *codegen) LookupInterfaceMethod(iface *types.Interface, interfaceValue ir.Value, methodName string, node ast.Node) (callee ir.Value, receiver ir.Value) {
 	receiver = c.emitter.ExtractValue(interfaceValue, 0)
-	c.CheckNull(receiver, node, "encountered a null pointer when calling a method on '%s'", iface)
-
 	vtablePtr := c.emitter.ExtractValue(interfaceValue, 1)
 
 	methodIndex := -1

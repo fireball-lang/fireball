@@ -221,7 +221,7 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 		}
 
 	case *types.Interface:
-		return []*types.Interface{e.builtins.Zeroable}
+		return []*types.Interface{}
 
 	case *types.Param:
 		return t.Constraints

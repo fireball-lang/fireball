@@ -46,15 +46,6 @@ func concreteToInterface() bool {
 	return animal.get() == 5;
 }
 
-#[test("concrete -> interface (null)")]
-func concreteToInterfaceNull() bool {
-	var cat: *Cat = null;
-
-	var animal: Animal = cat;
-
-	return animal == null;
-}
-
 #[test("mut concrete -> mut interface")]
 func mutConcreteToMutInterface() bool {
 	var cat = Cat { foo: 5 };
@@ -63,6 +54,37 @@ func mutConcreteToMutInterface() bool {
 	animal.set(6);
 
 	return cat.foo == 6;
+}
+
+#[test("concrete -> interface (explicit pointer cast)")]
+func concreteToInterfaceExplicitPtr() bool {
+	var cat = Cat { foo: 5 };
+
+	var p: *Cat = &cat;
+	var animal: Animal = p as Animal;
+
+	return animal.get() == 5;
+}
+
+#[test("mut concrete -> mut interface (explicit mut pointer cast)")]
+func mutConcreteToMutInterfaceExplicitPtr() bool {
+	var cat = Cat { foo: 5 };
+
+	var p: mut *Cat = &cat;
+	var animal: mut Animal = p as mut Animal;
+	animal.set(6);
+
+	return cat.foo == 6;
+}
+
+#[test("concrete -> interface (explicit reference cast)")]
+func concreteToInterfaceExplicitRef() bool {
+	var cat = Cat { foo: 5 };
+
+	var r: &Cat = &cat;
+	var animal: Animal = r as Animal;
+
+	return animal.get() == 5;
 }
 
 #[test("interface -> *concrete (valid)")]
@@ -131,40 +153,6 @@ func interfaceToRefConcreteInvalid() bool {
 	return cat2.is_none();
 }
 
-#[test("interface -> *concrete (invalid, null literal)")]
-func interfaceToPtrConcreteInvalidNullLiteral() bool {
-	var animal: Animal = null;
-	var cat2 = animal as *Dog;
-
-	return cat2 == null;
-}
-
-#[test("interface -> &concrete (invalid, null literal)")]
-func interfaceToRefConcreteInvalidNullLiteral() bool {
-	var animal: Animal = null;
-	var cat2 = animal as &Dog;
-
-	return cat2.is_none();
-}
-
-#[test("interface -> *concrete (invalid, null)")]
-func interfaceToPtrConcreteInvalidNull() bool {
-	var cat1: *Cat = null;
-	var animal: Animal = cat1;
-	var cat2 = animal as *Dog;
-
-	return cat2 == null;
-}
-
-#[test("interface -> &concrete (invalid, null)")]
-func interfaceToRefConcreteInvalidNull() bool {
-	var cat1: *Cat = null;
-	var animal: Animal = cat1;
-	var cat2 = animal as &Dog;
-
-	return cat2.is_none();
-}
-
 #[test("mut interface -> mut *concrete (invalid)")]
 func mutInterfaceToMutPtrConcreteInvalid() bool {
 	var cat1 = Cat { foo: 5 };
@@ -205,19 +193,22 @@ func interfaceToInterfaceInvalid() bool {
 	return foo.is_none();
 }
 
-#[test("interface -> interface (null, literal)")]
-func interfaceToInterfaceNullLiteral() bool {
-	var animal: Animal = null;
-	var foo = animal as Foo;
+#[test("mut interface -> mut interface (valid)")]
+func mutInterfaceToMutInterfaceValid() bool {
+	var cat = Cat { foo: 5 };
 
-	return foo.is_none();
+	var animal: mut Animal = &cat;
+	var foo = animal as mut Foo;
+
+	return foo.unwrap().get_true();
 }
 
-#[test("interface -> interface (null)")]
-func interfaceToInterfaceNull() bool {
-	var cat: *Cat = null;
-	var animal: Animal = cat;
-	var foo = animal as Foo;
+#[test("mut interface -> mut interface (invalid)")]
+func mutInterfaceToMutInterfaceInvalid() bool {
+	var dog = Dog { foo: 5 };
+
+	var animal: mut Animal = &dog;
+	var foo = animal as mut Foo;
 
 	return foo.is_none();
 }

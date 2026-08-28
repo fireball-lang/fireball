@@ -33,7 +33,7 @@ var InterfaceUnderlying = &Struct{
 	Fields: []Field{
 		{
 			Name: "data",
-			Type: &Pointer{
+			Type: &Reference{
 				Mutable: true,
 				Pointee: PrimitiveVoid,
 			},
@@ -41,7 +41,7 @@ var InterfaceUnderlying = &Struct{
 		},
 		{
 			Name: "vtable",
-			Type: &Pointer{
+			Type: &Reference{
 				Mutable: false,
 				Pointee: PrimitiveVoid,
 			},

@@ -20,8 +20,8 @@ impl TypeKind {
 }
 
 struct Implementation {
-	type_info: *TypeInfo,
-	vtable: *void,
+	type_info: &TypeInfo,
+	vtable: &void,
 }
 
 /// Every possible type that a `TypeKind::Primitive` can represent.
@@ -131,7 +131,7 @@ impl TypeInfo {
 
 	/// Returns whenever the type `self` implements the interfaces `inter`.
 	/// This method returns *true* for marker interfaces that don't have any methods and thus don't have a vtable.
-	pub func implements(self, inter: *TypeInfo) bool {
+	pub func implements(self, inter: &TypeInfo) bool {
 		for (var i = 0u; i < self.implementations.size; i++) {
 			if (self.implementations[i].type_info == inter) return true;
 		}
@@ -139,15 +139,15 @@ impl TypeInfo {
 		return false;
 	}
 
-	/// Returns a pointer to the vtable of the implementation of the interface `inter` or null if the type doesn't implement it.
+	/// Returns a pointer to the vtable of the implementation of the interface `inter` or `None` if the type doesn't implement it.
 	/// This method returns *null* for marker interfaces that don't have any methods and thus don't have a vtable.
-	pub func get_vtable(self, inter: *TypeInfo) *void {
+	pub func get_vtable(self, inter: &TypeInfo) ?&void {
 		for (var i = 0u; i < self.implementations.size; i++) {
 			var imp = self.implementations[i];
 			if (imp.type_info == inter) return imp.vtable;
 		}
 
-		return null;
+		return Option:[&void]::none();
 	}
 
 	// Data
@@ -212,6 +212,6 @@ impl TypeInfo {
 ///
 /// The struct needs to match with `types.InterfaceUnderlying` in the compiler.
 pub struct Interface {
-	pub data: mut *void,
-	pub vtable: *void,
+	pub data: mut &void,
+	pub vtable: &void,
 }
