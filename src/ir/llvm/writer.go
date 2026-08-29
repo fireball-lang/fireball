@@ -225,18 +225,20 @@ func (w *writer) functions() error {
 func (w *writer) function(fun *ir.Function) error {
 	// Header
 	if fun.Flags&ir.Declare != 0 {
-		w.string("declare ")
+		w.string("declare")
 	} else {
-		w.string("define ")
+		w.string("define")
 	}
 
 	if fun.Flags&ir.LinkOnceODR != 0 {
-		w.string("linkonce_odr ")
+		w.string(" linkonce_odr")
 	}
 	if fun.Flags&ir.DsoLocal != 0 {
-		w.string("dso_local ")
+		w.string(" dso_local")
 	}
 
+	w.paramAttributes(fun.ReturnAttributes)
+	w.rune(' ')
 	w.typ(fun.Signature.Returns)
 	w.string(" @")
 	w.identifier(fun.Name)
@@ -255,9 +257,10 @@ func (w *writer) function(fun *ir.Function) error {
 			w.rune(')')
 		}
 
-		if len(fun.ParamNames) > 0 {
+		if len(fun.Params) > 0 {
+			w.paramAttributes(fun.Params[i].Attributes)
 			w.string(" %")
-			w.string(fun.ParamNames[i])
+			w.string(fun.Params[i].Name)
 		}
 	}
 
@@ -360,6 +363,18 @@ func (w *writer) function(fun *ir.Function) error {
 	}
 
 	return nil
+}
+
+func (w *writer) paramAttributes(attrs ir.ParamAttribute) {
+	if (attrs & ir.NonNull) != 0 {
+		w.string(" nonnull")
+	}
+	if (attrs & ir.ReadOnly) != 0 {
+		w.string(" readonly")
+	}
+	if (attrs & ir.WriteOnly) != 0 {
+		w.string(" writeonly")
+	}
 }
 
 func (w *writer) namedMetaNodes() error {

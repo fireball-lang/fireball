@@ -234,7 +234,15 @@ func (w *writer) instruction(in ir.Instruction) {
 		w.simpleInstruction3("select ", in.Condition, in.IfTrue, in.IfFalse)
 
 	case *ir.Call:
-		w.string("call ")
+		fun, direct := in.Callee.(*ir.Function)
+
+		w.string("call")
+
+		if direct {
+			w.paramAttributes(fun.ReturnAttributes)
+		}
+
+		w.rune(' ')
 		w.typ(in.Signature.Returns)
 
 		if _, direct := in.Callee.(*ir.Function); !direct || in.Signature.VarArgs {
@@ -268,6 +276,10 @@ func (w *writer) instruction(in ir.Instruction) {
 			}
 
 			w.typ(arg.Type())
+
+			if direct && i < len(fun.Params) {
+				w.paramAttributes(fun.Params[i].Attributes)
+			}
 
 			if i == 0 && !core.IsNil(in.Signature.SRet) {
 				w.string(" sret(")

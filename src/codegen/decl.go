@@ -77,7 +77,7 @@ func (c *codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 
 	// Parameters
 	for i, param := range params {
-		name := fun.ParamNames[paramI]
+		name := fun.Params[paramI].Name
 		value := fun.ParamValues[paramI]
 		typ := c.types.Get(param)
 
@@ -220,25 +220,35 @@ func (c *codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool, in 
 		VarArgs: f.VarArgs,
 	}
 
-	params := typ.Params
-	paramNames := make([]string, 0, len(f.Params)+1)
+	paramTypes := typ.Params
+	params := make([]ir.Param, 0, len(f.Params)+1)
 
 	if f.IsMethod() && f.Receiver != nil {
 		sig.Params = append(sig.Params, ir.Pointer)
-		paramNames = append(paramNames, "self")
-		params = params[1:]
+
+		params = append(params, ir.Param{
+			Name:       "self",
+			Attributes: getTypeParamAttributes(paramTypes[0]),
+		})
+
+		paramTypes = paramTypes[1:]
 	}
 
 	for i, param := range f.Params {
-		classes, info := c.callConv.Classify(c.arch, params[i])
+		classes, info := c.callConv.Classify(c.arch, paramTypes[i])
+		var attrs ir.ParamAttribute
 
 		if len(classes) == 1 && classes[0] == abi.Memory {
 			sig.Params = append(sig.Params, ir.Pointer)
+			attrs = ir.NonNull
 		} else {
 			sig.Params = append(sig.Params, getTypeForClasses(classes, info.Size))
 		}
 
-		paramNames = append(paramNames, param.Name.Token.Text)
+		params = append(params, ir.Param{
+			Name:       param.Name.Token.Text,
+			Attributes: attrs,
+		})
 	}
 
 	// Returns
@@ -250,14 +260,14 @@ func (c *codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool, in 
 			sig.SRet = c.types.Get(typ.Returns)
 
 			sig.Params = slices.Insert(sig.Params, 0, ir.Type(ir.Pointer))
-			paramNames = slices.Insert(paramNames, 0, "sret")
+			params = slices.Insert(params, 0, ir.Param{Name: "sret", Attributes: ir.NonNull | ir.WriteOnly})
 		} else {
 			sig.Returns = getTypeForClasses(classes, info.Size)
 		}
 	}
 
 	// Function
-	fun := c.module.NewFunction(name, sig, paramNames)
+	fun := c.module.NewFunction(name, sig, params)
 
 	if f.IsExtern() || declare {
 		fun.Flags = ir.Declare
@@ -292,4 +302,25 @@ func (c *codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool, in 
 	}
 
 	return fun
+}
+
+func getTypeParamAttributes(typ types.Type) ir.ParamAttribute {
+	switch typ := typ.(type) {
+	case *types.Reference:
+		if typ.Mutable {
+			return ir.NonNull
+		}
+
+		return ir.NonNull | ir.ReadOnly
+
+	case *types.Pointer:
+		if !typ.Mutable {
+			return ir.ReadOnly
+		}
+
+	case *types.Func:
+		return ir.NonNull | ir.ReadOnly
+	}
+
+	return 0
 }

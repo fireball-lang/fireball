@@ -98,7 +98,7 @@ func (w *writer) value(value ir.Value) {
 		w.rune('@')
 		w.identifier(value.Name)
 
-	case *ir.Param:
+	case *ir.ParamValue:
 		w.rune('%')
 		w.identifier(value.Name)
 

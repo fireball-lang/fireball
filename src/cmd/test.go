@@ -176,10 +176,10 @@ func testEntrypoint(projMap map[string]*project.Project, module *ir.Module, fun 
 	testPointers.Initializer = &ir.Array{Elements: tests}
 
 	// Lib C
-	putchar := module.NewFunction("putchar", &ir.Signature{Returns: ir.I32, Params: []ir.Type{ir.I32}}, []string{"char"})
+	putchar := module.NewFunction("putchar", &ir.Signature{Returns: ir.I32, Params: []ir.Type{ir.I32}}, []ir.Param{{Name: "char"}})
 	putchar.Flags = ir.Declare
 
-	fflush := module.NewFunction("fflush", &ir.Signature{Returns: ir.I32, Params: []ir.Type{ir.Pointer}}, []string{"file"})
+	fflush := module.NewFunction("fflush", &ir.Signature{Returns: ir.I32, Params: []ir.Type{ir.Pointer}}, []ir.Param{{Name: "file"}})
 	fflush.Flags = ir.Declare
 
 	// Entrypoint

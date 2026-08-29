@@ -168,7 +168,7 @@ func (c *codegen) GetIntrinsicFunction(intrinsic ir.Intrinsic) *ir.Function {
 	}
 
 	// Create extern function
-	fun := c.module.NewFunction(intrinsic.Name, intrinsic.Signature, intrinsic.ParamNames)
+	fun := c.module.NewFunction(intrinsic.Name, intrinsic.Signature, intrinsic.Params)
 	fun.Flags = ir.Declare
 
 	return fun

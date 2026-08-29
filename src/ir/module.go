@@ -98,21 +98,21 @@ func (m *Module) GlobalVars() iter.Seq[*GlobalVar] {
 
 // Functions
 
-func (m *Module) NewFunction(name string, sig *Signature, paramNames []string) *Function {
+func (m *Module) NewFunction(name string, sig *Signature, params []Param) *Function {
 	if m.SymbolExists(name) {
 		panic("ir.Module.NewFunction() - Symbol with the name '" + name + "' already exists")
 	}
 
-	if len(sig.Params) != len(paramNames) {
-		panic("ir.Module.NewFunction() - Count of parameter types and names does not match")
+	if len(sig.Params) != len(params) {
+		panic("ir.Module.NewFunction() - Count of parameter types and params does not match")
 	}
 
 	paramValues := make([]Value, len(sig.Params))
 
 	for i, param := range sig.Params {
-		paramValues[i] = &Param{
+		paramValues[i] = &ParamValue{
 			Typ:  param,
-			Name: paramNames[i],
+			Name: params[i].Name,
 		}
 	}
 
@@ -120,7 +120,7 @@ func (m *Module) NewFunction(name string, sig *Signature, paramNames []string) *
 		Module:      m,
 		Name:        name,
 		Signature:   sig,
-		ParamNames:  paramNames,
+		Params:      params,
 		ParamValues: paramValues,
 	}
 

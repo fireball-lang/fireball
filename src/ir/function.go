@@ -15,6 +15,14 @@ const (
 	LinkOnceODR
 )
 
+type ParamAttribute uint8
+
+const (
+	NonNull ParamAttribute = 1 << iota
+	ReadOnly
+	WriteOnly
+)
+
 type Signature struct {
 	Returns Type
 	SRet    Type
@@ -24,11 +32,16 @@ type Signature struct {
 }
 
 type Param struct {
+	Attributes ParamAttribute
+	Name       string
+}
+
+type ParamValue struct {
 	Typ  Type
 	Name string
 }
 
-func (p *Param) Type() Type {
+func (p *ParamValue) Type() Type {
 	return p.Typ
 }
 
@@ -36,10 +49,11 @@ type Function struct {
 	baseRuntimeValue
 	Module *Module
 
-	Name       string
-	Flags      FunctionFlags
-	Signature  *Signature
-	ParamNames []string
+	Name             string
+	Flags            FunctionFlags
+	Signature        *Signature
+	Params           []Param
+	ReturnAttributes ParamAttribute
 
 	ParamValues []Value
 	Blocks      []*Block
