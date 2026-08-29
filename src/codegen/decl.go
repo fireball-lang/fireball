@@ -203,12 +203,23 @@ func (c *codegen) CreateGlobalVar(g *ast.GlobalVar, typ types.Type, declare bool
 }
 
 func (c *codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool, in *types.Interface) *ir.Function {
+	// Check already created extern functions
+	name := FuncLinkName(f, typ, in)
+
+	if f.IsExtern() {
+		for fun := range c.module.Functions() {
+			if fun.Name == name {
+				return fun
+			}
+		}
+	}
+
+	// Params
 	sig := &ir.Signature{
 		Params:  make([]ir.Type, 0, len(f.Params)+1),
 		VarArgs: f.VarArgs,
 	}
 
-	// Params
 	params := typ.Params
 	paramNames := make([]string, 0, len(f.Params)+1)
 
@@ -246,7 +257,7 @@ func (c *codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool, in 
 	}
 
 	// Function
-	fun := c.module.NewFunction(FuncLinkName(f, typ, in), sig, paramNames)
+	fun := c.module.NewFunction(name, sig, paramNames)
 
 	if f.IsExtern() || declare {
 		fun.Flags = ir.Declare
