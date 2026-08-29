@@ -661,13 +661,15 @@ func (c *codegen) VisitIndex(i *ast.Index) ir.Value {
 func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 	typ := c.UnderlyingExprType(m.Expr)
 
+	var dereference bool
 	var pointer bool
 	var s *types.Struct
 
 	if r, ok := typ.(*types.Reference); ok {
-		pointer = true
+		dereference = true
 		s = r.Pointee.(*types.Struct)
 	} else if p, ok := typ.(*types.Pointer); ok {
+		dereference = true
 		pointer = true
 		s = p.Pointee.(*types.Struct)
 	} else {
@@ -703,7 +705,7 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 	// Get struct value
 	var value ir.Value
 
-	if pointer {
+	if dereference {
 		value = c.Load(m.Expr)
 	} else {
 		value = c.GenerateExpr(m.Expr)
@@ -711,6 +713,10 @@ func (c *codegen) VisitMember(m *ast.Member) ir.Value {
 
 	// Pointer
 	if c.exprInfos[m].Address {
+		if pointer {
+			c.CheckNull(value, m, "encountered a null pointer when accessing field '%s' on '%s'", m.Name.Token.Text, s)
+		}
+
 		typ := c.types.Get(s)
 		return c.emitter.GetElementPtrConst(typ, value, 0, uint32(index))
 	}
