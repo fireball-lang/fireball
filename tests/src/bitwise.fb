@@ -1,19 +1,167 @@
 mod tests::bitwise;
 
+// Bitwise Not
+
+#[test("bitwise not u8")]
+func testBitNotU8() bool {
+	var a: u8 = 0;
+	return ~a == 0xFF;
+}
+
+#[test("bitwise not i8")]
+func testBitNotI8() bool {
+	var a: i8 = 0;
+	return ~a == -1;
+}
+
+#[test("bitwise not u16")]
+func testBitNotU16() bool {
+	var a: u16 = 0;
+	return ~a == 0xFFFF;
+}
+
+#[test("bitwise not i16")]
+func testBitNotI16() bool {
+	var a: i16 = 0;
+	return ~a == -1;
+}
+
+#[test("bitwise not u32")]
+func testBitNotU32() bool {
+	var a: u32 = 0;
+	return ~a == 0xFFFF_FFFF;
+}
+
+#[test("bitwise not i32")]
+func testBitNotI32() bool {
+	var a: i32 = 0;
+	return ~a == -1;
+}
+
+#[test("bitwise not u64")]
+func testBitNotU64() bool {
+	var a: u64 = 0;
+	return ~a == 0xFFFF_FFFF_FFFF_FFFF;
+}
+
+#[test("bitwise not i64")]
+func testBitNotI64() bool {
+	var a: i64 = 0;
+	return ~a == -1;
+}
+
+#[test("bitwise not non zero")]
+func testBitNotNonZero() bool {
+	var a: u8 = 0b1010_1010;
+	return ~a == 0b0101_0101;
+}
+
+// Bitwise Or
+
 #[test("bitwise or")]
 func testBitOr() bool {
 	return (0b1010 | 0b0101) == 0b1111;
 }
+
+#[test("bitwise or u8")]
+func testBitOrU8() bool {
+	var a: u8 = 0b1010_1010;
+	var b: u8 = 0b0101_0101;
+	return (a | b) == 0b1111_1111;
+}
+
+#[test("bitwise or i8")]
+func testBitOrI8() bool {
+	var a: i8 = -16;
+	var b: i8 = 15;
+	return (a | b) == -1;
+}
+
+#[test("bitwise or u32")]
+func testBitOrU32() bool {
+	var a: u32 = 0xF0F0;
+	var b: u32 = 0x0F0F;
+	return (a | b) == 0xFFFF;
+}
+
+#[test("bitwise or i64")]
+func testBitOrI64() bool {
+	var a: i64 = 10;
+	var b: i64 = 5;
+	return (a | b) == 15;
+}
+
+// Bitwise And
 
 #[test("bitwise and")]
 func testBitAnd() bool {
 	return (0xFF & 0x0F) == 0x0F;
 }
 
+#[test("bitwise and u8")]
+func testBitAndU8() bool {
+	var a: u8 = 0b1111_0000;
+	var b: u8 = 0b1010_1010;
+	return (a & b) == 0b1010_0000;
+}
+
+#[test("bitwise and i8")]
+func testBitAndI8() bool {
+	var a: i8 = -1;
+	var b: i8 = 85;
+	return (a & b) == 85;
+}
+
+#[test("bitwise and u32")]
+func testBitAndU32() bool {
+	var a: u32 = 0xFFFF;
+	var b: u32 = 0x0FF0;
+	return (a & b) == 0x0FF0;
+}
+
+#[test("bitwise and i64")]
+func testBitAndI64() bool {
+	var a: i64 = 255;
+	var b: i64 = 15;
+	return (a & b) == 15;
+}
+
+// Bitwise Xor
+
 #[test("bitwise xor")]
 func testBitXor() bool {
 	return (0b1111 ^ 0b1010) == 0b0101;
 }
+
+#[test("bitwise xor u8")]
+func testBitXorU8() bool {
+	var a: u8 = 0b1111_1111;
+	var b: u8 = 0b1010_1010;
+	return (a ^ b) == 0b0101_0101;
+}
+
+#[test("bitwise xor i8")]
+func testBitXorI8() bool {
+	var a: i8 = 15;
+	var b: i8 = 10;
+	return (a ^ b) == 5;
+}
+
+#[test("bitwise xor u32")]
+func testBitXorU32() bool {
+	var a: u32 = 0xFFFF;
+	var b: u32 = 0x0FF0;
+	return (a ^ b) == 0xF00F;
+}
+
+#[test("bitwise xor i64")]
+func testBitXorI64() bool {
+	var a: i64 = 15;
+	var b: i64 = 10;
+	return (a ^ b) == 5;
+}
+
+// Shift
 
 #[test("shift left")]
 func testShiftLeft() bool {
@@ -31,4 +179,3 @@ func testShiftRightZeroExt() bool {
 	var a: u32 = 0b10000000000000000000000000000000;
 	return (a >>> 1u) == 0b01000000000000000000000000000000;
 }
-

@@ -212,6 +212,10 @@ func (c *codegen) VisitPrefix(p *ast.Prefix) ir.Value {
 		value := c.LoadImplicitCast(p.Expr, types.PrimitiveBool)
 		return c.emitter.Xor(value, ir.True)
 
+	case ast.BitNot:
+		value := c.Load(p.Expr)
+		return c.emitter.Xor(value, &ir.Integer{Typ: value.Type(), Value: core.Signed(-1)})
+
 	case ast.IncrementE:
 		ptr := c.GenerateExpr(p.Expr)
 

@@ -256,6 +256,8 @@ const (
 	Negate PrefixOp = iota
 	Not
 
+	BitNot
+
 	IncrementE
 	DecrementE
 
@@ -269,6 +271,9 @@ func (p PrefixOp) InterfaceName() string {
 		return "core::Neg"
 	case Not:
 		return "core::Not"
+
+	case BitNot:
+		return "core::BitNot"
 
 	default:
 		return ""

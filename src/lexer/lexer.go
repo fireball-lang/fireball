@@ -143,6 +143,9 @@ func (l *Lexer) Next() Token {
 	case '!':
 		return l.makeMatch('=', Bang, BangEqual)
 
+	case '~':
+		return l.make(Tilde)
+
 	case '<':
 		if l.match('=') {
 			return l.make(LessEqual)

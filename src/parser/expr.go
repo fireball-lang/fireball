@@ -451,6 +451,9 @@ func (p *parser) parsePrefix(rightPower int) (u *ast.Prefix, recoverId int) {
 	case lexer.Bang:
 		u.Op = ast.Not
 
+	case lexer.Tilde:
+		u.Op = ast.BitNot
+
 	case lexer.PlusPlus:
 		u.Op = ast.IncrementE
 	case lexer.MinusMinus:
@@ -1016,8 +1019,8 @@ func init() {
 	infix(false, lexer.Star, lexer.Slash, lexer.Percentage)
 	// with
 	infix(false, lexer.With)
-	// -x, !x, ++x, --x, &x, *x
-	prefix(lexer.Minus, lexer.Bang, lexer.PlusPlus, lexer.MinusMinus, lexer.Ampersand, lexer.Star)
+	// -x, !x, ~x, ++x, --x, &x, *x
+	prefix(lexer.Minus, lexer.Bang, lexer.Tilde, lexer.PlusPlus, lexer.MinusMinus, lexer.Ampersand, lexer.Star)
 	// x++, x--, x?
 	postfix(lexer.PlusPlus, lexer.MinusMinus, lexer.QuestionMark)
 	// x[], x(), x {}

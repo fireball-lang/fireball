@@ -121,6 +121,8 @@ const (
 	Bang
 	BangEqual
 
+	Tilde
+
 	Less
 	LessEqual
 	LessLess

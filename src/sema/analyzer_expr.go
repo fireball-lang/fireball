@@ -261,6 +261,9 @@ func (a *analyzer) VisitPrefix(p *ast.Prefix) ExprInfo {
 		a.ExpectType(types.PrimitiveBool, expr, p.Expr)
 		return ExprInfo{Type: types.PrimitiveBool}
 
+	case ast.BitNot:
+		return ExprInfo{Type: a.ExpectPrimitiveClass(types.IsInteger, "integer", expr, p.Expr)}
+
 	case ast.IncrementE:
 		if !expr.Address {
 			return a.Error(p.Expr, "cannot increment a temporary expression")

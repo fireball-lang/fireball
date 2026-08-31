@@ -144,6 +144,49 @@ impl bool : Not {
 	pub func not(self) Self { return !*self; }
 }
 
+// BitNot
+
+/// Implementing this interface overrides the `~` operator for the concrete type and a pointer to that type.
+pub interface BitNot {
+	type Result;
+
+	func bit_not(self) Result;
+}
+
+impl i8 : BitNot {
+	type Result = i8;
+	pub func bit_not(self) Self { return ~*self; }
+}
+impl i16 : BitNot {
+	type Result = i16;
+	pub func bit_not(self) Self { return ~*self; }
+}
+impl i32 : BitNot {
+	type Result = i32;
+	pub func bit_not(self) Self { return ~*self; }
+}
+impl i64 : BitNot {
+	type Result = i64;
+	pub func bit_not(self) Self { return ~*self; }
+}
+
+impl u8 : BitNot {
+	type Result = u8;
+	pub func bit_not(self) Self { return ~*self; }
+}
+impl u16 : BitNot {
+	type Result = u16;
+	pub func bit_not(self) Self { return ~*self; }
+}
+impl u32 : BitNot {
+	type Result = u32;
+	pub func bit_not(self) Self { return ~*self; }
+}
+impl u64 : BitNot {
+	type Result = u64;
+	pub func bit_not(self) Self { return ~*self; }
+}
+
 // Neg
 
 /// Implementing this interface overrides the `-` operator for the concrete type and a pointer to that type.
