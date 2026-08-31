@@ -3,6 +3,7 @@ package project
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -99,6 +100,10 @@ func readConfig(path string) (Config, error) {
 	}
 
 	for _, libPath := range raw.LibPaths {
+		if filepath.IsAbs(libPath) {
+			return Config{}, fmt.Errorf("'lib-paths' cannot contain an absolute path: '%s'", libPath)
+		}
+
 		if err := validateStringExpansion(libPath); err != nil {
 			return Config{}, err
 		}

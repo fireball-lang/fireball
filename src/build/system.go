@@ -80,7 +80,7 @@ func (s *System) CompileProjectHierarchy(projMap map[string]*project.Project) ([
 		}
 
 		for _, path := range proj.Config.LibPaths {
-			s.libPaths = append(s.libPaths, replacer.Replace(path))
+			s.libPaths = append(s.libPaths, filepath.Join(proj.Path, replacer.Replace(path)))
 		}
 
 		for _, lib := range proj.Config.Libs {
