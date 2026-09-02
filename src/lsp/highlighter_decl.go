@@ -4,6 +4,12 @@ import (
 	"fireball/ast"
 )
 
+func (hi *highlighter) VisitTypeAlias(t *ast.TypeAlias) {
+	hi.AddFull(t.Name(), typeKind)
+	hi.VisitTypeParams(t.TypeParams)
+	hi.VisitType(t.Type)
+}
+
 func (hi *highlighter) VisitStruct(s *ast.Struct) {
 	hi.AddFull(s.Name(), classKind)
 	hi.VisitTypeParams(s.TypeParams)

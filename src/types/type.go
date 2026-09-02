@@ -46,6 +46,13 @@ func hasParam(typ Type, seen map[Type]bool) bool {
 	case *Array:
 		return hasParam(typ.Element, seen)
 
+	case *Alias:
+		if len(typ.TypeParams) > 0 {
+			return true
+		}
+
+		return hasParam(typ.Type, seen)
+
 	case *Struct:
 		if len(typ.TypeParams) > 0 {
 			return true

@@ -92,7 +92,16 @@ func (c *InstantiationCache) get(generic Type, substitutions []Substitution) Typ
 		}
 	}
 
-	switch generic.(type) {
+	switch generic := generic.(type) {
+	case *Alias:
+		a := &Alias{Name: generic.Name, ModulePath: generic.ModulePath, Generic: generic, Substitutions: substitutions}
+
+		if !core.IsNil(generic.Type) {
+			a.Type = c.resolve(generic.Type, substitutions)
+		}
+
+		return a
+
 	case *Struct, *Interface, *Func:
 		typ := c.substitute(generic, substitutions)
 		c.types[generic] = append(entries, cacheEntry{substitutions: substitutions, typ: typ})
@@ -149,6 +158,20 @@ func (c *InstantiationCache) resolve(typ Type, substitutions []Substitution) Typ
 
 	case *Enum:
 		return typ
+
+	case *Alias:
+		if typ.Generic != nil {
+			return c.getRemapped(typ.Generic, typ.Substitutions, substitutions)
+		}
+		if len(typ.TypeParams) > 0 {
+			return c.get(typ, substitutions)
+		}
+
+		if core.IsNil(typ.Type) {
+			return typ
+		}
+
+		return c.resolve(typ.Type, substitutions)
 
 	case *Struct:
 		if typ.Generic != nil {

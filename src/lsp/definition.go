@@ -70,7 +70,7 @@ outer:
 
 		// Type annotation
 		case *ast.IdentifierType:
-			typ, ok := file.NodeTypes[n]
+			typ, ok := resolveIdentifierType(file, n)
 			if !ok {
 				break outer
 			}
@@ -138,10 +138,31 @@ func (s *Server) resolveSelf(file *project.File, n *ast.SelfType) types.Type {
 	return nil
 }
 
+func resolveIdentifierType(file *project.File, n *ast.IdentifierType) (types.Type, bool) {
+	if len(n.Path) > 0 {
+		if typ, ok := file.NodeTypes[n.Path[len(n.Path)-1]]; ok {
+			if _, isAlias := typ.(*types.Alias); isAlias {
+				return typ, true
+			}
+		}
+	}
+
+	typ, ok := file.NodeTypes[n]
+	return typ, ok
+}
+
 func (s *Server) findTypeDeclaration(typ types.Type) ast.Node {
 	switch t := typ.(type) {
 	case *types.Param:
 		return s.findParamNode(t)
+
+	case *types.Alias:
+		template := t
+		if t.Generic != nil {
+			template = t.Generic
+		}
+
+		return s.findTypeAliasNode(template)
 
 	case *types.Struct:
 		template := t
@@ -164,6 +185,18 @@ func (s *Server) findTypeDeclaration(typ types.Type) ast.Node {
 
 	case *types.Func:
 		return s.findFuncNode(t)
+	}
+
+	return nil
+}
+
+func (s *Server) findTypeAliasNode(a *types.Alias) *ast.TypeAlias {
+	for sym := range s.allSymbols() {
+		if sym.Kind == symbols.TypeAlias && sym.Type == a {
+			if n, ok := sym.Node.(*ast.TypeAlias); ok {
+				return n
+			}
+		}
 	}
 
 	return nil

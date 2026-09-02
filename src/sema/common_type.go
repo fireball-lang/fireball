@@ -124,6 +124,16 @@ func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
 	}
 
 	switch symbol.Kind {
+	case symbols.TypeAlias:
+		a := symbol.Type.(*types.Alias)
+
+		if core.IsNil(a.Type) {
+			return c.Error(t, "cannot resolve type alias '%s', aliases must be declared before use", symbol.Name).Type
+		}
+
+		c.nodeTypes[t] = a.Type
+		return a.Type
+
 	case symbols.Struct:
 		s := symbol.Type.(*types.Struct)
 

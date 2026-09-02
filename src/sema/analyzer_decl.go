@@ -13,6 +13,15 @@ import (
 
 // Visitor
 
+var typeAliasAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Cfg](),
+}
+
+func (a *analyzer) VisitTypeAlias(t *ast.TypeAlias) {
+	// Attributes
+	a.CheckAttributes(t.Attributes(), typeAliasAllowedAttributes)
+}
+
 var structAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Repr](),
 	reflect.TypeFor[ast.Cfg](),

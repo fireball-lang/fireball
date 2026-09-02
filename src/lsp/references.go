@@ -180,6 +180,12 @@ func (s *Server) collectFileReferences(file *project.File, defNode ast.Node, inc
 			continue
 		}
 
+		if n, ok := node.(*ast.IdentifierType); ok {
+			if typ2, ok2 := resolveIdentifierType(file, n); ok2 {
+				typ = typ2
+			}
+		}
+
 		if decl := s.findTypeDeclaration(typ); decl != defNode {
 			continue
 		}

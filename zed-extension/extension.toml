@@ -8,7 +8,7 @@ repository = "https://github.com/MineGame159/fireball"
 
 [grammars.fireball]
 repository = "https://github.com/fireball-lang/tree-sitter-fireball"
-rev = "6b6df1f2d0ddf6e59a041b293f6243d5d333ac59"
+rev = "3257b4772a2ecf5a9ad4411f271f892b15e81819"
 
 [language_servers.fireball]
 name = "Fireball"

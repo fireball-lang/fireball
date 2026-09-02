@@ -46,6 +46,9 @@
 
 ; Declarations
 
+(type_alias name: (identifier) @type)
+(type_alias type_param: (type_param name: (identifier) @type.parameter))
+
 (struct name: (identifier) @type)
 (struct type_param: (type_param name: (identifier) @type.parameter))
 (struct field: (field name: (identifier) @property))

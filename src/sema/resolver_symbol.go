@@ -11,6 +11,19 @@ import (
 
 func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 	switch symbol.Kind {
+	case symbols.TypeAlias:
+		n := symbol.Node.(*ast.TypeAlias)
+		t := symbol.Type.(*types.Alias)
+
+		r.typeEnv.RegisterTypeDeclNode(t, n)
+		r.nodeTypes[n] = t
+
+		if r.ResolveTypeParams(n.TypeParams, t.TypeParams) {
+			defer r.scopes.Pop()
+		}
+
+		t.Type = r.ResolveAndAnalyzeType(n.Type)
+
 	case symbols.Struct:
 		s := symbol.Node.(*ast.Struct)
 		t := symbol.Type.(*types.Struct)

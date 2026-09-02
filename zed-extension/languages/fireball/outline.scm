@@ -1,3 +1,7 @@
+(type_alias
+  "type" @context
+  name: (identifier) @name) @item
+
 (struct
   "struct" @context
   name: (identifier) @name) @item

@@ -33,6 +33,61 @@ func GetAttribute[A Attribute, N AttributeHolder](node N) A {
 	return empty
 }
 
+// TypeAlias
+
+type TypeAlias struct {
+	baseNode
+
+	Documentation_ []*Leaf
+	Attributes_    []Attribute
+	Public         bool
+
+	Name_      *Leaf
+	TypeParams []*TypeParam
+
+	Type Type
+}
+
+func (t *TypeAlias) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, doc := range t.Documentation_ {
+			if !yield(doc) {
+				return
+			}
+		}
+		for _, attribute := range t.Attributes_ {
+			if !yield(attribute) {
+				return
+			}
+		}
+		if !yield(t.Name_) {
+			return
+		}
+		for _, param := range t.TypeParams {
+			if !yield(param) {
+				return
+			}
+		}
+		if !yield(t.Type) {
+			return
+		}
+	}
+}
+
+func (t *TypeAlias) Documentation() []*Leaf {
+	return t.Documentation_
+}
+
+func (t *TypeAlias) Attributes() []Attribute {
+	return t.Attributes_
+}
+
+func (t *TypeAlias) Name() *Leaf {
+	return t.Name_
+}
+
+func (t *TypeAlias) _isDecl() {}
+
 // Struct
 
 type Struct struct {

@@ -159,6 +159,26 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 				}
 
 				decls[typ] = id
+
+			case *ast.TypeAlias:
+				id := symbols.add(symbol{
+					file:           file,
+					kind:           protocol.SymbolKindClass,
+					name:           getText(decl.Name_),
+					detail:         getTypeString(decl.Type),
+					range_:         getRange(decl),
+					selectionRange: getRange(decl.Name_),
+				})
+
+				for _, param := range decl.TypeParams {
+					symbols.addChild(id, symbol{
+						file:           file,
+						kind:           protocol.SymbolKindTypeParameter,
+						name:           getText(param.Name),
+						range_:         getRange(param),
+						selectionRange: getRange(param.Name),
+					})
+				}
 			}
 		}
 	}

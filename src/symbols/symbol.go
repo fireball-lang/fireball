@@ -9,6 +9,7 @@ type Kind uint8
 
 const (
 	Invalid Kind = iota
+	TypeAlias
 	Struct
 	Enum
 	Interface
@@ -23,7 +24,7 @@ func (k Kind) Domain() Domain {
 	switch k {
 	case Invalid:
 		return 0
-	case Struct, Enum, Interface, TypeParam:
+	case TypeAlias, Struct, Enum, Interface, TypeParam:
 		return Type
 	case Func:
 		return Function

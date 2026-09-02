@@ -172,6 +172,45 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 		if symbol, ok := scope.GetSymbol(symbols.Type, name); ok {
 			c.nodeTypes[entry] = symbol.Type
 
+			// Type alias
+			if symbol.Kind == symbols.TypeAlias {
+				a := symbol.Type.(*types.Alias)
+
+				subs = c.CheckTypeArgsForSymbolEntry(symbol, entry, subs)
+				underlying := c.instantiations.Substitute(a.Type, subs)
+
+				scopeTyp := underlying
+				switch t := underlying.(type) {
+				case *types.Struct:
+					if t.Generic != nil {
+						scopeTyp = t.Generic
+					}
+				case *types.Interface:
+					t = t.AsImmutable()
+					if t.Generic != nil {
+						scopeTyp = t.Generic
+					}
+				}
+
+				if typeScope := c.typeEnv.GetTypeScope(scopeTyp); !core.IsNil(typeScope) {
+					switch inst := underlying.(type) {
+					case *types.Struct:
+						if inst.Generic != nil {
+							subs = inst.Substitutions
+						}
+					case *types.Interface:
+						inst = inst.AsImmutable()
+						if inst.Generic != nil {
+							subs = inst.Substitutions
+						}
+					}
+
+					c.nodeTypes[entry] = symbol.Type
+					scope = typeScope
+					continue
+				}
+			}
+
 			// Type scope
 			if typeScope := c.typeEnv.GetTypeScope(symbol.Type); !core.IsNil(typeScope) {
 				// Check if this type belongs to a different module
@@ -247,6 +286,8 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 
 func (c *common) CheckTypeArgsForSymbolEntry(symbol symbols.Symbol, entry *ast.IdentifierEntry, subs []types.Substitution) []types.Substitution {
 	switch symbol.Kind {
+	case symbols.TypeAlias:
+		return c.CheckTypeArgs(symbol.Type, symbol.Type.(*types.Alias).TypeParams, entry, subs)
 	case symbols.Struct:
 		return c.CheckTypeArgs(symbol.Type, symbol.Type.(*types.Struct).TypeParams, entry, subs)
 	case symbols.Interface:

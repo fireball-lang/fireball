@@ -25,7 +25,15 @@ func Resolve(file *ast.File, fileSymbols []symbols.Symbol, instantiations *types
 	// Resolve
 
 	for i := range fileSymbols {
-		r.ResolveSymbol(&fileSymbols[i])
+		if fileSymbols[i].Kind == symbols.TypeAlias {
+			r.ResolveSymbol(&fileSymbols[i])
+		}
+	}
+
+	for i := range fileSymbols {
+		if fileSymbols[i].Kind != symbols.TypeAlias {
+			r.ResolveSymbol(&fileSymbols[i])
+		}
 	}
 
 	for _, decl := range file.Decls {
@@ -37,7 +45,7 @@ func Resolve(file *ast.File, fileSymbols []symbols.Symbol, instantiations *types
 
 	// Cleanup
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		r.scopes.Pop()
 	}
 

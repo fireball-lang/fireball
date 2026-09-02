@@ -20,6 +20,8 @@ func (p *parser) parseDecl(documentation []*ast.Leaf, attributes []ast.Attribute
 	}
 
 	switch p.current.Kind {
+	case lexer.Type:
+		return p.parseTypeAlias(documentation, attributes, public, start)
 	case lexer.Struct:
 		return p.parseStruct(documentation, attributes, public, start)
 	case lexer.Enum:
@@ -42,6 +44,60 @@ func (p *parser) parseDecl(documentation []*ast.Leaf, attributes []ast.Attribute
 		b.Range_ = p.current.Range
 		return b, p.error("expected declaration")
 	}
+}
+
+func (p *parser) parseTypeAlias(documentation []*ast.Leaf, attributes []ast.Attribute, public bool, start lexer.Token) (t *ast.TypeAlias, recoverId int) {
+	t = &ast.TypeAlias{}
+	t.Range_.Start = start.Range.Start
+	t.Documentation_ = documentation
+	t.Attributes_ = attributes
+	t.Public = public
+	defer func() {
+		t.Range_.End = p.previous.Range.End
+
+		if t.Name_ == nil {
+			t.Name_ = p.badLeaf()
+		}
+		if core.IsNil(t.Type) {
+			t.Type = p.badType()
+		}
+	}()
+
+	recoverId = -1
+
+	// 'type'
+	if recoverId = p.expect(lexer.Type, "expected 'type'"); recoverId >= 0 {
+		return
+	}
+
+	// Name
+	if t.Name_, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// '[' Type Parameters ']'
+	if p.current.Kind == lexer.LeftBracket {
+		if t.TypeParams, recoverId = p.parseTypeParams(); recoverId >= 0 {
+			return
+		}
+	}
+
+	// '='
+	if recoverId = p.expect(lexer.Equal, "expected '=' after type alias name"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if t.Type, recoverId = p.parseType(); recoverId > 0 {
+		return
+	}
+
+	// ';'
+	if recoverId = p.expect(lexer.Semicolon, "expected ';' after type alias"); recoverId >= 0 {
+		return
+	}
+
+	return
 }
 
 func (p *parser) parseStruct(documentation []*ast.Leaf, attributes []ast.Attribute, public bool, start lexer.Token) (s *ast.Struct, recoverId int) {
@@ -351,6 +407,10 @@ func (p *parser) parseImpl(documentation []*ast.Leaf, attributes []ast.Attribute
 	i.Attributes_ = attributes
 	defer func() {
 		i.Range_.End = p.previous.Range.End
+
+		if core.IsNil(i.Type) {
+			i.Type = p.badType()
+		}
 	}()
 
 	recoverId = -1
@@ -405,6 +465,11 @@ func (p *parser) parseImpl(documentation []*ast.Leaf, attributes []ast.Attribute
 			// Associate type
 			var a *ast.AssociatedType
 			a, recoverId = p.parseAssociatedType(documentation, attributes, true)
+
+			if core.IsNil(a.Type) {
+				a.Type = p.badType()
+			}
+
 			i.AssociatedTypes = append(i.AssociatedTypes, a)
 		} else if p.current.Kind == lexer.Pub || p.current.Kind == lexer.Func {
 			// Method

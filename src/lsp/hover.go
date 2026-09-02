@@ -65,7 +65,7 @@ outer:
 
 		// Type annotation
 		case *ast.IdentifierType:
-			typ, ok := file.NodeTypes[n]
+			typ, ok := resolveIdentifierType(file, n)
 			if !ok {
 				break outer
 			}
@@ -155,6 +155,31 @@ func (s *Server) buildHover(file *project.File, node ast.Node, rng core.Range) *
 
 	case *ast.Interface:
 		label = declTypeString(file, n, n.Name().Token.Text)
+
+	case *ast.TypeAlias:
+		var sb strings.Builder
+
+		sb.WriteString("type ")
+		sb.WriteString(n.Name().Token.Text)
+
+		if len(n.TypeParams) > 0 {
+			sb.WriteRune('[')
+
+			for i, param := range n.TypeParams {
+				if i > 0 {
+					sb.WriteString(", ")
+				}
+
+				sb.WriteString(param.Name.Token.Text)
+			}
+
+			sb.WriteRune(']')
+		}
+
+		sb.WriteString(" = ")
+		sb.WriteString(n.Type.String())
+
+		label = sb.String()
 
 	case *ast.GlobalVar:
 		label = typeString(file, n, n.Type)

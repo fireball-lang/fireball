@@ -1,0 +1,123 @@
+mod tests::alias;
+
+// ── Helper types ───────────────────────────────────────────────────────────────
+
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl Point {
+    func origin() Point {
+        return Point { x: 0, y: 0 };
+    }
+
+    func sum(self) i32 {
+        return self.x + self.y;
+    }
+}
+
+struct Holder[T] {
+    value: T,
+}
+
+impl[T] Holder[T] {
+    func new(value: T) Self {
+        return Self { value: value };
+    }
+
+    func get(self) T {
+        return self.value;
+    }
+}
+
+enum Color {
+    Red,
+    Green,
+    Blue,
+}
+
+// ── Alias declarations ────────────────────────────────────────────────────────
+
+type Int        = i32;
+type Chain      = Int;
+type PointAlias = Point;
+type IntHolder  = Holder[i32];
+type ColorAlias = Color;
+
+type Maybe[A] = ?A;
+type BoxOf[A] = Holder[A];
+
+// ── Forward references ────────────────────────────────────────────────────────
+
+struct UsesLater {
+    v: LaterInt,
+}
+
+type LaterInt = i64;
+
+type EarlyStruct = LaterPoint;
+
+struct LaterPoint {
+    z: i32,
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[test("alias: transparent primitive")]
+func aliasTransparent() bool {
+    var x: Int = 5;
+    return x + 1 == 6;
+}
+
+#[test("alias: alias of an alias")]
+func aliasOfAlias() bool {
+    var c: Chain = 9;
+    return c == 9;
+}
+
+#[test("alias: to generic instantiation")]
+func aliasToGenericInstance() bool {
+    var h: IntHolder = Holder:[i32] { value: 5 };
+    return h.get() == 5;
+}
+
+#[test("alias: generic alias to option")]
+func aliasGenericOption() bool {
+    var m: Maybe[i32] = 5;
+    return m.is_some() && m.unwrap() == 5;
+}
+
+#[test("alias: static method")]
+func aliasStaticMethod() bool {
+    return PointAlias::origin().sum() == 0;
+}
+
+#[test("alias: generic static method with args")]
+func aliasGenericStatic() bool {
+    return IntHolder::new(5).get() == 5;
+}
+
+#[test("alias: generic alias static with args")]
+func aliasGenericAliasStatic() bool {
+    return BoxOf:[i32]::new(3).get() == 3;
+}
+
+#[test("alias: enum case through alias")]
+func aliasEnumCase() bool {
+    return ColorAlias::Green as u32 == 1;
+}
+
+#[test("alias: struct forward-references later alias")]
+func aliasStructForwardRef() bool {
+    var u: UsesLater;
+    u.v = 9000000000;
+    return u.v == 9000000000;
+}
+
+#[test("alias: alias forward-references later struct")]
+func aliasForwardRefStruct() bool {
+    var p: EarlyStruct;
+    p.z = 1;
+    return p.z == 1;
+}

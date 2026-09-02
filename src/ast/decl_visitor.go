@@ -1,6 +1,7 @@
 package ast
 
 type DeclVisitor interface {
+	VisitTypeAlias(t *TypeAlias)
 	VisitStruct(s *Struct)
 	VisitEnum(e *Enum)
 	VisitInterface(i *Interface)
@@ -14,6 +15,8 @@ type DeclVisitor interface {
 
 func VisitDecl[V DeclVisitor](visitor V, decl Decl) {
 	switch decl := decl.(type) {
+	case *TypeAlias:
+		visitor.VisitTypeAlias(decl)
 	case *Struct:
 		visitor.VisitStruct(decl)
 	case *Enum:
