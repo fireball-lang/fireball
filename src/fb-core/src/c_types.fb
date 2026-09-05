@@ -1,0 +1,11 @@
+mod core;
+
+#[cfg(target_family = "windows")]
+pub type c_long = i32;
+#[cfg(target_family = "windows")]
+pub type c_ulong = u32;
+
+#[cfg(not(target_family = "windows"))]
+pub type c_long = i64;
+#[cfg(not(target_family = "windows"))]
+pub type c_ulong = u64;
