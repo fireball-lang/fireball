@@ -4,7 +4,7 @@ enum Direction {
     East,
     West = 2,
     North,
-    South,
+    South = -1,
 }
 
 impl Direction {
@@ -27,8 +27,14 @@ func equality() bool {
 
 #[test("enum cast to underlying")]
 func castToUnderlying() bool {
-	var value = Direction::North as u32;
-	return value == 3u;
+	var value = Direction::North as i32;
+	return value == 3;
+}
+
+#[test("enum cast to underlying (negative")]
+func castToUnderlyingNegative() bool {
+	var value = Direction::South as i32;
+	return value == -1;
 }
 
 #[test("underlying cast to enum")]
