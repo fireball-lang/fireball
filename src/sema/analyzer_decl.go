@@ -432,11 +432,23 @@ func (a *analyzer) VisitGlobalVar(g *ast.GlobalVar) {
 	// Attributes
 	a.CheckAttributes(g.Attributes(), globalVarAllowedAttributes)
 
-	// Zeroable
+	// Initializer
 	typ := a.nodeTypes[g.Type]
 
-	if !slices.Contains(a.typeEnv.GetConformances(typ), a.builtins.Zeroable) {
-		a.Error(g.Name(), "cannot zero-initialize a non Zeroable type '%s'", typ)
+	if core.IsNil(g.Initializer) {
+		if !slices.Contains(a.typeEnv.GetConformances(typ), a.builtins.Zeroable) {
+			a.Error(g.Name(), "cannot zero-initialize a non Zeroable type '%s'", typ)
+		}
+	} else {
+		initializer := a.AnalyzeExpr(g.Initializer)
+		a.ExpectType(typ, initializer, g.Initializer)
+
+		if !initializer.CompTime {
+			expr, _ := a.FindDeepestNonCompTimeExpr(g.Initializer)
+			a.Error(expr, "expression cannot be evaluated at compile time")
+
+			return
+		}
 	}
 }
 

@@ -57,6 +57,7 @@ func (hi *highlighter) VisitConst(c *ast.Const) {
 func (hi *highlighter) VisitGlobalVar(g *ast.GlobalVar) {
 	hi.AddFull(g.Name(), variableKind, 0)
 	hi.VisitType(g.Type)
+	hi.VisitExpr(g.Initializer)
 }
 
 func (hi *highlighter) VisitFunc(f *ast.Func) {

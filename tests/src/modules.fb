@@ -9,7 +9,7 @@ import tests::module_helpers;
 // alias import: same module under a shorter name
 import tests::module_helpers as h;
 
-import tests::module_helpers::{value};
+import tests::module_helpers::{valueZeroInit, valueMath};
 
 // --- symbol import tests ---
 
@@ -65,7 +65,12 @@ func testAliasType() bool {
 
 // --- global variable tests ---
 
-#[test("global variable")]
-func globalVariable() bool {
-	return value == 0;
+#[test("global variable: zero initialized")]
+func globalVariableZeroInit() bool {
+	return valueZeroInit == 0;
+}
+
+#[test("global variable: compile-time initializer")]
+func globalVariableInitializer() bool {
+    return valueMath == 11;
 }

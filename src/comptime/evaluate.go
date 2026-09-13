@@ -15,100 +15,144 @@ import (
 	"fmt"
 )
 
+type compTime struct {
+	file           *ast.File
+	instantiations *types.InstantiationCache
+	typeEnv        *sema.TypeEnvironment
+	fileDataMap    map[*ast.File]codegen.FileData
+	builtins       fb_core.Builtins
+
+	diagnostics []core.Diagnostic
+	evaluations map[ast.Expr]eval.Value
+}
+
 func Evaluate(file *ast.File, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]codegen.FileData, builtins fb_core.Builtins) (map[ast.Expr]eval.Value, []core.Diagnostic) {
 	defer core.Scope()()
 
-	evaluations := make(map[ast.Expr]eval.Value)
-	var diagnostics []core.Diagnostic
+	ct := compTime{
+		file:           file,
+		instantiations: instantiations,
+		typeEnv:        typeEnv,
+		fileDataMap:    fileDataMap,
+		builtins:       builtins,
+
+		diagnostics: nil,
+		evaluations: make(map[ast.Expr]eval.Value),
+	}
 
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
 		case *ast.Const:
-			// Check
 			if !fileDataMap[file].ExprInfos[decl.Value].CompTime {
 				continue
 			}
 
-			seen := make(map[ast.Expr]any)
-			seen[decl.Value] = nil
-
-			prevLen := len(diagnostics)
-			diagnostics = checkCompTimeValue(fileDataMap, decl.Value, seen, decl.Name(), diagnostics)
-
-			if len(diagnostics) > prevLen {
+			ok := ct.CheckCompTimeExprRoot(decl.Value, decl.Name())
+			if !ok {
 				continue
 			}
 
-			// Get literal value directly
-			value := getLiteralEvalValue(decl.Value, builtins)
+			value, ok := ct.EvalExpr(decl.Value, decl.Type)
 
-			// Interpret IR
-			if value == nil {
-				// Generate IR module
-				module := ir.NewModule()
-				module.Path = "__comptime__"
-
-				c := codegen.New(module, file, abi.AMD64, abi.SystemV, instantiations, typeEnv, fileDataMap, builtins, true)
-				fun := generateModule(c, decl)
-
-				// Evaluate IR module
-				e := eval.NewEvaluator()
-				e.Load(module)
-
-				reg, err := e.Run(fun)
-
-				if err != nil {
-					if err, ok := errors.AsType[eval.Error](err); ok && err.File != "" {
-						diagnostics = append(diagnostics, getDiagnostic(err))
-						continue
-					}
-
-					panic("comptime.Evaluate() - " + err.Error())
-				}
-
-				value = e.GetValue(reg, c.Types.Get(c.NodeType(decl.Type)))
+			if ok {
+				ct.evaluations[decl.Value] = value
 			}
 
-			evaluations[decl.Value] = value
+		case *ast.GlobalVar:
+			if core.IsNil(decl.Initializer) || !fileDataMap[file].ExprInfos[decl.Initializer].CompTime {
+				continue
+			}
+
+			ok := ct.CheckCompTimeExprRoot(decl.Initializer, decl.Name())
+			if !ok {
+				continue
+			}
+
+			initializer, ok := ct.EvalExpr(decl.Initializer, decl.Type)
+
+			if ok {
+				ct.evaluations[decl.Initializer] = initializer
+			}
 		}
 	}
 
-	return evaluations, diagnostics
+	return ct.evaluations, ct.diagnostics
 }
 
-func checkCompTimeValue(fileDataMap map[*ast.File]codegen.FileData, expr ast.Expr, seen map[ast.Expr]any, errNode ast.Node, diagnostics []core.Diagnostic) []core.Diagnostic {
+func (ct *compTime) EvalExpr(expr ast.Expr, typ ast.Type) (eval.Value, bool) {
+	// Get literal value directly
+	value := ct.GetLiteralEvalValue(expr)
+	if value != nil {
+		return value, true
+	}
+
+	// Generate IR module
+	module := ir.NewModule()
+	module.Path = "__comptime__"
+
+	c := codegen.New(module, ct.file, abi.AMD64, abi.SystemV, ct.instantiations, ct.typeEnv, ct.fileDataMap, ct.builtins, true)
+	fun := generateModule(c, expr, typ)
+
+	// Evaluate IR module
+	e := eval.NewEvaluator()
+	e.Load(module)
+
+	reg, err := e.Run(fun)
+
+	if err != nil {
+		if err, ok := errors.AsType[eval.Error](err); ok && err.File != "" {
+			ct.diagnostics = append(ct.diagnostics, getDiagnostic(err))
+			return nil, false
+		}
+
+		panic("comptime.Evaluate() - " + err.Error())
+	}
+
+	return e.GetValue(reg, c.Types.Get(c.NodeType(typ))), true
+}
+
+func (ct *compTime) CheckCompTimeExprRoot(expr ast.Expr, errNode ast.Node) bool {
+	seen := make(map[ast.Expr]any)
+	seen[expr] = nil
+
+	return ct.CheckCompTimeExpr(expr, seen, errNode)
+}
+
+func (ct *compTime) CheckCompTimeExpr(expr ast.Expr, seen map[ast.Expr]any, errNode ast.Node) bool {
 	switch expr := expr.(type) {
 	case *ast.Identifier:
-		switch node := fileDataMap[ast.GetFile(expr)].ExprInfos[expr].Node.(type) {
+		switch node := ct.fileDataMap[ast.GetFile(expr)].ExprInfos[expr].Node.(type) {
 		case *ast.Const:
 			if _, ok := seen[node.Value]; ok {
-				diagnostics = append(diagnostics, core.Diagnostic{
+				ct.diagnostics = append(ct.diagnostics, core.Diagnostic{
 					Kind:    core.Error,
 					Path:    ast.GetFile(expr).Path,
 					Range:   errNode.Range(),
 					Message: fmt.Sprintf("cyclic reference of constant '%s'", node.Name().Token.Text),
 				})
 
-				return diagnostics
+				return false
 			}
 
 			seen[node.Value] = nil
-			diagnostics = checkCompTimeValue(fileDataMap, node.Value, seen, errNode, diagnostics)
+			ct.CheckCompTimeExpr(node.Value, seen, errNode)
 			delete(seen, node.Value)
 		}
 
 	default:
 		for child := range expr.Children() {
 			if child, ok := child.(ast.Expr); ok {
-				diagnostics = checkCompTimeValue(fileDataMap, child, seen, errNode, diagnostics)
+				if !ct.CheckCompTimeExpr(child, seen, errNode) {
+					return false
+				}
 			}
 		}
 	}
 
-	return diagnostics
+	return true
 }
 
-func getLiteralEvalValue(expr ast.Expr, builtins fb_core.Builtins) eval.Value {
+func (ct *compTime) GetLiteralEvalValue(expr ast.Expr) eval.Value {
 	switch expr := expr.(type) {
 	case *ast.Bool:
 		if expr.Value {
@@ -150,10 +194,10 @@ func getLiteralEvalValue(expr ast.Expr, builtins fb_core.Builtins) eval.Value {
 		return &eval.IntValue{Value: uint64(expr.Rune)}
 
 	case *ast.String:
-		fields := abi.AMD64.Info(builtins.StringView).Fields
+		fields := abi.AMD64.Info(ct.builtins.StringView).Fields
 
 		ptrI := 0
-		if builtins.StringView.Fields[fields[0].Index].Name == "size" {
+		if ct.builtins.StringView.Fields[fields[0].Index].Name == "size" {
 			ptrI = 1
 		}
 
@@ -171,10 +215,10 @@ func getLiteralEvalValue(expr ast.Expr, builtins fb_core.Builtins) eval.Value {
 	}
 }
 
-func generateModule(c *codegen.Codegen, decl *ast.Const) *ir.Function {
+func generateModule(c *codegen.Codegen, expr ast.Expr, typ ast.Type) *ir.Function {
 	evalFunc := &ast.Func{
 		Name_:   &ast.Leaf{Token: lexer.Token{Kind: lexer.Identifier, Text: "__comptime__"}},
-		Returns: decl.Type,
+		Returns: typ,
 	}
 
 	evalFile := &ast.File{
@@ -186,7 +230,7 @@ func generateModule(c *codegen.Codegen, decl *ast.Const) *ir.Function {
 
 	evalFunc.SetParent(evalFile)
 
-	funTyp := &types.Func{Returns: c.NodeType(decl.Type)}
+	funTyp := &types.Func{Returns: c.NodeType(typ)}
 
 	fun := c.CreateFunction(
 		evalFunc,
@@ -197,7 +241,7 @@ func generateModule(c *codegen.Codegen, decl *ast.Const) *ir.Function {
 
 	c.BeginFunc(evalFunc, funTyp, fun)
 
-	val := c.LoadImplicitCast(decl.Value, c.UnderlyingNodeType(decl.Type))
+	val := c.LoadImplicitCast(expr, c.UnderlyingNodeType(typ))
 	c.Emitter.Ret(val)
 
 	c.EndFunc()

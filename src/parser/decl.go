@@ -669,6 +669,19 @@ func (p *parser) parseGlobalVar(documentation []*ast.Leaf, attributes []ast.Attr
 		return
 	}
 
+	// '=' Initializer
+	if p.current.Kind == lexer.Equal {
+		// '='
+		if recoverId = p.expect(lexer.Equal, "expected '=' before initializer"); recoverId >= 0 {
+			return
+		}
+
+		// Initializer
+		if g.Initializer, recoverId = p.parseExpr(); recoverId >= 0 {
+			return
+		}
+	}
+
 	// ';'
 	if recoverId = p.expect(lexer.Semicolon, "expected ';' after a global variable"); recoverId >= 0 {
 		return

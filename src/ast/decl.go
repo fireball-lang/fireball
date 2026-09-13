@@ -498,8 +498,9 @@ type GlobalVar struct {
 	Attributes_    []Attribute
 	Public         bool
 
-	Name_ *Leaf
-	Type  Type
+	Name_       *Leaf
+	Type        Type
+	Initializer Expr // optional
 }
 
 func (g *GlobalVar) Children() iter.Seq[Node] {
@@ -518,6 +519,9 @@ func (g *GlobalVar) Children() iter.Seq[Node] {
 			return
 		}
 		if !yield(g.Type) {
+			return
+		}
+		if !core.IsNil(g.Initializer) && !yield(g.Initializer) {
 			return
 		}
 	}

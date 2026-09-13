@@ -228,10 +228,18 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		}
 	}
 
-	// Function definitions
+	// Function / Global Var definitions
 
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
+		case *ast.GlobalVar:
+			if !core.IsNil(decl.Initializer) {
+				typ := c.NodeTypes[decl]
+				gVar := c.scope.Get(decl.Name().Token.Text).(*ir.GlobalVar)
+
+				gVar.Initializer = c.GetIrValue(fileDataMap[file].Evaluations[decl.Initializer], typ)
+			}
+
 		case *ast.Impl:
 			var in *types.Interface
 			if decl.Interface != nil {
