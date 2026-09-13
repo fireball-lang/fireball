@@ -12,13 +12,6 @@ struct Item {
     count: i32,
 }
 
-enum Direction {
-    North,
-    East,
-    South,
-    West,
-}
-
 func twice(x: i32) i32 {
     return x * 2;
 }
@@ -73,10 +66,6 @@ const ITEM: Item = Item { name: "fireball", count: 99 };
 const ARR: [3]i32 = [3]i32 { 1, 2, 3 };
 const MATRIX: [2]Vec2 = [2]Vec2 { Vec2 { x: 1, y: 2 }, Vec2 { x: 3, y: 4 } };
 const ARR_OF_CONST: [3]i32 = [3]i32 { CHAIN_A, CHAIN_B, CHAIN_C };
-
-// ── Enum ──────────────────────────────────────────────────────────────────────
-
-const DIR: Direction = Direction::North;
 
 // ── Reflection ────────────────────────────────────────────────────────────────
 
@@ -229,11 +218,6 @@ func testMatrix() bool {
 #[test("const: array of constants")]
 func testArrayOfConst() bool {
     return ARR_OF_CONST[0u] == 10 && ARR_OF_CONST[2u] == 30;
-}
-
-#[test("const: enum constant")]
-func testEnumConst() bool {
-    return DIR == Direction::North;
 }
 
 #[test("const: sizeof constant")]

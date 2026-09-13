@@ -53,3 +53,93 @@ func instanceMethod() bool {
 	var dir = Direction::default();
 	return dir.opposite() == Direction::South;
 }
+
+// ── Enum case values with constant expressions ────────────────────────────────
+
+const FLAG_ONE: i32 = 1;
+const OMG_VALUE: i32 = 5 * (6 - 3);   // 15
+const BIG_VALUE: i32 = 300;
+
+enum Flags {
+    None = 0,
+    Foo = 1 << 1,
+    Bar = 1 << 2,
+    Omg = OMG_VALUE,
+    Last = FLAG_ONE + 4,
+}
+
+#[test("enum case: shift expression")]
+func caseShift() bool {
+    return Flags::Foo as i32 == 2 && Flags::Bar as i32 == 4;
+}
+
+#[test("enum case: constant expression value")]
+func caseConstExpr() bool {
+    return Flags::Omg as i32 == 15;
+}
+
+#[test("enum case: constant reference")]
+func caseConstRef() bool {
+    return Flags::Last as i32 == 5;
+}
+
+#[test("enum case: implicit value after explicit")]
+func caseAutoIncrement() bool {
+    return Flags::None as i32 == 0 && Flags::Foo != Flags::Bar;
+}
+
+enum Sequence {
+    First = 10,
+    Second,
+    Third = 1 << 2,
+    Fourth,
+}
+
+#[test("enum case: auto-increment between explicit values")]
+func caseSequence() bool {
+    return Sequence::First as i32 == 10
+        && Sequence::Second as i32 == 11
+        && Sequence::Third as i32 == 4
+        && Sequence::Fourth as i32 == 5;
+}
+
+enum Signed {
+    Zero = 0,
+    Minus = -1,
+    MinusNested = -(1 + 1),
+}
+
+#[test("enum case: negative expression values")]
+func caseNegative() bool {
+    return Signed::Zero as i32 == 0
+        && Signed::Minus as i32 == -1
+        && Signed::MinusNested as i32 == -2;
+}
+
+enum Wide {
+    Small = 1,
+    Big = BIG_VALUE,
+}
+
+#[test("enum case: wider inferred underlying type")]
+func caseWide() bool {
+    return Wide::Big as i32 == 300;
+}
+
+enum Narrow: u8 {
+    A = 1 << 1,
+    B = FLAG_ONE,
+    C = 255,
+}
+
+#[test("enum case: custom u8 underlying type")]
+func caseCustomType() bool {
+    return Narrow::A as i32 == 2
+        && Narrow::B as i32 == 1
+        && Narrow::C as i32 == 255;
+}
+
+#[test("enum case: cast from int to custom-typed enum")]
+func caseCustomTypeCast() bool {
+    return 255 as Narrow == Narrow::C && 2 as Narrow == Narrow::A;
+}

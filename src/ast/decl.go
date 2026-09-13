@@ -251,7 +251,7 @@ type Case struct {
 	Documentation []*Leaf
 
 	Name  *Leaf
-	Value *Leaf // optional
+	Value Expr // optional
 }
 
 func (c *Case) Children() iter.Seq[Node] {
@@ -264,7 +264,7 @@ func (c *Case) Children() iter.Seq[Node] {
 		if !yield(c.Name) {
 			return
 		}
-		if c.Value != nil && !yield(c.Value) {
+		if !core.IsNil(c.Value) && !yield(c.Value) {
 			return
 		}
 	}

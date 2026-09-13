@@ -25,6 +25,7 @@ func (hi *highlighter) VisitEnum(e *ast.Enum) {
 
 	for _, c := range e.Cases {
 		hi.AddFull(c.Name, enumMemberKind, 0)
+		hi.VisitExpr(c.Value)
 	}
 }
 

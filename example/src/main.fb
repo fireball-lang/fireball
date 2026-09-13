@@ -23,6 +23,13 @@ const ITEMS: [2]Item = [2]Item {
     },
 };
 
+enum Flags {
+	None = 0,
+	Foo = 1 << 1,
+	Bar = 1 << 2,
+	Omg = NUM,
+}
+
 func main() {
     for (var i = 0; i < 2; i++) {
         var item = ITEMS[i];

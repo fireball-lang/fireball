@@ -301,35 +301,13 @@ func (p *parser) parseCase() (c *ast.Case, recoverId int) {
 	// '=' Value
 	if p.current.Kind == lexer.Equal {
 		// '='
-		p.advance()
-
-		// '-'
-		var negativeToken lexer.Token
-		negative := false
-
-		if p.current.Kind == lexer.Minus {
-			negativeToken = p.advance()
-			negative = true
+		if recoverId = p.expect(lexer.Equal, "expected '=' before enum case value"); recoverId >= 0 {
+			return
 		}
 
 		// Value
-		switch p.current.Kind {
-		case lexer.BinaryInteger, lexer.HexInteger, lexer.UnsignedInteger:
-			c.Value = &ast.Leaf{Token: p.advance()}
-
-			if negative {
-				p.reportError(negativeToken.Range, "only signed integers can be negative")
-			}
-
-		case lexer.SignedInteger:
-			c.Value = &ast.Leaf{Token: p.advance()}
-
-			if negative {
-				c.Value.Token.Text = "-" + c.Value.Token.Text
-			}
-
-		default:
-			recoverId = p.error("expected an integer constant")
+		if c.Value, recoverId = p.parseExpr(); recoverId >= 0 {
+			return
 		}
 	}
 

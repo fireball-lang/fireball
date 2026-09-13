@@ -629,12 +629,11 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 	switch symbol.Kind {
 	case symbols.Case:
 		return ExprInfo{
-			Type:     symbol.Type,
-			Node:     symbol.Node,
-			Symbol:   symbol.Kind,
-			Mutable:  false,
-			Address:  false,
-			CompTime: true,
+			Type:    symbol.Type,
+			Node:    symbol.Node,
+			Symbol:  symbol.Kind,
+			Mutable: false,
+			Address: false,
 		}
 
 	case symbols.Const:

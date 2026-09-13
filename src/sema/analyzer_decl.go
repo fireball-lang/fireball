@@ -87,29 +87,35 @@ func (a *analyzer) VisitEnum(e *ast.Enum) {
 
 	a.nodeTypes[e] = typ
 
-	// Duplicate names and values
+	// Duplicate names and const expressions
 	names := make(map[string]any)
-	values := make(map[core.Integer]any)
 
-	for i, c := range typ.Cases {
-		if i >= len(e.Cases) {
-			break
+	for _, cas := range e.Cases {
+		// Name
+		name := cas.Name.Token.Text
+
+		if _, ok := names[name]; ok {
+			a.Error(cas.Name, "case with name '%s' already exists", name)
 		}
 
-		node := e.Cases[i].Value
-		if node == nil {
-			node = e.Cases[i].Name
-		}
+		names[name] = nil
 
-		if _, ok := names[c.Name]; ok {
-			a.Error(node, "case with name '%s' already exists", c.Name)
-		}
-		names[c.Name] = nil
+		// Value
+		if !core.IsNil(cas.Value) {
+			value := a.AnalyzeExpr(cas.Value)
+			if value.Invalid() {
+				continue
+			}
 
-		if _, ok := values[c.Value]; ok {
-			a.Error(node, "case with value '%s' already exists", c.Value)
+			if !value.CompTime {
+				expr, _ := a.FindDeepestNonCompTimeExpr(cas.Value)
+				a.Error(expr, "expression cannot be evaluated at compile time")
+
+				continue
+			}
+
+			a.ExpectPrimitiveClass(types.IsInteger, "integer", value, cas.Value)
 		}
-		values[c.Value] = nil
 	}
 }
 

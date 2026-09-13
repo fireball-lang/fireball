@@ -3,10 +3,8 @@ package sema
 import (
 	"fireball/ast"
 	"fireball/core"
-	"fireball/lexer"
 	"fireball/symbols"
 	"fireball/types"
-	"math"
 )
 
 func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
@@ -61,9 +59,6 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 		e := symbol.Node.(*ast.Enum)
 		t := symbol.Type.(*types.Enum)
 
-		allowedMin := core.Unsigned(true, math.MaxUint64)
-		allowedMax := core.Unsigned(false, math.MaxUint64)
-
 		// Custom case type
 		if !core.IsNil(e.Type) {
 			typ := r.ResolveAndAnalyzeType(e.Type)
@@ -75,76 +70,15 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 				}
 			}
 
-			if typ != types.Invalid {
-				allowedMin, allowedMax = typ.(*types.Primitive).Kind.IntegerRange()
-			}
-
 			t.CaseType = typ
 		}
 
 		// Cases
-		t.Cases = make([]types.Case, 0, len(e.Cases))
+		t.Cases = make([]types.Case, len(e.Cases))
 
-		current := core.Signed(0)
-
-		valueMin := core.Unsigned(false, math.MaxUint64)
-		valueMax := core.Unsigned(true, math.MaxUint64)
-
-		for _, c := range e.Cases {
-			if c.Value != nil {
-				current = lexer.ParseInteger(c.Value.Token)
-			}
-
-			t.Cases = append(t.Cases, types.Case{
-				Name:  c.Name.Token.Text,
-				Value: current,
-			})
-
-			if !core.IsNil(e.Type) && (current.LessThan(allowedMin) || current.GreaterThan(allowedMax)) {
-				node := c.Value
-				if node == nil {
-					node = c.Name
-				}
-
-				r.Error(node, "value '%s' doesn't fit inside type '%s'", current, t.CaseType)
-			}
-
-			valueMin = valueMin.Min(current)
-			valueMax = valueMax.Max(current)
-
-			current = current.AddOne()
-		}
-
-		// Inferred case type
-		if core.IsNil(e.Type) {
-			if valueMin.Negative() || valueMax.Negative() {
-				if integerFitsInKind(valueMin, types.I8) && integerFitsInKind(valueMax, types.I8) {
-					t.CaseType = types.PrimitiveI8
-				} else if integerFitsInKind(valueMin, types.I16) && integerFitsInKind(valueMax, types.I16) {
-					t.CaseType = types.PrimitiveI16
-				} else if integerFitsInKind(valueMin, types.I32) && integerFitsInKind(valueMax, types.I32) {
-					t.CaseType = types.PrimitiveI32
-				} else if integerFitsInKind(valueMin, types.I64) && integerFitsInKind(valueMax, types.I64) {
-					t.CaseType = types.PrimitiveI64
-				} else {
-					t.CaseType = types.Invalid
-				}
-			} else {
-				if integerFitsInKind(valueMin, types.U8) && integerFitsInKind(valueMax, types.U8) {
-					t.CaseType = types.PrimitiveU8
-				} else if integerFitsInKind(valueMin, types.U16) && integerFitsInKind(valueMax, types.U16) {
-					t.CaseType = types.PrimitiveU16
-				} else if integerFitsInKind(valueMin, types.U32) && integerFitsInKind(valueMax, types.U32) {
-					t.CaseType = types.PrimitiveU32
-				} else if integerFitsInKind(valueMin, types.U64) && integerFitsInKind(valueMax, types.U64) {
-					t.CaseType = types.PrimitiveU64
-				} else {
-					t.CaseType = types.Invalid
-				}
-			}
-
-			if t.CaseType == types.Invalid {
-				r.Error(e.Name(), "failed to infer enum case type for '%s'", e.Name().Token.Text)
+		for i, cas := range e.Cases {
+			t.Cases[i] = types.Case{
+				Name: cas.Name.Token.Text,
 			}
 		}
 
@@ -302,9 +236,4 @@ func (r *resolver) ResolveAssociatedTypeParams(astAssocTypes []*ast.AssociatedTy
 	r.scopes.Push(symbols.SymbolScope(syms))
 
 	return true
-}
-
-func integerFitsInKind(value core.Integer, kind types.PrimitiveKind) bool {
-	kMin, kMax := kind.IntegerRange()
-	return value.GreaterThanEqual(kMin) && value.LessThanEqual(kMax)
 }

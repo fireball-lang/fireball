@@ -13,6 +13,7 @@ import (
 	"fireball/sema"
 	"fireball/types"
 	"fmt"
+	"math"
 )
 
 type compTime struct {
@@ -42,6 +43,100 @@ func Evaluate(file *ast.File, instantiations *types.InstantiationCache, typeEnv 
 
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
+		case *ast.Enum:
+			typ := fileDataMap[file].NodeTypes[decl].(*types.Enum)
+
+			allowedMin := core.Unsigned(true, math.MaxUint64)
+			allowedMax := core.Unsigned(false, math.MaxUint64)
+
+			if !core.IsNil(typ.CaseType) && typ.CaseType != types.Invalid {
+				allowedMin, allowedMax = typ.CaseType.(*types.Primitive).Kind.IntegerRange()
+			}
+
+			current := core.Signed(0)
+
+			valueMin := core.Unsigned(false, math.MaxUint64)
+			valueMax := core.Unsigned(true, math.MaxUint64)
+
+			okAll := true
+
+			for i, cas := range decl.Cases {
+				if !core.IsNil(cas.Value) {
+					info := fileDataMap[file].ExprInfos[cas.Value]
+
+					if !info.CompTime {
+						okAll = false
+						continue
+					}
+
+					var kind types.PrimitiveKind
+
+					switch typ := info.Type.(type) {
+					case *types.Integer:
+						kind = typ.ToPrimitive().Kind
+
+					case *types.Primitive:
+						if !types.IsInteger(typ.Kind) {
+							okAll = false
+							continue
+						}
+
+						kind = typ.Kind
+
+					default:
+						okAll = false
+						continue
+					}
+
+					if ok := ct.CheckCompTimeExprRoot(cas.Value, cas.Name); !ok {
+						okAll = false
+						continue
+					}
+
+					value, ok := ct.EvalExpr(cas.Value, info.Type)
+
+					if !ok {
+						okAll = false
+						continue
+					}
+
+					val := value.(*eval.IntValue)
+
+					if types.IsUnsignedInteger(kind) {
+						current = core.Unsigned(false, val.Value)
+					} else {
+						current = core.TwosComplementWidth(val.Value, kind.Size()*8)
+					}
+				}
+
+				if !core.IsNil(typ.CaseType) && (current.LessThan(allowedMin) || current.GreaterThan(allowedMax)) {
+					node := ast.Node(cas.Value)
+					if core.IsNil(node) {
+						node = cas.Name
+					}
+
+					ct.Error(node, "value '%s' doesn't fit inside type '%s'", current, typ.CaseType)
+				}
+
+				typ.Cases[i].Value = current
+
+				valueMin = valueMin.Min(current)
+				valueMax = valueMax.Max(current)
+
+				current = current.AddOne()
+			}
+
+			if !okAll {
+				if core.IsNil(typ.CaseType) {
+					typ.CaseType = types.Invalid
+				}
+
+				continue
+			}
+
+			ct.CheckDuplicateEnumCaseValues(decl, typ)
+			ct.InferEnumCaseType(decl, typ, valueMin, valueMax)
+
 		case *ast.Const:
 			if !fileDataMap[file].ExprInfos[decl.Value].CompTime {
 				continue
@@ -52,7 +147,7 @@ func Evaluate(file *ast.File, instantiations *types.InstantiationCache, typeEnv 
 				continue
 			}
 
-			value, ok := ct.EvalExpr(decl.Value, decl.Type)
+			value, ok := ct.EvalExpr(decl.Value, fileDataMap[file].NodeTypes[decl.Type])
 
 			if ok {
 				ct.evaluations[decl.Value] = value
@@ -68,7 +163,7 @@ func Evaluate(file *ast.File, instantiations *types.InstantiationCache, typeEnv 
 				continue
 			}
 
-			initializer, ok := ct.EvalExpr(decl.Initializer, decl.Type)
+			initializer, ok := ct.EvalExpr(decl.Initializer, fileDataMap[file].NodeTypes[decl.Type])
 
 			if ok {
 				ct.evaluations[decl.Initializer] = initializer
@@ -79,7 +174,7 @@ func Evaluate(file *ast.File, instantiations *types.InstantiationCache, typeEnv 
 	return ct.evaluations, ct.diagnostics
 }
 
-func (ct *compTime) EvalExpr(expr ast.Expr, typ ast.Type) (eval.Value, bool) {
+func (ct *compTime) EvalExpr(expr ast.Expr, typ types.Type) (eval.Value, bool) {
 	// Get literal value directly
 	value := ct.GetLiteralEvalValue(expr)
 	if value != nil {
@@ -108,7 +203,7 @@ func (ct *compTime) EvalExpr(expr ast.Expr, typ ast.Type) (eval.Value, bool) {
 		panic("comptime.Evaluate() - " + err.Error())
 	}
 
-	return e.GetValue(reg, c.Types.Get(c.NodeType(typ))), true
+	return e.GetValue(reg, c.Types.Get(typ)), true
 }
 
 func (ct *compTime) CheckCompTimeExprRoot(expr ast.Expr, errNode ast.Node) bool {
@@ -124,13 +219,7 @@ func (ct *compTime) CheckCompTimeExpr(expr ast.Expr, seen map[ast.Expr]any, errN
 		switch node := ct.fileDataMap[ast.GetFile(expr)].ExprInfos[expr].Node.(type) {
 		case *ast.Const:
 			if _, ok := seen[node.Value]; ok {
-				ct.diagnostics = append(ct.diagnostics, core.Diagnostic{
-					Kind:    core.Error,
-					Path:    ast.GetFile(expr).Path,
-					Range:   errNode.Range(),
-					Message: fmt.Sprintf("cyclic reference of constant '%s'", node.Name().Token.Text),
-				})
-
+				ct.Error(errNode, "cyclic reference of constant '%s'", node.Name().Token.Text)
 				return false
 			}
 
@@ -215,10 +304,19 @@ func (ct *compTime) GetLiteralEvalValue(expr ast.Expr) eval.Value {
 	}
 }
 
-func generateModule(c *codegen.Codegen, expr ast.Expr, typ ast.Type) *ir.Function {
+func (ct *compTime) Error(node ast.Node, format string, args ...any) {
+	ct.diagnostics = append(ct.diagnostics, core.Diagnostic{
+		Kind:    core.Error,
+		Path:    ct.file.Path,
+		Range:   node.Range(),
+		Message: fmt.Sprintf(format, args...),
+	})
+}
+
+func generateModule(c *codegen.Codegen, expr ast.Expr, typ types.Type) *ir.Function {
 	evalFunc := &ast.Func{
 		Name_:   &ast.Leaf{Token: lexer.Token{Kind: lexer.Identifier, Text: "__comptime__"}},
-		Returns: typ,
+		Returns: nil, // nothing in the codegen uses this, it uses the type from *types.Func
 	}
 
 	evalFile := &ast.File{
@@ -230,7 +328,7 @@ func generateModule(c *codegen.Codegen, expr ast.Expr, typ ast.Type) *ir.Functio
 
 	evalFunc.SetParent(evalFile)
 
-	funTyp := &types.Func{Returns: c.NodeType(typ)}
+	funTyp := &types.Func{Returns: typ}
 
 	fun := c.CreateFunction(
 		evalFunc,
@@ -241,12 +339,21 @@ func generateModule(c *codegen.Codegen, expr ast.Expr, typ ast.Type) *ir.Functio
 
 	c.BeginFunc(evalFunc, funTyp, fun)
 
-	val := c.LoadImplicitCast(expr, c.UnderlyingNodeType(typ))
+	if t, ok := typ.(types.Composed); ok {
+		typ = t.Underlying()
+	}
+
+	val := c.LoadImplicitCast(expr, typ)
 	c.Emitter.Ret(val)
 
 	c.EndFunc()
 
 	return fun
+}
+
+func integerFitsInKind(value core.Integer, kind types.PrimitiveKind) bool {
+	kMin, kMax := kind.IntegerRange()
+	return value.GreaterThanEqual(kMin) && value.LessThanEqual(kMax)
 }
 
 func getDiagnostic(err eval.Error) core.Diagnostic {

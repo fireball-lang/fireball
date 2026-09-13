@@ -57,7 +57,6 @@
 
 (enum name: (identifier) @enum)
 (case name: (identifier) @variant)
-(case value: (integer) @number)
 
 (interface name: (identifier) @type)
 (interface type_param: (type_param name: (identifier) @type.parameter))

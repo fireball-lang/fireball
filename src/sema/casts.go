@@ -203,6 +203,13 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 			}
 
 		case *types.Enum:
+			if core.IsNil(to.CaseType) {
+				// in sema the underlying enum type is possibly not resolved yet,
+				// return Noop since sema doesn't use the CastKind in any way,
+				// it just needs to know if the cast is possible or not
+				return Noop, true
+			}
+
 			return getCastFromToInteger(fromT.ToPrimitive().Kind, to.CaseType.(*types.Primitive).Kind)
 		}
 
@@ -237,6 +244,13 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 
 		case *types.Enum:
 			if types.IsInteger(fromT.Kind) {
+				if core.IsNil(to.CaseType) {
+					// in sema the underlying enum type is possibly not resolved yet,
+					// return Noop since sema doesn't use the CastKind in any way,
+					// it just needs to know if the cast is possible or not
+					return Noop, true
+				}
+
 				return getCastFromToInteger(fromT.Kind, to.CaseType.(*types.Primitive).Kind)
 			}
 		}
@@ -283,6 +297,13 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 
 	case *types.Enum:
 		if to, ok := to.(*types.Primitive); ok && types.IsInteger(to.Kind) {
+			if core.IsNil(fromT.CaseType) {
+				// in sema the underlying enum type is possibly not resolved yet,
+				// return Noop since sema doesn't use the CastKind in any way,
+				// it just needs to know if the cast is possible or not
+				return Noop, true
+			}
+
 			return getCastFromToInteger(fromT.CaseType.(*types.Primitive).Kind, to.Kind)
 		}
 
@@ -510,5 +531,5 @@ func getCastFromToInteger(from, to types.PrimitiveKind) (CastKind, bool) {
 		return Truncate, true
 	}
 
-	return Noop, false
+	panic("sema.getCastFromToInteger() - Failed to find a cast between integers")
 }
