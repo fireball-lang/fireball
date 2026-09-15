@@ -2,7 +2,6 @@ package project
 
 import (
 	"fireball/ast"
-	"fireball/cfg"
 	"fireball/codegen"
 	"fireball/core"
 	"fireball/fb-core"
@@ -86,16 +85,10 @@ func (p *Project) RemoveFile(fullPath string) bool {
 	return true
 }
 
-func (p *Project) Parse(files []*File, env cfg.Env) {
-	defer core.Scope()()
-
+func (p *Project) AssignFilesToModules() {
 	p.Module = &Module{Name: p.Config.Name}
 
 	for _, file := range p.Files {
-		if len(files) == 0 || slices.Contains(files, file) {
-			file.parse(env)
-		}
-
 		p.assignFileToModule(file)
 	}
 }

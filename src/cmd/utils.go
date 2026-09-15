@@ -87,8 +87,19 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*
 	ordered := project.OrderProjects(projMap, depMap)
 
 	// Parse
+	var files []*project.File
+
 	for _, proj := range ordered {
-		proj.Parse(nil, env)
+		files = append(files, proj.Files...)
+	}
+
+	_ = core.ParallelFor(files, func(_ int, file *project.File) error {
+		file.Parse(env)
+		return nil
+	})
+
+	for _, proj := range ordered {
+		proj.AssignFilesToModules()
 	}
 
 	for _, proj := range ordered {

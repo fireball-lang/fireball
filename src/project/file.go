@@ -56,7 +56,7 @@ func newFile(proj *Project, path string) *File {
 	}
 }
 
-func (f *File) parse(env cfg.Env) {
+func (f *File) Parse(env cfg.Env) {
 	readCloser := f.Source.Get()
 
 	//goland:noinspection GoUnhandledErrorResult

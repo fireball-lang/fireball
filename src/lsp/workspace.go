@@ -104,7 +104,15 @@ func (w *Workspace) parseFiles(files []*project.File) {
 
 	// Parse
 	for _, proj := range ordered {
-		proj.Parse(files, w.server.Env)
+		for _, file := range proj.Files {
+			if len(files) == 0 || slices.Contains(files, file) {
+				file.Parse(w.server.Env)
+			}
+		}
+	}
+
+	for _, proj := range ordered {
+		proj.AssignFilesToModules()
 	}
 
 	for _, proj := range ordered {
