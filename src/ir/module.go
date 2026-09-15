@@ -13,14 +13,19 @@ type Module struct {
 	Triple     string
 
 	namedStructs map[string]*RefStructType
-	globalVars   []*GlobalVar
-	functions    []*Function
+
+	globalVars       []*GlobalVar
+	globalVarNameMap map[string]*GlobalVar
+
+	functions       []*Function
+	functionNameMap map[string]*Function
 
 	namedMetaRefs map[string][]MetaRef
 
-	headMetaNode  MetaNode
-	tailMetaNode  MetaNode
-	metaNodeCount uint32
+	metaNodeRefMap map[MetaRef]MetaNode
+	headMetaNode   MetaNode
+	tailMetaNode   MetaNode
+	metaNodeCount  uint32
 
 	headSummary  Summary
 	tailSummary  Summary
@@ -29,8 +34,11 @@ type Module struct {
 
 func NewModule() *Module {
 	return &Module{
-		namedStructs:  make(map[string]*RefStructType),
-		namedMetaRefs: make(map[string][]MetaRef),
+		namedStructs:     make(map[string]*RefStructType),
+		namedMetaRefs:    make(map[string][]MetaRef),
+		functionNameMap:  make(map[string]*Function),
+		globalVarNameMap: make(map[string]*GlobalVar),
+		metaNodeRefMap:   make(map[MetaRef]MetaNode),
 	}
 }
 
@@ -79,17 +87,13 @@ func (m *Module) NewGlobalVar(name string, typ Type) *GlobalVar {
 	}
 
 	m.globalVars = append(m.globalVars, gVar)
+	m.globalVarNameMap[name] = gVar
+
 	return gVar
 }
 
 func (m *Module) GetGlobalVar(name string) *GlobalVar {
-	for _, gVar := range m.globalVars {
-		if gVar.Name == name {
-			return gVar
-		}
-	}
-
-	return nil
+	return m.globalVarNameMap[name]
 }
 
 func (m *Module) GlobalVars() iter.Seq[*GlobalVar] {
@@ -125,17 +129,13 @@ func (m *Module) NewFunction(name string, sig *Signature, params []Param) *Funct
 	}
 
 	m.functions = append(m.functions, fun)
+	m.functionNameMap[name] = fun
+
 	return fun
 }
 
 func (m *Module) GetFunction(name string) *Function {
-	for _, fun := range m.functions {
-		if fun.Name == name {
-			return fun
-		}
-	}
-
-	return nil
+	return m.functionNameMap[name]
 }
 
 func (m *Module) Functions() iter.Seq[*Function] {
@@ -170,18 +170,14 @@ func (m *Module) AddMeta(node MetaNode) MetaRef {
 	ref := MetaRef(m.metaNodeCount + 1)
 	m.metaNodeCount++
 
+	m.metaNodeRefMap[ref] = node
+
 	return ref
 }
 
 func (m *Module) GetMeta(ref MetaRef) MetaNode {
-	i := uint32(0)
-
-	for node := range m.MetaNodes() {
-		if i == ref.Value() {
-			return node
-		}
-
-		i++
+	if node, ok := m.metaNodeRefMap[ref]; ok {
+		return node
 	}
 
 	panic("ir.Module.GetMeta() - Invalid meta reference")
@@ -245,16 +241,12 @@ func (m *Module) SymbolExists(name string) bool {
 		return true
 	}
 
-	for _, gVar := range m.globalVars {
-		if name == gVar.Name {
-			return true
-		}
+	if _, ok := m.globalVarNameMap[name]; ok {
+		return true
 	}
 
-	for _, fun := range m.functions {
-		if name == fun.Name {
-			return true
-		}
+	if _, ok := m.functionNameMap[name]; ok {
+		return ok
 	}
 
 	return false

@@ -22,9 +22,11 @@ func IsNil(v any) bool {
 		return true
 	}
 
-	switch reflect.TypeOf(v).Kind() {
-	case reflect.Ptr, reflect.Map, reflect.Chan, reflect.Slice, reflect.Func:
-		return reflect.ValueOf(v).IsNil()
+	val := reflect.ValueOf(v)
+
+	switch val.Kind() {
+	case reflect.Pointer, reflect.Map, reflect.Chan, reflect.Slice, reflect.Func:
+		return val.IsNil()
 	default:
 		return false
 	}

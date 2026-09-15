@@ -510,10 +510,8 @@ func (c *Codegen) GetConst(decl *ast.Const) *ir.GlobalVar {
 	// Check already existing constants
 	name := ConstLinkName(decl)
 
-	for gVar := range c.Module.GlobalVars() {
-		if gVar.Name == name {
-			return gVar
-		}
+	if gVar := c.Module.GetGlobalVar(name); gVar != nil {
+		return gVar
 	}
 
 	// Create constant
@@ -645,10 +643,8 @@ func (c *Codegen) GetGlobalVar(g *ast.GlobalVar, typ types.Type) *ir.GlobalVar {
 	// Check already existing global variables
 	name := GlobalVarLinkName(g)
 
-	for gVar := range c.Module.GlobalVars() {
-		if gVar.Name == name {
-			return gVar
-		}
+	if gVar := c.Module.GetGlobalVar(name); gVar != nil {
+		return gVar
 	}
 
 	// Create extern global var
@@ -659,10 +655,8 @@ func (c *Codegen) GetFunction(f *ast.Func, typ *types.Func, iface *types.Interfa
 	// Check already existing functions
 	name := FuncLinkName(f, typ, iface)
 
-	for fun := range c.Module.Functions() {
-		if fun.Name == name {
-			return fun
-		}
+	if fun := c.Module.GetFunction(name); fun != nil {
+		return fun
 	}
 
 	// Instantiation

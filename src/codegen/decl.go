@@ -177,10 +177,8 @@ func (c *Codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool, in 
 	name := FuncLinkName(f, typ, in)
 
 	if f.IsExtern() {
-		for fun := range c.Module.Functions() {
-			if fun.Name == name {
-				return fun
-			}
+		if fun := c.Module.GetFunction(name); fun != nil {
+			return fun
 		}
 	}
 

@@ -6,33 +6,18 @@ import (
 	"fireball/types"
 )
 
-type typeEntry struct {
-	Type   types.Type
-	IrType ir.Type
-}
-
-type metaEntry struct {
-	Type types.Type
-	Ref  ir.MetaRef
-}
-
 type TypeCache struct {
 	Arch abi.Arch
 
 	Module  *ir.Module
 	FileRef ir.MetaRef
 
-	entries     []typeEntry
-	metaEntries []metaEntry
+	entries     types.TypeMap[ir.Type]
+	metaEntries types.TypeMap[ir.MetaRef]
 }
 
-func (t *TypeCache) Add(typ types.Type, irTyp ir.Type) ir.Type {
-	t.entries = append(t.entries, typeEntry{typ, irTyp})
-	return irTyp
-}
-
-func (t *TypeCache) AddMeta(typ types.Type, ref ir.MetaRef) ir.MetaRef {
-	t.metaEntries = append(t.metaEntries, metaEntry{typ, ref})
+func (t *TypeCache) addMeta(typ types.Type, ref ir.MetaRef) ir.MetaRef {
+	t.metaEntries.InsertUnsafe(typ, ref)
 	return ref
 }
 
@@ -42,10 +27,8 @@ func (t *TypeCache) Get(typ types.Type) ir.Type {
 	}
 
 	// Check cache
-	for _, entry := range t.entries {
-		if entry.Type.Equals(typ) {
-			return entry.IrType
-		}
+	if irTyp, ok := t.entries.Get(typ); ok {
+		return irTyp
 	}
 
 	// Create
@@ -65,7 +48,8 @@ func (t *TypeCache) Get(typ types.Type) ir.Type {
 		panic("codegen.TypeCache.Get() - Invalid type")
 	}
 
-	return t.Add(typ, irTyp)
+	t.entries.Insert(typ, irTyp)
+	return irTyp
 }
 
 func (t *TypeCache) GetMeta(typ types.Type) ir.MetaRef {
@@ -78,10 +62,8 @@ func (t *TypeCache) GetMeta(typ types.Type) ir.MetaRef {
 	}
 
 	// Check cache
-	for _, entry := range t.metaEntries {
-		if entry.Type.Equals(typ) {
-			return entry.Ref
-		}
+	if ref, ok := t.metaEntries.Get(typ); ok {
+		return ref
 	}
 
 	// Create
@@ -170,7 +152,7 @@ func (t *TypeCache) createPrimitiveMeta(typ *types.Primitive) ir.MetaRef {
 		panic("codegen.TypeCache.createPrimitiveMeta() - Invalid primitive kind")
 	}
 
-	return t.AddMeta(typ, t.Module.AddMeta(&ir.BasicTypeMeta{
+	return t.addMeta(typ, t.Module.AddMeta(&ir.BasicTypeMeta{
 		Name:     typ.String(),
 		Encoding: encoding,
 		Size:     info.Size * 8,
@@ -194,7 +176,7 @@ func (t *TypeCache) createPointerMeta(typ types.Type, pointee types.Type) ir.Met
 		Align: info.Align * 8,
 	}
 
-	ref := t.AddMeta(typ, t.Module.AddMeta(node))
+	ref := t.addMeta(typ, t.Module.AddMeta(node))
 
 	node.Base = t.GetMeta(pointee)
 
@@ -221,7 +203,7 @@ func (t *TypeCache) createArrayMeta(typ *types.Array) ir.MetaRef {
 		Align: info.Align * 8,
 	}
 
-	ref := t.AddMeta(typ, t.Module.AddMeta(node))
+	ref := t.addMeta(typ, t.Module.AddMeta(node))
 
 	subrange := t.Module.AddMeta(&ir.SubrangeMeta{Count: typ.Size})
 	node.BaseType = t.GetMeta(typ.Element)
@@ -289,7 +271,7 @@ func (t *TypeCache) createStructMeta(typ *types.Struct) ir.MetaRef {
 		Align: info.Align * 8,
 	}
 
-	ref := t.AddMeta(typ, t.Module.AddMeta(node))
+	ref := t.addMeta(typ, t.Module.AddMeta(node))
 
 	fields := make([]ir.MetaRef, len(typ.Fields))
 
@@ -340,7 +322,7 @@ func (t *TypeCache) createFuncMeta(typ *types.Func) ir.MetaRef {
 		Align: info.Align * 8,
 	}
 
-	pRef := t.AddMeta(typ, t.Module.AddMeta(pNode))
+	pRef := t.addMeta(typ, t.Module.AddMeta(pNode))
 
 	return pRef
 }
@@ -358,7 +340,7 @@ func (t *TypeCache) createEnumMeta(typ *types.Enum) ir.MetaRef {
 		Align: info.Align * 8,
 	}
 
-	ref := t.AddMeta(typ, t.Module.AddMeta(node))
+	ref := t.addMeta(typ, t.Module.AddMeta(node))
 
 	cases := make([]ir.MetaRef, len(typ.Cases))
 

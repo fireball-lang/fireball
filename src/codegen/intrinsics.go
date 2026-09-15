@@ -161,10 +161,8 @@ func (c *Codegen) PrepareIntrinsicArgs(typ *types.Func, args []ast.Expr, additio
 
 func (c *Codegen) GetIntrinsicFunction(intrinsic ir.Intrinsic) *ir.Function {
 	// Check already existing functions
-	for fun := range c.Module.Functions() {
-		if fun.Name == intrinsic.Name {
-			return fun
-		}
+	if fun := c.Module.GetFunction(intrinsic.Name); fun != nil {
+		return fun
 	}
 
 	// Create extern function

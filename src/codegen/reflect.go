@@ -13,10 +13,8 @@ func (c *Codegen) GetTypeInfo(typ types.Type) ir.Value {
 	name := TypeInfoLinkName(typ, "type_info")
 
 	// Check already existing type infos
-	for gVar := range c.Module.GlobalVars() {
-		if gVar.Name == name {
-			return gVar
-		}
+	if gVar := c.Module.GetGlobalVar(name); gVar != nil {
+		return gVar
 	}
 
 	// Instantiate generic / pseudo-generic implementation
@@ -54,10 +52,8 @@ func (c *Codegen) GetVTable(in *types.Interface, typ types.Type) ir.Value {
 	name := VTableLinkName(in, typ)
 
 	// Check already existing vtables
-	for gVar := range c.Module.GlobalVars() {
-		if gVar.Name == name {
-			return gVar
-		}
+	if gVar := c.Module.GetGlobalVar(name); gVar != nil {
+		return gVar
 	}
 
 	// Instantiate generic / pseudo-generic implementation
