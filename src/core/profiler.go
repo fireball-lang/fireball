@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/petermattis/goid"
@@ -18,6 +19,7 @@ type event struct {
 	pid  uint32
 	tid  uint32
 	ts   uint64
+	dur  uint64
 }
 
 type goId struct {
@@ -25,7 +27,7 @@ type goId struct {
 	tid uint32
 }
 
-var start uint64
+var start atomic.Uint64
 var events []event
 
 var norW io.Writer
@@ -36,10 +38,13 @@ var mutex sync.Mutex
 var goIds map[int64]goId
 
 func StartProfiler() {
-	start = uint64(time.Now().UnixMicro())
+	start.Store(uint64(time.Now().UnixMicro()))
 }
 
 func SetProfilerOutput(w io.Writer) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	norW = w
 	bufW = bufio.NewWriter(w)
 
@@ -52,9 +57,11 @@ func SetProfilerOutput(w io.Writer) {
 }
 
 func EndProfiler() {
-	if start == 0 {
+	if start.Load() == 0 {
 		return
 	}
+
+	mutex.Lock()
 
 	if bufW != nil {
 		_, _ = bufW.WriteString("\n]\n")
@@ -70,12 +77,15 @@ func EndProfiler() {
 		wHasEvents = false
 	}
 
-	start = 0
 	events = nil
+
+	mutex.Unlock()
+
+	start.Store(0)
 }
 
 func Scope() func() {
-	if start == 0 {
+	if start.Load() == 0 {
 		return func() {}
 	}
 
@@ -97,26 +107,27 @@ func Scope() func() {
 		}
 	}
 
-	// Begin event
-	recordEvent(name, 'B')
+	// Capture start timestamp
+	ts := uint64(time.Now().UnixMicro()) - start.Load()
 
-	// End event
+	// Complete event
 	return func() {
-		if start != 0 {
-			recordEvent(name, 'E')
+		if start.Load() != 0 {
+			recordEvent(name, ts, uint64(time.Now().UnixMicro())-start.Load()-ts)
 		}
 	}
 }
 
-func recordEvent(name string, ph byte) {
+func recordEvent(name string, ts uint64, dur uint64) {
 	goroutineID := goid.Get()
 
 	e := event{
 		name: name,
-		ph:   ph,
+		ph:   'X',
 		pid:  0,
 		tid:  uint32(goroutineID),
-		ts:   uint64(time.Now().UnixMicro()) - start,
+		ts:   ts,
+		dur:  dur,
 	}
 
 	mutex.Lock()
@@ -167,6 +178,11 @@ func (e event) write() {
 	_, _ = bufW.WriteString(",\"ts\":")
 
 	size = len(strconv.AppendUint(buffer[0:0], e.ts, 10))
+	_, _ = bufW.Write(buffer[:size])
+
+	_, _ = bufW.WriteString(",\"dur\":")
+
+	size = len(strconv.AppendUint(buffer[0:0], e.dur, 10))
 	_, _ = bufW.Write(buffer[:size])
 
 	_ = bufW.WriteByte('}')
