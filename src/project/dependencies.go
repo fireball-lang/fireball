@@ -1,9 +1,12 @@
 package project
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fireball/core"
-	fb_core "fireball/fb-core"
+	fbcore "fireball/fb-core"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,75 +18,202 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
-type gitVersion struct {
-	proj *Project
-	hash plumbing.Hash
-	time time.Time
+const MetadataVersion = 1
 
-	deps []Dependency
+type MetadataFile struct {
+	Version      int                        `json:"version"`
+	Repositories map[string]GitRepoMetadata `json:"repositories"` // Key: url + "@" + revision
+}
+
+type GitRepoMetadata struct {
+	URL             string    `json:"url"`
+	Revision        string    `json:"revision"`
+	RelPath         string    `json:"path"`
+	ProjectName     string    `json:"project_name"`
+	CommitHash      string    `json:"commit_hash"`
+	CommitTimestamp time.Time `json:"commit_timestamp"`
+}
+
+type gitVersionCandidate struct {
+	proj     *Project
+	metadata GitRepoMetadata
 }
 
 func LoadHierarchy(main *Project) (map[string]*Project, map[Dependency]*Project, error) {
 	defer core.Scope()()
-
-	projMap := make(map[string]*Project)
-	projMap[main.Config.Name] = main
-
-	depMap := make(map[Dependency]*Project)
 
 	depsPath := filepath.Join(main.Path, "build", "dependencies")
 	if err := os.MkdirAll(depsPath, 0750); err != nil {
 		return nil, nil, err
 	}
 
+	// 1. Load embedded core project
 	coreProj, err := loadCore(depsPath)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	projMap["core"] = coreProj
-	depMap[Dependency{Path: "core"}] = coreProj
+	// 2. Load metadata cache
+	metaFile, err := loadMetadata(depsPath)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	gitVersions := make(map[string]gitVersion)
-	currentHash := make(map[string]plumbing.Hash)
+	// 3. Phase 1: Discover dependencies, clone/update git repos, and pick the newest versions
+	gitCandidates, localProjects, err := discoverDependencies(main, depsPath, metaFile)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	// Recursively process all projects
+	// 4. Phase 2: Build final dependency hierarchy using only reachable, winning versions
+	return buildHierarchy(main, coreProj, metaFile, gitCandidates, localProjects)
+}
+
+func discoverDependencies(
+	main *Project,
+	depsPath string,
+	metaFile *MetadataFile,
+) (map[string]gitVersionCandidate, map[string]*Project, error) {
+	defer core.Scope()()
+
+	gitCandidates := make(map[string]gitVersionCandidate)
+	localProjects := make(map[string]*Project)
+	gitProjects := make(map[*Project]struct{})
+
 	queue := []*Project{main}
-	visited := make(map[Dependency]any)
+	visited := make(map[*Project]struct{})
+	metaDirty := false
 
 	for len(queue) > 0 {
 		proj := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]
 
-		for _, dep := range proj.Config.Dependencies {
-			if _, ok := visited[dep]; ok {
+		// Skip if this git project was superseded by a newer version while waiting in queue
+		if _, isGit := gitProjects[proj]; isGit {
+			if winning, ok := gitCandidates[proj.Config.Name]; ok && winning.proj != proj {
 				continue
 			}
-			visited[dep] = nil
+		}
 
+		if _, ok := visited[proj]; ok {
+			continue
+		}
+
+		visited[proj] = struct{}{}
+
+		for _, dep := range proj.Config.Dependencies {
 			if dep.Path != "" {
-				// Local
-				depProj, err := processLocalDep(projMap, depMap, proj, dep)
-				if err != nil {
-					return nil, nil, err
+				// Local dependency
+				absPath := filepath.Clean(filepath.Join(proj.Path, dep.Path))
+				localProj, ok := localProjects[absPath]
+
+				if !ok {
+					var err error
+					localProj, err = Open(absPath)
+					if err != nil {
+						return nil, nil, err
+					}
+
+					localProjects[absPath] = localProj
 				}
 
-				queue = append(queue, depProj)
+				queue = append(queue, localProj)
 			} else {
-				// Git
-				depProj, err := processGitDep(gitVersions, currentHash, depsPath, dep)
+				// Git dependency
+				depProj, updated, err := processGitDep(depsPath, metaFile, gitCandidates, dep)
 				if err != nil {
 					return nil, nil, err
 				}
 
-				queue = append(queue, depProj)
+				if updated {
+					metaDirty = true
+				}
+				if depProj != nil {
+					gitProjects[depProj] = struct{}{}
+					queue = append(queue, depProj)
+				}
 			}
 		}
 	}
 
-	// Select newest git versions
-	if err := finalizeGitVersions(projMap, depMap, currentHash, gitVersions); err != nil {
-		return nil, nil, err
+	if metaDirty {
+		if err := saveMetadata(depsPath, metaFile); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return gitCandidates, localProjects, nil
+}
+
+func buildHierarchy(
+	main *Project,
+	coreProj *Project,
+	metaFile *MetadataFile,
+	gitCandidates map[string]gitVersionCandidate,
+	localProjects map[string]*Project,
+) (map[string]*Project, map[Dependency]*Project, error) {
+	defer core.Scope()()
+
+	projMap := make(map[string]*Project)
+	depMap := make(map[Dependency]*Project)
+
+	projMap[main.Config.Name] = main
+	projMap["core"] = coreProj
+	depMap[Dependency{Path: "core"}] = coreProj
+
+	walkQueue := []*Project{main}
+	visited := make(map[*Project]struct{})
+	visited[main] = struct{}{}
+	visited[coreProj] = struct{}{}
+
+	for len(walkQueue) > 0 {
+		curr := walkQueue[len(walkQueue)-1]
+		walkQueue = walkQueue[:len(walkQueue)-1]
+
+		for _, dep := range curr.Config.Dependencies {
+			var target *Project
+
+			if dep.Path != "" {
+				// Local dependency
+				absPath := filepath.Clean(filepath.Join(curr.Path, dep.Path))
+				target = localProjects[absPath]
+
+				if target == nil {
+					return nil, nil, fmt.Errorf("unresolved local dependency '%s' for project '%s'", dep.Path, curr.Config.Name)
+				}
+			} else {
+				// Git dependency: resolve to winning candidate
+				key := dep.Url + "@" + dep.Revision
+				meta, ok := metaFile.Repositories[key]
+
+				if !ok {
+					return nil, nil, fmt.Errorf("missing metadata for git dependency: %s", key)
+				}
+
+				candidate, ok := gitCandidates[meta.ProjectName]
+				if !ok {
+					return nil, nil, fmt.Errorf("unresolved git dependency for project: %s", meta.ProjectName)
+				}
+
+				target = candidate.proj
+			}
+
+			depMap[dep] = target
+
+			// Collision check against active project graph
+			if existing, exists := projMap[target.Config.Name]; exists {
+				if existing != target {
+					return nil, nil, fmt.Errorf("project with the name '%s' already exists in the dependency tree", target.Config.Name)
+				}
+			} else {
+				projMap[target.Config.Name] = target
+			}
+
+			if _, ok := visited[target]; !ok {
+				visited[target] = struct{}{}
+				walkQueue = append(walkQueue, target)
+			}
+		}
 	}
 
 	return projMap, depMap, nil
@@ -92,132 +222,116 @@ func LoadHierarchy(main *Project) (map[string]*Project, map[Dependency]*Project,
 func loadCore(depsPath string) (*Project, error) {
 	defer core.Scope()()
 
-	// Extract
 	path := filepath.Join(depsPath, "core")
 
-	err := core.ExtractVersionedEmbedFs(path, ".", fb_core.Fs)
+	err := core.ExtractVersionedEmbedFs(path, ".", fbcore.Fs)
 	if err != nil {
 		return nil, err
 	}
 
-	// Open
 	return Open(path)
 }
 
-func processLocalDep(projMap map[string]*Project, depMap map[Dependency]*Project, parent *Project, dep Dependency) (*Project, error) {
+func processGitDep(
+	depsPath string,
+	metaFile *MetadataFile,
+	candidates map[string]gitVersionCandidate,
+	dep Dependency,
+) (*Project, bool, error) {
 	defer core.Scope()()
 
-	// Open project
-	proj, err := Open(filepath.Join(parent.Path, dep.Path))
+	key := dep.Url + "@" + dep.Revision
+	meta, cached := metaFile.Repositories[key]
+	metaDirty := false
+
+	targetDir := meta.RelPath
+
+	if targetDir == "" {
+		var err error
+		if targetDir, err = isolatedDirName(dep.Url, dep.Revision); err != nil {
+			return nil, false, err
+		}
+	}
+
+	fullPath := filepath.Join(depsPath, targetDir)
+
+	// Fast path: use cache without Git operations if directory exists
+	exists, err := pathExists(fullPath)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	// Check duplicate name
-	if _, ok := projMap[proj.Config.Name]; ok {
-		return nil, fmt.Errorf("project with the name '%s' already exists in the dependency tree", proj.Config.Name)
+	if !cached || !exists {
+		newMeta, err := cloneAndCheckout(depsPath, targetDir, dep.Url, dep.Revision)
+		if err != nil {
+			return nil, false, err
+		}
+
+		meta = newMeta
+		metaFile.Repositories[key] = meta
+		metaDirty = true
 	}
 
-	projMap[proj.Config.Name] = proj
+	proj, err := Open(fullPath)
+	if err != nil {
+		return nil, false, err
+	}
 
-	// Add project into dependency map
-	depMap[dep] = proj
+	incoming := gitVersionCandidate{
+		proj:     proj,
+		metadata: meta,
+	}
 
-	return proj, nil
+	// Version selection: candidate with newer commit timestamp wins
+	if existing, exists := candidates[meta.ProjectName]; exists {
+		if incoming.metadata.CommitTimestamp.After(existing.metadata.CommitTimestamp) {
+			candidates[meta.ProjectName] = incoming
+			return proj, metaDirty, nil
+		}
+
+		// Older revision is ignored
+		return nil, metaDirty, nil
+	}
+
+	candidates[meta.ProjectName] = incoming
+	return proj, metaDirty, nil
 }
 
-func processGitDep(gitVersions map[string]gitVersion, currentHash map[string]plumbing.Hash, depsPath string, dep Dependency) (*Project, error) {
+func cloneAndCheckout(depsPath, relPath, url, revision string) (GitRepoMetadata, error) {
 	defer core.Scope()()
 
-	path := filepath.Join(depsPath, repoName(dep.Url))
+	fullPath := filepath.Join(depsPath, relPath)
 
-	// Open repo
-	repo, err := openOrClone(path, dep.Url)
+	repo, err := openOrClone(fullPath, url)
 	if err != nil {
-		return nil, err
+		return GitRepoMetadata{}, err
 	}
 
 	//goland:noinspection GoUnhandledErrorResult
 	defer repo.Close()
 
-	// Commit
-	commit, err := resolveCommit(repo, dep.Revision)
+	commit, err := resolveCommit(repo, revision)
 	if err != nil {
-		return nil, err
+		return GitRepoMetadata{}, err
 	}
 
-	// Checkout
-	if currentHash[path] != commit.Hash {
-		err := checkoutHash(repo, commit.Hash)
-		if err != nil {
-			return nil, err
-		}
-
-		currentHash[path] = commit.Hash
+	if err := checkoutHash(repo, commit.Hash); err != nil {
+		return GitRepoMetadata{}, err
 	}
 
-	// Open project
-	proj, err := Open(path)
+	proj, err := Open(fullPath)
 	if err != nil {
-		return nil, err
+		return GitRepoMetadata{}, err
 	}
 
-	incoming := gitVersion{
-		proj: proj,
-		hash: commit.Hash,
-		time: commit.Committer.When,
-		deps: []Dependency{dep},
-	}
-
-	// Store version
-	if old, ok := gitVersions[proj.Config.Name]; ok {
-		if incoming.time.After(old.time) {
-			incoming.deps = append(incoming.deps, old.deps...)
-			gitVersions[proj.Config.Name] = incoming
-		} else {
-			old.deps = append(old.deps, dep)
-			gitVersions[proj.Config.Name] = old
-		}
-	} else {
-		gitVersions[proj.Config.Name] = incoming
-	}
-
-	return proj, nil
-}
-
-func finalizeGitVersions(projMap map[string]*Project, depMap map[Dependency]*Project, currentHash map[string]plumbing.Hash, gitVersions map[string]gitVersion) error {
-	defer core.Scope()()
-
-	for name, version := range gitVersions {
-		// Check duplicate project name
-		if _, ok := projMap[name]; ok {
-			return fmt.Errorf("project with the name '%s' already exists in the dependency tree", name)
-		}
-
-		projMap[name] = version.proj
-
-		// Checkout
-		if currentHash[version.proj.Path] != version.hash {
-			repo, err := git.PlainOpen(version.proj.Path)
-			if err != nil {
-				return err
-			}
-
-			err = checkoutHash(repo, version.hash)
-			_ = repo.Close()
-
-			if err != nil {
-				return err
-			}
-		}
-
-		// Add project into dependency map
-		for _, dep := range version.deps {
-			depMap[dep] = version.proj
-		}
-	}
-
-	return nil
+	return GitRepoMetadata{
+		URL:             url,
+		Revision:        revision,
+		RelPath:         relPath,
+		ProjectName:     proj.Config.Name,
+		CommitHash:      commit.Hash.String(),
+		CommitTimestamp: commit.Committer.When,
+	}, nil
 }
 
 func openOrClone(repoPath, url string) (*git.Repository, error) {
@@ -274,6 +388,7 @@ func checkoutHash(repo *git.Repository, hash plumbing.Hash) error {
 
 func pathExists(path string) (bool, error) {
 	_, err := os.Stat(path)
+
 	if os.IsNotExist(err) {
 		return false, nil
 	}
@@ -284,11 +399,105 @@ func pathExists(path string) (bool, error) {
 	return true, nil
 }
 
-func repoName(url string) string {
-	i := strings.LastIndex(url, "/")
-	if i == -1 {
-		panic("project.repoName() - Invalid git url")
+func isolatedDirName(url, revision string) (string, error) {
+	raw := fmt.Sprintf("%s@%s", url, revision)
+	sum := sha256.Sum256([]byte(raw))
+	hash := hex.EncodeToString(sum[:])[:8]
+
+	base, err := repoName(url)
+	if err != nil {
+		return "", err
 	}
 
-	return url[i+1 : len(url)-4]
+	return fmt.Sprintf("%s-%s", base, hash), nil
+}
+
+func repoName(url string) (string, error) {
+	if !strings.HasPrefix(url, "https://") || !strings.HasSuffix(url, ".git") {
+		return "", fmt.Errorf("invalid git url '%s': must start with https:// and end with .git", url)
+	}
+
+	i := strings.LastIndex(url, "/")
+	if i == -1 || i >= len(url)-4 {
+		return "", fmt.Errorf("invalid git url '%s'", url)
+	}
+
+	return url[i+1 : len(url)-4], nil
+}
+
+func loadMetadata(depsPath string) (*MetadataFile, error) {
+	defer core.Scope()()
+
+	filePath := filepath.Join(depsPath, "dependencies.json")
+	file, err := os.Open(filePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return &MetadataFile{
+			Version:      MetadataVersion,
+			Repositories: make(map[string]GitRepoMetadata),
+		}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	//goland:noinspection GoUnhandledErrorResult
+	defer file.Close()
+
+	var meta MetadataFile
+	if err := json.NewDecoder(file).Decode(&meta); err != nil {
+		return &MetadataFile{
+			Version:      MetadataVersion,
+			Repositories: make(map[string]GitRepoMetadata),
+		}, nil
+	}
+
+	if meta.Repositories == nil {
+		meta.Repositories = make(map[string]GitRepoMetadata)
+	}
+
+	return &meta, nil
+}
+
+func saveMetadata(depsPath string, meta *MetadataFile) error {
+	defer core.Scope()()
+
+	meta.Version = MetadataVersion
+
+	filePath := filepath.Join(depsPath, "dependencies.json")
+
+	tmpFile, err := os.CreateTemp(depsPath, "dependencies-*.tmp")
+	if err != nil {
+		return err
+	}
+
+	//goland:noinspection GoUnhandledErrorResult
+	defer os.Remove(tmpFile.Name())
+
+	//goland:noinspection GoUnhandledErrorResult
+	defer tmpFile.Close()
+
+	if err := tmpFile.Chmod(0o644); err != nil {
+		return err
+	}
+
+	enc := json.NewEncoder(tmpFile)
+	enc.SetIndent("", "    ")
+
+	if err := enc.Encode(meta); err != nil {
+		return err
+	}
+
+	if err := tmpFile.Sync(); err != nil {
+		return err
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return err
+	}
+
+	if err := os.Rename(tmpFile.Name(), filePath); err != nil {
+		return err
+	}
+
+	return nil
 }
