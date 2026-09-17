@@ -46,15 +46,20 @@ func (a *analyzer) VisitNumber(n *ast.Number) ExprInfo {
 			CompTime: true,
 		}
 
-	case lexer.Decimal:
-		return ExprInfo{
-			Type:     types.PrimitiveF64,
-			CompTime: true,
+	case lexer.Decimal, lexer.Decimal32bit:
+		if _, err := lexer.ParseDecimal(n.Token); err != nil {
+			a.Error(n, "float literal is out of range")
 		}
 
-	case lexer.Decimal32bit:
+		if n.Token.Kind == lexer.Decimal32bit {
+			return ExprInfo{
+				Type:     types.PrimitiveF32,
+				CompTime: true,
+			}
+		}
+
 		return ExprInfo{
-			Type:     types.PrimitiveF32,
+			Type:     types.PrimitiveF64,
 			CompTime: true,
 		}
 

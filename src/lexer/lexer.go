@@ -212,6 +212,20 @@ func (l *Lexer) number() Token {
 			return l.makeError(err)
 		}
 
+		// Exponent
+		if (l.peek(0) == 'e' || l.peek(0) == 'E') && (isDigit(l.peek(1)) || ((l.peek(1) == '+' || l.peek(1) == '-') && isDigit(l.peek(2)))) {
+			l.advance()
+
+			if l.peek(0) == '+' || l.peek(0) == '-' {
+				l.advance()
+			}
+
+			err := l.digitSequence(true, isDigit)
+			if err != "" {
+				return l.makeError(err)
+			}
+		}
+
 		kind := Decimal
 
 		if l.match('f') || l.match('F') {

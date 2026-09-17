@@ -41,21 +41,21 @@ func ParseInteger(token Token) core.Integer {
 }
 
 func ParseDecimal(token Token) (float64, error) {
-	var buffer [64]uint8
-	i := 0
+	var buffer []byte
 
 	for _, ch := range token.Text {
 		if ch != '_' {
-			buffer[i] = uint8(ch)
-			i++
+			buffer = append(buffer, byte(ch))
 		}
 	}
 
+	text := string(buffer)
+
 	switch token.Kind {
 	case Decimal32bit:
-		return strconv.ParseFloat(string(buffer[0:i-1]), 32)
+		return strconv.ParseFloat(text[:len(text)-1], 32)
 	case Decimal:
-		return strconv.ParseFloat(string(buffer[0:i]), 64)
+		return strconv.ParseFloat(text, 64)
 
 	default:
 		panic("lexer.ParseDecimal() - Invalid token kind")

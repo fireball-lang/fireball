@@ -274,21 +274,13 @@ func (ct *compTime) GetLiteralEvalValue(expr ast.Expr) eval.Value {
 
 		// Float
 		if expr.Token.Kind == lexer.Decimal32bit {
-			value, err := lexer.ParseDecimal(expr.Token)
-			if err != nil {
-				panic("comptime.getLiteralEvalValue() - Failed to parse float '" + expr.Token.Text + "'")
-			}
-
+			value, _ := lexer.ParseDecimal(expr.Token)
 			return &eval.FloatValue{Value: value}
 		}
 
 		// Double
 		if expr.Token.Kind == lexer.Decimal {
-			value, err := lexer.ParseDecimal(expr.Token)
-			if err != nil {
-				panic("comptime.getLiteralEvalValue() - Failed to parse double '" + expr.Token.Text + "'")
-			}
-
+			value, _ := lexer.ParseDecimal(expr.Token)
 			return &eval.FloatValue{Value: value}
 		}
 

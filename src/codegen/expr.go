@@ -33,21 +33,13 @@ func (c *Codegen) VisitNumber(n *ast.Number) ir.Value {
 
 	// Float
 	if n.Token.Kind == lexer.Decimal32bit {
-		value, err := lexer.ParseDecimal(n.Token)
-		if err != nil {
-			panic("codegen.Codegen.VisitNumber() - Failed to parse float '" + n.Token.Text + "'")
-		}
-
+		value, _ := lexer.ParseDecimal(n.Token)
 		return &ir.FloatV{Value: float32(value)}
 	}
 
 	// Double
 	if n.Token.Kind == lexer.Decimal {
-		value, err := lexer.ParseDecimal(n.Token)
-		if err != nil {
-			panic("codegen.Codegen.VisitNumber() - Failed to parse double '" + n.Token.Text + "'")
-		}
-
+		value, _ := lexer.ParseDecimal(n.Token)
 		return &ir.DoubleV{Value: value}
 	}
 
