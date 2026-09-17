@@ -207,12 +207,25 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 		result = []*types.Interface{e.builtins.Zeroable}
 
 	case *types.Struct:
-		zeroable := true
+		var zeroable bool
 
-		for _, field := range t.Fields {
-			if field.Required || !slices.Contains(e.GetConformances(field.Type), e.builtins.Zeroable) {
-				zeroable = false
-				break
+		if t.Layout == types.Union {
+			zeroable = false
+
+			for _, field := range t.Fields {
+				if !field.Required && slices.Contains(e.GetConformances(field.Type), e.builtins.Zeroable) {
+					zeroable = true
+					break
+				}
+			}
+		} else {
+			zeroable = true
+
+			for _, field := range t.Fields {
+				if field.Required || !slices.Contains(e.GetConformances(field.Type), e.builtins.Zeroable) {
+					zeroable = false
+					break
+				}
 			}
 		}
 

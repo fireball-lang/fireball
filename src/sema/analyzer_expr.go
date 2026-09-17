@@ -117,32 +117,38 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 	}
 
 	// Check for required and non Zeroable fields that are not initialized
-	skipZeroableFieldChecks := slices.Contains(a.typeEnv.GetConformances(t), a.builtins.Zeroable)
+	isZeroable := slices.Contains(a.typeEnv.GetConformances(t), a.builtins.Zeroable)
 
-	for _, field := range t.Fields {
-		kind := ""
-
-		if field.Required {
-			kind = "required"
-		} else if !skipZeroableFieldChecks && !slices.Contains(a.typeEnv.GetConformances(field.Type), a.builtins.Zeroable) {
-			kind = "non Zeroable"
+	if t.Layout == types.Union {
+		if len(s.Fields) == 0 && !isZeroable {
+			a.Error(s.Type, "union '%s' is not zeroable, initialize one field", t)
 		}
+	} else {
+		for _, field := range t.Fields {
+			kind := ""
 
-		if kind == "" {
-			continue
-		}
-
-		ok := false
-
-		for _, initializer := range s.Fields {
-			if initializer.Name.Token.Text == field.Name {
-				ok = true
-				break
+			if field.Required {
+				kind = "required"
+			} else if !isZeroable && !slices.Contains(a.typeEnv.GetConformances(field.Type), a.builtins.Zeroable) {
+				kind = "non Zeroable"
 			}
-		}
 
-		if !ok {
-			a.Error(s.Type, "struct '%s' has a %s field '%s' that is not initialized", t, kind, field.Name)
+			if kind == "" {
+				continue
+			}
+
+			ok := false
+
+			for _, initializer := range s.Fields {
+				if initializer.Name.Token.Text == field.Name {
+					ok = true
+					break
+				}
+			}
+
+			if !ok {
+				a.Error(s.Type, "struct '%s' has a %s field '%s' that is not initialized", t, kind, field.Name)
+			}
 		}
 	}
 

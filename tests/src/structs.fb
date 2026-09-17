@@ -203,3 +203,29 @@ func testWithReorderedFieldsMultiple() bool {
     var w = makeMixed(1, 1000, 200) with { a: 9, b: 9000 };
     return w.a == 9 && w.b == 9000 && w.c == 200;
 }
+
+// ── non-zeroable union fields ─────────────────────────────────────────────
+
+struct Foo {
+	#[required]
+	val: i32,
+}
+
+#[repr(Union)]
+struct Bar {
+	foo: Foo,
+	ref: &i32,
+}
+
+#[test("union: non-zeroable fields")]
+func unionNonZeroableFields1() bool {
+	var bar = Bar { foo: Foo { val: 5 } };
+	return bar.foo.val == 5;
+}
+
+#[test("union: non-zeroable fields")]
+func unionNonZeroableFields2() bool {
+	var val: i32 = 6;
+	var bar = Bar { ref: &val };
+	return *bar.ref == 6;
+}
