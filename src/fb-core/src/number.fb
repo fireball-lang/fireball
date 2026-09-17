@@ -1,0 +1,50 @@
+mod core;
+
+/// General purpose interface for numeric types.
+interface Number {
+	const MIN: Self;
+	const MAX: Self;
+}
+
+impl u8 : Number {
+	const MIN: Self = 0;
+	const MAX: Self = 0xFF;
+}
+impl u16 : Number {
+	const MIN: Self = 0;
+	const MAX: Self = 0xFFFF;
+}
+impl u32 : Number {
+	const MIN: Self = 0;
+	const MAX: Self = 0xFFFFFFFF;
+}
+impl u64 : Number {
+	const MIN: Self = 0;
+	const MAX: Self = 0xFFFFFFFFFFFFFFFF;
+}
+
+impl i8 : Number {
+	const MIN: Self = -128;
+	const MAX: Self = 127;
+}
+impl i16 : Number {
+	const MIN: Self = -32_768;
+	const MAX: Self = 32_767;
+}
+impl i32 : Number {
+	const MIN: Self = -2_147_483_648;
+	const MAX: Self = 2_147_483_647;
+}
+impl i64 : Number {
+	const MIN: Self = -9_223_372_036_854_775_808;
+	const MAX: Self = 9_223_372_036_854_775_807;
+}
+
+impl f32 : Number {
+	const MIN: Self = -3.4028234663852886e38f;
+	const MAX: Self = 3.4028234663852886e38f;
+}
+impl f64 : Number {
+	const MIN: Self = -1.7976931348623157e308;
+	const MAX: Self = 1.7976931348623157e308;
+}
