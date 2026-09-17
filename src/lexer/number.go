@@ -76,16 +76,14 @@ func parseInteger(str string, base int) (core.Integer, error) {
 	}
 
 	// Value
-	var buffer [64]uint8
-	i := 0
+	var buffer []byte
 
 	for _, ch := range str {
 		if ch != '_' {
-			buffer[i] = uint8(ch)
-			i++
+			buffer = append(buffer, byte(ch))
 		}
 	}
 
-	value, err := strconv.ParseUint(string(buffer[0:i]), base, 64)
+	value, err := strconv.ParseUint(string(buffer), base, 64)
 	return core.Unsigned(negative, value), err
 }

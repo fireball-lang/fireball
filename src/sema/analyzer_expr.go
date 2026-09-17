@@ -6,7 +6,6 @@ import (
 	"fireball/lexer"
 	"fireball/symbols"
 	"fireball/types"
-	"math/bits"
 	"slices"
 	"strings"
 )
@@ -29,7 +28,7 @@ func (a *analyzer) VisitNumber(n *ast.Number) ExprInfo {
 			Type: &types.Integer{
 				Negative: false,
 				Unsigned: true,
-				RawBits:  uint32(bits.Len64(value)),
+				Value:    value,
 			},
 			CompTime: true,
 		}
@@ -41,7 +40,7 @@ func (a *analyzer) VisitNumber(n *ast.Number) ExprInfo {
 			Type: &types.Integer{
 				Negative: false,
 				Unsigned: false,
-				RawBits:  uint32(bits.Len64(value)),
+				Value:    value,
 			},
 			CompTime: true,
 		}
@@ -73,7 +72,7 @@ func (a *analyzer) VisitCharacter(c *ast.Character) ExprInfo {
 		Type: &types.Integer{
 			Negative: false,
 			Unsigned: true,
-			RawBits:  uint32(bits.Len64(uint64(c.Rune))),
+			Value:    uint64(c.Rune),
 		},
 		CompTime: true,
 	}
@@ -314,7 +313,7 @@ func (a *analyzer) VisitPrefix(p *ast.Prefix) ExprInfo {
 				Type: &types.Integer{
 					Negative: !i.Negative,
 					Unsigned: false,
-					RawBits:  i.RawBits,
+					Value:    i.Value,
 				},
 				CompTime: true,
 			}

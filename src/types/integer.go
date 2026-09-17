@@ -1,40 +1,46 @@
 package types
 
-import "strconv"
+import (
+	"math/bits"
+	"strconv"
+)
 
 type Integer struct {
 	Negative bool
 	Unsigned bool
-	RawBits  uint32
+	Value    uint64
 }
 
 func (i *Integer) Equals(other Type) bool {
 	if o, ok := other.(*Integer); ok {
-		return i.Negative == o.Negative && i.Unsigned == o.Unsigned && i.RawBits == o.RawBits
+		return i.Negative == o.Negative && i.Unsigned == o.Unsigned && i.Value == o.Value
 	}
 
 	return false
 }
 
 func (i *Integer) String() string {
-	prefix := "i"
-	if i.Unsigned {
-		prefix = "u"
+	if i.Negative {
+		return "-" + strconv.FormatUint(i.Value, 10)
 	}
 
-	return prefix + strconv.FormatUint(uint64(i.Bits()), 10)
+	return strconv.FormatUint(i.Value, 10)
 }
 
 func (i *Integer) Underlying() Type {
 	return i.ToPrimitive()
 }
 
+func (i *Integer) RawBits() uint32 {
+	return uint32(bits.Len64(i.Value))
+}
+
 func (i *Integer) Bits() uint32 {
 	if !i.Unsigned {
-		return 1 + i.RawBits
+		return 1 + i.RawBits()
 	}
 
-	return i.RawBits
+	return i.RawBits()
 }
 
 func (i *Integer) ToPrimitive() *Primitive {

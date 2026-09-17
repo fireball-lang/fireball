@@ -3,6 +3,7 @@ package sema
 import (
 	"fireball/core"
 	"fireball/types"
+	"math"
 	"slices"
 )
 
@@ -362,15 +363,26 @@ func GetImplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 					return Noop, false
 				}
 
-				// Precise raw-bit value check
+				// Precise value check
 				toBits := to.Kind.Size() * 8
-				maxRaw := toBits
 
 				if types.IsSignedInteger(to.Kind) {
-					maxRaw = toBits - 1
-				}
-				if fromT.RawBits > maxRaw {
-					return Noop, false
+					if fromT.Negative {
+						// Value must be greater than or equal to -2^(toBits-1)
+						if fromT.Value > 1<<(toBits-1) {
+							return Noop, false
+						}
+					} else {
+						// Value must be less than or equal to 2^(toBits-1)-1
+						if fromT.Value > (1<<(toBits-1))-1 {
+							return Noop, false
+						}
+					}
+				} else {
+					// Value must be less than or equal to 2^toBits-1
+					if fromT.Value > math.MaxUint64>>(64-toBits) {
+						return Noop, false
+					}
 				}
 
 				// Cast kind from materialized width
