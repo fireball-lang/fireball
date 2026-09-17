@@ -177,6 +177,30 @@ var PrimitiveI64 = &Primitive{I64}
 var PrimitiveF32 = &Primitive{F32}
 var PrimitiveF64 = &Primitive{F64}
 
+var primitiveKindsByName = map[string]PrimitiveKind{
+	"void": Void,
+	"bool": Bool,
+
+	"u8":  U8,
+	"u16": U16,
+	"u32": U32,
+	"u64": U64,
+
+	"i8":  I8,
+	"i16": I16,
+	"i32": I32,
+	"i64": I64,
+
+	"f32": F32,
+	"f64": F64,
+}
+
+// GetPrimitiveByName returns the primitive kind for a type name, if any
+func GetPrimitiveByName(name string) (PrimitiveKind, bool) {
+	kind, ok := primitiveKindsByName[name]
+	return kind, ok
+}
+
 func GetPrimitive(kind PrimitiveKind) *Primitive {
 	switch kind {
 	case Void:

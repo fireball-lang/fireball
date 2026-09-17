@@ -43,10 +43,12 @@ func (e *Env) Strip(f *ast.File) {
 
 			case *ast.Interface:
 				decl.AssociatedTypes = getStrippedSlice(e, f, decl.AssociatedTypes)
+				decl.AssociatedConsts = getStrippedSlice(e, f, decl.AssociatedConsts)
 				decl.Methods = getStrippedSlice(e, f, decl.Methods)
 
 			case *ast.Impl:
 				decl.AssociatedTypes = getStrippedSlice(e, f, decl.AssociatedTypes)
+				decl.AssociatedConsts = getStrippedSlice(e, f, decl.AssociatedConsts)
 				decl.Methods = getStrippedSlice(e, f, decl.Methods)
 			}
 

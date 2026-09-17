@@ -636,7 +636,7 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 			Address: false,
 		}
 
-	case symbols.Const:
+	case symbols.AssociatedConst, symbols.Const:
 		return ExprInfo{
 			Type:     symbol.Type,
 			Node:     symbol.Node,

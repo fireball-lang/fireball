@@ -64,6 +64,7 @@
 (impl type_param: (type_param name: (identifier) @type.parameter))
 
 (associated_type name: (identifier) @type)
+(associated_const name: (identifier) @constant)
 
 (const name: (identifier) @constant)
 

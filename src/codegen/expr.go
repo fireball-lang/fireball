@@ -302,7 +302,7 @@ func (c *Codegen) VisitPostfix(p *ast.Postfix) ir.Value {
 		return value
 
 	default:
-		panic("codegen.Codegen.VisitPostfix() - Invalid operator")
+		panic(fmt.Sprintf("codegen.Codegen.VisitPostfix() - Invalid operator '%T'", p.Op))
 	}
 }
 
@@ -574,13 +574,18 @@ func (c *Codegen) VisitCompoundBaseBinaryOp(b *ast.Binary, left, right ir.Value,
 
 func (c *Codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 	switch node := c.ExprInfos[i].Node.(type) {
+	case *ast.AssociatedConst:
+		implConst, subs := c.resolveAssociatedConst(node, i)
+
+		if c.CompTime {
+			return c.materializeConstValue(ast.GetFile(implConst), implConst.Type, implConst.Value, subs)
+		}
+
+		return c.GetAssociatedConst(implConst, subs)
+
 	case *ast.Const:
 		if c.CompTime {
-			typ := c.Types.Get(c.ResolveType(c.NodeTypes[node.Type]))
-			ptr := c.Alloca(typ, "")
-			c.Emitter.Store(&ir.ZeroInitializer{Typ: typ}, ptr)
-			c.Emitter.Store(c.GenerateExpr(node.Value), ptr)
-			return ptr
+			return c.materializeConstValue(ast.GetFile(node), node.Type, node.Value, nil)
 		}
 
 		return c.GetConst(node)
@@ -617,7 +622,7 @@ func (c *Codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 		return c.scope.Get("self")
 
 	default:
-		panic("codegen.Codegen.VisitIdentifier() - Invalid node")
+		panic(fmt.Sprintf("codegen.Codegen.VisitIdentifier() - Invalid node '%T' at %s:%d:%d (info: %+v)", c.ExprInfos[i].Node, c.Module.Path, i.Range().Start.Line, i.Range().Start.Column, c.ExprInfos[i]))
 	}
 }
 

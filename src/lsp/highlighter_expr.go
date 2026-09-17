@@ -154,7 +154,7 @@ func (hi *highlighter) VisitIdentifier(i *ast.Identifier) int {
 
 			hi.Add(entry, kind, 0)
 
-		case symbols.Const:
+		case symbols.AssociatedConst, symbols.Const:
 			hi.Add(entry, variableKind, readonlyKind)
 
 		case symbols.Var:

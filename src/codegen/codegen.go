@@ -7,6 +7,7 @@ import (
 	"fireball/fb-core"
 	"fireball/ir"
 	"fireball/ir/eval"
+	"fireball/lexer"
 	"fireball/sema"
 	"fireball/types"
 	"fmt"
@@ -376,6 +377,79 @@ func (c *Codegen) HasTypeParams(decl ast.Decl) bool {
 	return false
 }
 
+func AssociatedConstLinkName(c *ast.AssociatedConst, in *types.Interface, subs []types.Substitution) string {
+	// Normal
+	file := ast.GetFile(c)
+
+	sb := strings.Builder{}
+	sb.WriteString("fb$")
+
+	for i, entry := range file.Mod.Path {
+		if i > 0 {
+			sb.WriteString("::")
+		}
+
+		sb.WriteString(entry.Token.Text)
+	}
+
+	if i, ok := c.Parent().(*ast.Impl); ok {
+		name := ""
+
+		if p, ok := i.Type.(*ast.PrimitiveType); ok {
+			name = p.Kind.String()
+		} else {
+			path := i.Type.(*ast.IdentifierType).Path
+			name = path[len(path)-1].Name.Token.Text
+		}
+
+		sb.WriteString("::")
+		sb.WriteString(name)
+		sb.WriteRune('$')
+
+		// Interface disambiguation
+		if in != nil {
+			sb.WriteString(in.Name)
+
+			if in.Generic != nil {
+				sb.WriteString(":[")
+
+				for j, sub := range in.Substitutions {
+					if j > 0 {
+						sb.WriteRune(',')
+					}
+
+					sb.WriteString(sub.Type.String())
+				}
+
+				sb.WriteRune(']')
+			}
+
+			sb.WriteRune('$')
+		}
+	} else {
+		sb.WriteRune('$')
+	}
+
+	sb.WriteString(c.Name.Token.Text)
+
+	// Instantiation
+	if len(subs) > 0 {
+		sb.WriteString(":[")
+
+		for i, sub := range subs {
+			if i > 0 {
+				sb.WriteRune(',')
+			}
+
+			sb.WriteString(sub.Type.String())
+		}
+
+		sb.WriteRune(']')
+	}
+
+	return sb.String()
+}
+
 func ConstLinkName(c *ast.Const) string {
 	// Normal
 	file := ast.GetFile(c)
@@ -506,6 +580,188 @@ func FuncLinkName(f *ast.Func, typ *types.Func, in *types.Interface) string {
 	return sb.String()
 }
 
+// GetAssociatedConst returns the global variable for an associated constant.
+// Constants with a compile time value computed in the comptime pass are emitted
+// as shared globals; constants whose value was not evaluated against the
+// generic impl type (their type depends on the impl's type parameters) are
+// evaluated here for the concrete instantiation.
+func (c *Codegen) GetAssociatedConst(decl *ast.AssociatedConst, subs []types.Substitution) *ir.GlobalVar {
+	impl, ok := decl.Parent().(*ast.Impl)
+	if !ok {
+		panic("codegen.Codegen.GetAssociatedConst() - Associated constant has no implementation parent")
+	}
+
+	file := ast.GetFile(decl)
+
+	fd, ok := c.fileDataMap[file]
+	if !ok {
+		panic("codegen.Codegen.GetAssociatedConst() - No file data for '" + file.Path + "'")
+	}
+
+	rawTyp := fd.NodeTypes[decl.Type]
+
+	// Constants whose type depends on the impl's type parameters get one
+	// global per instantiation; all others share a single global
+	nameSubs := subs
+	if !types.HasParam(rawTyp) {
+		nameSubs = nil
+	}
+
+	name := AssociatedConstLinkName(decl, c.getImplInterface(impl), nameSubs)
+
+	if gVar := c.Module.GetGlobalVar(name); gVar != nil {
+		return gVar
+	}
+
+	// Create constant
+	typ := rawTyp
+
+	if len(subs) > 0 {
+		typ = c.instantiations.Substitute(typ, subs)
+	}
+
+	typ = c.ResolveType(typ)
+
+	val := fd.Evaluations[decl.Value]
+
+	// The value was not evaluated in the comptime pass because its type
+	// depends on the impl's type parameters; evaluate it for this instantiation
+	if val == nil {
+		evaluated, err, ok := c.evalConstValue(file, decl.Value, typ, subs)
+		if !ok {
+			panic("codegen.Codegen.GetAssociatedConst() - Failed to evaluate associated constant '" + name + "': " + err.Error())
+		}
+
+		val = evaluated
+	}
+
+	gVar := c.GlobalVar(name, ir.Constant|ir.UnnamedAddr|ir.LinkOnce, c.GetIrValue(val, typ))
+
+	return gVar
+}
+
+func (c *Codegen) resolveAssociatedConst(node *ast.AssociatedConst, i *ast.Identifier) (*ast.AssociatedConst, []types.Substitution) {
+	if _, ok := node.Parent().(*ast.Impl); ok {
+		// Direct reference or 'Self::CONST'. Inside a generic function body the
+		// enclosing instantiation's substitutions apply ('c.substitutions');
+		// for turbofish access ('Box:[i32]::CONST') they come from the
+		// instantiated type sema resolved the symbol to.
+		subs := c.substitutions
+
+		if s, ok := c.ResolveType(c.ExprInfos[i].Type).(*types.Struct); ok && s.Generic != nil {
+			subs = s.Substitutions
+		}
+
+		return node, subs
+	}
+
+	// Type of the prefix ('T' in 'T::CONST'), not the type of the constant itself
+	if len(i.Path) < 2 {
+		panic("codegen.Codegen.resolveAssociatedConst() - Associated constant access is missing a type prefix")
+	}
+
+	typeLeaf := i.Path[len(i.Path)-2]
+	typ := c.ResolveType(c.NodeTypes[typeLeaf])
+
+	sym, subs, ok := c.TypeEnv.GetAssociatedConstWithSubs(typ, node.Name.Token.Text)
+	if !ok {
+		panic("codegen.Codegen.resolveAssociatedConst() - Failed to find associated constant '" + node.Name.Token.Text + "' for type '" + typ.String() + "'")
+	}
+
+	implConst, ok := sym.Node.(*ast.AssociatedConst)
+	if !ok {
+		panic("codegen.Codegen.resolveAssociatedConst() - Invalid associated constant node")
+	}
+
+	return implConst, subs
+}
+
+func (c *Codegen) materializeConstValue(file *ast.File, typNode ast.Type, value ast.Expr, subs []types.Substitution) ir.Value {
+	prevExprInfos, prevNodeTypes, prevSubs := c.ExprInfos, c.NodeTypes, c.substitutions
+
+	if fd, ok := c.fileDataMap[file]; ok {
+		c.ExprInfos, c.NodeTypes = fd.ExprInfos, fd.NodeTypes
+	}
+
+	if len(subs) > 0 {
+		c.substitutions = subs
+	}
+
+	typ := c.ResolveType(c.NodeTypes[typNode])
+
+	irTyp := c.Types.Get(typ)
+	ptr := c.Alloca(irTyp, "const")
+	c.Emitter.Store(&ir.ZeroInitializer{Typ: irTyp}, ptr)
+	c.Emitter.Store(c.GenerateExpr(value), ptr)
+
+	c.ExprInfos, c.NodeTypes, c.substitutions = prevExprInfos, prevNodeTypes, prevSubs
+
+	return ptr
+}
+
+func (c *Codegen) evalConstValue(file *ast.File, expr ast.Expr, typ types.Type, subs []types.Substitution) (eval.Value, error, bool) {
+	module := ir.NewModule()
+	module.Path = "__comptime__"
+
+	sub := New(module, file, c.Arch, c.CallConv, c.instantiations, c.TypeEnv, c.fileDataMap, c.Builtins, true)
+	sub.substitutions = subs
+
+	return sub.GenerateComptimeValue(expr, typ)
+}
+
+func (c *Codegen) GenerateComptimeValue(expr ast.Expr, typ types.Type) (eval.Value, error, bool) {
+	fun := c.generateComptimeModule(expr, typ)
+
+	e := eval.NewEvaluator()
+	e.Load(c.Module)
+
+	reg, err := e.Run(fun)
+
+	if err != nil {
+		return nil, err, false
+	}
+
+	return e.GetValue(reg, c.Types.Get(typ)), nil, true
+}
+
+func (c *Codegen) generateComptimeModule(expr ast.Expr, typ types.Type) *ir.Function {
+	evalFunc := &ast.Func{
+		Name_:   &ast.Leaf{Token: lexer.Token{Kind: lexer.Identifier, Text: "__comptime__"}},
+		Returns: nil, // nothing in the codegen uses this, it uses the type from *types.Func
+	}
+
+	evalFile := &ast.File{
+		Mod: &ast.Mod{Path: []*ast.Leaf{
+			{Token: lexer.Token{Kind: lexer.Identifier, Text: "__comptime__"}},
+		}},
+		Decls: []ast.Decl{evalFunc},
+	}
+
+	evalFunc.SetParent(evalFile)
+
+	funTyp := &types.Func{Returns: typ}
+
+	fun := c.CreateFunction(
+		evalFunc,
+		funTyp,
+		false,
+		nil,
+	)
+
+	c.BeginFunc(evalFunc, funTyp, fun)
+
+	if t, ok := typ.(types.Composed); ok {
+		typ = t.Underlying()
+	}
+
+	val := c.LoadImplicitCast(expr, typ)
+	c.Emitter.Ret(val)
+
+	c.EndFunc()
+
+	return fun
+}
+
 func (c *Codegen) GetConst(decl *ast.Const) *ir.GlobalVar {
 	// Check already existing constants
 	name := ConstLinkName(decl)
@@ -619,9 +875,8 @@ func (c *Codegen) GetIrValue(val eval.Value, typ types.Type) ir.Value {
 	}
 }
 
-func (c *Codegen) GetFuncInterface(f *ast.Func) *types.Interface {
-	impl, ok := f.Parent().(*ast.Impl)
-	if !ok || impl.Interface == nil {
+func (c *Codegen) getImplInterface(impl *ast.Impl) *types.Interface {
+	if impl.Interface == nil {
 		return nil
 	}
 
@@ -637,6 +892,15 @@ func (c *Codegen) GetFuncInterface(f *ast.Func) *types.Interface {
 
 	in, _ := c.ResolveType(raw).(*types.Interface)
 	return in
+}
+
+func (c *Codegen) GetFuncInterface(f *ast.Func) *types.Interface {
+	impl, ok := f.Parent().(*ast.Impl)
+	if !ok {
+		return nil
+	}
+
+	return c.getImplInterface(impl)
 }
 
 func (c *Codegen) GetGlobalVar(g *ast.GlobalVar, typ types.Type) *ir.GlobalVar {

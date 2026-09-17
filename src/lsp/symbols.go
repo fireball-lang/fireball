@@ -144,13 +144,24 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 					selectionRange: getRange(decl.Name_),
 				})
 
-				for _, associatedType := range decl.AssociatedTypes {
+				for _, assocType := range decl.AssociatedTypes {
 					symbols.addChild(id, symbol{
 						file:           file,
 						kind:           protocol.SymbolKindTypeParameter,
-						name:           getText(associatedType.Name),
-						range_:         getRange(associatedType),
-						selectionRange: getRange(associatedType.Name),
+						name:           getText(assocType.Name),
+						range_:         getRange(assocType),
+						selectionRange: getRange(assocType.Name),
+					})
+				}
+
+				for _, assocConst := range decl.AssociatedConsts {
+					symbols.addChild(id, symbol{
+						file:           file,
+						kind:           protocol.SymbolKindConstant,
+						name:           getText(assocConst.Name),
+						detail:         getTypeString(assocConst.Type),
+						range_:         getRange(assocConst),
+						selectionRange: getRange(assocConst.Name),
 					})
 				}
 
@@ -232,14 +243,25 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 					decls[typ] = id
 				}
 
-				for _, associatedType := range decl.AssociatedTypes {
+				for _, assocType := range decl.AssociatedTypes {
 					symbols.addChild(id, symbol{
 						file:           file,
 						kind:           protocol.SymbolKindTypeParameter,
-						name:           getText(associatedType.Name),
-						detail:         getTypeString(associatedType.Type),
-						range_:         getRange(associatedType),
-						selectionRange: getRange(associatedType.Name),
+						name:           getText(assocType.Name),
+						detail:         getTypeString(assocType.Type),
+						range_:         getRange(assocType),
+						selectionRange: getRange(assocType.Name),
+					})
+				}
+
+				for _, assocConst := range decl.AssociatedConsts {
+					symbols.addChild(id, symbol{
+						file:           file,
+						kind:           protocol.SymbolKindConstant,
+						name:           getText(assocConst.Name),
+						detail:         getTypeString(assocConst.Type),
+						range_:         getRange(assocConst),
+						selectionRange: getRange(assocConst.Name),
 					})
 				}
 

@@ -217,11 +217,10 @@ func (s *Server) buildHover(file *project.File, node ast.Node, rng core.Range) *
 		}
 
 	case *ast.AssociatedType:
-		label = n.Name.Token.Text
+		label = typeString(file, n, n.Type)
 
-		if !core.IsNil(n.Type) {
-			label += ": " + n.Type.String()
-		}
+	case *ast.AssociatedConst:
+		label = typeString(file, n, n.Type)
 
 	default:
 		return nil

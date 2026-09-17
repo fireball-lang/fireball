@@ -282,8 +282,9 @@ type Interface struct {
 	Name_      *Leaf
 	TypeParams []*TypeParam
 
-	AssociatedTypes []*AssociatedType
-	Methods         []*Func
+	AssociatedTypes  []*AssociatedType
+	AssociatedConsts []*AssociatedConst
+	Methods          []*Func
 }
 
 func (i *Interface) Children() iter.Seq[Node] {
@@ -308,6 +309,11 @@ func (i *Interface) Children() iter.Seq[Node] {
 		}
 		for _, assocType := range i.AssociatedTypes {
 			if !yield(assocType) {
+				return
+			}
+		}
+		for _, assocConst := range i.AssociatedConsts {
+			if !yield(assocConst) {
 				return
 			}
 		}
@@ -346,8 +352,9 @@ type Impl struct {
 	Type      Type
 	Interface *IdentifierType // optional
 
-	AssociatedTypes []*AssociatedType
-	Methods         []*Func
+	AssociatedTypes  []*AssociatedType
+	AssociatedConsts []*AssociatedConst
+	Methods          []*Func
 }
 
 func (i *Impl) Children() iter.Seq[Node] {
@@ -375,6 +382,11 @@ func (i *Impl) Children() iter.Seq[Node] {
 		}
 		for _, assocType := range i.AssociatedTypes {
 			if !yield(assocType) {
+				return
+			}
+		}
+		for _, assocConst := range i.AssociatedConsts {
+			if !yield(assocConst) {
 				return
 			}
 		}
@@ -434,6 +446,47 @@ func (a *AssociatedType) Children() iter.Seq[Node] {
 }
 
 func (a *AssociatedType) Attributes() []Attribute {
+	return a.Attributes_
+}
+
+// AssociatedConst
+
+type AssociatedConst struct {
+	baseNode
+
+	Documentation []*Leaf
+	Attributes_   []Attribute
+
+	Name  *Leaf
+	Type  Type
+	Value Expr // nil for interface, non-nil for implementation block
+}
+
+func (a *AssociatedConst) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, doc := range a.Documentation {
+			if !yield(doc) {
+				return
+			}
+		}
+		for _, attribute := range a.Attributes_ {
+			if !yield(attribute) {
+				return
+			}
+		}
+		if !yield(a.Name) {
+			return
+		}
+		if !yield(a.Type) {
+			return
+		}
+		if !core.IsNil(a.Value) && !yield(a.Value) {
+			return
+		}
+	}
+}
+
+func (a *AssociatedConst) Attributes() []Attribute {
 	return a.Attributes_
 }
 

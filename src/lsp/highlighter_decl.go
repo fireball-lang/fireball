@@ -33,6 +33,16 @@ func (hi *highlighter) VisitInterface(in *ast.Interface) {
 	hi.AddFull(in.Name(), interfaceKind, 0)
 	hi.VisitTypeParams(in.TypeParams)
 
+	for _, assocType := range in.AssociatedTypes {
+		hi.AddFull(assocType.Name, typeKind, 0)
+		hi.VisitType(assocType.Type)
+	}
+
+	for _, assocConst := range in.AssociatedConsts {
+		hi.AddFull(assocConst.Name, variableKind, readonlyKind)
+		hi.VisitType(assocConst.Type)
+	}
+
 	for _, method := range in.Methods {
 		hi.VisitFunc(method)
 	}
@@ -43,6 +53,17 @@ func (hi *highlighter) VisitImpl(im *ast.Impl) {
 
 	hi.AddFull(im.Type, typeKind, 0)
 	hi.AddFull(im.Interface, interfaceKind, 0)
+
+	for _, assocType := range im.AssociatedTypes {
+		hi.AddFull(assocType.Name, typeKind, 0)
+		hi.VisitType(assocType.Type)
+	}
+
+	for _, assocConst := range im.AssociatedConsts {
+		hi.AddFull(assocConst.Name, variableKind, readonlyKind)
+		hi.VisitType(assocConst.Type)
+		hi.VisitExpr(assocConst.Value)
+	}
 
 	for _, method := range im.Methods {
 		hi.VisitFunc(method)

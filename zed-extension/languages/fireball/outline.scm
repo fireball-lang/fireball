@@ -19,6 +19,11 @@
     name: (identifier) @name
     type: (type) @context) @item
 
+(associated_const
+    "const" @context
+    name: (identifier) @name
+    value: (expr) @context) @item
+
 (impl
   "impl" @context
   type: (type) @name) @item

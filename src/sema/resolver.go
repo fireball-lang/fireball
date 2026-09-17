@@ -93,6 +93,11 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 
 	r.typeEnv.RegisterImplTarget(methodTyp, impl)
 
+	// Self
+	prevSelf := r.selfType
+	r.selfType = methodTyp
+	defer func() { r.selfType = prevSelf }()
+
 	// Interface
 	if impl.Interface != nil {
 		inRaw := r.ResolveAndAnalyzeType(impl.Interface)
@@ -116,19 +121,19 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 			matchedNodes := make([]*ast.AssociatedType, 0, len(impl.AssociatedTypes))
 			aliasTypes := make([]types.Type, 0, len(impl.AssociatedTypes))
 
-			for _, associatedType := range impl.AssociatedTypes {
+			for _, assocType := range impl.AssociatedTypes {
 				i := slices.IndexFunc(in.AssociatedTypes, func(param *types.Param) bool {
-					return param.Name == associatedType.Name.Token.Text
+					return param.Name == assocType.Name.Token.Text
 				})
 
 				if i == -1 {
-					r.Error(associatedType, "interface '%s' does not have an associated type '%s'", in.String(), associatedType.Name.Token.Text)
+					r.Error(assocType, "interface '%s' does not have an associated type '%s'", in.String(), assocType.Name.Token.Text)
 					continue
 				}
 
-				alias := r.ResolveAndAnalyzeType(associatedType.Type)
+				alias := r.ResolveAndAnalyzeType(assocType.Type)
 
-				matchedNodes = append(matchedNodes, associatedType)
+				matchedNodes = append(matchedNodes, assocType)
 				aliasTypes = append(aliasTypes, alias)
 			}
 
@@ -139,6 +144,21 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 			if r.PushAssociatedTypes(matchedNodes, aliasTypes) {
 				defer r.scopes.Pop()
 			}
+
+			// Associated constants
+			for _, assocConst := range impl.AssociatedConsts {
+				i := slices.IndexFunc(in.AssociatedConsts, func(assoc types.AssociatedConst) bool {
+					return assoc.Name == assocConst.Name.Token.Text
+				})
+
+				if i == -1 {
+					r.Error(assocConst.Name, "interface '%s' does not have an associated constant '%s'", in.String(), assocConst.Name.Token.Text)
+				}
+			}
+
+			if len(impl.AssociatedConsts) < len(in.AssociatedConsts) {
+				r.Error(impl.Type, "implementation of interface '%s' for '%s' is missing some associated constants", in.String(), typ.String())
+			}
 		}
 	} else {
 		// Associated types
@@ -147,11 +167,24 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 		}
 	}
 
-	// Methods
-	prevSelf := r.selfType
-	r.selfType = methodTyp
-	defer func() { r.selfType = prevSelf }()
+	// Associated constants
+	for _, assocConst := range impl.AssociatedConsts {
+		constTyp := r.ResolveAndAnalyzeType(assocConst.Type)
 
+		ok := r.typeEnv.AddAssociatedConst(methodTyp, symbols.Symbol{
+			Kind:   symbols.AssociatedConst,
+			Public: true,
+			Name:   assocConst.Name.Token.Text,
+			Node:   assocConst,
+			Type:   constTyp,
+		})
+
+		if !ok {
+			r.Error(assocConst.Name, "associated constant with the name '%s' already exists on type '%s'", assocConst.Name.Token.Text, typ)
+		}
+	}
+
+	// Methods
 	for _, f := range impl.Methods {
 		r.ResolveMethod(f, okType, typ, methodTyp)
 	}

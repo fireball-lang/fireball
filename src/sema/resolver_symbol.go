@@ -5,6 +5,7 @@ import (
 	"fireball/core"
 	"fireball/symbols"
 	"fireball/types"
+	"slices"
 )
 
 func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
@@ -105,6 +106,25 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 
 		inType.InstanceMethods = nil
 		inType.StaticMethods = nil
+
+		for _, assocConst := range in.AssociatedConsts {
+			i := slices.IndexFunc(inType.AssociatedConsts, func(assoc types.AssociatedConst) bool {
+				return assoc.Name == assocConst.Name.Token.Text
+			})
+
+			if i == -1 {
+				panic("sema.resolver.ResolveSymbol() - Failed to find associated constant on types.Interface")
+			}
+
+			typ := r.ResolveAndAnalyzeType(assocConst.Type)
+
+			if typ == types.PrimitiveVoid {
+				r.Error(assocConst.Type, "associated constant cannot be of type 'void'")
+				typ = types.Invalid
+			}
+
+			inType.AssociatedConsts[i].Type = typ
+		}
 
 		for _, f := range in.Methods {
 			m := types.Method{

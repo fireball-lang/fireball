@@ -1,0 +1,16 @@
+mod tests::assoc_consts::cross;
+
+// Cross-module access to associated constants. The impl lives in
+// 'tests::assoc_consts'; the imported type's associated constants are public.
+import tests::assoc_consts::{Box};
+
+#[test("assoc const: cross-module import access")]
+func testCrossModuleImport() bool {
+	var b: Box[i32] = Box:[i32]::DEFAULT;
+	return b.val == 7;
+}
+
+#[test("assoc const: cross-module qualified path access")]
+func testCrossModuleQualified() bool {
+	return tests::assoc_consts::Foo::DEFAULT.val == -1;
+}

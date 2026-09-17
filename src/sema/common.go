@@ -168,6 +168,22 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 			continue
 		}
 
+		// Primitive type (primitives are not scope symbols)
+		if kind, ok := types.GetPrimitiveByName(name); ok {
+			typ := types.GetPrimitive(kind)
+
+			c.nodeTypes[entry] = typ
+
+			if len(entry.TypeArgs) != 0 {
+				c.ErrorRange(ast.SliceRange(entry.TypeArgs), "primitive type cannot have type arguments")
+			}
+
+			if typeScope := c.typeEnv.GetTypeScope(typ); !core.IsNil(typeScope) {
+				scope = typeScope
+				continue
+			}
+		}
+
 		// Type
 		if symbol, ok := scope.GetSymbol(symbols.Type, name); ok {
 			c.nodeTypes[entry] = symbol.Type
@@ -275,7 +291,9 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 	subs = c.CheckTypeArgsForSymbolEntry(symbol, entry, subs)
 
 	if len(subs) > 0 {
-		symbol.Type = c.instantiations.Get(symbol.Type, subs)
+		// Substitute (not Get): the symbol's type may be a concrete type like a
+		// primitive, or an already-instantiated value, which Get cannot handle
+		symbol.Type = c.instantiations.Substitute(symbol.Type, subs)
 	}
 
 	// Assign type and return

@@ -127,6 +127,10 @@ var associatedTypeAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
 }
 
+var associatedConstAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Cfg](),
+}
+
 var methodAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
 }
@@ -144,6 +148,11 @@ func (a *analyzer) VisitInterface(i *ast.Interface) {
 	// Associated types
 	for _, assocType := range i.AssociatedTypes {
 		a.CheckAttributes(assocType.Attributes(), associatedTypeAllowedAttributes)
+	}
+
+	// Associated constants
+	for _, assocConst := range i.AssociatedConsts {
+		a.CheckAttributes(assocConst.Attributes(), associatedConstAllowedAttributes)
 	}
 
 	// Methods
@@ -221,6 +230,24 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	// Associated types
 	for _, assocType := range i.AssociatedTypes {
 		a.CheckAttributes(assocType.Attributes(), associatedTypeAllowedAttributes)
+	}
+
+	// Associated constants
+	for _, assocConst := range i.AssociatedConsts {
+		a.CheckAttributes(assocConst.Attributes(), associatedConstAllowedAttributes)
+
+		// Type
+		typ := a.ResolveAndAnalyzeType(assocConst.Type)
+		a.nodeTypes[assocConst] = typ
+
+		// Value
+		value := a.AnalyzeExpr(assocConst.Value)
+		a.ExpectType(typ, value, assocConst.Value)
+
+		if !value.CompTime {
+			expr, _ := a.FindDeepestNonCompTimeExpr(assocConst.Value)
+			a.Error(expr, "expression cannot be evaluated at compile time")
+		}
 	}
 
 	// Methods
@@ -305,6 +332,24 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 				}
 
 				break
+			}
+		}
+
+		for _, assocConst := range i.AssociatedConsts {
+			i := slices.IndexFunc(in.AssociatedConsts, func(assoc types.AssociatedConst) bool {
+				return assoc.Name == assocConst.Name.Token.Text
+			})
+
+			if i != -1 {
+				// The impl side never references the interface's 'Self' param or
+				// associated types (they resolve to the impl's own types), so it
+				// is compared as-is; only the interface side is substituted.
+				aTyp := a.nodeTypes[assocConst]
+				bTyp := a.instantiations.Substitute(in.AssociatedConsts[i].Type, methodSubs)
+
+				if aTyp != types.Invalid && bTyp != types.Invalid && !aTyp.Equals(bTyp) {
+					a.Error(assocConst.Type, "associated constant type doesn't match interface, expected '%s', got '%s'", bTyp, aTyp)
+				}
 			}
 		}
 
@@ -413,7 +458,7 @@ func (a *analyzer) VisitConst(c *ast.Const) {
 	a.CheckAttributes(c.Attributes(), constAllowedAttributes)
 
 	// Type
-	typ := a.nodeTypes[c.Type]
+	typ := a.ResolveAndAnalyzeType(c.Type)
 	a.nodeTypes[c] = typ
 
 	// Value

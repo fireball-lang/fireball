@@ -7,6 +7,11 @@ type Method struct {
 	Type *Func
 }
 
+type AssociatedConst struct {
+	Name string
+	Type Type
+}
+
 type Interface struct {
 	Name       string
 	ModulePath []string
@@ -14,7 +19,8 @@ type Interface struct {
 
 	SelfParam *Param
 
-	AssociatedTypes []*Param
+	AssociatedTypes  []*Param
+	AssociatedConsts []AssociatedConst
 
 	InstanceMethods []Method
 	StaticMethods   []Method

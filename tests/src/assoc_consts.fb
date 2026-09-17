@@ -1,0 +1,240 @@
+mod tests::assoc_consts;
+
+// ── Interfaces ────────────────────────────────────────────────────────────────
+
+pub interface Default {
+	const DEFAULT: Self;
+}
+
+pub interface Sized {
+	const SIZE: i32;
+}
+
+// Generic interface with a 'Self'-typed associated constant.
+pub interface Holder {
+	const EMPTY: Self;
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+pub struct Foo {
+	pub val: i32,
+}
+
+impl Foo : Default {
+	const DEFAULT: Foo = Foo { val: -1 };
+}
+
+// Standalone impl constant (no interface).
+impl Foo {
+	const STANDALONE: i32 = 5;
+
+	const TABLE: [3]i32 = [3]i32 { 1, 2, 3 };
+
+	#[cfg(target_os = "windows")]
+	const PLATFORM: i32 = 1;
+
+	#[cfg(not(target_os = "windows"))]
+	const PLATFORM: i32 = 2;
+}
+
+// Foo::DEFAULT through an alias.
+type FooAlias = Foo;
+
+// ── Primitive impls ───────────────────────────────────────────────────────────
+
+impl i32 : Default {
+	const DEFAULT: i32 = 7;
+}
+
+impl f64 : Default {
+	const DEFAULT: f64 = 0.5;
+}
+
+// ── Generic struct ────────────────────────────────────────────────────────────
+
+pub struct Box[T] {
+	pub val: T,
+}
+
+// Value depends on T via a nested 'T::DEFAULT' reference.
+impl[T: Default] Box[T] : Default {
+	const DEFAULT: Self = Self { val: T::DEFAULT };
+}
+
+// Type-independent value: shared across all instantiations.
+impl[T] Box[T] : Sized {
+	const SIZE: i32 = 42;
+}
+
+// Value references a top-level constant.
+const BASE: i32 = 40;
+
+impl[T] Box[T] {
+	const PAD: i32 = BASE + 2;
+
+	func new(v: T) Self {
+		var b: Self = Self::DEFAULT;
+		b.val = v;
+		return b;
+	}
+}
+
+// ── Non-generic struct with 'Self'-typed const ────────────────────────────────
+
+pub struct Slot {
+	value: i32,
+}
+
+impl Slot : Holder {
+	const EMPTY: Self = Self { value: 0 };
+}
+
+// ── Partial specialization ────────────────────────────────────────────────────
+
+pub struct Pair[A, B] {
+	first:  A,
+	second: B,
+}
+
+impl[B] Pair[i32, B] : Sized {
+	const SIZE: i32 = 2;
+}
+
+// ── Top-level constants referencing associated constants ──────────────────────
+
+const FOLDED: i32 = i32::DEFAULT + 1;   // 8
+const FOLDED_TWICE: i32 = FOLDED * 2;   // 16
+const FOO_CONST: Foo = Foo::DEFAULT;
+
+// ── Generic helpers ───────────────────────────────────────────────────────────
+
+func make[T: Default]() T {
+	return T::DEFAULT;
+}
+
+func sized_size[T: Sized]() i32 {
+	return T::SIZE;
+}
+
+func slot_default[T: Holder]() T {
+	return T::EMPTY;
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[test("assoc const: direct access on concrete impl")]
+func testDirectAccess() bool {
+	return Foo::DEFAULT.val == -1;
+}
+
+#[test("assoc const: standalone impl const without interface")]
+func testStandaloneConst() bool {
+	return Foo::STANDALONE == 5;
+}
+
+#[test("assoc const: primitive impl")]
+func testPrimitiveImpl() bool {
+	return i32::DEFAULT == 7 && f64::DEFAULT == 0.5;
+}
+
+#[test("assoc const: same type, consts from two different interfaces")]
+func testTwoInterfaces() bool {
+	return Foo::DEFAULT.val == -1 && Foo::STANDALONE == 5;
+}
+
+#[test("assoc const: Self:: access inside generic impl method")]
+func testSelfAccessGeneric() bool {
+	var b: Box[i32] = Box:[i32]::new(3);
+	return b.val == 3;
+}
+
+#[test("assoc const: turbofish access Box:[T]::CONST, i32")]
+func testTurbofishI32() bool {
+	var b: Box[i32] = Box:[i32]::DEFAULT;
+	return b.val == 7;
+}
+
+#[test("assoc const: turbofish access Box:[T]::CONST, f64 instantiation")]
+func testTurbofishF64() bool {
+	var b: Box[f64] = Box:[f64]::DEFAULT;
+	return b.val == 0.5;
+}
+
+#[test("assoc const: T::CONST in generic function, i32")]
+func testGenericMakeI32() bool {
+	return make:[i32]() == 7;
+}
+
+#[test("assoc const: T::CONST in generic function, generic struct instantiation")]
+func testGenericMakeBox() bool {
+	var v = make:[Box[i32]]();
+	return v.val == 7;
+}
+
+#[test("assoc const: type-independent const shared across instantiations")]
+func testSharedConst() bool {
+	var a = sized_size:[Box[i32]]();
+	var b = sized_size:[Box[f64]]();
+	return a == 42 && b == 42;
+}
+
+#[test("assoc const: value referencing top-level const")]
+func testValueReferencesConst() bool {
+	return Box:[i32]::PAD == 42;
+}
+
+#[test("assoc const: Self-typed const via generic interface")]
+func testHolderConst() bool {
+	var s: Slot = Slot::EMPTY;
+	return s.value == 0;
+}
+
+#[test("assoc const: constrained param access through generic interface")]
+func testHolderViaParam() bool {
+	var s = slot_default:[Slot]();
+	return s.value == 0;
+}
+
+#[test("assoc const: partial specialization impl")]
+func testPartialSpecialization() bool {
+	return sized_size:[Pair[i32, bool]]() == 2;
+}
+
+#[test("assoc const: comptime folding through identifier")]
+func testComptimeFolding() bool {
+	return FOLDED == 8 && FOLDED_TWICE == 16;
+}
+
+#[test("assoc const: struct-valued const in top-level const initializer")]
+func testStructValuedFolding() bool {
+	return FOO_CONST.val == -1;
+}
+
+#[test("assoc const: addressable (global)")]
+func testAddressable() bool {
+	var p = &Foo::DEFAULT;
+	return p.val == -1;
+}
+
+#[test("assoc const: array-typed const")]
+func testArrayConst() bool {
+	return Foo::TABLE[0u] == 1 && Foo::TABLE[1u] == 2 && Foo::TABLE[2u] == 3;
+}
+
+#[test("assoc const: type alias prefix access")]
+func testAliasPrefix() bool {
+	return FooAlias::DEFAULT.val == -1;
+}
+
+#[test("assoc const: cfg attribute, linux branch")]
+#[cfg(target_os = "linux")]
+func testCfgLinux() bool {
+	return Foo::PLATFORM == 2;
+}
+
+#[test("assoc const: cfg attribute, windows branch (stripped elsewhere)")]
+#[cfg(target_os = "windows")]
+func testCfgWindows() bool {
+	return Foo::PLATFORM == 1;
+}

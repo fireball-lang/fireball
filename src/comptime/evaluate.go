@@ -137,41 +137,53 @@ func Evaluate(file *ast.File, instantiations *types.InstantiationCache, typeEnv 
 			ct.CheckDuplicateEnumCaseValues(decl, typ)
 			ct.InferEnumCaseType(decl, typ, valueMin, valueMax)
 
+		case *ast.Impl:
+			for _, assocConst := range decl.AssociatedConsts {
+				ct.Evaluate(assocConst.Value, assocConst.Type, assocConst.Name)
+			}
+
 		case *ast.Const:
-			if !fileDataMap[file].ExprInfos[decl.Value].CompTime {
-				continue
-			}
-
-			ok := ct.CheckCompTimeExprRoot(decl.Value, decl.Name())
-			if !ok {
-				continue
-			}
-
-			value, ok := ct.EvalExpr(decl.Value, fileDataMap[file].NodeTypes[decl.Type])
-
-			if ok {
-				ct.evaluations[decl.Value] = value
-			}
+			ct.Evaluate(decl.Value, decl.Type, decl.Name())
 
 		case *ast.GlobalVar:
-			if core.IsNil(decl.Initializer) || !fileDataMap[file].ExprInfos[decl.Initializer].CompTime {
+			if core.IsNil(decl.Initializer) {
 				continue
 			}
 
-			ok := ct.CheckCompTimeExprRoot(decl.Initializer, decl.Name())
-			if !ok {
-				continue
-			}
-
-			initializer, ok := ct.EvalExpr(decl.Initializer, fileDataMap[file].NodeTypes[decl.Type])
-
-			if ok {
-				ct.evaluations[decl.Initializer] = initializer
-			}
+			ct.Evaluate(decl.Initializer, decl.Type, decl.Name())
 		}
 	}
 
 	return ct.evaluations, ct.diagnostics
+}
+
+func (ct *compTime) Evaluate(value ast.Expr, typ ast.Type, errNode ast.Node) {
+	if !ct.fileDataMap[ct.file].ExprInfos[value].CompTime {
+		return
+	}
+
+	ok := ct.CheckCompTimeExprRoot(value, errNode)
+	if !ok {
+		return
+	}
+
+	typ_ := ct.fileDataMap[ct.file].NodeTypes[typ]
+	if core.IsNil(typ_) || typ_ == types.Invalid {
+		return
+	}
+
+	// Values whose type depends on type parameters (e.g. 'Self' inside a
+	// generic impl) cannot be evaluated against the generic type; codegen
+	// materializes them per instantiation instead.
+	if types.HasParam(typ_) {
+		return
+	}
+
+	val, ok := ct.EvalExpr(value, typ_)
+
+	if ok {
+		ct.evaluations[value] = val
+	}
 }
 
 func (ct *compTime) EvalExpr(expr ast.Expr, typ types.Type) (eval.Value, bool) {
@@ -186,24 +198,18 @@ func (ct *compTime) EvalExpr(expr ast.Expr, typ types.Type) (eval.Value, bool) {
 	module.Path = "__comptime__"
 
 	c := codegen.New(module, ct.file, abi.AMD64, abi.SystemV, ct.instantiations, ct.typeEnv, ct.fileDataMap, ct.builtins, true)
-	fun := generateModule(c, expr, typ)
 
-	// Evaluate IR module
-	e := eval.NewEvaluator()
-	e.Load(module)
-
-	reg, err := e.Run(fun)
-
-	if err != nil {
-		if err, ok := errors.AsType[eval.Error](err); ok && err.File != "" {
-			ct.diagnostics = append(ct.diagnostics, getDiagnostic(err))
+	val, err, ok := c.GenerateComptimeValue(expr, typ)
+	if !ok {
+		if evalErr, isEvalErr := errors.AsType[eval.Error](err); isEvalErr && evalErr.File != "" {
+			ct.diagnostics = append(ct.diagnostics, getDiagnostic(evalErr))
 			return nil, false
 		}
 
 		panic("comptime.Evaluate() - " + err.Error())
 	}
 
-	return e.GetValue(reg, c.Types.Get(typ)), true
+	return val, true
 }
 
 func (ct *compTime) CheckCompTimeExprRoot(expr ast.Expr, errNode ast.Node) bool {
@@ -217,6 +223,16 @@ func (ct *compTime) CheckCompTimeExpr(expr ast.Expr, seen map[ast.Expr]any, errN
 	switch expr := expr.(type) {
 	case *ast.Identifier:
 		switch node := ct.fileDataMap[ast.GetFile(expr)].ExprInfos[expr].Node.(type) {
+		case *ast.AssociatedConst:
+			if _, ok := seen[node.Value]; ok {
+				ct.Error(errNode, "cyclic reference of constant '%s'", node.Name.Token.Text)
+				return false
+			}
+
+			seen[node.Value] = nil
+			ct.CheckCompTimeExpr(node.Value, seen, errNode)
+			delete(seen, node.Value)
+
 		case *ast.Const:
 			if _, ok := seen[node.Value]; ok {
 				ct.Error(errNode, "cyclic reference of constant '%s'", node.Name().Token.Text)
@@ -311,44 +327,6 @@ func (ct *compTime) Error(node ast.Node, format string, args ...any) {
 		Range:   node.Range(),
 		Message: fmt.Sprintf(format, args...),
 	})
-}
-
-func generateModule(c *codegen.Codegen, expr ast.Expr, typ types.Type) *ir.Function {
-	evalFunc := &ast.Func{
-		Name_:   &ast.Leaf{Token: lexer.Token{Kind: lexer.Identifier, Text: "__comptime__"}},
-		Returns: nil, // nothing in the codegen uses this, it uses the type from *types.Func
-	}
-
-	evalFile := &ast.File{
-		Mod: &ast.Mod{Path: []*ast.Leaf{
-			{Token: lexer.Token{Kind: lexer.Identifier, Text: "__comptime__"}},
-		}},
-		Decls: []ast.Decl{evalFunc},
-	}
-
-	evalFunc.SetParent(evalFile)
-
-	funTyp := &types.Func{Returns: typ}
-
-	fun := c.CreateFunction(
-		evalFunc,
-		funTyp,
-		false,
-		nil,
-	)
-
-	c.BeginFunc(evalFunc, funTyp, fun)
-
-	if t, ok := typ.(types.Composed); ok {
-		typ = t.Underlying()
-	}
-
-	val := c.LoadImplicitCast(expr, typ)
-	c.Emitter.Ret(val)
-
-	c.EndFunc()
-
-	return fun
 }
 
 func integerFitsInKind(value core.Integer, kind types.PrimitiveKind) bool {

@@ -353,6 +353,17 @@ func (e *TypeEnvironment) implConstraintsSatisfied(s *types.Struct, in *types.In
 	return e.implParamsSatisfied(impl, subs)
 }
 
+func (e *TypeEnvironment) AddAssociatedConst(typ types.Type, symbol symbols.Symbol) bool {
+	for _, m := range e.static[typ] {
+		if m.Name == symbol.Name {
+			return false
+		}
+	}
+
+	e.static[typ] = append(e.static[typ], symbol)
+	return true
+}
+
 func (e *TypeEnvironment) AddStaticMethod(typ types.Type, symbol symbols.Symbol) bool {
 	for _, m := range e.static[typ] {
 		if m.Name == symbol.Name {
@@ -375,10 +386,20 @@ func (e *TypeEnvironment) AddInstanceMethod(typ types.Type, symbol symbols.Symbo
 	return true
 }
 
+func (e *TypeEnvironment) GetAssociatedConst(typ types.Type, name string) (symbols.Symbol, bool) {
+	for _, symbol := range e.static[typ] {
+		if symbol.Kind == symbols.AssociatedConst && symbol.Name == name {
+			return symbol, true
+		}
+	}
+
+	return symbols.Symbol{}, false
+}
+
 func (e *TypeEnvironment) GetStaticMethod(typ types.Type, name string) (symbols.Symbol, bool) {
-	for _, m := range e.static[typ] {
-		if m.Name == name {
-			return m, true
+	for _, symbol := range e.static[typ] {
+		if symbol.Kind == symbols.Func && symbol.Name == name {
+			return symbol, true
 		}
 	}
 
@@ -386,34 +407,33 @@ func (e *TypeEnvironment) GetStaticMethod(typ types.Type, name string) (symbols.
 }
 
 func (e *TypeEnvironment) GetInstanceMethod(typ types.Type, name string) (symbols.Symbol, bool) {
-	for _, m := range e.instance[typ] {
-		if m.Name == name {
-			return m, true
+	for _, symbol := range e.instance[typ] {
+		if symbol.Kind == symbols.Func && symbol.Name == name {
+			return symbol, true
 		}
 	}
 
 	return symbols.Symbol{}, false
 }
 
+func (e *TypeEnvironment) GetAssociatedConstWithSubs(typ types.Type, name string) (symbols.Symbol, []types.Substitution, bool) {
+	return e.getSymbolWithSubs(e.GetAssociatedConst, typ, name)
+}
+
 func (e *TypeEnvironment) GetInstanceMethodWithSubs(typ types.Type, name string) (symbols.Symbol, []types.Substitution, bool) {
-	return e.getMethodWithSubs(false, typ, name)
+	return e.getSymbolWithSubs(e.GetInstanceMethod, typ, name)
 }
 
 func (e *TypeEnvironment) GetStaticMethodWithSubs(typ types.Type, name string) (symbols.Symbol, []types.Substitution, bool) {
-	return e.getMethodWithSubs(true, typ, name)
+	return e.getSymbolWithSubs(e.GetStaticMethod, typ, name)
 }
 
-// getMethodWithSubs resolves a method on `typ`, which may be a concrete
+// getSymbolWithSubs resolves a symbol on `typ`, which may be a concrete
 // instantiation of a generic struct. It returns the method symbol together with
 // the substitutions needed to instantiate its type for `typ`. Lookup order:
 // exact registration, methods on the canonical template (full generic impls),
 // then partial specializations that unify with `typ`.
-func (e *TypeEnvironment) getMethodWithSubs(isStatic bool, typ types.Type, name string) (symbols.Symbol, []types.Substitution, bool) {
-	get := e.GetInstanceMethod
-	if isStatic {
-		get = e.GetStaticMethod
-	}
-
+func (e *TypeEnvironment) getSymbolWithSubs(get func(types.Type, string) (symbols.Symbol, bool), typ types.Type, name string) (symbols.Symbol, []types.Substitution, bool) {
 	if sym, ok := get(typ, name); ok {
 		return sym, nil, true
 	}
@@ -489,6 +509,36 @@ func (e *TypeEnvironment) GetTypeScope(typ types.Type) symbols.Scope {
 					Name:   associatedType.Name,
 					Node:   a,
 					Type:   associatedType,
+				})
+			}
+
+			// Associated constants
+			for _, assocConst := range canonical.AssociatedConsts {
+				var a *ast.AssociatedConst
+
+				for _, node := range inNode.AssociatedConsts {
+					if node.Name.Token.Text == assocConst.Name {
+						a = node
+						break
+					}
+				}
+
+				if a == nil {
+					continue
+				}
+
+				constType := assocConst.Type
+				if canonical.SelfParam != nil {
+					subs := []types.Substitution{{Param: canonical.SelfParam, Type: tp}}
+					constType = e.instantiations.Substitute(constType, subs)
+				}
+
+				staticSymbols = append(staticSymbols, symbols.Symbol{
+					Kind:   symbols.AssociatedConst,
+					Public: true,
+					Name:   assocConst.Name,
+					Node:   a,
+					Type:   constType,
 				})
 			}
 

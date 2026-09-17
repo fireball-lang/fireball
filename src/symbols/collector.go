@@ -103,16 +103,25 @@ func Collect(file *ast.File) []Symbol {
 
 			sb.WriteString(decl.Name().Token.Text)
 
-			typeParams := make([]*types.Param, 0, len(decl.TypeParams))
+			typeParams := make([]*types.Param, len(decl.TypeParams))
 
-			for _, param := range decl.TypeParams {
-				typeParams = append(typeParams, &types.Param{Name: param.Name.Token.Text})
+			for i, param := range decl.TypeParams {
+				typeParams[i] = &types.Param{Name: param.Name.Token.Text}
 			}
 
-			associatedTypes := make([]*types.Param, 0, len(decl.AssociatedTypes))
+			associatedTypes := make([]*types.Param, len(decl.AssociatedTypes))
 
-			for _, associatedType := range decl.AssociatedTypes {
-				associatedTypes = append(associatedTypes, &types.Param{Name: associatedType.Name.Token.Text, Associated: true})
+			for i, associatedType := range decl.AssociatedTypes {
+				associatedTypes[i] = &types.Param{Name: associatedType.Name.Token.Text, Associated: true}
+			}
+
+			associatedConsts := make([]types.AssociatedConst, len(decl.AssociatedConsts))
+
+			for i, assocConst := range decl.AssociatedConsts {
+				associatedConsts[i] = types.AssociatedConst{
+					Name: assocConst.Name.Token.Text,
+					Type: nil, // filled in resolver
+				}
 			}
 
 			selfParam := &types.Param{Name: "Self"}
@@ -122,7 +131,7 @@ func Collect(file *ast.File) []Symbol {
 				Public: decl.Public,
 				Name:   decl.Name().Token.Text,
 				Node:   decl,
-				Type:   &types.Interface{Name: sb.String(), ModulePath: modulePath, TypeParams: typeParams, SelfParam: selfParam, AssociatedTypes: associatedTypes}, // filled in type resolver
+				Type:   &types.Interface{Name: sb.String(), ModulePath: modulePath, TypeParams: typeParams, SelfParam: selfParam, AssociatedTypes: associatedTypes, AssociatedConsts: associatedConsts}, // filled in type resolver
 			})
 
 		case *ast.Const:

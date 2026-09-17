@@ -118,6 +118,11 @@ func (s *Server) declarationAt(node ast.Node) ast.Node {
 				return n
 			}
 
+		case *ast.AssociatedConst:
+			if n.Name == leaf {
+				return n
+			}
+
 		case *ast.Var:
 			if n.Name == leaf {
 				return n
@@ -236,6 +241,9 @@ func declNameRange(node ast.Node) core.Range {
 		return n.Name.Range()
 
 	case *ast.AssociatedType:
+		return n.Name.Range()
+
+	case *ast.AssociatedConst:
 		return n.Name.Range()
 
 	case *ast.Param:

@@ -371,7 +371,14 @@ func (p *parser) parseInterface(documentation []*ast.Leaf, attributes []ast.Attr
 			// Associate type
 			var a *ast.AssociatedType
 			a, recoverId = p.parseAssociatedType(documentation, attributes, false)
+
 			i.AssociatedTypes = append(i.AssociatedTypes, a)
+		} else if p.current.Kind == lexer.Const {
+			// Associated constant
+			var a *ast.AssociatedConst
+			a, recoverId = p.parseAssociatedConst(documentation, attributes, false)
+
+			i.AssociatedConsts = append(i.AssociatedConsts, a)
 		} else if p.current.Kind == lexer.Func {
 			// Method
 			var f *ast.Func
@@ -463,15 +470,17 @@ func (p *parser) parseImpl(documentation []*ast.Leaf, attributes []ast.Attribute
 		}
 
 		if p.current.Kind == lexer.Type {
-			// Associate type
+			// Associated type
 			var a *ast.AssociatedType
 			a, recoverId = p.parseAssociatedType(documentation, attributes, true)
 
-			if core.IsNil(a.Type) {
-				a.Type = p.badType()
-			}
-
 			i.AssociatedTypes = append(i.AssociatedTypes, a)
+		} else if p.current.Kind == lexer.Const {
+			// Associated constant
+			var a *ast.AssociatedConst
+			a, recoverId = p.parseAssociatedConst(documentation, attributes, true)
+
+			i.AssociatedConsts = append(i.AssociatedConsts, a)
 		} else if p.current.Kind == lexer.Pub || p.current.Kind == lexer.Func {
 			// Method
 			public := false
@@ -517,6 +526,10 @@ func (p *parser) parseAssociatedType(documentation []*ast.Leaf, attributes []ast
 	a.Name = emptyLeaf
 	defer func() {
 		a.Range_.End = p.previous.Range.End
+
+		if core.IsNil(a.Type) {
+			a.Type = p.badType()
+		}
 	}()
 
 	recoverId = -1
@@ -546,6 +559,66 @@ func (p *parser) parseAssociatedType(documentation []*ast.Leaf, attributes []ast
 
 	// ';'
 	if recoverId = p.expect(lexer.Semicolon, "expected ';'"); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseAssociatedConst(documentation []*ast.Leaf, attributes []ast.Attribute, hasValue bool) (a *ast.AssociatedConst, recoverId int) {
+	a = &ast.AssociatedConst{}
+	a.Range_.Start = p.current.Range.Start
+	a.Documentation = documentation
+	a.Attributes_ = attributes
+	a.Name = emptyLeaf
+	defer func() {
+		a.Range_.End = p.previous.Range.End
+
+		if core.IsNil(a.Type) {
+			a.Type = p.badType()
+		}
+		if core.IsNil(a.Value) {
+			a.Value = p.badExpr()
+		}
+	}()
+
+	recoverId = -1
+
+	// 'const'
+	if recoverId = p.expect(lexer.Const, "expected 'const'"); recoverId >= 0 {
+		return
+	}
+
+	// Name
+	if a.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// ':'
+	if recoverId = p.expect(lexer.Colon, "expected ':' before type"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if a.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
+	}
+
+	// '=' Value
+	if hasValue {
+		// '='
+		if recoverId = p.expect(lexer.Equal, "expected '=' before value"); recoverId >= 0 {
+			return
+		}
+
+		// Value
+		if a.Value, recoverId = p.parseExpr(); recoverId >= 0 {
+			return
+		}
+	}
+
+	// ';'
+	if recoverId = p.expect(lexer.Semicolon, "expected ';' after a constant"); recoverId >= 0 {
 		return
 	}
 
