@@ -50,18 +50,18 @@ func (s *Server) DocumentSymbol(_ context.Context, params *protocol.DocumentSymb
 func (s *Server) Symbols(_ context.Context, _ *protocol.WorkspaceSymbolParams) (result []protocol.SymbolInformation, err error) {
 	symbols := workspaceSymbolConsumer{}
 
-	for _, workspace := range s.workspaces {
-		var files []*project.File
-
+	for _, workspace := range s.getWorkspaces() {
 		workspace.mutex.RLock()
+
+		var files []*project.File
 
 		for _, proj := range workspace.projMap {
 			files = append(files, proj.Files...)
 		}
 
-		workspace.mutex.RUnlock()
-
 		getSymbols(&symbols, files)
+
+		workspace.mutex.RUnlock()
 	}
 
 	return symbols.symbols, nil

@@ -18,7 +18,7 @@ type Workspace struct {
 	server *Server
 
 	path  string
-	mutex sync.RWMutex
+	mutex *reentrantRWMutex
 
 	projMap map[string]*project.Project
 	depMap  map[project.Dependency]*project.Project
@@ -29,6 +29,7 @@ func (s *Server) openWorkspace(ctx context.Context, path string) {
 	workspace := &Workspace{
 		server: s,
 		path:   path,
+		mutex:  newReentrantRWMutex(),
 	}
 
 	if !workspace.reload(s, ctx) {
@@ -36,7 +37,9 @@ func (s *Server) openWorkspace(ctx context.Context, path string) {
 	}
 
 	// Add workspace
+	s.workspacesMutex.Lock()
 	s.workspaces = append(s.workspaces, workspace)
+	s.workspacesMutex.Unlock()
 
 	s.info(ctx, "Opened workspace at: %s", path)
 }
@@ -56,17 +59,17 @@ func (w *Workspace) reload(s *Server, ctx context.Context) bool {
 		return false
 	}
 
-	// Update native watcher
-	if s.nativeWatcher != nil {
-		w.removeWatchers(s)
+	// Lock the workspace mutex
+	w.mutex.Lock()
 
-		for _, proj := range projMap {
+	// Update native watcher
+	w.removeWatchers(s)
+
+	for _, proj := range projMap {
+		if s.nativeWatcher != nil {
 			s.nativeWatcher.AddRecursive(filepath.Join(proj.Path, "src"))
 		}
 	}
-
-	// Lock the workspace mutex
-	w.mutex.Lock()
 
 	// Set maps
 	w.projMap = projMap
@@ -94,6 +97,19 @@ func (w *Workspace) removeWatchers(s *Server) {
 			s.nativeWatcher.Remove(filepath.Join(proj.Path, "src"))
 		}
 	}
+}
+
+func (w *Workspace) projects() []*project.Project {
+	w.mutex.RLock()
+	defer w.mutex.RUnlock()
+
+	projects := make([]*project.Project, 0, len(w.projMap))
+
+	for _, proj := range w.projMap {
+		projects = append(projects, proj)
+	}
+
+	return projects
 }
 
 func (w *Workspace) parseFiles(files []*project.File) {
@@ -157,11 +173,7 @@ func (w *Workspace) parseFiles(files []*project.File) {
 }
 
 func (w *Workspace) getProject(file string) *project.Project {
-	projects := make([]*project.Project, 0, len(w.projMap))
-
-	for _, proj := range w.projMap {
-		projects = append(projects, proj)
-	}
+	projects := w.projects()
 
 	slices.SortFunc(projects, func(a, b *project.Project) int {
 		return cmp.Compare(len(b.Path), len(a.Path))
@@ -177,21 +189,27 @@ func (w *Workspace) getProject(file string) *project.Project {
 }
 
 func (s *Server) getFile(path string) (*project.File, sync.Locker) {
-	for _, workspace := range s.workspaces {
+	for _, workspace := range s.getWorkspaces() {
+		workspace.mutex.RLock()
+
 		for _, proj := range workspace.projMap {
 			for _, file := range proj.Files {
 				if file.Path == path {
+					workspace.mutex.RUnlock()
+
 					return file, workspace.mutex.RLocker()
 				}
 			}
 		}
+
+		workspace.mutex.RUnlock()
 	}
 
 	return nil, nil
 }
 
 func (s *Server) getProject(file string) *project.Project {
-	workspaces := append([]*Workspace{}, s.workspaces...)
+	workspaces := s.getWorkspaces()
 
 	slices.SortFunc(workspaces, func(a, b *Workspace) int {
 		return cmp.Compare(len(b.path), len(a.path))
@@ -207,11 +225,9 @@ func (s *Server) getProject(file string) *project.Project {
 }
 
 func (s *Server) getWorkspaceForProject(proj *project.Project) *Workspace {
-	for _, workspace := range s.workspaces {
-		for _, p := range workspace.projMap {
-			if p == proj {
-				return workspace
-			}
+	for _, workspace := range s.getWorkspaces() {
+		if slices.Contains(workspace.projects(), proj) {
+			return workspace
 		}
 	}
 
@@ -219,13 +235,25 @@ func (s *Server) getWorkspaceForProject(proj *project.Project) *Workspace {
 }
 
 func (s *Server) getWorkspace(file *project.File) *Workspace {
-	for _, workspace := range s.workspaces {
+	for _, workspace := range s.getWorkspaces() {
+		workspace.mutex.RLock()
+
+		found := false
+
 		for _, proj := range workspace.projMap {
-			for _, f := range proj.Files {
-				if f == file {
-					return workspace
-				}
+			if slices.Contains(proj.Files, file) {
+				found = true
 			}
+
+			if found {
+				break
+			}
+		}
+
+		workspace.mutex.RUnlock()
+
+		if found {
+			return workspace
 		}
 	}
 
@@ -233,8 +261,8 @@ func (s *Server) getWorkspace(file *project.File) *Workspace {
 }
 
 func (s *Server) getWorkspaceForProjectConfig(path string) *Workspace {
-	for _, workspace := range s.workspaces {
-		for _, proj := range workspace.projMap {
+	for _, workspace := range s.getWorkspaces() {
+		for _, proj := range workspace.projects() {
 			if filepath.Join(proj.Path, "project.toml") == path {
 				return workspace
 			}

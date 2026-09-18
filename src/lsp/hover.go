@@ -153,6 +153,21 @@ func (s *Server) buildHover(file *project.File, node ast.Node, rng core.Range) *
 	case *ast.Enum:
 		label = declTypeString(file, n, n.Name().Token.Text)
 
+	case *ast.Case:
+		label = n.Name.Token.Text
+
+		if enumDecl := ast.GetClosestParent[*ast.Enum](n); !core.IsNil(enumDecl) {
+			if typ, ok := file.NodeTypes[enumDecl]; ok {
+				if e, ok := typ.(*types.Enum); ok {
+					label = e.Name + "::" + label
+
+					if v, ok := e.Case(n.Name.Token.Text); ok {
+						label += " = " + v.String()
+					}
+				}
+			}
+		}
+
 	case *ast.Interface:
 		label = declTypeString(file, n, n.Name().Token.Text)
 
@@ -182,7 +197,10 @@ func (s *Server) buildHover(file *project.File, node ast.Node, rng core.Range) *
 		label = sb.String()
 
 	case *ast.Const:
-		label = typeString(file, n, n.Type)
+		label = constHoverLabel(file, "const ", n.Name().Token.Text, n.Type, n.Value)
+
+	case *ast.AssociatedConst:
+		label = constHoverLabel(file, "", n.Name.Token.Text, n.Type, n.Value)
 
 	case *ast.GlobalVar:
 		label = typeString(file, n, n.Type)
@@ -219,9 +237,6 @@ func (s *Server) buildHover(file *project.File, node ast.Node, rng core.Range) *
 	case *ast.AssociatedType:
 		label = typeString(file, n, n.Type)
 
-	case *ast.AssociatedConst:
-		label = typeString(file, n, n.Type)
-
 	default:
 		return nil
 	}
@@ -238,6 +253,10 @@ func hoverDocumentation(node ast.Node) []*ast.Leaf {
 
 	if field, ok := node.(*ast.Field); ok {
 		return field.Documentation
+	}
+
+	if cas, ok := node.(*ast.Case); ok {
+		return cas.Documentation
 	}
 
 	return nil
@@ -279,15 +298,85 @@ func (s *Server) formatHover(label string, documentation []*ast.Leaf, rng core.R
 }
 
 func typeString(file *project.File, node ast.Node, astType ast.Type) string {
-	if !core.IsNil(astType) {
-		return astType.String()
+	if core.IsNil(astType) {
+		if typ, ok := file.NodeTypes[node]; ok && typ != nil && typ != types.Invalid {
+			return typ.String()
+		}
+
+		return ""
 	}
 
-	if typ, ok := file.NodeTypes[node]; ok && typ != nil && typ != types.Invalid {
-		return typ.String()
+	// 'Self' is already substituted with the concrete type in the resolved
+	// type graph inside impls, so prefer the resolved type when the syntax
+	// tree mentions it. Inside interfaces the resolved type still prints
+	// 'Self' via the interface's self parameter.
+	if containsSelfType(astType) {
+		if typ, ok := file.NodeTypes[astType]; ok && typ != nil && typ != types.Invalid {
+			return typ.String()
+		}
+
+		if !core.IsNil(node) {
+			if typ, ok := file.NodeTypes[node]; ok && typ != nil && typ != types.Invalid {
+				return typ.String()
+			}
+		}
 	}
 
-	return ""
+	return astType.String()
+}
+
+func containsSelfType(node ast.Node) bool {
+	if core.IsNil(node) {
+		return false
+	}
+
+	if _, ok := node.(*ast.SelfType); ok {
+		return true
+	}
+
+	for child := range node.Children() {
+		if child, ok := child.(ast.Type); ok {
+			if containsSelfType(child) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func constHoverLabel(file *project.File, prefix, name string, typeAst ast.Type, value ast.Expr) string {
+	label := prefix + name
+
+	if !core.IsNil(typeAst) {
+		if typ := typeString(file, nil, typeAst); typ != "" {
+			label += ": " + typ
+		}
+	}
+
+	if core.IsNil(value) {
+		return label
+	}
+
+	v, ok := file.Evaluations[value]
+	if !ok {
+		return label
+	}
+
+	typ, ok := file.NodeTypes[value]
+	if !ok || typ == nil || typ == types.Invalid {
+		typ = file.NodeTypes[typeAst]
+	}
+
+	if typ == nil || typ == types.Invalid {
+		return label
+	}
+
+	if formatted, ok := formatEvalValue(v, typ); ok {
+		label += " = " + formatted
+	}
+
+	return label
 }
 
 func declTypeString(file *project.File, node ast.Node, fallback string) string {

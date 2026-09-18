@@ -142,7 +142,7 @@ func (s *Server) declarationAt(node ast.Node) ast.Node {
 }
 
 func (s *Server) collectReferences(defNode ast.Node, includeSelf bool, add func(*project.File, core.Range)) {
-	for _, workspace := range s.workspaces {
+	for _, workspace := range s.getWorkspaces() {
 		workspace.mutex.RLock()
 
 		for _, proj := range workspace.projMap {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fireball/ast"
 	"fireball/core"
+	"fireball/project"
+	"fireball/types"
 
 	"github.com/fireball-lang/protocol"
 )
@@ -33,37 +35,67 @@ func (s *Server) SignatureHelp(_ context.Context, params *protocol.SignatureHelp
 		return nil, nil
 	}
 
-	// Resolve the callee to an ast.Func declaration
-	defNode := s.resolveDefinition(file, call.Callee)
-	if core.IsNil(defNode) {
-		return nil, nil
+	return s.buildSignatureHelp(file, call, pos), nil
+}
+
+func (s *Server) buildSignatureHelp(file *project.File, call *ast.Call, pos core.Pos) *protocol.SignatureHelp {
+	fn, typ := s.resolveFuncSignature(file, call.Callee)
+
+	var signature protocol.SignatureInformation
+
+	if fn != nil {
+		signature = protocol.SignatureInformation{
+			Label:         fn.String(true),
+			Documentation: s.markup(fn.Documentation()),
+			Parameters:    buildParamInfos(fn),
+		}
+	} else if typ != nil {
+		signature = protocol.SignatureInformation{
+			Label:      typ.String(),
+			Parameters: buildTypeParamInfos(typ),
+		}
+	} else {
+		return nil
 	}
 
-	funcNode, ok := defNode.(*ast.Func)
+	return &protocol.SignatureHelp{
+		Signatures:      []protocol.SignatureInformation{signature},
+		ActiveSignature: 0,
+		ActiveParameter: activeParamIndex(call, pos),
+	}
+}
+
+func (s *Server) resolveFuncSignature(file *project.File, callee ast.Expr) (*ast.Func, *types.Func) {
+	// Direct reference to a function declaration
+	if defNode := s.resolveDefinition(file, callee); !core.IsNil(defNode) {
+		if fn, ok := defNode.(*ast.Func); ok {
+			return fn, nil
+		}
+	}
+
+	// Value of function type (function pointer)
+	info, ok := file.ExprInfos[callee]
 	if !ok {
 		return nil, nil
 	}
 
-	// Build the full signature label
-	label := funcNode.String(true)
+	typ, ok := info.Type.(*types.Func)
+	if !ok {
+		return nil, nil
+	}
 
-	// Build parameter information (labels are substrings of the full label for highlighting)
-	paramInfos := buildParamInfos(funcNode)
+	template := typ
+	if typ.Generic != nil {
+		template = typ.Generic
+	}
 
-	// Determine the active parameter index
-	activeParam := activeParamIndex(call, pos)
+	// Function type with a known declaration
+	if fn := s.findFuncNode(template); fn != nil {
+		return fn, nil
+	}
 
-	return &protocol.SignatureHelp{
-		Signatures: []protocol.SignatureInformation{
-			{
-				Label:         label,
-				Documentation: s.markup(funcNode.Documentation()),
-				Parameters:    paramInfos,
-			},
-		},
-		ActiveSignature: 0,
-		ActiveParameter: activeParam,
-	}, nil
+	// Anonymous function type without a declaration
+	return nil, typ
 }
 
 func findEnclosingCall(node ast.Node, pos core.Pos) *ast.Call {
@@ -86,6 +118,18 @@ func buildParamInfos(fn *ast.Func) []protocol.ParameterInformation {
 	for _, p := range fn.Params {
 		infos = append(infos, protocol.ParameterInformation{
 			Label: p.Name.Token.Text + ": " + p.Type.String(),
+		})
+	}
+
+	return infos
+}
+
+func buildTypeParamInfos(fn *types.Func) []protocol.ParameterInformation {
+	infos := make([]protocol.ParameterInformation, 0, len(fn.Params))
+
+	for _, param := range fn.Params {
+		infos = append(infos, protocol.ParameterInformation{
+			Label: param.String(),
 		})
 	}
 

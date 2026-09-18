@@ -22,7 +22,7 @@ type Document struct {
 // Diagnostics
 
 func (s *Server) publishDiagnostics(ctx context.Context) {
-	for _, workspace := range s.workspaces {
+	for _, workspace := range s.getWorkspaces() {
 		workspace.mutex.RLock()
 
 		for _, proj := range workspace.projMap {

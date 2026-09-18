@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"path"
 	"slices"
+	"sync"
 
 	"github.com/fireball-lang/protocol"
 	"go.lsp.dev/uri"
@@ -24,10 +25,18 @@ type Server struct {
 
 	nativeWatcher *NativeWatcher
 
-	workspaces []*Workspace
+	workspacesMutex sync.Mutex
+	workspaces      []*Workspace
 
 	fullSemanticTokens    bool
 	definitionLinkSupport bool
+}
+
+func (s *Server) getWorkspaces() []*Workspace {
+	s.workspacesMutex.Lock()
+	defer s.workspacesMutex.Unlock()
+
+	return slices.Clone(s.workspaces)
 }
 
 // Lifecycle
@@ -178,18 +187,27 @@ func (s *Server) DidChangeWorkspaceFolders(ctx context.Context, params *protocol
 	for _, folder := range params.Event.Removed {
 		folderPath := uri.URI(folder.URI).Filename()
 
+		s.workspacesMutex.Lock()
+
 		index := slices.IndexFunc(s.workspaces, func(workspace *Workspace) bool {
 			return workspace.path == folderPath
 		})
 
 		if index == -1 {
+			s.workspacesMutex.Unlock()
+
 			s.warn(ctx, "Workspace not found: '%s'", folder.URI)
 			continue
 		}
 
-		s.workspaces[index].removeWatchers(s)
-
+		workspace := s.workspaces[index]
 		s.workspaces = slices.Delete(s.workspaces, index, index+1)
+
+		s.workspacesMutex.Unlock()
+
+		workspace.mutex.Lock()
+		workspace.removeWatchers(s)
+		workspace.mutex.Unlock()
 	}
 
 	for _, folder := range params.Event.Added {
@@ -221,16 +239,18 @@ func (s *Server) DidCreateFiles(ctx context.Context, params *protocol.CreateFile
 			continue
 		}
 
-		file := proj.AddFile(fullPath)
+		s.parseAndPublish(ctx, s.getWorkspaceForProject(proj), func() []*project.File {
+			file := proj.AddFile(fullPath)
 
-		if file == nil {
-			s.warn(ctx, "Failed to add file to project: '%s'", fileCreate.URI)
-			continue
-		}
+			if file == nil {
+				s.warn(ctx, "Failed to add file to project: '%s'", fileCreate.URI)
+				return nil
+			}
 
-		file.Data = &Document{}
+			file.Data = &Document{}
 
-		s.parseAndPublish(ctx, s.getWorkspace(file), []*project.File{file})
+			return []*project.File{file}
+		})
 	}
 
 	return nil
@@ -262,14 +282,19 @@ func (s *Server) DidDeleteFiles(ctx context.Context, params *protocol.DeleteFile
 			fullPath := uri.URI(file.URI).Filename()
 
 			if path.Ext(fullPath) != ".fb" && path.Base(fullPath) != "project.toml" {
-				for _, workspace := range s.workspaces {
+				for _, workspace := range s.getWorkspaces() {
+					workspace.mutex.RLock()
+
 					for _, proj := range workspace.projMap {
 						if core.IsFilepathInside(fullPath, path.Join(proj.Path, "project.toml")) {
 							if !yield(string(uri.File(path.Join(proj.Path, "project.toml")))) {
+								workspace.mutex.RUnlock()
 								return
 							}
 						}
 					}
+
+					workspace.mutex.RUnlock()
 				}
 			}
 		}
@@ -291,27 +316,31 @@ func (s *Server) DidDeleteFiles(ctx context.Context, params *protocol.DeleteFile
 		}
 
 		file, _ := s.getFile(fullPath)
+		workspace := s.getWorkspaceForProject(proj)
 
-		if !proj.RemoveFile(fullPath) {
-			s.warn(ctx, "Failed to remove file from project: '%s'", fileDelete.URI)
-			continue
-		}
+		s.parseAndPublish(ctx, workspace, func() []*project.File {
+			if !proj.RemoveFile(fullPath) {
+				s.warn(ctx, "Failed to remove file from project: '%s'", fileDelete.URI)
+				return nil
+			}
+
+			return nil
+		})
 
 		if file != nil {
 			s.clearFileDiagnostics(ctx, file)
 		}
-
-		workspace := s.getWorkspaceForProject(proj)
-		s.parseAndPublish(ctx, workspace, nil)
 	}
 
 	return nil
 }
 
 func (s *Server) deleteFilesUnder(ctx context.Context, dir string) {
-	for _, workspace := range s.workspaces {
-		for _, proj := range workspace.projMap {
+	for _, workspace := range s.getWorkspaces() {
+		for _, proj := range workspace.projects() {
 			var removed []*project.File
+
+			workspace.mutex.RLock()
 
 			for _, file := range proj.Files {
 				if core.IsFilepathInside(dir, file.Path) {
@@ -319,13 +348,22 @@ func (s *Server) deleteFilesUnder(ctx context.Context, dir string) {
 				}
 			}
 
-			for _, file := range removed {
-				s.clearFileDiagnostics(ctx, file)
-				proj.RemoveFile(file.Path)
+			workspace.mutex.RUnlock()
+
+			if len(removed) == 0 {
+				continue
 			}
 
-			if len(removed) > 0 {
-				s.parseAndPublish(ctx, workspace, nil)
+			s.parseAndPublish(ctx, workspace, func() []*project.File {
+				for _, file := range removed {
+					proj.RemoveFile(file.Path)
+				}
+
+				return nil
+			})
+
+			for _, file := range removed {
+				s.clearFileDiagnostics(ctx, file)
 			}
 		}
 	}
@@ -365,29 +403,24 @@ func (s *Server) DidOpen(ctx context.Context, params *protocol.DidOpenTextDocume
 
 	workspace := s.getWorkspace(file)
 
-	// Acquire write lock
-	workspace.mutex.Lock()
-
-	// Set text contents
-	if src, ok := file.Source.(*Source); ok {
-		src.Apply(protocol.TextDocumentContentChangeEvent{Text: params.TextDocument.Text})
-	} else {
-		file.Source = &Source{
-			lines: bytes.SplitAfter([]byte(params.TextDocument.Text), []byte{'\n'}),
+	s.parseAndPublish(ctx, workspace, func() []*project.File {
+		// Set text contents
+		if src, ok := file.Source.(*Source); ok {
+			src.Apply(protocol.TextDocumentContentChangeEvent{Text: params.TextDocument.Text})
+		} else {
+			file.Source = &Source{
+				lines: bytes.SplitAfter([]byte(params.TextDocument.Text), []byte{'\n'}),
+			}
 		}
-	}
 
-	// Set document version
-	document := file.Data.(*Document)
-	document.mu.Lock()
-	document.Version = params.TextDocument.Version
-	document.mu.Unlock()
+		// Set document version
+		document := file.Data.(*Document)
+		document.mu.Lock()
+		document.Version = params.TextDocument.Version
+		document.mu.Unlock()
 
-	// Parse and release write lock
-	workspace.parseFiles([]*project.File{file})
-	workspace.mutex.Unlock()
-
-	s.publishDiagnostics(ctx)
+		return []*project.File{file}
+	})
 
 	return nil
 }
@@ -401,31 +434,26 @@ func (s *Server) DidChange(ctx context.Context, params *protocol.DidChangeTextDo
 
 	workspace := s.getWorkspace(file)
 
-	// Acquire write lock
-	workspace.mutex.Lock()
+	s.parseAndPublish(ctx, workspace, func() []*project.File {
+		// Create file source if needed
+		if _, ok := file.Source.(*Source); !ok {
+			file.Source = NewSource(file.Source)
+		}
 
-	// Create file source if needed
-	if _, ok := file.Source.(*Source); !ok {
-		file.Source = NewSource(file.Source)
-	}
+		// Apply changes
+		source := file.Source.(*Source)
+		for _, change := range params.ContentChanges {
+			source.Apply(change)
+		}
 
-	// Apply changes
-	source := file.Source.(*Source)
-	for _, change := range params.ContentChanges {
-		source.Apply(change)
-	}
+		// Set document version
+		document := file.Data.(*Document)
+		document.mu.Lock()
+		document.Version = params.TextDocument.Version
+		document.mu.Unlock()
 
-	// Set document version
-	document := file.Data.(*Document)
-	document.mu.Lock()
-	document.Version = params.TextDocument.Version
-	document.mu.Unlock()
-
-	// Parse and release write lock
-	workspace.parseFiles([]*project.File{file})
-	workspace.mutex.Unlock()
-
-	s.publishDiagnostics(ctx)
+		return []*project.File{file}
+	})
 
 	return nil
 }
@@ -434,8 +462,15 @@ func (s *Server) DidClose(_ context.Context, _ *protocol.DidCloseTextDocumentPar
 	return nil
 }
 
-func (s *Server) parseAndPublish(ctx context.Context, workspace *Workspace, files []*project.File) {
+func (s *Server) parseAndPublish(ctx context.Context, workspace *Workspace, mutate func() []*project.File) {
 	workspace.mutex.Lock()
+
+	var files []*project.File
+
+	if mutate != nil {
+		files = mutate()
+	}
+
 	workspace.parseFiles(files)
 	workspace.mutex.Unlock()
 

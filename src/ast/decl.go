@@ -726,6 +726,21 @@ func (f *Func) String(paramNames bool) string {
 
 	sb.WriteString("func ")
 	sb.WriteString(f.Name_.Token.Text)
+
+	if len(f.TypeParams) > 0 {
+		sb.WriteRune('[')
+
+		for i, param := range f.TypeParams {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+
+			sb.WriteString(param.Name.Token.Text)
+		}
+
+		sb.WriteRune(']')
+	}
+
 	sb.WriteString("(")
 
 	hasParams := false
@@ -753,6 +768,14 @@ func (f *Func) String(paramNames bool) string {
 		sb.WriteString(param.Type.String())
 
 		hasParams = true
+	}
+
+	if f.VarArgs {
+		if hasParams {
+			sb.WriteString(", ")
+		}
+
+		sb.WriteString("...")
 	}
 
 	sb.WriteString(") ")

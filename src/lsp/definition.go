@@ -251,7 +251,7 @@ func (s *Server) findFuncNode(fn *types.Func) *ast.Func {
 }
 
 func (s *Server) findParamNode(p *types.Param) ast.Node {
-	for _, workspace := range s.workspaces {
+	for _, workspace := range s.getWorkspaces() {
 		workspace.mutex.RLock()
 
 		var result ast.Node
@@ -285,7 +285,7 @@ func (s *Server) findParamNode(p *types.Param) ast.Node {
 
 func (s *Server) allSymbols() iter.Seq[symbols.Symbol] {
 	return func(yield func(symbols.Symbol) bool) {
-		for _, workspace := range s.workspaces {
+		for _, workspace := range s.getWorkspaces() {
 			workspace.mutex.RLock()
 
 			cont := true
