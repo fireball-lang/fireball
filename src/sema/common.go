@@ -58,7 +58,7 @@ func (c *common) GetImportsScope(root symbols.Scope, file *ast.File) symbols.Sco
 
 	for _, i := range file.Imports {
 		// Get import scope
-		importScope, ok := getScope(root, i.Path)
+		importScope, ok := GetScope(root, i.Path)
 		if !ok {
 			range_ := i.Range()
 			if len(i.Path) > 0 {
@@ -415,7 +415,7 @@ func (c *common) CheckConstraint(typ types.Type, constraint *types.Interface, no
 	return false
 }
 
-func getScope(scope symbols.Scope, path []*ast.Leaf) (symbols.Scope, bool) {
+func GetScope(scope symbols.Scope, path []*ast.Leaf) (symbols.Scope, bool) {
 	for _, entry := range path {
 		var ok bool
 		scope, ok = scope.GetScope(entry.Token.Text)

@@ -96,20 +96,20 @@ func (p *Project) AssignFilesToModules() {
 func (p *Project) Resolve(depMap map[Dependency]*Project, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins fb_core.Builtins) {
 	defer core.Scope()()
 
-	root := p.getRootScope(depMap)
+	root := p.GetRootScope(depMap)
 
 	for _, file := range p.Files {
-		file.resolve(&root, instantiations, typeEnv, builtins)
+		file.resolve(root, instantiations, typeEnv, builtins)
 	}
 }
 
 func (p *Project) Analyze(depMap map[Dependency]*Project, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins fb_core.Builtins) {
 	defer core.Scope()()
 
-	root := p.getRootScope(depMap)
+	root := p.GetRootScope(depMap)
 
 	for _, file := range p.Files {
-		file.analyze(&root, instantiations, typeEnv, builtins)
+		file.analyze(root, instantiations, typeEnv, builtins)
 	}
 }
 
@@ -121,7 +121,7 @@ func (p *Project) EvalCompTime(instantiations *types.InstantiationCache, typeEnv
 	}
 }
 
-func (p *Project) getRootScope(depMap map[Dependency]*Project) rootScope {
+func (p *Project) GetRootScope(depMap map[Dependency]*Project) symbols.Scope {
 	modules := make([]*Module, 0, 2+len(p.Config.Dependencies))
 	modules = append(modules, p.Module)
 
@@ -134,7 +134,7 @@ func (p *Project) getRootScope(depMap map[Dependency]*Project) rootScope {
 		modules = append(modules, proj.Module)
 	}
 
-	return rootScope{
+	return &rootScope{
 		modules: modules,
 		core:    depMap[Dependency{Path: "core"}].Module,
 	}

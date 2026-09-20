@@ -6,6 +6,7 @@ import (
 	"fireball/fb-core"
 	"fireball/symbols"
 	"fireball/types"
+	"iter"
 	"slices"
 )
 
@@ -478,6 +479,154 @@ func (e *TypeEnvironment) getSymbolWithSubs(get func(types.Type, string) (symbol
 	}
 
 	return symbols.Symbol{}, nil, false
+}
+
+type MemberSymbol struct {
+	Symbol symbols.Symbol
+	Type   types.Type
+}
+
+type memberWithSubs struct {
+	symbol symbols.Symbol
+	subs   []types.Substitution
+}
+
+func (e *TypeEnvironment) InstanceMembers(typ types.Type) iter.Seq[MemberSymbol] {
+	return e.resolveMembers(e.instance, typ)
+}
+
+func (e *TypeEnvironment) StaticMembers(typ types.Type) iter.Seq[MemberSymbol] {
+	return e.resolveMembers(e.static, typ)
+}
+
+func (e *TypeEnvironment) ParamInstanceMembers(tp *types.Param) iter.Seq[MemberSymbol] {
+	if tp == nil || len(tp.Constraints) == 0 {
+		return func(yield func(MemberSymbol) bool) {}
+	}
+
+	return func(yield func(MemberSymbol) bool) {
+		seen := make(map[string]struct{})
+
+		for _, constraint := range tp.Constraints {
+			canonical := constraint.AsImmutable()
+
+			inNode := e.GetInterfaceNode(canonical)
+			if inNode == nil {
+				continue
+			}
+
+			for _, method := range canonical.InstanceMethods {
+				if _, ok := seen[method.Name]; ok {
+					continue
+				}
+
+				seen[method.Name] = struct{}{}
+
+				// Method AST node
+				var f *ast.Func
+
+				for _, mf := range inNode.Methods {
+					if mf.Name().Token.Text == method.Name {
+						f = mf
+						break
+					}
+				}
+
+				if f == nil {
+					continue
+				}
+
+				// Substitution
+				methodType := method.Type
+
+				if canonical.SelfParam != nil {
+					subs := []types.Substitution{{Param: canonical.SelfParam, Type: tp}}
+					methodType = e.instantiations.Substitute(methodType, subs).(*types.Func)
+				}
+
+				symbol := symbols.Symbol{
+					Kind:   symbols.Func,
+					Public: true,
+					Name:   method.Name,
+					Node:   f,
+					Type:   method.Type,
+				}
+
+				if !yield(MemberSymbol{Symbol: symbol, Type: methodType}) {
+					return
+				}
+			}
+		}
+	}
+}
+
+func (e *TypeEnvironment) resolveMembers(m map[types.Type][]symbols.Symbol, typ types.Type) iter.Seq[MemberSymbol] {
+	return func(yield func(MemberSymbol) bool) {
+		seen := make(map[string]struct{}, len(m[typ]))
+
+		for entry := range e.enumerateMembers(m, typ) {
+			if _, ok := seen[entry.symbol.Name]; ok {
+				continue
+			}
+
+			seen[entry.symbol.Name] = struct{}{}
+
+			member := MemberSymbol{Symbol: entry.symbol, Type: entry.symbol.Type}
+
+			if len(entry.subs) > 0 {
+				member.Type = e.instantiations.Get(entry.symbol.Type, entry.subs)
+			}
+
+			if !yield(member) {
+				return
+			}
+		}
+	}
+}
+
+func (e *TypeEnvironment) enumerateMembers(m map[types.Type][]symbols.Symbol, typ types.Type) iter.Seq[memberWithSubs] {
+	return func(yield func(memberWithSubs) bool) {
+		add := func(syms []symbols.Symbol, subs []types.Substitution) bool {
+			for _, sym := range syms {
+				if !yield(memberWithSubs{symbol: sym, subs: subs}) {
+					return false
+				}
+			}
+
+			return true
+		}
+
+		// Exact registration
+		if !add(m[typ], nil) {
+			return
+		}
+
+		s, ok := typ.(*types.Struct)
+		if !ok || s.Generic == nil {
+			return
+		}
+
+		// Full generic impl: methods live on the canonical template.
+		if !add(m[s.Generic], s.Substitutions) {
+			return
+		}
+
+		// Partial specializations.
+		for _, pt := range e.implTargets[s.Generic] {
+			subs, ok := e.matchPartialTarget(s, pt)
+			if !ok {
+				continue
+			}
+
+			if impl := e.implForTarget[pt]; impl != nil && !e.implParamsSatisfied(impl, subs) {
+				continue
+			}
+
+			if !add(m[pt], subs) {
+				return
+			}
+		}
+	}
 }
 
 func (e *TypeEnvironment) GetTypeScope(typ types.Type) symbols.Scope {

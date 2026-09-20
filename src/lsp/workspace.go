@@ -22,6 +22,9 @@ type Workspace struct {
 
 	projMap map[string]*project.Project
 	depMap  map[project.Dependency]*project.Project
+
+	typeEnv        *sema.TypeEnvironment
+	instantiations *types.InstantiationCache
 }
 
 func (s *Server) openWorkspace(ctx context.Context, path string) {
@@ -170,6 +173,9 @@ func (w *Workspace) parseFiles(files []*project.File) {
 	for _, proj := range ordered {
 		proj.EvalCompTime(instantiations, typeEnv, fileDataMap, builtins)
 	}
+
+	w.typeEnv = typeEnv
+	w.instantiations = instantiations
 }
 
 func (w *Workspace) getProject(file string) *project.Project {

@@ -12,6 +12,17 @@ func (p Pos) Shift(columnOffset int) Pos {
 	}
 }
 
+func (p Pos) GreaterThan(o Pos) bool {
+	if p.Line > o.Line {
+		return true
+	}
+	if p.Line < o.Line {
+		return false
+	}
+
+	return p.Column > o.Column
+}
+
 type Range struct {
 	Start, End Pos
 }

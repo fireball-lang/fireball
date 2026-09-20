@@ -350,7 +350,11 @@ func constHoverLabel(file *project.File, prefix, name string, typeAst ast.Type, 
 
 	if !core.IsNil(typeAst) {
 		if typ := typeString(file, nil, typeAst); typ != "" {
-			label += ": " + typ
+			if label != "" {
+				label += ": "
+			}
+
+			label += typ
 		}
 	}
 

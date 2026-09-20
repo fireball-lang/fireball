@@ -625,7 +625,7 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 
 func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 	domain := symbols.Variable | symbols.Function
-	if !a.WantsFunction(i) {
+	if !WantsFunction(a.nodeTypes, a.exprInfos, i) {
 		domain = symbols.Variable
 	}
 
@@ -854,7 +854,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		if field := t.Field(m.Name.Token.Text); field != nil {
 			_, fieldIsFunc := field.Type.(*types.Func)
 
-			if !a.WantsFunction(m) || fieldIsFunc {
+			if !WantsFunction(a.nodeTypes, a.exprInfos, m) || fieldIsFunc {
 				if a.checkVisibility && !field.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
 					a.Error(m.Name, "field '%s' is private", m.Name.Token.Text)
 				}
@@ -1041,12 +1041,15 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 }
 
 func (a *analyzer) VisitCast(c *ast.Cast) ExprInfo {
+	// Resolve the target type first, so that it is available in 'nodeTypes'
+	// when 'WantsFunction' is consulted while analyzing the expression
+	to := a.ResolveAndAnalyzeType(c.Type)
+
 	expr := a.AnalyzeExpr(c.Expr)
 	if expr.Invalid() {
 		return ExprInfo{Type: types.Invalid}
 	}
 
-	to := a.ResolveAndAnalyzeType(c.Type)
 	if to == types.Invalid {
 		return ExprInfo{Type: types.Invalid}
 	}
@@ -1180,55 +1183,72 @@ func (a *analyzer) AddressDerivedFromRawPointer(node ast.Expr) bool {
 	}
 }
 
-func (a *analyzer) WantsFunction(node ast.Node) bool {
+// WantsFunction reports whether the position of `node` expects a function
+// value. `nodeTypes` and `exprInfos` are the analysis maps of the file the
+// node belongs to.
+//
+// Callers must make sure types read from `nodeTypes` (Var, Const, Cast) have
+// been resolved before this is consulted, see VisitCast for the ordering
+// requirement.
+func WantsFunction(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.Node]ExprInfo, node ast.Node) bool {
 	switch parent := node.Parent().(type) {
 	case *ast.Const:
 		if parent.Value == node && !core.IsNil(parent.Type) {
-			return a.TypeWantsFunction(a.ResolveAndAnalyzeType(parent.Type))
+			return TypeWantsFunction(nodeTypes[parent.Type])
 		}
 
 	case *ast.Var:
 		if parent.Initializer == node && !core.IsNil(parent.Type) {
-			return a.TypeWantsFunction(a.ResolveAndAnalyzeType(parent.Type))
+			return TypeWantsFunction(nodeTypes[parent.Type])
 		}
 
 	case *ast.Return:
 		f := ast.GetClosestParent[*ast.Func](parent)
-		return a.TypeWantsFunction(a.nodeTypes[f].(*types.Func).Returns)
+
+		fn, ok := nodeTypes[f].(*types.Func)
+		if !ok {
+			return false
+		}
+
+		return TypeWantsFunction(fn.Returns)
 
 	case *ast.Call:
+		// Callee position
 		if parent.Callee == node {
 			return true
 		}
 
+		// Argument position
 		for i, arg := range parent.Args {
 			if arg == node {
-				if f, ok := a.AnalyzeExpr(parent.Callee).Type.(*types.Func); ok && i < len(f.Params) {
+				if f, ok := exprInfos[parent.Callee].Type.(*types.Func); ok && i < len(f.Params) {
 					if f.HasReceiver {
 						i++
 					}
 
-					return a.TypeWantsFunction(f.Params[i])
+					return TypeWantsFunction(f.Params[i])
 				}
 			}
 		}
 
 	case *ast.Binary:
 		if parent.Op == ast.Assign && parent.Right == node {
-			return a.TypeWantsFunction(a.exprInfos[parent.Left].Type)
+			return TypeWantsFunction(exprInfos[parent.Left].Type)
 		}
 
 	case *ast.Cast:
-		return a.TypeWantsFunction(a.ResolveAndAnalyzeType(parent.Type))
+		return TypeWantsFunction(nodeTypes[parent.Type])
 
 	case *ast.FieldInitializer:
-		return a.TypeWantsFunction(a.exprInfos[parent].Type)
+		return TypeWantsFunction(exprInfos[parent].Type)
 	}
 
 	return false
 }
 
-func (a *analyzer) TypeWantsFunction(typ types.Type) bool {
+// TypeWantsFunction reports whether `typ` is a function type, unwrapping
+// 'core::Option'.
+func TypeWantsFunction(typ types.Type) bool {
 	if inner := getOptionInnerType(typ); inner != nil {
 		typ = inner
 	}

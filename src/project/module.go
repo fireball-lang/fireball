@@ -7,7 +7,8 @@ import (
 )
 
 type Module struct {
-	Name string
+	Parent *Module
+	Name   string
 
 	Children []*Module
 	Files    []*File
@@ -20,7 +21,7 @@ func (m *Module) getOrCreateChild(name string) *Module {
 		}
 	}
 
-	child := &Module{Name: name}
+	child := &Module{Parent: m, Name: name}
 	m.Children = append(m.Children, child)
 
 	return child

@@ -43,10 +43,6 @@ func (s *Server) ColorPresentation(ctx context.Context, params *protocol.ColorPr
 	return nil, errors.New("not implemented")
 }
 
-func (s *Server) Completion(ctx context.Context, params *protocol.CompletionParams) (result *protocol.CompletionList, err error) {
-	return nil, errors.New("not implemented")
-}
-
 func (s *Server) CompletionResolve(ctx context.Context, params *protocol.CompletionItem) (result *protocol.CompletionItem, err error) {
 	return nil, errors.New("not implemented")
 }

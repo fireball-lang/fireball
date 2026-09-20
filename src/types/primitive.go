@@ -24,6 +24,8 @@ const (
 
 	F32 = 10
 	F64 = 11
+
+	PrimitiveKindCount = 12
 )
 
 func IsUnsignedInteger(p PrimitiveKind) bool {
