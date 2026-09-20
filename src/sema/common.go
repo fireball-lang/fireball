@@ -48,7 +48,7 @@ func setupCommon(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scop
 
 	c.scopes.Push(root)
 	c.scopes.Push(c.GetImportsScope(root, file))
-	c.scopes.Push(symbols.SymbolScope(fileSymbols))
+	c.scopes.Push(symbols.NewBinaryScope(fileSymbols))
 
 	return c
 }

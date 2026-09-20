@@ -1,6 +1,10 @@
 package types
 
-import "strings"
+import (
+	"cmp"
+	"slices"
+	"strings"
+)
 
 type Layout uint8
 
@@ -30,12 +34,32 @@ type Struct struct {
 	Substitutions []Substitution
 }
 
+func (s *Struct) Optimize() {
+	if s.Layout == C {
+		return
+	}
+
+	slices.SortFunc(s.Fields, func(a, b Field) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+}
+
 func (s *Struct) Field(name string) *Field {
-	for i := range s.Fields {
-		field := &s.Fields[i]
-		if field.Name == name {
-			return field
+	if s.Layout == C {
+		for i := range s.Fields {
+			field := &s.Fields[i]
+			if field.Name == name {
+				return field
+			}
 		}
+	}
+
+	index, ok := slices.BinarySearchFunc(s.Fields, name, func(field Field, s string) int {
+		return cmp.Compare(field.Name, s)
+	})
+
+	if ok {
+		return &s.Fields[index]
 	}
 
 	return nil

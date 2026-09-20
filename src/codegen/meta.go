@@ -33,43 +33,43 @@ func (c *Codegen) emitMetaScope(node ast.Node) ir.MetaRef {
 }
 
 func AddModuleMetaFlags(m *ir.Module, lto bool) {
-	flags := []ir.MetaRef{
-		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+	flags := m.AddMetas([]ir.MetaNode{
+		&ir.RawMeta{Values: []ir.RawMetaValue{
 			{Number: 7},
 			{Text: "Dwarf Version"},
 			{Number: 4},
-		}}),
-		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+		}},
+		&ir.RawMeta{Values: []ir.RawMetaValue{
 			{Number: 2},
 			{Text: "Debug Info Version"},
 			{Number: 3},
-		}}),
-		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+		}},
+		&ir.RawMeta{Values: []ir.RawMetaValue{
 			{Number: 1},
 			{Text: "wchar_size"},
 			{Number: 4},
-		}}),
-		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+		}},
+		&ir.RawMeta{Values: []ir.RawMetaValue{
 			{Number: 8},
 			{Text: "PIC Level"},
 			{Number: 2},
-		}}),
-		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+		}},
+		&ir.RawMeta{Values: []ir.RawMetaValue{
 			{Number: 7},
 			{Text: "PIE Level"},
 			{Number: 2},
-		}}),
-		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+		}},
+		&ir.RawMeta{Values: []ir.RawMetaValue{
 			{Number: 7},
 			{Text: "uwtable"},
 			{Number: 2},
-		}}),
-		m.AddMeta(&ir.RawMeta{Values: []ir.RawMetaValue{
+		}},
+		&ir.RawMeta{Values: []ir.RawMetaValue{
 			{Number: 7},
 			{Text: "frame-pointer"},
 			{Number: 2},
-		}}),
-	}
+		}},
+	})
 
 	if lto {
 		flags = append(

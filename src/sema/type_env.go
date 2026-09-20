@@ -1,6 +1,7 @@
 package sema
 
 import (
+	"cmp"
 	"fireball/ast"
 	"fireball/core"
 	"fireball/fb-core"
@@ -49,6 +50,8 @@ type TypeEnvironment struct {
 
 	instantiations *types.InstantiationCache
 	builtins       fb_core.Builtins
+
+	checked bool
 }
 
 func NewTypeEnvironment(instantiations *types.InstantiationCache, builtins fb_core.Builtins) *TypeEnvironment {
@@ -86,6 +89,20 @@ func (e *TypeEnvironment) CheckCollisions(fn func(diagnostic core.Diagnostic)) {
 			}
 		}
 	}
+
+	for typ, syms := range e.instance {
+		slices.SortFunc(syms, func(a, b symbols.Symbol) int {
+			if c := cmp.Compare(a.Kind, b.Kind); c != 0 {
+				return c
+			}
+
+			return cmp.Compare(a.Name, b.Name)
+		})
+
+		e.instance[typ] = syms
+	}
+
+	e.checked = true
 }
 
 func (e *TypeEnvironment) RegisterTypeDeclNode(t types.Type, n ast.Decl) {
@@ -396,7 +413,19 @@ func (e *TypeEnvironment) AddInstanceMethod(typ types.Type, symbol symbols.Symbo
 		}
 	}
 
-	e.instance[typ] = append(e.instance[typ], symbol)
+	syms := append(e.instance[typ], symbol)
+
+	if e.checked {
+		slices.SortFunc(syms, func(a, b symbols.Symbol) int {
+			if c := cmp.Compare(a.Kind, b.Kind); c != 0 {
+				return c
+			}
+
+			return cmp.Compare(a.Name, b.Name)
+		})
+	}
+
+	e.instance[typ] = syms
 	return true
 }
 
@@ -421,13 +450,21 @@ func (e *TypeEnvironment) GetStaticMethod(typ types.Type, name string) (symbols.
 }
 
 func (e *TypeEnvironment) GetInstanceMethod(typ types.Type, name string) (symbols.Symbol, bool) {
-	for _, symbol := range e.instance[typ] {
-		if symbol.Kind == symbols.Func && symbol.Name == name {
-			return symbol, true
+	syms := e.instance[typ]
+
+	index, ok := slices.BinarySearchFunc(syms, name, func(symbol symbols.Symbol, s string) int {
+		if c := cmp.Compare(symbol.Kind, symbols.Func); c != 0 {
+			return c
 		}
+
+		return cmp.Compare(symbol.Name, s)
+	})
+
+	if !ok {
+		return symbols.Symbol{}, false
 	}
 
-	return symbols.Symbol{}, false
+	return syms[index], true
 }
 
 func (e *TypeEnvironment) GetAssociatedConstWithSubs(typ types.Type, name string) (symbols.Symbol, []types.Substitution, bool) {
@@ -737,7 +774,7 @@ func (e *TypeEnvironment) GetTypeScope(typ types.Type) symbols.Scope {
 
 		var scope symbols.Scope
 		if len(staticSymbols) > 0 {
-			scope = symbols.SymbolScope(staticSymbols)
+			scope = symbols.NewBinaryScope(staticSymbols)
 		}
 
 		e.paramScopes[tp] = scope

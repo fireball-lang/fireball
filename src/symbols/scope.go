@@ -1,5 +1,10 @@
 package symbols
 
+import (
+	"cmp"
+	"slices"
+)
+
 type Domain uint8
 
 const (
@@ -25,6 +30,46 @@ func (s SymbolScope) GetSymbol(domain Domain, name string) (Symbol, bool) {
 	for _, symbol := range s {
 		if symbol.Kind.IsInDomain(domain) && symbol.Name == name {
 			return symbol, true
+		}
+	}
+
+	return Symbol{}, false
+}
+
+// Binary
+
+type BinaryScope []Symbol
+
+func NewBinaryScope(symbols []Symbol) BinaryScope {
+	symbols = slices.Clone(symbols)
+
+	slices.SortFunc(symbols, func(a, b Symbol) int {
+		if c := cmp.Compare(a.Name, b.Name); c != 0 {
+			return c
+		}
+
+		return cmp.Compare(a.Kind.Domain(), b.Kind.Domain())
+	})
+
+	return symbols
+}
+
+func (b BinaryScope) GetScope(_ string) (Scope, bool) {
+	return nil, false
+}
+
+func (b BinaryScope) GetSymbol(domain Domain, name string) (Symbol, bool) {
+	index, ok := slices.BinarySearchFunc(b, name, func(s Symbol, target string) int {
+		return cmp.Compare(s.Name, target)
+	})
+
+	if !ok {
+		return Symbol{}, false
+	}
+
+	for i := index; i < len(b) && b[i].Name == name; i++ {
+		if b[i].Kind.IsInDomain(domain) {
+			return b[i], true
 		}
 	}
 

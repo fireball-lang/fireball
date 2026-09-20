@@ -17,21 +17,13 @@ func (m MetaRef) Value() uint32 {
 }
 
 type MetaNode interface {
-	Next() MetaNode
-	setNext(node MetaNode)
+	isMeta()
 }
 
 type baseMetaNode struct {
-	nextNode MetaNode
 }
 
-func (b *baseMetaNode) Next() MetaNode {
-	return b.nextNode
-}
-
-func (b *baseMetaNode) setNext(node MetaNode) {
-	b.nextNode = node
-}
+func (b *baseMetaNode) isMeta() {}
 
 // Raw meta node
 

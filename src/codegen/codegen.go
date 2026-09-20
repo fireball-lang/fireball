@@ -85,7 +85,7 @@ func New(module *ir.Module, file *ast.File, arch abi.Arch, callConv abi.CallConv
 		instantiations: instantiations,
 		fileDataMap:    fileDataMap,
 
-		Types:   &TypeCache{Arch: arch, Module: module},
+		Types:   &TypeCache{Arch: arch, Module: module, ShallowMeta: false},
 		Emitter: ir.Emitter{Module: module},
 	}
 
@@ -236,7 +236,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		case *ast.GlobalVar:
 			if !core.IsNil(decl.Initializer) {
 				typ := c.NodeTypes[decl]
-				gVar := c.scope.Get(decl.Name().Token.Text).(*ir.GlobalVar)
+				gVar := c.GetGlobalVar(decl, nil)
 
 				gVar.Initializer = c.GetIrValue(fileDataMap[file].Evaluations[decl.Initializer], typ)
 			}
@@ -259,7 +259,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		case *ast.Func:
 			if !c.HasTypeParams(decl) && ast.GetAttribute[*ast.Intrinsic](decl) == nil {
 				typ := c.NodeTypes[decl].(*types.Func)
-				fun := c.scope.Get(decl.Name().Token.Text).(*ir.Function)
+				fun := c.GetFunction(decl, typ, nil)
 
 				c.VisitFunc(decl, typ, fun)
 			}

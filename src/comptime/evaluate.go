@@ -198,6 +198,7 @@ func (ct *compTime) EvalExpr(expr ast.Expr, typ types.Type) (eval.Value, bool) {
 	module.Path = "__comptime__"
 
 	c := codegen.New(module, ct.file, abi.AMD64, abi.SystemV, ct.instantiations, ct.typeEnv, ct.fileDataMap, ct.builtins, true)
+	c.Types.ShallowMeta = true
 
 	val, err, ok := c.GenerateComptimeValue(expr, typ)
 	if !ok {

@@ -54,6 +54,8 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 					Required: ast.GetAttribute[*ast.Required](s.Fields[i]) != nil,
 				}
 			}
+
+			t.Optimize()
 		}
 
 	case symbols.Enum:

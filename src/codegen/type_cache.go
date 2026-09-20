@@ -12,6 +12,8 @@ type TypeCache struct {
 	Module  *ir.Module
 	FileRef ir.MetaRef
 
+	ShallowMeta bool
+
 	entries     types.TypeMap[ir.Type]
 	metaEntries types.TypeMap[ir.MetaRef]
 }
@@ -177,6 +179,9 @@ func (t *TypeCache) createPointerMeta(typ types.Type, pointee types.Type) ir.Met
 	}
 
 	ref := t.addMeta(typ, t.Module.AddMeta(node))
+	if t.ShallowMeta {
+		return ref
+	}
 
 	node.Base = t.GetMeta(pointee)
 
@@ -204,6 +209,9 @@ func (t *TypeCache) createArrayMeta(typ *types.Array) ir.MetaRef {
 	}
 
 	ref := t.addMeta(typ, t.Module.AddMeta(node))
+	if t.ShallowMeta {
+		return ref
+	}
 
 	subrange := t.Module.AddMeta(&ir.SubrangeMeta{Count: typ.Size})
 	node.BaseType = t.GetMeta(typ.Element)
@@ -272,24 +280,27 @@ func (t *TypeCache) createStructMeta(typ *types.Struct) ir.MetaRef {
 	}
 
 	ref := t.addMeta(typ, t.Module.AddMeta(node))
+	if t.ShallowMeta {
+		return ref
+	}
 
-	fields := make([]ir.MetaRef, len(typ.Fields))
+	fields := make([]ir.MetaNode, len(typ.Fields))
 
 	for i, infoField := range info.Fields {
 		field := typ.Fields[infoField.Index]
 		fieldInfo := t.Arch.Info(field.Type)
 
-		fields[i] = t.Module.AddMeta(&ir.DerivedTypeMeta{
+		fields[i] = &ir.DerivedTypeMeta{
 			Name:   field.Name,
 			Kind:   ir.MetaMember,
 			Base:   t.GetMeta(field.Type),
 			Offset: infoField.Offset * 8,
 			Size:   fieldInfo.Size * 8,
 			Align:  fieldInfo.Align * 8,
-		})
+		}
 	}
 
-	node.Elements = fields
+	node.Elements = t.Module.AddMetas(fields)
 
 	return ref
 }
@@ -341,18 +352,21 @@ func (t *TypeCache) createEnumMeta(typ *types.Enum) ir.MetaRef {
 	}
 
 	ref := t.addMeta(typ, t.Module.AddMeta(node))
+	if t.ShallowMeta {
+		return ref
+	}
 
-	cases := make([]ir.MetaRef, len(typ.Cases))
+	cases := make([]ir.MetaNode, len(typ.Cases))
 
 	for i, c := range typ.Cases {
-		cases[i] = t.Module.AddMeta(&ir.EnumeratorMeta{
+		cases[i] = &ir.EnumeratorMeta{
 			Name:  c.Name,
 			Value: c.Value,
-		})
+		}
 	}
 
 	node.BaseType = t.GetMeta(typ.CaseType)
-	node.Elements = cases
+	node.Elements = t.Module.AddMetas(cases)
 
 	return ref
 }

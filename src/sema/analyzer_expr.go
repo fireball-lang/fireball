@@ -624,14 +624,23 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 }
 
 func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
-	domain := symbols.Variable | symbols.Function
-	if !WantsFunction(a.nodeTypes, a.exprInfos, i) {
-		domain = symbols.Variable
+	var symbol symbols.Symbol
+	var ok bool
+
+	if WantsFunction(a.nodeTypes, a.exprInfos, i) {
+		prevDiag := a.diagnostics
+		symbol, ok = a.GetSymbol(symbols.Function, i.Path)
+
+		if !ok {
+			a.diagnostics = prevDiag
+		}
 	}
 
-	symbol, ok := a.GetSymbol(domain, i.Path)
 	if !ok {
-		return ExprInfo{Type: types.Invalid}
+		symbol, ok = a.GetSymbol(symbols.Variable, i.Path)
+		if !ok {
+			return ExprInfo{Type: types.Invalid}
+		}
 	}
 
 	a.nodeTypes[symbol.Node] = symbol.Type

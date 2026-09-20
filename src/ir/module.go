@@ -22,10 +22,7 @@ type Module struct {
 
 	namedMetaRefs map[string][]MetaRef
 
-	metaNodeRefMap map[MetaRef]MetaNode
-	headMetaNode   MetaNode
-	tailMetaNode   MetaNode
-	metaNodeCount  uint32
+	metaNodes []MetaNode
 
 	headSummary  Summary
 	tailSummary  Summary
@@ -38,7 +35,6 @@ func NewModule() *Module {
 		namedMetaRefs:    make(map[string][]MetaRef),
 		functionNameMap:  make(map[string]*Function),
 		globalVarNameMap: make(map[string]*GlobalVar),
-		metaNodeRefMap:   make(map[MetaRef]MetaNode),
 	}
 }
 
@@ -159,32 +155,28 @@ func (m *Module) NamedMetaRefs() iter.Seq2[string, []MetaRef] {
 // Meta nodes
 
 func (m *Module) AddMeta(node MetaNode) MetaRef {
-	if core.IsNil(m.tailMetaNode) {
-		m.headMetaNode = node
-	} else {
-		m.tailMetaNode.setNext(node)
+	m.metaNodes = append(m.metaNodes, node)
+	return MetaRef(len(m.metaNodes))
+}
+
+func (m *Module) AddMetas(nodes []MetaNode) []MetaRef {
+	refs := make([]MetaRef, len(nodes))
+
+	for i := range nodes {
+		refs[i] = MetaRef(len(m.metaNodes) + i + 1)
 	}
 
-	m.tailMetaNode = node
+	m.metaNodes = append(m.metaNodes, nodes...)
 
-	ref := MetaRef(m.metaNodeCount + 1)
-	m.metaNodeCount++
-
-	m.metaNodeRefMap[ref] = node
-
-	return ref
+	return refs
 }
 
 func (m *Module) GetMeta(ref MetaRef) MetaNode {
-	if node, ok := m.metaNodeRefMap[ref]; ok {
-		return node
-	}
-
-	panic("ir.Module.GetMeta() - Invalid meta reference")
+	return m.metaNodes[ref.Value()]
 }
 
 func (m *Module) MetaNodes() iter.Seq[MetaNode] {
-	return iterLinkedList(m.headMetaNode)
+	return slices.Values(m.metaNodes)
 }
 
 // Summaries

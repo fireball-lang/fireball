@@ -4,11 +4,11 @@ struct foo {
     value: i32,
 }
 
+var foo: i32;
+
 func foo(x: i32) i32 {
     return x + 1;
 }
-
-var foo: i32;
 
 #[test("type and function with same name")]
 func testTypeAndFunc() bool {

@@ -1,5 +1,7 @@
 package codegen
 
+import "slices"
+
 import "fireball/ir"
 
 type symbolEntry struct {
@@ -39,9 +41,9 @@ func (s *symbolScope) Add(name string, value ir.Value) bool {
 }
 
 func (s *symbolScope) Get(name string) ir.Value {
-	for i := len(s.symbols) - 1; i >= 0; i-- {
-		if s.symbols[i].name == name {
-			return s.symbols[i].value
+	for _, v := range slices.Backward(s.symbols) {
+		if v.name == name {
+			return v.value
 		}
 	}
 
