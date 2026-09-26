@@ -64,8 +64,8 @@ func (st *SymbolTable) Add(symbol Symbol) {
 	st.symbols = append(st.symbols, symbol)
 }
 
-func (st *SymbolTable) Build(sections []*SectionHeader) (symtabSec *SectionHeader, strtabSec *SectionHeader) {
-	symIndices := make(map[string]uint32)
+func (st *SymbolTable) Build(sections []*SectionHeader) (symtabSec *SectionHeader, strtabSec *SectionHeader, symIndices map[string]uint32) {
+	symIndices = make(map[string]uint32)
 
 	// String table starts with empty string at offset 0
 	strtab := []byte{0}
@@ -150,18 +150,20 @@ func (st *SymbolTable) Build(sections []*SectionHeader) (symtabSec *SectionHeade
 	}
 
 	strtabSec = &SectionHeader{
-		Name: ".strtab",
-		Type: ShtStringTable,
-		Data: strtab,
+		Name:         ".strtab",
+		Type:         ShtStringTable,
+		AddressAlign: 8,
+		Data:         strtab,
 	}
 
 	symtabSec = &SectionHeader{
-		Name:      ".symtab",
-		Type:      ShtSymbolTable,
-		Link:      strtabSec,
-		Info:      firstGlobalIndex,
-		EntrySize: 24,
-		Data:      rawData,
+		Name:         ".symtab",
+		Type:         ShtSymbolTable,
+		AddressAlign: 8,
+		Link:         strtabSec,
+		Info:         firstGlobalIndex,
+		EntrySize:    24,
+		Data:         rawData,
 	}
 
 	return
