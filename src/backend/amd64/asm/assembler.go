@@ -1,69 +1,14 @@
 package asm
 
 import (
+	"fireball/backend/obj"
 	"fmt"
 	"math"
 )
 
 type Label struct {
-	id             uint32
-	symbolDefIndex int
-}
-
-type SymbolDef struct {
-	Name   string
-	Offset int
-
-	Function bool
-	Global   bool
-}
-
-type RelocKind uint8
-
-const (
-	RelocPC32 RelocKind = iota
-	RelocAbs64
-	RelocAbs32
-	RelocSigned32
-)
-
-type Relocation struct {
-	Offset int
-
-	Symbol string
-	Type   RelocKind
-
-	UserAddend    int64
-	TrailingBytes int
-}
-
-// ElfAddend returns the addend required by ELF (R_X86_64_*) relocations.
-func (r Relocation) ElfAddend() int64 {
-	if r.Type == RelocPC32 {
-		return int64(-4-r.TrailingBytes) + r.UserAddend
-	}
-
-	return r.UserAddend
-}
-
-// CoffType returns the Microsoft PE/COFF relocation constant (IMAGE_REL_AMD64_*).
-func (r Relocation) CoffType() uint16 {
-	switch r.Type {
-	case RelocAbs64:
-		return 0x0001 // IMAGE_REL_AMD64_ADDR64
-	case RelocAbs32:
-		return 0x0002 // IMAGE_REL_AMD64_ADDR32
-	case RelocSigned32:
-		return 0x0003 // IMAGE_REL_AMD64_ADDR32NB (or REL32 depending on usage)
-
-	case RelocPC32:
-		// In PE/COFF, IMAGE_REL_AMD64_REL32 (0x0004) through REL32_5 (0x0009)
-		// map sequentially to the number of trailing bytes.
-		return 0x0004 + uint16(r.TrailingBytes)
-
-	default:
-		panic("amd64.Relocation.CoffType() - Unsupported relocation kind for COFF")
-	}
+	id     uint32
+	symbol *obj.Symbol
 }
 
 type branchFixup struct {
@@ -73,19 +18,18 @@ type branchFixup struct {
 
 type Assembler struct {
 	bytes       []uint8
-	relocations []Relocation
-	symbolDefs  []SymbolDef
+	relocations []obj.Relocation
 
 	nextLabelId uint32
 	labels      map[Label]int
 	fixups      []branchFixup
 }
 
-func (a *Assembler) Assemble() ([]uint8, []Relocation, []SymbolDef) {
+func (a *Assembler) Assemble() ([]uint8, []obj.Relocation) {
 	for _, f := range a.fixups {
 		targetOffset, ok := a.labels[f.target]
 		if !ok {
-			panic(fmt.Sprintf("amd64.Assembler.Assemble() - Label %d was referenced but never bound", f.target))
+			panic(fmt.Sprintf("amd64.Assembler.Assemble() - Label %d was referenced but never bound", f.target.id))
 		}
 
 		disp := int32(targetOffset - (f.offset + 4))
@@ -98,7 +42,7 @@ func (a *Assembler) Assemble() ([]uint8, []Relocation, []SymbolDef) {
 
 	a.fixups = nil
 
-	return a.bytes, a.relocations, a.symbolDefs
+	return a.bytes, a.relocations
 }
 
 // Integer arithmetic
@@ -199,7 +143,7 @@ func (a *Assembler) imul[S RegMem | int32](is64 bool, dst Reg, src S) {
 		a.emitModRm(modReg, dst, s)
 
 	case Mem:
-		if s.Symbol.Name != "" {
+		if s.Sym.Symbol != nil {
 			a.emitRex(is64, dst, 0)
 			a.bytes = append(a.bytes, 0x0F, 0xAF)
 			a.emitRipDisp(s, dst, 0)
@@ -442,7 +386,7 @@ func (a *Assembler) Pop(r Reg) {
 }
 
 // Mov moves a 64-bit value.
-func (a *Assembler) Mov[D RegMem, S RegMem | Sym | int64](dst D, src S) {
+func (a *Assembler) Mov[D RegMem, S RegMem | *obj.Symbol | Sym | int64](dst D, src S) {
 	switch d := any(dst).(type) {
 	case Reg:
 		switch s := any(src).(type) {
@@ -453,11 +397,20 @@ func (a *Assembler) Mov[D RegMem, S RegMem | Sym | int64](dst D, src S) {
 		case Sym:
 			a.emitRex(true, 0, d)
 			a.bytes = append(a.bytes, 0xB8+(uint8(d)&7))
-			a.relocations = append(a.relocations, Relocation{
-				Offset:     len(a.bytes),
-				Symbol:     s.Name,
-				Type:       RelocAbs64,
-				UserAddend: s.Addend,
+			a.relocations = append(a.relocations, obj.Relocation{
+				Offset: len(a.bytes),
+				Target: s.Symbol,
+				Kind:   obj.RelocAbs64,
+				Addend: s.Addend,
+			})
+			a.emitInt64(0)
+		case *obj.Symbol:
+			a.emitRex(true, 0, d)
+			a.bytes = append(a.bytes, 0xB8+(uint8(d)&7))
+			a.relocations = append(a.relocations, obj.Relocation{
+				Offset: len(a.bytes),
+				Target: s,
+				Kind:   obj.RelocAbs64,
 			})
 			a.emitInt64(0)
 		case int64:
@@ -481,15 +434,13 @@ func (a *Assembler) Mov[D RegMem, S RegMem | Sym | int64](dst D, src S) {
 		switch s := any(src).(type) {
 		case Reg:
 			a.emitMR(true, 0x89, d, s)
-		case Mem:
-			panic("amd64.Assembler.Mov() - memory-to-memory operations are not supported")
-		case Sym:
-			panic("amd64.Assembler.Mov() - symbol-to-memory operations are not supported")
 		case int64:
 			if s < math.MinInt32 || s > math.MaxInt32 {
 				panic(fmt.Sprintf("amd64.Assembler.Mov() - immediate %d exceeds 32-bit sign-extended range for memory destination", s))
 			}
 			a.emitMI(true, 0xC7, 0, d, int32(s))
+		default:
+			panic("amd64.Assembler.Mov() - invalid memory destination operand")
 		}
 	}
 }
@@ -560,7 +511,7 @@ func (a *Assembler) Movsxd[S RegMem](dst Reg, src S) {
 		a.emitModRm(modReg, dst, s)
 
 	case Mem:
-		if s.Symbol.Name != "" {
+		if s.Sym.Symbol != nil {
 			a.emitRex(true, dst, 0)
 			a.bytes = append(a.bytes, 0x63)
 			a.emitRipDisp(s, dst, 0)
@@ -575,49 +526,37 @@ func (a *Assembler) Movsxd[S RegMem](dst Reg, src S) {
 
 // Control flow instructions
 
-func (a *Assembler) Label() Label {
+// Label creates a label for local control flow.
+// `symbol` can either be nil which creates an anonymous label, or it can be associated with the symbol (e.g. a function).
+func (a *Assembler) Label(symbol *obj.Symbol) Label {
 	a.nextLabelId++
 
 	return Label{
-		id:             a.nextLabelId,
-		symbolDefIndex: -1,
+		id:     a.nextLabelId,
+		symbol: symbol,
 	}
 }
 
-func (a *Assembler) Global(name string) Label {
-	a.nextLabelId++
-
-	a.symbolDefs = append(a.symbolDefs, SymbolDef{
-		Name:     name,
-		Offset:   0,
-		Function: true,
-		Global:   true,
-	})
-
-	return Label{
-		id:             a.nextLabelId,
-		symbolDefIndex: len(a.symbolDefs) - 1,
-	}
-}
-
+// Bind marks the current location with the given label.
 func (a *Assembler) Bind(l Label) {
 	if a.labels == nil {
 		a.labels = make(map[Label]int)
 	}
 
 	if _, exists := a.labels[l]; exists {
-		panic(fmt.Sprintf("amd64.Assembler.Bind() - Label %d already bound", l))
+		panic(fmt.Sprintf("amd64.Assembler.Bind() - Label %d already bound", l.id))
 	}
 
-	a.labels[l] = len(a.bytes)
+	currentOffset := len(a.bytes)
+	a.labels[l] = currentOffset
 
-	if l.symbolDefIndex != -1 {
-		a.symbolDefs[l.symbolDefIndex].Offset = len(a.bytes)
+	if l.symbol != nil {
+		l.symbol.Value = uint64(currentOffset)
 	}
 }
 
 // Jmp unconditional jump.
-func (a *Assembler) Jmp[T Label | Reg | Sym](target T) {
+func (a *Assembler) Jmp[T Label | Reg | *obj.Symbol | Sym](target T) {
 	switch t := any(target).(type) {
 	case Label:
 		a.bytes = append(a.bytes, 0xE9)
@@ -628,13 +567,22 @@ func (a *Assembler) Jmp[T Label | Reg | Sym](target T) {
 		a.bytes = append(a.bytes, 0xFF)
 		a.emitModRm(modReg, 4, t)
 
+	case *obj.Symbol:
+		a.bytes = append(a.bytes, 0xE9)
+		a.relocations = append(a.relocations, obj.Relocation{
+			Offset: len(a.bytes),
+			Target: t,
+			Kind:   obj.RelocPC32,
+		})
+		a.emitInt32(0)
+
 	case Sym:
 		a.bytes = append(a.bytes, 0xE9)
-		a.relocations = append(a.relocations, Relocation{
-			Offset:     len(a.bytes),
-			Symbol:     t.Name,
-			Type:       RelocPC32,
-			UserAddend: t.Addend,
+		a.relocations = append(a.relocations, obj.Relocation{
+			Offset: len(a.bytes),
+			Target: t.Symbol,
+			Kind:   obj.RelocPC32,
+			Addend: t.Addend,
 		})
 		a.emitInt32(0)
 	}
@@ -690,7 +638,7 @@ func (a *Assembler) Jge(target Label) {
 	a.emitJcc(0x8D, target)
 }
 
-func (a *Assembler) Call[C Label | Reg | Sym](callee C) {
+func (a *Assembler) Call[C Label | Reg | *obj.Symbol | Sym](callee C) {
 	switch c := any(callee).(type) {
 	case Label:
 		a.bytes = append(a.bytes, 0xE8)
@@ -701,13 +649,22 @@ func (a *Assembler) Call[C Label | Reg | Sym](callee C) {
 		a.bytes = append(a.bytes, 0xFF)
 		a.emitModRm(modReg, 2, c)
 
+	case *obj.Symbol:
+		a.bytes = append(a.bytes, 0xE8)
+		a.relocations = append(a.relocations, obj.Relocation{
+			Offset: len(a.bytes),
+			Target: c,
+			Kind:   obj.RelocPC32,
+		})
+		a.emitInt32(0)
+
 	case Sym:
 		a.bytes = append(a.bytes, 0xE8)
-		a.relocations = append(a.relocations, Relocation{
-			Offset:     len(a.bytes),
-			Symbol:     c.Name,
-			Type:       RelocPC32,
-			UserAddend: c.Addend,
+		a.relocations = append(a.relocations, obj.Relocation{
+			Offset: len(a.bytes),
+			Target: c.Symbol,
+			Kind:   obj.RelocPC32,
+			Addend: c.Addend,
 		})
 		a.emitInt32(0)
 	}
@@ -778,7 +735,7 @@ func (a *Assembler) cmp[D RegMem, S RegMem | int32](is64 bool, dst D, src S) {
 }
 
 func (a *Assembler) Lea(dst Reg, mem Mem) {
-	if mem.Symbol.Name != "" {
+	if mem.Sym.Symbol != nil {
 		a.emitRex(true, dst, 0)
 		a.bytes = append(a.bytes, 0x8D)
 		a.emitRipDisp(mem, dst, 0)
@@ -835,7 +792,7 @@ func (a *Assembler) emitExt[S RegMem](is64 bool, opcode2 uint8, dst Reg, src S) 
 		a.emitModRm(modReg, dst, s)
 
 	case Mem:
-		if s.Symbol.Name != "" {
+		if s.Sym.Symbol != nil {
 			a.emitRex(is64, dst, 0)
 			a.bytes = append(a.bytes, 0x0F, opcode2)
 			a.emitRipDisp(s, dst, 0)
@@ -876,7 +833,7 @@ func (a *Assembler) emitShiftImm[D RegMem](is64 bool, ext uint8, target D, count
 		a.emitModRm(modReg, Reg(ext), t)
 
 	case Mem:
-		if t.Symbol.Name != "" {
+		if t.Sym.Symbol != nil {
 			a.emitRex(is64, Reg(ext), 0)
 			a.bytes = append(a.bytes, opcode)
 
@@ -906,7 +863,7 @@ func (a *Assembler) emitShiftCl[D RegMem](is64 bool, ext uint8, target D) {
 		a.emitModRm(modReg, Reg(ext), t)
 
 	case Mem:
-		if t.Symbol.Name != "" {
+		if t.Sym.Symbol != nil {
 			a.emitRex(is64, Reg(ext), 0)
 			a.bytes = append(a.bytes, 0xD3)
 			a.emitRipDisp(t, Reg(ext), 0)
@@ -927,7 +884,7 @@ func (a *Assembler) emitUnaryOp[D RegMem](is64 bool, ext uint8, target D) {
 		a.emitModRm(modReg, Reg(ext), t)
 
 	case Mem:
-		if t.Symbol.Name != "" {
+		if t.Sym.Symbol != nil {
 			a.emitRex(is64, Reg(ext), 0)
 			a.bytes = append(a.bytes, 0xF7)
 			a.emitRipDisp(t, Reg(ext), 0)
@@ -955,7 +912,7 @@ func (a *Assembler) emitAluRI(is64 bool, regOpcodeExt uint8, dst Reg, imm int32)
 }
 
 func (a *Assembler) emitAluMI(is64 bool, regOpcodeExt uint8, dst Mem, imm int32) {
-	if dst.Symbol.Name != "" {
+	if dst.Sym.Symbol != nil {
 		a.emitRex(is64, Reg(regOpcodeExt), 0)
 
 		if imm >= -128 && imm <= 127 {
@@ -998,7 +955,7 @@ func (a *Assembler) emitRR(is64 bool, opcode uint8, dst Reg, src Reg) {
 
 // emitRM encodes: op reg, [mem]
 func (a *Assembler) emitRM(is64 bool, opcode uint8, dst Reg, src Mem) {
-	if src.Symbol.Name != "" {
+	if src.Sym.Symbol != nil {
 		a.emitRex(is64, dst, 0)
 		a.bytes = append(a.bytes, opcode)
 		a.emitRipDisp(src, dst, 0)
@@ -1012,7 +969,7 @@ func (a *Assembler) emitRM(is64 bool, opcode uint8, dst Reg, src Mem) {
 
 // emitMR encodes: op [mem], reg
 func (a *Assembler) emitMR(is64 bool, opcode uint8, dst Mem, src Reg) {
-	if dst.Symbol.Name != "" {
+	if dst.Sym.Symbol != nil {
 		a.emitRex(is64, src, 0)
 		a.bytes = append(a.bytes, opcode)
 		a.emitRipDisp(dst, src, 0)
@@ -1034,7 +991,7 @@ func (a *Assembler) emitRI(is64 bool, opcode uint8, regOpcodeExt uint8, dst Reg,
 
 // emitMI encodes: op [mem], imm32 (C7 /0 id)
 func (a *Assembler) emitMI(is64 bool, opcode uint8, regOpcodeExt uint8, dst Mem, imm int32) {
-	if dst.Symbol.Name != "" {
+	if dst.Sym.Symbol != nil {
 		a.emitRex(is64, Reg(regOpcodeExt), 0)
 		a.bytes = append(a.bytes, opcode)
 		a.emitRipDisp(dst, Reg(regOpcodeExt), 4)
@@ -1062,11 +1019,11 @@ func (a *Assembler) emitMemDisp(dst Mem, src Reg) {
 
 func (a *Assembler) emitRipDisp(dst Mem, reg Reg, trailingBytes int) {
 	a.emitModRm(modNoDisp, reg, 5)
-	a.relocations = append(a.relocations, Relocation{
+	a.relocations = append(a.relocations, obj.Relocation{
 		Offset:        len(a.bytes),
-		Symbol:        dst.Symbol.Name,
-		Type:          RelocPC32,
-		UserAddend:    dst.Symbol.Addend + int64(dst.Disp),
+		Target:        dst.Sym.Symbol,
+		Kind:          obj.RelocPC32,
+		Addend:        dst.Sym.Addend + int64(dst.Disp),
 		TrailingBytes: trailingBytes,
 	})
 	a.emitInt32(0)

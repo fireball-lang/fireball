@@ -1,5 +1,7 @@
 package asm
 
+import "fireball/backend/obj"
+
 type Reg uint8
 
 const (
@@ -22,22 +24,22 @@ const (
 )
 
 type Sym struct {
-	Name   string
+	Symbol *obj.Symbol
 	Addend int64
 }
 
-func Symbol(name string) Sym {
-	return Sym{Name: name}
+func Symbol(symbol *obj.Symbol) Sym {
+	return Sym{Symbol: symbol}
 }
 
-func SymbolAddend(name string, addend int64) Sym {
-	return Sym{Name: name, Addend: addend}
+func SymbolAddend(symbol *obj.Symbol, addend int64) Sym {
+	return Sym{Symbol: symbol, Addend: addend}
 }
 
 type Mem struct {
-	Base   Reg
-	Disp   int32
-	Symbol Sym
+	Base Reg
+	Disp int32
+	Sym  Sym
 }
 
 func RegDisp(base Reg, disp int32) Mem {
@@ -51,16 +53,16 @@ func Ptr(base Reg) Mem {
 	return Mem{Base: base}
 }
 
-func Rip(sym string) Mem {
+func Rip(symbol *obj.Symbol) Mem {
 	return Mem{
-		Symbol: Symbol(sym),
+		Sym: Symbol(symbol),
 	}
 }
 
-func RipDisp(sym string, disp int32) Mem {
+func RipDisp(symbol *obj.Symbol, disp int32) Mem {
 	return Mem{
-		Disp:   disp,
-		Symbol: Symbol(sym),
+		Disp: disp,
+		Sym:  Symbol(symbol),
 	}
 }
 
