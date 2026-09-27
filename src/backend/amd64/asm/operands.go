@@ -58,9 +58,49 @@ func SymbolAddend(symbol *obj.Symbol, addend int64) Sym {
 }
 
 type Mem struct {
-	Base Reg
-	Disp int32
-	Sym  Sym
+	Base  Reg
+	Index Reg
+	Scale uint8 // 1, 2, 4, 8 (or 0 if no index)
+	Disp  int32
+	Sym   Sym
+}
+
+// BaseIndex [base + index] (scale 1)
+func BaseIndex(base Reg, index Reg) Mem {
+	return Mem{
+		Base:  base,
+		Index: index,
+		Scale: 1,
+	}
+}
+
+// BaseIndexDisp [base + index + disp] (scale 1)
+func BaseIndexDisp(base Reg, index Reg, disp int32) Mem {
+	return Mem{
+		Base:  base,
+		Index: index,
+		Scale: 1,
+		Disp:  disp,
+	}
+}
+
+// Index [base + index*scale]
+func Index(base Reg, index Reg, scale uint8) Mem {
+	return Mem{
+		Base:  base,
+		Index: index,
+		Scale: scale,
+	}
+}
+
+// IndexDisp [base + index*scale + disp]
+func IndexDisp(base Reg, index Reg, scale uint8, disp int32) Mem {
+	return Mem{
+		Base:  base,
+		Index: index,
+		Scale: scale,
+		Disp:  disp,
+	}
 }
 
 func RegDisp(base Reg, disp int32) Mem {

@@ -275,7 +275,7 @@ func (a *Assembler) emitSseRM(prefix uint8, is64 bool, opcode uint8, dst XmmReg,
 		return
 	}
 
-	a.emitRex(is64, Reg(dst), src.Base)
+	a.emitRexMem(is64, Reg(dst), src)
 	a.bytes = append(a.bytes, 0x0F, opcode)
 	a.emitMemDisp(src, Reg(dst))
 }
@@ -293,7 +293,7 @@ func (a *Assembler) emitSseMR(prefix uint8, is64 bool, opcode uint8, dst Mem, sr
 		return
 	}
 
-	a.emitRex(is64, Reg(src), dst.Base)
+	a.emitRexMem(is64, Reg(src), dst)
 	a.bytes = append(a.bytes, 0x0F, opcode)
 	a.emitMemDisp(dst, Reg(src))
 }

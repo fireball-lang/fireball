@@ -150,7 +150,7 @@ func (a *Assembler) imul[S RegMem | int32](is64 bool, dst Reg, src S) {
 			return
 		}
 
-		a.emitRex(is64, dst, s.Base)
+		a.emitRexMem(is64, dst, s)
 		a.bytes = append(a.bytes, 0x0F, 0xAF)
 		a.emitMemDisp(s, dst)
 
@@ -518,7 +518,7 @@ func (a *Assembler) Movsxd[S RegMem](dst Reg, src S) {
 			return
 		}
 
-		a.emitRex(true, dst, s.Base)
+		a.emitRexMem(true, dst, s)
 		a.bytes = append(a.bytes, 0x63)
 		a.emitMemDisp(s, dst)
 	}
@@ -573,7 +573,7 @@ func (a *Assembler) Jmp[T Label | RegMem | *obj.Symbol | Sym](target T) {
 			a.bytes = append(a.bytes, 0xFF)
 			a.emitRipDisp(t, 4, 0)
 		} else {
-			a.emitRex(false, 4, t.Base)
+			a.emitRexMem(false, 4, t)
 			a.bytes = append(a.bytes, 0xFF)
 			a.emitMemDisp(t, 4)
 		}
@@ -666,7 +666,7 @@ func (a *Assembler) Call[C Label | RegMem | *obj.Symbol | Sym](callee C) {
 			a.bytes = append(a.bytes, 0xFF)
 			a.emitRipDisp(c, 2, 0)
 		} else {
-			a.emitRex(false, 2, c.Base)
+			a.emitRexMem(false, 2, c)
 			a.bytes = append(a.bytes, 0xFF)
 			a.emitMemDisp(c, 2)
 		}
@@ -764,7 +764,7 @@ func (a *Assembler) Lea(dst Reg, mem Mem) {
 		return
 	}
 
-	a.emitRex(true, dst, mem.Base)
+	a.emitRexMem(true, dst, mem)
 	a.bytes = append(a.bytes, 0x8D)
 	a.emitMemDisp(mem, dst)
 }
@@ -821,7 +821,7 @@ func (a *Assembler) emitExt[S RegMem](is64 bool, opcode2 uint8, dst Reg, src S) 
 			return
 		}
 
-		a.emitRex(is64, dst, s.Base)
+		a.emitRexMem(is64, dst, s)
 		a.bytes = append(a.bytes, 0x0F, opcode2)
 		a.emitMemDisp(s, dst)
 	}
@@ -866,7 +866,7 @@ func (a *Assembler) emitShiftImm[D RegMem](is64 bool, ext uint8, target D, count
 
 			a.emitRipDisp(t, Reg(ext), trailing)
 		} else {
-			a.emitRex(is64, Reg(ext), t.Base)
+			a.emitRexMem(is64, Reg(ext), t)
 			a.bytes = append(a.bytes, opcode)
 			a.emitMemDisp(t, Reg(ext))
 		}
@@ -892,7 +892,7 @@ func (a *Assembler) emitShiftCl[D RegMem](is64 bool, ext uint8, target D) {
 			return
 		}
 
-		a.emitRex(is64, Reg(ext), t.Base)
+		a.emitRexMem(is64, Reg(ext), t)
 		a.bytes = append(a.bytes, 0xD3)
 		a.emitMemDisp(t, Reg(ext))
 	}
@@ -913,7 +913,7 @@ func (a *Assembler) emitUnaryOp[D RegMem](is64 bool, ext uint8, target D) {
 			return
 		}
 
-		a.emitRex(is64, Reg(ext), t.Base)
+		a.emitRexMem(is64, Reg(ext), t)
 		a.bytes = append(a.bytes, 0xF7)
 		a.emitMemDisp(t, Reg(ext))
 	}
@@ -950,7 +950,7 @@ func (a *Assembler) emitAluMI(is64 bool, regOpcodeExt uint8, dst Mem, imm int32)
 		return
 	}
 
-	a.emitRex(is64, Reg(regOpcodeExt), dst.Base)
+	a.emitRexMem(is64, Reg(regOpcodeExt), dst)
 
 	if imm >= -128 && imm <= 127 {
 		a.bytes = append(a.bytes, 0x83)
@@ -984,7 +984,7 @@ func (a *Assembler) emitRM(is64 bool, opcode uint8, dst Reg, src Mem) {
 		return
 	}
 
-	a.emitRex(is64, dst, src.Base)
+	a.emitRexMem(is64, dst, src)
 	a.bytes = append(a.bytes, opcode)
 	a.emitMemDisp(src, dst)
 }
@@ -998,7 +998,7 @@ func (a *Assembler) emitMR(is64 bool, opcode uint8, dst Mem, src Reg) {
 		return
 	}
 
-	a.emitRex(is64, src, dst.Base)
+	a.emitRexMem(is64, src, dst)
 	a.bytes = append(a.bytes, opcode)
 	a.emitMemDisp(dst, src)
 }
@@ -1021,30 +1021,49 @@ func (a *Assembler) emitMI(is64 bool, opcode uint8, regOpcodeExt uint8, dst Mem,
 		return
 	}
 
-	a.emitRex(is64, Reg(regOpcodeExt), dst.Base)
+	a.emitRexMem(is64, Reg(regOpcodeExt), dst)
 	a.bytes = append(a.bytes, opcode)
 	a.emitMemDisp(dst, Reg(regOpcodeExt))
 	a.emitInt32(imm)
 }
 
 func (a *Assembler) emitMemDisp(dst Mem, src Reg) {
-	if dst.Disp == 0 && (dst.Base&7) != 5 {
-		// [reg] with no displacement (saves 1 byte).
-		// RBP and R13 (base & 7 == 5) are excluded because mod=00 rm=5 encodes [RIP+disp32].
-		a.emitModRm(modNoDisp, src, dst.Base)
-		a.emitSib(dst.Base)
+	hasIndex := dst.Scale != 0
+	baseLow := dst.Base & 7
+	needsSib := hasIndex || baseLow == 4
+
+	// If SIB follows, ModRM rm must be 4
+	rm := dst.Base
+	if needsSib {
+		rm = 4
+	}
+
+	// Base & 7 == 5 (RBP / R13) cannot use mod=00 with disp=0
+	if dst.Disp == 0 && baseLow != 5 {
+		a.emitModRm(modNoDisp, src, rm)
+		if needsSib {
+			a.emitSib(dst)
+		}
 	} else if dst.Disp >= -128 && dst.Disp <= 127 {
-		a.emitModRm(modDisp8, src, dst.Base)
-		a.emitSib(dst.Base)
+		a.emitModRm(modDisp8, src, rm)
+		if needsSib {
+			a.emitSib(dst)
+		}
 		a.bytes = append(a.bytes, uint8(int8(dst.Disp)))
 	} else {
-		a.emitModRm(modDisp32, src, dst.Base)
-		a.emitSib(dst.Base)
+		a.emitModRm(modDisp32, src, rm)
+		if needsSib {
+			a.emitSib(dst)
+		}
 		a.emitInt32(dst.Disp)
 	}
 }
 
 func (a *Assembler) emitRipDisp(dst Mem, reg Reg, trailingBytes int) {
+	if dst.Scale != 0 {
+		panic("amd64.Assembler - RIP-relative addressing cannot have an index register")
+	}
+
 	a.emitModRm(modNoDisp, reg, 5)
 	a.relocations = append(a.relocations, obj.Relocation{
 		Offset:        len(a.bytes),
@@ -1056,10 +1075,54 @@ func (a *Assembler) emitRipDisp(dst Mem, reg Reg, trailingBytes int) {
 	a.emitInt32(0)
 }
 
-// x86 quirk: RSP (4) and R12 (12) require a dummy SIB byte (0x24)
-func (a *Assembler) emitSib(base Reg) {
-	if (base & 7) == 4 {
+func (a *Assembler) emitSib(mem Mem) {
+	if mem.Scale != 0 {
+		if mem.Index == RSP {
+			panic("amd64.Assembler - RSP cannot be used as an SIB index register")
+		}
+
+		var scaleBits uint8
+		switch mem.Scale {
+		case 1:
+			scaleBits = 0b00
+		case 2:
+			scaleBits = 0b01
+		case 4:
+			scaleBits = 0b10
+		case 8:
+			scaleBits = 0b11
+		default:
+			panic(fmt.Sprintf("amd64.Assembler - invalid SIB scale %d (must be 1, 2, 4, or 8)", mem.Scale))
+		}
+
+		sib := (scaleBits << 6) | ((uint8(mem.Index) & 7) << 3) | (uint8(mem.Base) & 7)
+		a.bytes = append(a.bytes, sib)
+	} else if (mem.Base & 7) == 4 {
+		// RSP (4) or R12 (12) without index requires dummy SIB byte 0x24:
+		// scale=0 (1x), index=4 (none), base=4 (RSP/R12)
 		a.bytes = append(a.bytes, 0x24)
+	}
+}
+
+// emitRexMem encodes REX prefix for an instruction with a register and a memory operand.
+func (a *Assembler) emitRexMem(is64 bool, reg Reg, mem Mem) {
+	var rex uint8 = 0x40
+
+	if is64 {
+		rex |= 1 << 3 // W bit (64-bit width)
+	}
+	if reg >= 8 {
+		rex |= 1 << 2 // R bit (extension of ModRM reg field)
+	}
+	if mem.Scale != 0 && mem.Index >= 8 {
+		rex |= 1 << 1 // X bit (extension of SIB index field)
+	}
+	if mem.Base >= 8 {
+		rex |= 1 << 0 // B bit (extension of SIB base field or ModRM rm field)
+	}
+
+	if is64 || rex != 0x40 {
+		a.bytes = append(a.bytes, rex)
 	}
 }
 
