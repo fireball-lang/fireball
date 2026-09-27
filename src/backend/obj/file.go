@@ -12,9 +12,8 @@ const (
 type SymbolScope uint8
 
 const (
-	ScopeLocal SymbolScope = iota
+	ScopeLocal SymbolScope = 1 + iota
 	ScopeGlobal
-	ScopeWeak
 )
 
 type SymbolKind uint8
@@ -29,7 +28,7 @@ const (
 type RelocationKind uint8
 
 const (
-	RelocAbs64 RelocationKind = iota
+	RelocAbs64 RelocationKind = 1 + iota
 	RelocAbs32
 	RelocSigned32
 	RelocPC32
@@ -38,7 +37,7 @@ const (
 type Arch uint8
 
 const (
-	AMD64 Arch = iota
+	AMD64 Arch = 1 + iota
 )
 
 type Symbol struct {
@@ -67,7 +66,8 @@ type Section struct {
 	Name string
 	Kind SectionKind
 
-	Align uint64
+	Align       uint64
+	Deduplicate bool
 
 	Data []byte
 	Size uint64

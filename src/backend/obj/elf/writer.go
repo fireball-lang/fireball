@@ -11,10 +11,19 @@ import (
 	"fireball/backend/obj"
 )
 
+const (
+	grpCOMDAT = 0x1
+)
+
 type section struct {
 	header elf.Section64
 	name   string
 	data   []byte
+}
+
+type groupInfo struct {
+	section *section
+	target  *obj.Section
 }
 
 type writer struct {
@@ -26,6 +35,7 @@ type writer struct {
 
 	symbols       []*obj.Symbol
 	symbolIndices map[*obj.Symbol]uint32
+	groups        map[*obj.Section]*groupInfo
 
 	symtabSectionIndex   uint32
 	strtabSectionIndex   uint32
@@ -40,13 +50,20 @@ func Write(f *obj.File, w io.Writer) error {
 	}
 
 	wr := &writer{
-		file:  f,
-		order: binary.LittleEndian,
+		file:   f,
+		order:  binary.LittleEndian,
+		groups: make(map[*obj.Section]*groupInfo),
 	}
 
-	wr.CollectSections()
-	wr.BuildSymbolAndStringTable()
-	wr.BuildRelocations()
+	if err := wr.CollectSections(); err != nil {
+		return err
+	}
+	if err := wr.BuildSymbolAndStringTable(); err != nil {
+		return err
+	}
+	if err := wr.BuildRelocations(); err != nil {
+		return err
+	}
 	wr.BuildSectionNameTable()
 	wr.Layout()
 
@@ -72,7 +89,7 @@ func WriteTo(f *obj.File, path string) (err error) {
 	return Write(f, file)
 }
 
-func (w *writer) CollectSections() {
+func (w *writer) CollectSections() error {
 	// Section 0 is always SHN_UNDEF
 	w.sections = append(w.sections, &section{
 		header: elf.Section64{Type: uint32(elf.SHT_NULL)},
@@ -99,6 +116,24 @@ func (w *writer) CollectSections() {
 		case obj.SecBSS:
 			shType = uint32(elf.SHT_NOBITS)
 			flags = uint64(elf.SHF_ALLOC | elf.SHF_WRITE)
+		default:
+			return fmt.Errorf("elf.writer.CollectSections() - unknown section kind: %v", sec.Kind)
+		}
+
+		var groupSec *section
+		if sec.Deduplicate {
+			flags |= uint64(elf.SHF_GROUP)
+
+			groupSec = &section{
+				name: ".group",
+				header: elf.Section64{
+					Type:      uint32(elf.SHT_GROUP),
+					Addralign: 4,
+					Entsize:   4,
+				},
+			}
+
+			w.sections = append(w.sections, groupSec)
 		}
 
 		align := sec.Align
@@ -125,10 +160,26 @@ func (w *writer) CollectSections() {
 		idx := uint32(len(w.sections))
 		w.sectionMap[sec] = idx
 		w.sections = append(w.sections, elfSec)
+
+		if groupSec != nil {
+			groupData := make([]byte, 8)
+			w.order.PutUint32(groupData[0:4], grpCOMDAT)
+			w.order.PutUint32(groupData[4:8], idx)
+
+			groupSec.data = groupData
+			groupSec.header.Size = 8
+
+			w.groups[sec] = &groupInfo{
+				section: groupSec,
+				target:  sec,
+			}
+		}
 	}
+
+	return nil
 }
 
-func (w *writer) BuildSymbolAndStringTable() {
+func (w *writer) BuildSymbolAndStringTable() error {
 	seen := make(map[*obj.Symbol]bool)
 
 	var locals []*obj.Symbol
@@ -155,6 +206,10 @@ func (w *writer) BuildSymbolAndStringTable() {
 
 	for _, sec := range w.file.Sections {
 		for _, rel := range sec.Relocations {
+			if rel.Target == nil {
+				return fmt.Errorf("elf.writer.BuildSymbolAndStringTable() - relocation has a nil symbol target")
+			}
+
 			addSymbol(rel.Target)
 		}
 	}
@@ -183,10 +238,13 @@ func (w *writer) BuildSymbolAndStringTable() {
 	w.symbolIndices = make(map[*obj.Symbol]uint32)
 
 	// Symbol 0 is STN_UNDEF
-	_ = binary.Write(symtabBuf, w.order, &elf.Sym64{})
+	if err := binary.Write(symtabBuf, w.order, &elf.Sym64{}); err != nil {
+		return err
+	}
+
 	currIdx := uint32(1)
 
-	writeSym := func(sym *obj.Symbol) {
+	writeSym := func(sym *obj.Symbol) error {
 		w.symbolIndices[sym] = currIdx
 		currIdx++
 
@@ -196,8 +254,6 @@ func (w *writer) BuildSymbolAndStringTable() {
 			binding = uint8(elf.STB_LOCAL)
 		case obj.ScopeGlobal:
 			binding = uint8(elf.STB_GLOBAL)
-		case obj.ScopeWeak:
-			binding = uint8(elf.STB_WEAK)
 		}
 
 		var symType uint8
@@ -216,7 +272,7 @@ func (w *writer) BuildSymbolAndStringTable() {
 		if sym.Section != nil {
 			idx, ok := w.sectionMap[sym.Section]
 			if !ok {
-				panic(fmt.Errorf("elf.writer.BuildSymbolAndStringTable() - Symbol %q references unknown section", sym.Name))
+				return fmt.Errorf("elf.writer.BuildSymbolAndStringTable() - Symbol %q references unknown section", sym.Name)
 			}
 			shndx = uint16(idx)
 		}
@@ -229,17 +285,21 @@ func (w *writer) BuildSymbolAndStringTable() {
 			Size:  sym.Size,
 		}
 
-		_ = binary.Write(symtabBuf, w.order, &entry)
+		return binary.Write(symtabBuf, w.order, &entry)
 	}
 
 	for _, sym := range locals {
-		writeSym(sym)
+		if err := writeSym(sym); err != nil {
+			return err
+		}
 	}
 
 	firstGlobalIndex := currIdx
 
 	for _, sym := range globals {
-		writeSym(sym)
+		if err := writeSym(sym); err != nil {
+			return err
+		}
 	}
 
 	strtabSec := &section{
@@ -271,9 +331,29 @@ func (w *writer) BuildSymbolAndStringTable() {
 	w.sections = append(w.sections, strtabSec)
 
 	symtabSec.header.Link = w.strtabSectionIndex
+
+	for _, group := range w.groups {
+		group.section.header.Link = w.symtabSectionIndex
+
+		var sigSym *obj.Symbol
+		for _, sym := range w.symbols {
+			if sym.Section == group.target && sym.Scope == obj.ScopeGlobal {
+				sigSym = sym
+				break
+			}
+		}
+
+		if sigSym == nil {
+			return fmt.Errorf("elf.writer.BuildSymbolAndStringTable() - deduplicated section %q has no global signature symbol", group.target.Name)
+		}
+
+		group.section.header.Info = w.symbolIndices[sigSym]
+	}
+
+	return nil
 }
 
-func (w *writer) BuildRelocations() {
+func (w *writer) BuildRelocations() error {
 	for _, sec := range w.file.Sections {
 		if len(sec.Relocations) == 0 {
 			continue
@@ -288,9 +368,13 @@ func (w *writer) BuildRelocations() {
 		var relaBuf bytes.Buffer
 
 		for _, r := range sec.Relocations {
+			if r.Target == nil {
+				return fmt.Errorf("elf.writer.BuildRelocations() - relocation has a nil symbol target")
+			}
+
 			symIdx, ok := w.symbolIndices[r.Target]
 			if !ok {
-				panic("elf.writer.BuildRelocations() - Invalid symbol: " + r.Target.Name)
+				return fmt.Errorf("elf.writer.BuildRelocations() - invalid symbol: %s", r.Target.Name)
 			}
 
 			var rType uint32
@@ -304,7 +388,7 @@ func (w *writer) BuildRelocations() {
 			case obj.RelocSigned32:
 				rType = uint32(elf.R_X86_64_32S)
 			default:
-				panic("elf.writer.BuildRelocations() - Invalid RelocationKind")
+				return fmt.Errorf("elf.writer.BuildRelocations() - invalid relocation kind: %d", r.Kind)
 			}
 
 			addend := r.Addend
@@ -318,15 +402,23 @@ func (w *writer) BuildRelocations() {
 				Addend: addend,
 			}
 
-			_ = binary.Write(&relaBuf, w.order, &rela)
+			if err := binary.Write(&relaBuf, w.order, &rela); err != nil {
+				return err
+			}
 		}
 
+		flags := uint64(elf.SHF_INFO_LINK)
+		if sec.Deduplicate {
+			flags |= uint64(elf.SHF_GROUP)
+		}
+
+		relaSecIdx := uint32(len(w.sections))
 		relaSec := &section{
 			name: ".rela" + secName,
 			data: relaBuf.Bytes(),
 			header: elf.Section64{
 				Type:      uint32(elf.SHT_RELA),
-				Flags:     uint64(elf.SHF_INFO_LINK),
+				Flags:     flags,
 				Link:      w.symtabSectionIndex,
 				Info:      targetSecIdx,
 				Addralign: 8,
@@ -336,7 +428,19 @@ func (w *writer) BuildRelocations() {
 		}
 
 		w.sections = append(w.sections, relaSec)
+
+		// Include the .rela section in the group payload
+		if sec.Deduplicate {
+			group := w.groups[sec]
+
+			var idxBytes [4]byte
+			w.order.PutUint32(idxBytes[:], relaSecIdx)
+			group.section.data = append(group.section.data, idxBytes[:]...)
+			group.section.header.Size = uint64(len(group.section.data))
+		}
 	}
+
+	return nil
 }
 
 func (w *writer) BuildSectionNameTable() {
@@ -390,7 +494,7 @@ func (w *writer) Layout() {
 		}
 
 		if sec.header.Addralign > 1 {
-			offset = alignUp(offset, sec.header.Addralign)
+			offset = obj.AlignUp(offset, sec.header.Addralign)
 		}
 
 		sec.header.Off = offset
@@ -400,12 +504,12 @@ func (w *writer) Layout() {
 		}
 	}
 
-	offset = alignUp(offset, 8)
+	offset = obj.AlignUp(offset, 8)
 	w.shOff = offset
 }
 
 func (w *writer) Emit(out io.Writer) error {
-	bw := &countedWriter{w: out}
+	bw := &obj.CountedWriter{Out: out}
 
 	hdr := elf.Header64{
 		Ident: [16]byte{
@@ -471,19 +575,6 @@ func DefaultSectionName(kind obj.SectionKind) string {
 	case obj.SecBSS:
 		return ".bss"
 	default:
-		panic("elf.DefaultSectionName() - Invalid SectionKind")
+		return ".data"
 	}
-}
-
-func alignUp(val, align uint64) uint64 {
-	if align <= 1 {
-		return val
-	}
-
-	rem := val % align
-	if rem == 0 {
-		return val
-	}
-
-	return val + (align - rem)
 }
