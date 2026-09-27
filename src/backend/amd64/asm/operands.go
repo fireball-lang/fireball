@@ -5,22 +5,43 @@ import "fireball/backend/obj"
 type Reg uint8
 
 const (
-	RAX Reg = 0
-	RCX Reg = 1
-	RDX Reg = 2
-	RBX Reg = 3
-	RSP Reg = 4
-	RBP Reg = 5
-	RSI Reg = 6
-	RDI Reg = 7
-	R8  Reg = 8
-	R9  Reg = 9
-	R10 Reg = 10
-	R11 Reg = 11
-	R12 Reg = 12
-	R13 Reg = 13
-	R14 Reg = 14
-	R15 Reg = 15
+	RAX Reg = iota
+	RCX
+	RDX
+	RBX
+	RSP
+	RBP
+	RSI
+	RDI
+	R8
+	R9
+	R10
+	R11
+	R12
+	R13
+	R14
+	R15
+)
+
+type XmmReg uint8
+
+const (
+	XMM0 XmmReg = iota
+	XMM1
+	XMM2
+	XMM3
+	XMM4
+	XMM5
+	XMM6
+	XMM7
+	XMM8
+	XMM9
+	XMM10
+	XMM11
+	XMM12
+	XMM13
+	XMM14
+	XMM15
 )
 
 type Sym struct {
@@ -68,4 +89,8 @@ func RipDisp(symbol *obj.Symbol, disp int32) Mem {
 
 type RegMem interface {
 	Reg | Mem
+}
+
+type XmmRegMem interface {
+	XmmReg | Mem
 }

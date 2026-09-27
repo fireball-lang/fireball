@@ -45,7 +45,7 @@ func (a *Assembler) Assemble() ([]uint8, []obj.Relocation) {
 	return a.bytes, a.relocations
 }
 
-// Integer arithmetic
+// Integer arithmetic instructions
 
 // Add does a 64-bit addition.
 func (a *Assembler) Add[D RegMem, S RegMem | int32](dst D, src S) {
@@ -199,7 +199,7 @@ func (a *Assembler) Neg32[D RegMem](dst D) {
 	a.emitUnaryOp(false, 3, dst)
 }
 
-// Binary operations
+// Binary operation instructions
 
 // And does a 64-bit binary and.
 func (a *Assembler) And[D RegMem, S RegMem | int32](dst D, src S) {
@@ -556,7 +556,7 @@ func (a *Assembler) Bind(l Label) {
 }
 
 // Jmp unconditional jump.
-func (a *Assembler) Jmp[T Label | Reg | *obj.Symbol | Sym](target T) {
+func (a *Assembler) Jmp[T Label | RegMem | *obj.Symbol | Sym](target T) {
 	switch t := any(target).(type) {
 	case Label:
 		a.bytes = append(a.bytes, 0xE9)
@@ -566,6 +566,17 @@ func (a *Assembler) Jmp[T Label | Reg | *obj.Symbol | Sym](target T) {
 		a.emitRex(false, 0, t)
 		a.bytes = append(a.bytes, 0xFF)
 		a.emitModRm(modReg, 4, t)
+
+	case Mem:
+		if t.Sym.Symbol != nil {
+			a.emitRex(false, 4, 0)
+			a.bytes = append(a.bytes, 0xFF)
+			a.emitRipDisp(t, 4, 0)
+		} else {
+			a.emitRex(false, 4, t.Base)
+			a.bytes = append(a.bytes, 0xFF)
+			a.emitMemDisp(t, 4)
+		}
 
 	case *obj.Symbol:
 		a.bytes = append(a.bytes, 0xE9)
@@ -638,7 +649,7 @@ func (a *Assembler) Jge(target Label) {
 	a.emitJcc(0x8D, target)
 }
 
-func (a *Assembler) Call[C Label | Reg | *obj.Symbol | Sym](callee C) {
+func (a *Assembler) Call[C Label | RegMem | *obj.Symbol | Sym](callee C) {
 	switch c := any(callee).(type) {
 	case Label:
 		a.bytes = append(a.bytes, 0xE8)
@@ -648,6 +659,17 @@ func (a *Assembler) Call[C Label | Reg | *obj.Symbol | Sym](callee C) {
 		a.emitRex(false, 0, c)
 		a.bytes = append(a.bytes, 0xFF)
 		a.emitModRm(modReg, 2, c)
+
+	case Mem:
+		if c.Sym.Symbol != nil {
+			a.emitRex(false, 2, 0)
+			a.bytes = append(a.bytes, 0xFF)
+			a.emitRipDisp(c, 2, 0)
+		} else {
+			a.emitRex(false, 2, c.Base)
+			a.bytes = append(a.bytes, 0xFF)
+			a.emitMemDisp(c, 2)
+		}
 
 	case *obj.Symbol:
 		a.bytes = append(a.bytes, 0xE8)
@@ -674,7 +696,7 @@ func (a *Assembler) Ret() {
 	a.bytes = append(a.bytes, 0xC3)
 }
 
-// Other
+// Other instructions
 
 // Test does a 64-bit test.
 func (a *Assembler) Test[S RegMem | int32](dst Reg, src S) {
@@ -1006,7 +1028,12 @@ func (a *Assembler) emitMI(is64 bool, opcode uint8, regOpcodeExt uint8, dst Mem,
 }
 
 func (a *Assembler) emitMemDisp(dst Mem, src Reg) {
-	if dst.Disp >= -128 && dst.Disp <= 127 {
+	if dst.Disp == 0 && (dst.Base&7) != 5 {
+		// [reg] with no displacement (saves 1 byte).
+		// RBP and R13 (base & 7 == 5) are excluded because mod=00 rm=5 encodes [RIP+disp32].
+		a.emitModRm(modNoDisp, src, dst.Base)
+		a.emitSib(dst.Base)
+	} else if dst.Disp >= -128 && dst.Disp <= 127 {
 		a.emitModRm(modDisp8, src, dst.Base)
 		a.emitSib(dst.Base)
 		a.bytes = append(a.bytes, uint8(int8(dst.Disp)))
