@@ -3,6 +3,10 @@ type = "library"
 
 lib-c = true
 
+[profile.fb]
+backend = "fireball"
+output-ir = true
+
 [profile.debug]
 output-ir = true
 

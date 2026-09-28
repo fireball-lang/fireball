@@ -2,18 +2,26 @@ package build
 
 import (
 	"bytes"
+	"errors"
+	"fireball/abi"
 	"fireball/ast"
+	"fireball/backend/amd64"
+	"fireball/backend/obj/elf"
+	"fireball/backend/obj/pe"
 	"fireball/codegen"
 	"fireball/core"
 	"fireball/ir"
 	"fireball/ir/llvm"
 	"fireball/project"
 	"fireball/toolchain"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/fatih/color"
 )
 
 type EntrypointFn func(module *ir.Module, fun *ir.Function) *project.Project
@@ -45,6 +53,20 @@ func Init(path string, profile project.Profile) (*System, error) {
 	target, err := toolchain.GetTarget()
 	if err != nil {
 		return nil, err
+	}
+
+	if profile.Backend == project.Fireball {
+		if target.Arch != abi.AMD64 {
+			return nil, errors.New("the Fireball backend only supports AMD64 architecture")
+		}
+
+		if profile.Lto {
+			_, _ = color.New(color.FgYellow).Print("WARNING")
+			_, _ = color.New(color.FgBlack).Print(": ")
+			_, _ = fmt.Println("not using LTO, the Fireball backend doesn't support LTO")
+
+			profile.Lto = false
+		}
 	}
 
 	return &System{
@@ -225,6 +247,41 @@ func (s *System) compileModule(objPath, irPath string, name string, module *ir.M
 
 	codegen.AddModuleMetaFlags(module, s.profile.Lto)
 
+	objFilePath := filepath.Join(objPath, name+s.target.ObjectFileExtension)
+
+	// Fireball backend
+	if s.profile.Backend == project.Fireball {
+		// Emit IR
+		if s.profile.OutputIr {
+			irFilePath := filepath.Join(irPath, name+".ll")
+
+			irFile, err := os.Create(irFilePath)
+			if err != nil {
+				return "", err
+			}
+
+			if err := llvm.Write(module, irFile); err != nil {
+				_ = irFile.Close()
+				return "", err
+			}
+
+			_ = irFile.Close()
+		}
+
+		// Generate object file
+		obj := amd64.Generate(module)
+		var err error
+
+		switch strings.Split(s.target.Name, "-")[0] {
+		case "windows":
+			err = pe.WriteTo(obj, objFilePath)
+		case "linux":
+			err = elf.WriteTo(obj, objFilePath)
+		}
+
+		return objFilePath, err
+	}
+
 	// Get IR reader
 	var irReader io.Reader
 
@@ -277,8 +334,6 @@ func (s *System) compileModule(objPath, irPath string, name string, module *ir.M
 	}
 
 	// Compile to object file
-	objFilePath := filepath.Join(objPath, name+s.target.ObjectFileExtension)
-
 	if err := toolchain.Compile(s.toolchain, irReader, objFilePath, s.profile.Opt); err != nil {
 		return "", err
 	}

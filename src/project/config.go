@@ -10,12 +10,20 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
+type Backend uint8
+
+const (
+	Llvm Backend = iota
+	Fireball
+)
+
 type Profile struct {
-	Name     string `toml:"-"`
-	Opt      uint8  `toml:"opt"`
-	Debug    bool   `toml:"debug"`
-	Lto      bool   `toml:"lto"`
-	OutputIr bool   `toml:"output-ir"`
+	Name     string
+	Backend  Backend
+	Opt      uint8
+	Debug    bool
+	Lto      bool
+	OutputIr bool
 }
 
 type Dependency struct {
@@ -46,20 +54,21 @@ func (k Kind) String() string {
 }
 
 type Config struct {
-	Name string `toml:"name"`
-	Kind Kind   `toml:"type"`
+	Name string
+	Kind Kind
 
-	LibC bool `toml:"lib-c"`
+	LibC bool
 
-	LibPaths []string `toml:"lib-paths"`
-	Libs     []string `toml:"libs"`
+	LibPaths []string
+	Libs     []string
 
-	Profiles     map[string]Profile `toml:"profile"`
-	Dependencies []Dependency       `toml:"dependency"`
+	Profiles     map[string]Profile
+	Dependencies []Dependency
 }
 
 type rawProfile struct {
 	Name     *string `toml:"-"`
+	Backend  *string `toml:"backend"`
 	Opt      *uint8  `toml:"opt"`
 	Debug    *bool   `toml:"debug"`
 	Lto      *bool   `toml:"lto"`
@@ -152,7 +161,12 @@ func readConfig(path string) (Config, error) {
 			profile = p
 		}
 
-		profile = profile.merge(raw)
+		var err error
+		profile, err = profile.merge(raw)
+
+		if err != nil {
+			return Config{}, err
+		}
 
 		if !nameRegex.MatchString(name) {
 			return Config{}, fmt.Errorf("invalid profile name: '%s'", name)
@@ -192,7 +206,17 @@ func readConfig(path string) (Config, error) {
 	return config, nil
 }
 
-func (p Profile) merge(raw rawProfile) Profile {
+func (p Profile) merge(raw rawProfile) (Profile, error) {
+	if raw.Backend != nil {
+		switch *raw.Backend {
+		case "llvm":
+			p.Backend = Llvm
+		case "fireball":
+			p.Backend = Fireball
+		default:
+			return p, fmt.Errorf("invalid backend value: '%s'", *raw.Backend)
+		}
+	}
 	if raw.Opt != nil {
 		p.Opt = *raw.Opt
 	}
@@ -206,7 +230,7 @@ func (p Profile) merge(raw rawProfile) Profile {
 		p.OutputIr = *raw.OutputIr
 	}
 
-	return p
+	return p, nil
 }
 
 func validateStringExpansion(str string) error {
