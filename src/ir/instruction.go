@@ -125,70 +125,129 @@ type DivKind uint8
 const (
 	Unsigned DivKind = iota
 	Signed
-	Floating
 )
 
-type Add struct {
+type IAdd struct {
 	baseInstruction
 
 	Left  Value
 	Right Value
 }
 
-func (a *Add) Type() Type {
-	return a.Left.Type()
+func (i *IAdd) Type() Type {
+	return i.Left.Type()
 }
 
-func (a *Add) Values() iter.Seq[Value] {
+func (i *IAdd) Values() iter.Seq[Value] {
 	return func(yield func(Value) bool) {
-		if !yield(a.Left) {
+		if !yield(i.Left) {
 			return
 		}
-		yield(a.Right)
+		yield(i.Right)
 	}
 }
 
-type Sub struct {
+type FAdd struct {
 	baseInstruction
 
 	Left  Value
 	Right Value
 }
 
-func (s *Sub) Type() Type {
-	return s.Left.Type()
+func (f *FAdd) Type() Type {
+	return f.Left.Type()
 }
 
-func (s *Sub) Values() iter.Seq[Value] {
+func (f *FAdd) Values() iter.Seq[Value] {
 	return func(yield func(Value) bool) {
-		if !yield(s.Left) {
+		if !yield(f.Left) {
 			return
 		}
-		yield(s.Right)
+		yield(f.Right)
 	}
 }
 
-type Mul struct {
+type ISub struct {
 	baseInstruction
 
 	Left  Value
 	Right Value
 }
 
-func (m *Mul) Type() Type {
-	return m.Left.Type()
+func (i *ISub) Type() Type {
+	return i.Left.Type()
 }
 
-func (m *Mul) Values() iter.Seq[Value] {
+func (i *ISub) Values() iter.Seq[Value] {
 	return func(yield func(Value) bool) {
-		if !yield(m.Left) {
+		if !yield(i.Left) {
 			return
 		}
-		yield(m.Right)
+		yield(i.Right)
 	}
 }
 
-type Div struct {
+type FSub struct {
+	baseInstruction
+
+	Left  Value
+	Right Value
+}
+
+func (f *FSub) Type() Type {
+	return f.Left.Type()
+}
+
+func (f *FSub) Values() iter.Seq[Value] {
+	return func(yield func(Value) bool) {
+		if !yield(f.Left) {
+			return
+		}
+		yield(f.Right)
+	}
+}
+
+type IMul struct {
+	baseInstruction
+
+	Left  Value
+	Right Value
+}
+
+func (i *IMul) Type() Type {
+	return i.Left.Type()
+}
+
+func (i *IMul) Values() iter.Seq[Value] {
+	return func(yield func(Value) bool) {
+		if !yield(i.Left) {
+			return
+		}
+		yield(i.Right)
+	}
+}
+
+type FMul struct {
+	baseInstruction
+
+	Left  Value
+	Right Value
+}
+
+func (f *FMul) Type() Type {
+	return f.Left.Type()
+}
+
+func (f *FMul) Values() iter.Seq[Value] {
+	return func(yield func(Value) bool) {
+		if !yield(f.Left) {
+			return
+		}
+		yield(f.Right)
+	}
+}
+
+type IDiv struct {
 	baseInstruction
 
 	Kind  DivKind
@@ -196,20 +255,40 @@ type Div struct {
 	Right Value
 }
 
-func (d *Div) Type() Type {
-	return d.Left.Type()
+func (i *IDiv) Type() Type {
+	return i.Left.Type()
 }
 
-func (d *Div) Values() iter.Seq[Value] {
+func (i *IDiv) Values() iter.Seq[Value] {
 	return func(yield func(Value) bool) {
-		if !yield(d.Left) {
+		if !yield(i.Left) {
 			return
 		}
-		yield(d.Right)
+		yield(i.Right)
 	}
 }
 
-type Rem struct {
+type FDiv struct {
+	baseInstruction
+
+	Left  Value
+	Right Value
+}
+
+func (f *FDiv) Type() Type {
+	return f.Left.Type()
+}
+
+func (f *FDiv) Values() iter.Seq[Value] {
+	return func(yield func(Value) bool) {
+		if !yield(f.Left) {
+			return
+		}
+		yield(f.Right)
+	}
+}
+
+type IRem struct {
 	baseInstruction
 
 	Kind  DivKind
@@ -217,16 +296,36 @@ type Rem struct {
 	Right Value
 }
 
-func (r *Rem) Type() Type {
-	return r.Left.Type()
+func (i *IRem) Type() Type {
+	return i.Left.Type()
 }
 
-func (r *Rem) Values() iter.Seq[Value] {
+func (i *IRem) Values() iter.Seq[Value] {
 	return func(yield func(Value) bool) {
-		if !yield(r.Left) {
+		if !yield(i.Left) {
 			return
 		}
-		yield(r.Right)
+		yield(i.Right)
+	}
+}
+
+type FRem struct {
+	baseInstruction
+
+	Left  Value
+	Right Value
+}
+
+func (f *FRem) Type() Type {
+	return f.Left.Type()
+}
+
+func (f *FRem) Values() iter.Seq[Value] {
+	return func(yield func(Value) bool) {
+		if !yield(f.Left) {
+			return
+		}
+		yield(f.Right)
 	}
 }
 
@@ -559,24 +658,41 @@ func (g *GetElementPtrDyn) Values() iter.Seq[Value] {
 
 // Conversion instructions
 
-type Trunc struct {
+type ITrunc struct {
 	baseInstruction
 
 	Value Value
 	Typ   Type
 }
 
-func (t *Trunc) Type() Type {
-	return t.Typ
+func (i *ITrunc) Type() Type {
+	return i.Typ
 }
 
-func (t *Trunc) Values() iter.Seq[Value] {
+func (i *ITrunc) Values() iter.Seq[Value] {
 	return func(yield func(Value) bool) {
-		yield(t.Value)
+		yield(i.Value)
 	}
 }
 
-type Ext struct {
+type FTrunc struct {
+	baseInstruction
+
+	Value Value
+	Typ   Type
+}
+
+func (f *FTrunc) Type() Type {
+	return f.Typ
+}
+
+func (f *FTrunc) Values() iter.Seq[Value] {
+	return func(yield func(Value) bool) {
+		yield(f.Value)
+	}
+}
+
+type IExt struct {
 	baseInstruction
 
 	Kind  DivKind
@@ -584,13 +700,30 @@ type Ext struct {
 	Typ   Type
 }
 
-func (e *Ext) Type() Type {
-	return e.Typ
+func (i *IExt) Type() Type {
+	return i.Typ
 }
 
-func (e *Ext) Values() iter.Seq[Value] {
+func (i *IExt) Values() iter.Seq[Value] {
 	return func(yield func(Value) bool) {
-		yield(e.Value)
+		yield(i.Value)
+	}
+}
+
+type FExt struct {
+	baseInstruction
+
+	Value Value
+	Typ   Type
+}
+
+func (f *FExt) Type() Type {
+	return f.Typ
+}
+
+func (f *FExt) Values() iter.Seq[Value] {
+	return func(yield func(Value) bool) {
+		yield(f.Value)
 	}
 }
 

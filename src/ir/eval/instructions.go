@@ -41,75 +41,57 @@ func (e *Evaluator) evalInst(inst ir.Instruction) (Register, bool) {
 
 	// Binary instructions
 
-	case *ir.Add:
+	case *ir.IAdd:
+		l := e.getRegister(inst.Left).Scalar
+		r := e.getRegister(inst.Right).Scalar
+
+		return Register{Scalar: l + r}, true
+
+	case *ir.FAdd:
 		l := e.getRegister(inst.Left)
 		r := e.getRegister(inst.Right)
 
-		if t, ok := inst.Left.Type().(*ir.SimpleType); ok {
-			if t.Kind == ir.DoubleKind {
-				return Float64Reg(l.Float64() + r.Float64()), true
-			}
-
-			if t.Kind == ir.FloatKind {
-				return Float32Reg(l.Float32() + r.Float32()), true
-			}
+		if inst.Type().(*ir.SimpleType).Kind == ir.DoubleKind {
+			return Float64Reg(l.Float64() + r.Float64()), true
 		}
 
-		return Register{Scalar: l.Scalar + r.Scalar}, true
+		return Float32Reg(l.Float32() + r.Float32()), true
 
-	case *ir.Sub:
+	case *ir.ISub:
+		l := e.getRegister(inst.Left).Scalar
+		r := e.getRegister(inst.Right).Scalar
+
+		return Register{Scalar: l - r}, true
+
+	case *ir.FSub:
 		l := e.getRegister(inst.Left)
 		r := e.getRegister(inst.Right)
 
-		if t, ok := inst.Left.Type().(*ir.SimpleType); ok {
-			if t.Kind == ir.DoubleKind {
-				return Float64Reg(l.Float64() - r.Float64()), true
-			}
-
-			if t.Kind == ir.FloatKind {
-				return Float32Reg(l.Float32() - r.Float32()), true
-			}
+		if inst.Type().(*ir.SimpleType).Kind == ir.DoubleKind {
+			return Float64Reg(l.Float64() - r.Float64()), true
 		}
 
-		return Register{Scalar: l.Scalar - r.Scalar}, true
+		return Float32Reg(l.Float32() - r.Float32()), true
 
-	case *ir.Mul:
+	case *ir.IMul:
+		l := e.getRegister(inst.Left).Scalar
+		r := e.getRegister(inst.Right).Scalar
+
+		return Register{Scalar: l * r}, true
+
+	case *ir.FMul:
 		l := e.getRegister(inst.Left)
 		r := e.getRegister(inst.Right)
 
-		if t, ok := inst.Left.Type().(*ir.SimpleType); ok {
-			if t.Kind == ir.DoubleKind {
-				return Float64Reg(l.Float64() * r.Float64()), true
-			}
-
-			if t.Kind == ir.FloatKind {
-				return Float32Reg(l.Float32() * r.Float32()), true
-			}
+		if inst.Type().(*ir.SimpleType).Kind == ir.DoubleKind {
+			return Float64Reg(l.Float64() * r.Float64()), true
 		}
 
-		return Register{Scalar: l.Scalar * r.Scalar}, true
+		return Float32Reg(l.Float32() * r.Float32()), true
 
-	case *ir.Div:
+	case *ir.IDiv:
 		left := e.getRegister(inst.Left)
 		right := e.getRegister(inst.Right)
-
-		if inst.Kind == ir.Floating {
-			if inst.Left.Type().(*ir.SimpleType).Kind == ir.DoubleKind {
-				right := right.Float64()
-				if right == 0 {
-					e.panic("tried to divide by zero")
-				}
-
-				return Float64Reg(left.Float64() / right), true
-			}
-
-			right := right.Float32()
-			if right == 0 {
-				e.panic("tried to divide by zero")
-			}
-
-			return Float32Reg(left.Float32() / right), true
-		}
 
 		if right.Scalar == 0 {
 			e.panic("tried to divide by zero")
@@ -121,23 +103,45 @@ func (e *Evaluator) evalInst(inst ir.Instruction) (Register, bool) {
 
 		return Register{Scalar: left.Scalar / right.Scalar}, true
 
-	case *ir.Rem:
-		left := e.getRegister(inst.Left)
-		right := e.getRegister(inst.Right)
+	case *ir.FDiv:
+		l := e.getRegister(inst.Left)
+		r := e.getRegister(inst.Right)
 
-		if inst.Kind == ir.Floating {
-			if inst.Left.Type().(*ir.SimpleType).Kind == ir.DoubleKind {
-				return Float64Reg(math.Mod(left.Float64(), right.Float64())), true
+		if inst.Type().(*ir.SimpleType).Kind == ir.DoubleKind {
+			right := r.Float64()
+			if right == 0 {
+				e.panic("tried to divide by zero")
 			}
 
-			return Float32Reg(float32(math.Mod(float64(left.Float32()), float64(right.Float32())))), true
+			return Float64Reg(l.Float64() / right), true
 		}
+
+		right := r.Float32()
+		if right == 0 {
+			e.panic("tried to divide by zero")
+		}
+
+		return Float32Reg(l.Float32() / right), true
+
+	case *ir.IRem:
+		left := e.getRegister(inst.Left)
+		right := e.getRegister(inst.Right)
 
 		if inst.Kind == ir.Signed {
 			return Register{Scalar: uint64(int64(left.Scalar) % int64(right.Scalar))}, true
 		}
 
 		return Register{Scalar: left.Scalar % right.Scalar}, true
+
+	case *ir.FRem:
+		left := e.getRegister(inst.Left)
+		right := e.getRegister(inst.Right)
+
+		if inst.Type().(*ir.SimpleType).Kind == ir.DoubleKind {
+			return Float64Reg(math.Mod(left.Float64(), right.Float64())), true
+		}
+
+		return Float32Reg(float32(math.Mod(float64(left.Float32()), float64(right.Float32())))), true
 
 	// Bitwise binary instructions
 
@@ -299,25 +303,19 @@ func (e *Evaluator) evalInst(inst ir.Instruction) (Register, bool) {
 
 	// Conversion instructions
 
-	case *ir.Trunc:
-		val := e.getRegister(inst.Value)
+	case *ir.ITrunc:
+		val := e.getRegister(inst.Value).Scalar
 
-		// Floating
-		if _, ok := inst.Typ.(*ir.SimpleType); ok {
-			return Float32Reg(float32(val.Float64())), true
-		}
-
-		// Integer
 		mask := (uint64(1) << inst.Typ.(*ir.IntegerType).Bits) - 1
-		return Register{Scalar: val.Scalar & mask}, true
+		return Register{Scalar: val & mask}, true
 
-	case *ir.Ext:
+	case *ir.FTrunc:
+		val := e.getRegister(inst.Value).Float64()
+
+		return Float32Reg(float32(val)), true
+
+	case *ir.IExt:
 		val := e.getRegister(inst.Value)
-
-		// Floating
-		if inst.Kind == ir.Floating {
-			return Float64Reg(float64(val.Float32())), true
-		}
 
 		// Integer
 		if inst.Kind == ir.Unsigned {
@@ -329,6 +327,11 @@ func (e *Evaluator) evalInst(inst ir.Instruction) (Register, bool) {
 		arithmeticRightShifted := int64(leftShifted) >> (64 - srcBits)
 
 		return Register{Scalar: uint64(arithmeticRightShifted)}, true
+
+	case *ir.FExt:
+		val := e.getRegister(inst.Value).Float32()
+
+		return Float64Reg(float64(val)), true
 
 	case *ir.FpToInt:
 		val := e.getRegister(inst.Value)

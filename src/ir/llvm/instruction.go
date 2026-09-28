@@ -44,25 +44,37 @@ func (w *writer) instruction(in ir.Instruction) {
 
 	// Binary instructions
 
-	case *ir.Add:
-		w.floatingModifier(false, in.Left)
+	case *ir.IAdd:
 		w.simpleInstruction2("add ", in.Left, in.Right)
 
-	case *ir.Sub:
-		w.floatingModifier(false, in.Left)
+	case *ir.FAdd:
+		w.simpleInstruction2("fadd ", in.Left, in.Right)
+
+	case *ir.ISub:
 		w.simpleInstruction2("sub ", in.Left, in.Right)
 
-	case *ir.Mul:
-		w.floatingModifier(false, in.Left)
+	case *ir.FSub:
+		w.simpleInstruction2("fsub ", in.Left, in.Right)
+
+	case *ir.IMul:
 		w.simpleInstruction2("mul ", in.Left, in.Right)
 
-	case *ir.Div:
-		w.floatingSignedModifier('u', 's', "f", in.Kind)
+	case *ir.FMul:
+		w.simpleInstruction2("fmul ", in.Left, in.Right)
+
+	case *ir.IDiv:
+		w.signedModifier('u', 's', in.Kind)
 		w.simpleInstruction2("div ", in.Left, in.Right)
 
-	case *ir.Rem:
-		w.floatingSignedModifier('u', 's', "f", in.Kind)
+	case *ir.FDiv:
+		w.simpleInstruction2("fdiv ", in.Left, in.Right)
+
+	case *ir.IRem:
+		w.signedModifier('u', 's', in.Kind)
 		w.simpleInstruction2("rem ", in.Left, in.Right)
+
+	case *ir.FRem:
+		w.simpleInstruction2("frem ", in.Left, in.Right)
 
 	// Bitwise binary instructions
 
@@ -164,13 +176,18 @@ func (w *writer) instruction(in ir.Instruction) {
 
 	// Conversion instructions
 
-	case *ir.Trunc:
-		w.floatingModifier(true, in.Value)
+	case *ir.ITrunc:
 		w.toInstruction("trunc ", in.Value, in.Typ)
 
-	case *ir.Ext:
-		w.floatingSignedModifier('z', 's', "fp", in.Kind)
+	case *ir.FTrunc:
+		w.toInstruction("fptrunc ", in.Value, in.Typ)
+
+	case *ir.IExt:
+		w.signedModifier('z', 's', in.Kind)
 		w.toInstruction("ext ", in.Value, in.Typ)
+
+	case *ir.FExt:
+		w.toInstruction("fpext ", in.Value, in.Typ)
 
 	case *ir.FpToInt:
 		name := "fptoui "
@@ -344,14 +361,12 @@ func (w *writer) floatingModifier(fp bool, value ir.Value) {
 	}
 }
 
-func (w *writer) floatingSignedModifier(unsigned, signed rune, floating string, kind ir.DivKind) {
+func (w *writer) signedModifier(unsigned, signed rune, kind ir.DivKind) {
 	switch kind {
 	case ir.Unsigned:
 		w.rune(unsigned)
 	case ir.Signed:
 		w.rune(signed)
-	case ir.Floating:
-		w.string(floating)
 	}
 }
 

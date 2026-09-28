@@ -530,11 +530,21 @@ func (c *Codegen) VisitCompoundBaseBinaryOp(b *ast.Binary, left, right ir.Value,
 		return c.Emitter.Mul(left, right)
 
 	case ast.Divide:
-		kind := c.GetDivKind(b.Left)
+		fp, kind := c.GetDivKind(b.Left)
+
+		if fp {
+			return c.Emitter.FDiv(left, right)
+		}
+
 		return c.Emitter.Div(kind, left, right)
 
 	case ast.Modulo:
-		kind := c.GetDivKind(b.Left)
+		fp, kind := c.GetDivKind(b.Left)
+
+		if fp {
+			return c.Emitter.FRem(left, right)
+		}
+
 		return c.Emitter.Rem(kind, left, right)
 
 	// Bitwise
@@ -1060,7 +1070,7 @@ func (c *Codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 		value = c.Emitter.FpToInt(signed, value, toTyp)
 
 	case sema.FloatExtend:
-		value = c.Emitter.Ext(ir.Floating, value, toTyp)
+		value = c.Emitter.FExt(value, toTyp)
 
 	case sema.FloatTruncate:
 		value = c.Emitter.Trunc(value, toTyp)
@@ -1377,17 +1387,19 @@ func (c *Codegen) EmitCmp(op ir.CmpOp, left, right ast.Expr) ir.Value {
 	return c.Emitter.ICmp(op, signed, leftV, rightV)
 }
 
-func (c *Codegen) GetDivKind(expr ast.Expr) ir.DivKind {
+func (c *Codegen) GetDivKind(expr ast.Expr) (fp bool, kind ir.DivKind) {
 	prim := c.UnderlyingExprType(expr).(*types.Primitive).Kind
-	kind := ir.Floating
+	fp = true
 
 	if types.IsSignedInteger(prim) {
+		fp = false
 		kind = ir.Signed
 	} else if types.IsUnsignedInteger(prim) {
+		fp = false
 		kind = ir.Unsigned
 	}
 
-	return kind
+	return
 }
 
 func (c *Codegen) ExprInfo(expr ast.Expr) sema.ExprInfo {
