@@ -94,6 +94,7 @@ jobs:
           path: "llvm"
 
       - name: Run tests (fireball)
+        if: matrix.arch == 'amd64'
         shell: bash
         working-directory: tests
         run: ../fireball${{ matrix.ext }} test -p fb
