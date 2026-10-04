@@ -7,7 +7,7 @@ import (
 	"fireball/project"
 	"fireball/types"
 
-	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/protocol"
 	"go.lsp.dev/uri"
 )
 
@@ -29,9 +29,9 @@ type symbolConsumer interface {
 	supportsDetail() bool
 }
 
-func (s *Server) DocumentSymbol(_ context.Context, params *protocol.DocumentSymbolParams) (result []interface{}, err error) {
+func (s *Server) DocumentSymbol(_ context.Context, params *protocol.DocumentSymbolParams) (result protocol.DocumentSymbolResult, err error) {
 	// Get file
-	file, locker := s.getFile(params.TextDocument.URI.Filename())
+	file, locker := s.getFile(params.TextDocument.URI.FsPath())
 	if file == nil {
 		return nil, nil
 	}
@@ -44,10 +44,10 @@ func (s *Server) DocumentSymbol(_ context.Context, params *protocol.DocumentSymb
 	symbols := documentSymbolConsumer{}
 	getSymbols(&symbols, []*project.File{file})
 
-	return symbols.symbols, nil
+	return protocol.DocumentSymbolSlice(symbols.symbols), nil
 }
 
-func (s *Server) Symbols(_ context.Context, _ *protocol.WorkspaceSymbolParams) (result []protocol.SymbolInformation, err error) {
+func (s *Server) Symbols(_ context.Context, _ *protocol.WorkspaceSymbolParams) (result protocol.WorkspaceSymbolResult, err error) {
 	symbols := workspaceSymbolConsumer{}
 
 	for _, workspace := range s.getWorkspaces() {
@@ -64,7 +64,7 @@ func (s *Server) Symbols(_ context.Context, _ *protocol.WorkspaceSymbolParams) (
 		workspace.mutex.RUnlock()
 	}
 
-	return symbols.symbols, nil
+	return protocol.SymbolInformationSlice(symbols.symbols), nil
 }
 
 func getSymbols(symbols symbolConsumer, files []*project.File) {
@@ -327,7 +327,7 @@ func getRange(node ast.Node) core.Range {
 // Document symbols
 
 type documentSymbolConsumer struct {
-	symbols []any
+	symbols []protocol.DocumentSymbol
 }
 
 func (d *documentSymbolConsumer) add(symbol symbol) int {
@@ -344,7 +344,7 @@ func (d *documentSymbolConsumer) addChild(parent int, child symbol) {
 		return
 	}
 
-	symbol := d.symbols[parent].(protocol.DocumentSymbol)
+	symbol := d.symbols[parent]
 	symbol.Children = append(symbol.Children, d.convert(child))
 
 	d.symbols[parent] = symbol
@@ -357,7 +357,7 @@ func (d *documentSymbolConsumer) supportsDetail() bool {
 func (d *documentSymbolConsumer) convert(symbol symbol) protocol.DocumentSymbol {
 	return protocol.DocumentSymbol{
 		Name:           symbol.name,
-		Detail:         symbol.detail,
+		Detail:         new(symbol.detail),
 		Kind:           symbol.kind,
 		Range:          toLspRange(symbol.range_),
 		SelectionRange: toLspRange(symbol.selectionRange),
@@ -399,14 +399,13 @@ func (w *workspaceSymbolConsumer) convert(symbol symbol, parent int) protocol.Sy
 	}
 
 	return protocol.SymbolInformation{
-		Name:       symbol.name,
-		Kind:       symbol.kind,
-		Tags:       nil,
-		Deprecated: false,
+		Name: symbol.name,
+		Kind: symbol.kind,
+		Tags: nil,
 		Location: protocol.Location{
-			URI:   uri.New(symbol.file.Path),
+			URI:   uri.File(symbol.file.Path),
 			Range: toLspRange(symbol.range_),
 		},
-		ContainerName: containerName,
+		ContainerName: new(containerName),
 	}
 }

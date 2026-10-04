@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/protocol"
 )
 
 func (s *Server) info(ctx context.Context, format string, args ...any) {
@@ -54,7 +54,7 @@ func (s *Server) markup(documentation []*ast.Leaf) *protocol.MarkupContent {
 	}
 
 	return &protocol.MarkupContent{
-		Kind:  protocol.PlainText,
+		Kind:  protocol.MarkupKindPlainText,
 		Value: sb.String(),
 	}
 }

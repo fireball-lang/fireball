@@ -7,7 +7,7 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/protocol"
 	"go.lsp.dev/uri"
 )
 
@@ -58,7 +58,7 @@ func (s *Server) publishFileDiagnostics(ctx context.Context, file *project.File)
 		diagnostics = append(diagnostics, protocol.Diagnostic{
 			Range:    toLspRange(diagnostic.Range),
 			Severity: severity,
-			Message:  diagnostic.Message,
+			Message:  protocol.String(diagnostic.Message),
 		})
 	}
 
@@ -68,7 +68,7 @@ func (s *Server) publishFileDiagnostics(ctx context.Context, file *project.File)
 	if document.lastDiagnostics == nil || !reflect.DeepEqual(document.lastDiagnostics, diagnostics) {
 		_ = s.Client.PublishDiagnostics(ctx, &protocol.PublishDiagnosticsParams{
 			URI:         uri.File(file.Path),
-			Version:     uint32(document.Version),
+			Version:     protocol.NewOptional(document.Version),
 			Diagnostics: diagnostics,
 		})
 
@@ -84,7 +84,7 @@ func (s *Server) clearFileDiagnostics(ctx context.Context, file *project.File) {
 
 	_ = s.Client.PublishDiagnostics(ctx, &protocol.PublishDiagnosticsParams{
 		URI:         uri.File(file.Path),
-		Version:     uint32(document.Version),
+		Version:     protocol.NewOptional(document.Version),
 		Diagnostics: emptyDiagnostics,
 	})
 

@@ -10,13 +10,13 @@ import (
 	"fireball/types"
 	"iter"
 
-	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/protocol"
 	"go.lsp.dev/uri"
 )
 
-func (s *Server) Definition(ctx context.Context, params *protocol.DefinitionParams) (interface{}, error) {
+func (s *Server) Definition(ctx context.Context, params *protocol.DefinitionParams) (protocol.DefinitionResult, error) {
 	// Get file
-	file, locker := s.getFile(params.TextDocument.URI.Filename())
+	file, locker := s.getFile(params.TextDocument.URI.FsPath())
 	if file == nil {
 		return nil, nil
 	}
@@ -315,13 +315,13 @@ func (s *Server) allSymbols() iter.Seq[symbols.Symbol] {
 	}
 }
 
-func (s *Server) buildDefinitionResult(defNode ast.Node) any {
+func (s *Server) buildDefinitionResult(defNode ast.Node) protocol.DefinitionResult {
 	nodeFile := ast.GetFile(defNode)
 	if nodeFile == nil {
 		return nil
 	}
 
-	link := protocol.LocationLink{
+	link := protocol.DefinitionLink{
 		TargetURI:            uri.File(nodeFile.Path),
 		TargetRange:          toLspRange(defNode.Range()),
 		TargetSelectionRange: toLspRange(defNode.Range()),
@@ -345,7 +345,7 @@ func (s *Server) buildDefinitionResult(defNode ast.Node) any {
 	}
 
 	if s.definitionLinkSupport {
-		return []protocol.LocationLink{link}
+		return protocol.DefinitionLinkSlice{link}
 	}
 
 	return &protocol.Location{

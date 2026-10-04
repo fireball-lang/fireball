@@ -7,13 +7,13 @@ import (
 	"fireball/lexer"
 	"fireball/project"
 
-	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/protocol"
 	"go.lsp.dev/uri"
 )
 
 func (s *Server) References(ctx context.Context, params *protocol.ReferenceParams) ([]protocol.Location, error) {
 	// Get file
-	file, locker := s.getFile(params.TextDocument.URI.Filename())
+	file, locker := s.getFile(params.TextDocument.URI.FsPath())
 	if file == nil {
 		return nil, nil
 	}

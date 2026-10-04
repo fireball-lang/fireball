@@ -9,8 +9,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/fireball-lang/protocol"
 	"go.lsp.dev/jsonrpc2"
+	"go.lsp.dev/protocol"
 
 	"net"
 
@@ -33,7 +33,7 @@ func getLspCmd() *cobra.Command {
 			}
 
 			server := &lsp.Server{}
-			_, conn, client := protocol.NewServer(context.Background(), server, stream, logger)
+			_, conn, client := protocol.NewServer(protocol.WithLogger(context.Background(), logger), server, stream)
 
 			server.Logger = logger
 			server.Client = client

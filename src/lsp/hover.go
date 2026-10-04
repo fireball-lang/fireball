@@ -9,12 +9,12 @@ import (
 	"fireball/types"
 	"strings"
 
-	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/protocol"
 )
 
 func (s *Server) Hover(ctx context.Context, params *protocol.HoverParams) (result *protocol.Hover, err error) {
 	// Get file
-	file, locker := s.getFile(params.TextDocument.URI.Filename())
+	file, locker := s.getFile(params.TextDocument.URI.FsPath())
 	if file == nil {
 		return nil, nil
 	}
@@ -289,8 +289,8 @@ func (s *Server) formatHover(label string, documentation []*ast.Leaf, rng core.R
 	lspRange := toLspRange(rng)
 
 	return &protocol.Hover{
-		Contents: protocol.MarkupContent{
-			Kind:  protocol.Markdown,
+		Contents: &protocol.MarkupContent{
+			Kind:  protocol.MarkupKindMarkdown,
 			Value: value.String(),
 		},
 		Range: &lspRange,

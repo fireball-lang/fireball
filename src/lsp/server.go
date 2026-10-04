@@ -3,6 +3,7 @@ package lsp
 import (
 	"bytes"
 	"context"
+	"encoding/json/v2"
 	"fireball/ast"
 	"fireball/cfg"
 	"fireball/core"
@@ -13,11 +14,13 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/protocol"
 	"go.lsp.dev/uri"
 )
 
 type Server struct {
+	protocol.UnimplementedServer
+
 	Logger *slog.Logger
 	Client protocol.Client
 
@@ -44,43 +47,56 @@ func (s *Server) getWorkspaces() []*Workspace {
 func (s *Server) Initialize(ctx context.Context, params *protocol.InitializeParams) (*protocol.InitializeResult, error) {
 	s.info(ctx, "Starting")
 
-	if opts, ok := params.InitializationOptions.(map[string]any); ok {
-		if targetOs, ok := opts["target_os"].(string); ok {
-			switch targetOs {
-			case "windows":
-				s.Env.TargetOs = ast.WindowsOs
-			case "linux":
-				s.Env.TargetOs = ast.Linux
-			case "macos":
-				s.Env.TargetOs = ast.MacOS
-			}
+	initOpts := make(map[string]any)
 
-			s.Env.ComputeDerived()
+	if params.InitializationOptions.IsValid() {
+		err := json.Unmarshal(params.InitializationOptions, &initOpts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if targetOs, ok := initOpts["target_os"].(string); ok {
+		switch targetOs {
+		case "windows":
+			s.Env.TargetOs = ast.WindowsOs
+		case "linux":
+			s.Env.TargetOs = ast.Linux
+		case "macos":
+			s.Env.TargetOs = ast.MacOS
 		}
 
-		if fullSemanticTokens, ok := opts["full_semantic_tokens"].(bool); ok {
-			s.fullSemanticTokens = fullSemanticTokens
-		}
+		s.Env.ComputeDerived()
+	}
+
+	if fullSemanticTokens, ok := initOpts["full_semantic_tokens"].(bool); ok {
+		s.fullSemanticTokens = fullSemanticTokens
 	}
 
 	var filters []protocol.FileOperationFilter
 
-	if params.Capabilities.Workspace != nil && params.Capabilities.Workspace.FileOperations != nil && params.Capabilities.Workspace.FileOperations.DidCreate && params.Capabilities.Workspace.FileOperations.DidDelete && params.Capabilities.Workspace.FileOperations.DidRename {
-		filters = []protocol.FileOperationFilter{
-			{
-				Scheme: "file",
-				Pattern: protocol.FileOperationPattern{
-					Glob:    "**/*.fb",
-					Matches: protocol.FileOperationPatternKindFile,
+	if params.Capabilities.Workspace != nil && params.Capabilities.Workspace.FileOperations != nil {
+		didCreate := params.Capabilities.Workspace.FileOperations.DidCreate
+		didDelete := params.Capabilities.Workspace.FileOperations.DidDelete
+		didRename := params.Capabilities.Workspace.FileOperations.DidRename
+
+		if didCreate != nil && *didCreate && didDelete != nil && *didDelete && didRename != nil && *didRename {
+			filters = []protocol.FileOperationFilter{
+				{
+					Scheme: new("file"),
+					Pattern: protocol.FileOperationPattern{
+						Glob:    "**/*.fb",
+						Matches: protocol.FileOperationPatternKindFile,
+					},
 				},
-			},
-			{
-				Scheme: "file",
-				Pattern: protocol.FileOperationPattern{
-					Glob:    "**/project.toml",
-					Matches: protocol.FileOperationPatternKindFile,
+				{
+					Scheme: new("file"),
+					Pattern: protocol.FileOperationPattern{
+						Glob:    "**/project.toml",
+						Matches: protocol.FileOperationPatternKindFile,
+					},
 				},
-			},
+			}
 		}
 
 		s.info(ctx, "Using LSP file operation notifications")
@@ -95,8 +111,10 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 		s.info(ctx, "Using native OS file watchers")
 	}
 
-	for _, folder := range params.WorkspaceFolders {
-		s.openWorkspace(ctx, uri.URI(folder.URI).Filename())
+	if folders, ok := params.WorkspaceFolders.Get(); ok {
+		for _, folder := range folders {
+			s.openWorkspace(ctx, folder.URI.FsPath())
+		}
 	}
 
 	if params.Capabilities.Workspace != nil && params.Capabilities.Workspace.FileOperations != nil {
@@ -106,60 +124,61 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 	s.publishDiagnostics(ctx)
 
 	if params.Capabilities.TextDocument != nil && params.Capabilities.TextDocument.Definition != nil {
-		s.definitionLinkSupport = params.Capabilities.TextDocument.Definition.LinkSupport
+		ptr := params.Capabilities.TextDocument.Definition.LinkSupport
+		s.definitionLinkSupport = ptr != nil && *ptr
 	}
 
 	return &protocol.InitializeResult{
 		Capabilities: protocol.ServerCapabilities{
-			Workspace: &protocol.ServerCapabilitiesWorkspace{
-				WorkspaceFolders: &protocol.ServerCapabilitiesWorkspaceFolders{
-					Supported:           true,
-					ChangeNotifications: true,
+			Workspace: &protocol.WorkspaceOptions{
+				WorkspaceFolders: &protocol.WorkspaceFoldersServerCapabilities{
+					Supported:           new(true),
+					ChangeNotifications: protocol.Boolean(true),
 				},
-				FileOperations: &protocol.ServerCapabilitiesWorkspaceFileOperations{
-					DidCreate: &protocol.FileOperationRegistrationOptions{Filters: filters},
-					DidRename: &protocol.FileOperationRegistrationOptions{Filters: filters},
-					DidDelete: &protocol.FileOperationRegistrationOptions{Filters: filters},
+				FileOperations: &protocol.FileOperationOptions{
+					DidCreate: protocol.FileOperationRegistrationOptions{Filters: filters},
+					DidRename: protocol.FileOperationRegistrationOptions{Filters: filters},
+					DidDelete: protocol.FileOperationRegistrationOptions{Filters: filters},
 				},
 			},
 			TextDocumentSync: &protocol.TextDocumentSyncOptions{
-				OpenClose: true,
-				Change:    protocol.TextDocumentSyncKindIncremental,
+				OpenClose: new(true),
+				Change:    new(protocol.TextDocumentSyncKindIncremental),
 			},
 			SemanticTokensProvider: &protocol.SemanticTokensOptions{
 				Legend: protocol.SemanticTokensLegend{
-					TokenTypes: []protocol.SemanticTokenTypes{
-						protocol.SemanticTokenFunction,
-						protocol.SemanticTokenParameter,
-						protocol.SemanticTokenVariable,
-						protocol.SemanticTokenType,
-						protocol.SemanticTokenClass,
-						protocol.SemanticTokenEnum,
-						protocol.SemanticTokenProperty,
-						protocol.SemanticTokenEnumMember,
-						protocol.SemanticTokenNamespace,
-						protocol.SemanticTokenInterface,
-						protocol.SemanticTokenTypeParameter,
-						protocol.SemanticTokenKeyword,
-						protocol.SemanticTokenComment,
+					TokenTypes: []string{
+						string(protocol.SemanticTokenTypesFunction),
+						string(protocol.SemanticTokenTypesParameter),
+						string(protocol.SemanticTokenTypesVariable),
+						string(protocol.SemanticTokenTypesType),
+						string(protocol.SemanticTokenTypesClass),
+						string(protocol.SemanticTokenTypesEnum),
+						string(protocol.SemanticTokenTypesProperty),
+						string(protocol.SemanticTokenTypesEnumMember),
+						string(protocol.SemanticTokenTypesNamespace),
+						string(protocol.SemanticTokenTypesInterface),
+						string(protocol.SemanticTokenTypesTypeParameter),
+						string(protocol.SemanticTokenTypesKeyword),
+						string(protocol.SemanticTokenTypesComment),
 					},
-					TokenModifiers: []protocol.SemanticTokenModifiers{
-						protocol.SemanticTokenModifierReadonly,
+					TokenModifiers: []string{
+						string(protocol.SemanticTokenModifiersReadonly),
 					},
 				},
-				Full: &protocol.SemanticTokensFull{},
+				Full: &protocol.SemanticTokensFullDelta{},
 			},
 			DocumentSymbolProvider: &protocol.DocumentSymbolOptions{
-				Label: "Fireball",
+				Label: new("Fireball"),
 			},
 			WorkspaceSymbolProvider: &protocol.WorkspaceSymbolOptions{},
 			DefinitionProvider:      &protocol.DefinitionOptions{},
-			ReferencesProvider:      &protocol.ReferencesOptions{},
+			ReferencesProvider:      &protocol.ReferenceOptions{},
 			CompletionProvider: &protocol.CompletionOptions{
 				TriggerCharacters: []string{".", ":"},
 			},
 			RenameProvider: &protocol.RenameOptions{
-				PrepareProvider: true,
+				PrepareProvider: new(true),
 			},
 			SignatureHelpProvider: &protocol.SignatureHelpOptions{
 				TriggerCharacters:   []string{"("},
@@ -167,9 +186,9 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 			},
 			HoverProvider: &protocol.HoverOptions{},
 		},
-		ServerInfo: &protocol.ServerInfo{
+		ServerInfo: protocol.ServerInfo{
 			Name:    "fireball",
-			Version: "0.1.0",
+			Version: protocol.NewOptional("0.1.0"),
 		},
 	}, nil
 }
@@ -188,7 +207,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 func (s *Server) DidChangeWorkspaceFolders(ctx context.Context, params *protocol.DidChangeWorkspaceFoldersParams) error {
 	for _, folder := range params.Event.Removed {
-		folderPath := uri.URI(folder.URI).Filename()
+		folderPath := folder.URI.FsPath()
 
 		s.workspacesMutex.Lock()
 
@@ -214,7 +233,7 @@ func (s *Server) DidChangeWorkspaceFolders(ctx context.Context, params *protocol
 	}
 
 	for _, folder := range params.Event.Added {
-		s.openWorkspace(ctx, uri.URI(folder.URI).Filename())
+		s.openWorkspace(ctx, folder.URI.FsPath())
 	}
 
 	return nil
@@ -234,7 +253,7 @@ func (s *Server) DidCreateFiles(ctx context.Context, params *protocol.CreateFile
 			continue
 		}
 
-		fullPath := uri.URI(fileCreate.URI).Filename()
+		fullPath := uri.URI(fileCreate.URI).FsPath()
 		proj := s.getProject(fullPath)
 
 		if proj == nil {
@@ -282,7 +301,7 @@ func (s *Server) DidDeleteFiles(ctx context.Context, params *protocol.DeleteFile
 			}
 
 			// A deleted directory may contain a project.toml
-			fullPath := uri.URI(file.URI).Filename()
+			fullPath := uri.URI(file.URI).FsPath()
 
 			if path.Ext(fullPath) != ".fb" && path.Base(fullPath) != "project.toml" {
 				for _, workspace := range s.getWorkspaces() {
@@ -304,7 +323,7 @@ func (s *Server) DidDeleteFiles(ctx context.Context, params *protocol.DeleteFile
 	})
 
 	for _, fileDelete := range params.Files {
-		fullPath := uri.URI(fileDelete.URI).Filename()
+		fullPath := uri.URI(fileDelete.URI).FsPath()
 
 		if path.Ext(fullPath) != ".fb" && path.Base(fullPath) != "project.toml" {
 			s.deleteFilesUnder(ctx, fullPath)
@@ -377,7 +396,7 @@ func (s *Server) reloadWorkspacesIfProjectConfigChanged(ctx context.Context, it 
 
 	for uri_ := range it {
 		if path.Base(uri_) == "project.toml" {
-			workspace := s.getWorkspaceForProjectConfig(uri.URI(uri_).Filename())
+			workspace := s.getWorkspaceForProjectConfig(uri.URI(uri_).FsPath())
 
 			if workspace == nil {
 				s.warn(ctx, "failed to find workspace for project config file: '%s'", uri_)
@@ -399,7 +418,7 @@ func (s *Server) reloadWorkspacesIfProjectConfigChanged(ctx context.Context, it 
 
 func (s *Server) DidOpen(ctx context.Context, params *protocol.DidOpenTextDocumentParams) error {
 	// Get file and its workspace
-	file, _ := s.getFile(params.TextDocument.URI.Filename())
+	file, _ := s.getFile(params.TextDocument.URI.FsPath())
 	if file == nil {
 		return nil
 	}
@@ -409,7 +428,7 @@ func (s *Server) DidOpen(ctx context.Context, params *protocol.DidOpenTextDocume
 	s.parseAndPublish(ctx, workspace, func() []*project.File {
 		// Set text contents
 		if src, ok := file.Source.(*Source); ok {
-			src.Apply(protocol.TextDocumentContentChangeEvent{Text: params.TextDocument.Text})
+			src.Apply(&protocol.TextDocumentContentChangeWholeDocument{Text: params.TextDocument.Text})
 		} else {
 			file.Source = &Source{
 				lines: bytes.SplitAfter([]byte(params.TextDocument.Text), []byte{'\n'}),
@@ -430,7 +449,7 @@ func (s *Server) DidOpen(ctx context.Context, params *protocol.DidOpenTextDocume
 
 func (s *Server) DidChange(ctx context.Context, params *protocol.DidChangeTextDocumentParams) error {
 	// Get file and its workspace
-	file, _ := s.getFile(params.TextDocument.URI.Filename())
+	file, _ := s.getFile(params.TextDocument.URI.FsPath())
 	if file == nil {
 		return nil
 	}

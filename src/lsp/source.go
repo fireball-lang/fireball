@@ -8,7 +8,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/protocol"
 )
 
 type Source struct {
@@ -32,27 +32,26 @@ func NewSource(prev project.Source) *Source {
 }
 
 func (l *Source) Apply(change protocol.TextDocumentContentChangeEvent) {
-	// Full
-	if change.Range == nil {
+	switch change := change.(type) {
+	case *protocol.TextDocumentContentChangeWholeDocument:
 		l.lines = bytes.SplitAfter([]byte(change.Text), []byte{'\n'})
-		return
+
+	case *protocol.TextDocumentContentChangePartial:
+		startLine := change.Range.Start.Line
+		endLine := change.Range.End.Line
+
+		startByte := utf16OffsetToBytes(l.lines[startLine], change.Range.Start.Character)
+		endByte := utf16OffsetToBytes(l.lines[endLine], change.Range.End.Character)
+
+		prefix := l.lines[startLine][:startByte]
+		suffix := l.lines[endLine][endByte:]
+
+		newParts := bytes.SplitAfter([]byte(change.Text), []byte{'\n'})
+		newParts[0] = append(append([]byte(nil), prefix...), newParts[0]...)
+		newParts[len(newParts)-1] = append(newParts[len(newParts)-1], suffix...)
+
+		l.lines = slices.Replace(l.lines, int(startLine), int(endLine+1), newParts...)
 	}
-
-	// Incremental
-	startLine := change.Range.Start.Line
-	endLine := change.Range.End.Line
-
-	startByte := utf16OffsetToBytes(l.lines[startLine], change.Range.Start.Character)
-	endByte := utf16OffsetToBytes(l.lines[endLine], change.Range.End.Character)
-
-	prefix := l.lines[startLine][:startByte]
-	suffix := l.lines[endLine][endByte:]
-
-	newParts := bytes.SplitAfter([]byte(change.Text), []byte{'\n'})
-	newParts[0] = append(append([]byte(nil), prefix...), newParts[0]...)
-	newParts[len(newParts)-1] = append(newParts[len(newParts)-1], suffix...)
-
-	l.lines = slices.Replace(l.lines, int(startLine), int(endLine+1), newParts...)
 }
 
 func utf16OffsetToBytes(line []byte, utf16Offset uint32) int {

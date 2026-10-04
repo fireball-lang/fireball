@@ -12,7 +12,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/protocol"
 )
 
 type completions struct {
@@ -32,9 +32,9 @@ type completions struct {
 	items []protocol.CompletionItem
 }
 
-func (s *Server) Completion(_ context.Context, params *protocol.CompletionParams) (*protocol.CompletionList, error) {
+func (s *Server) Completion(_ context.Context, params *protocol.CompletionParams) (protocol.CompletionResult, error) {
 	// Get file
-	file, locker := s.getFile(params.TextDocument.URI.Filename())
+	file, locker := s.getFile(params.TextDocument.URI.FsPath())
 	if file == nil {
 		return nil, nil
 	}
@@ -184,7 +184,7 @@ func (c *completions) Import(imp *ast.Import) {
 		c.Add(protocol.CompletionItem{
 			Kind:   protocol.CompletionItemKindModule,
 			Label:  child.Name,
-			Detail: moduleDetail(child),
+			Detail: protocol.NewOptional(moduleDetail(child)),
 		})
 	}
 }
@@ -243,8 +243,8 @@ func (c *completions) ImportedModule(imp *ast.Import) {
 	c.Add(protocol.CompletionItem{
 		Kind:       protocol.CompletionItemKindModule,
 		Label:      name,
-		InsertText: name + "::",
-		Detail:     detail.String(),
+		InsertText: protocol.NewOptional(name + "::"),
+		Detail:     protocol.NewOptional(detail.String()),
 	})
 }
 
@@ -280,7 +280,7 @@ func (c *completions) RootModule() {
 	c.Add(protocol.CompletionItem{
 		Kind:   protocol.CompletionItemKindModule,
 		Label:  c.file.Proj.Config.Name,
-		Detail: c.file.Proj.Config.Name,
+		Detail: protocol.NewOptional(c.file.Proj.Config.Name),
 	})
 
 	// Dependencies
@@ -299,7 +299,7 @@ func (c *completions) RootModule() {
 		c.Add(protocol.CompletionItem{
 			Kind:   protocol.CompletionItemKindModule,
 			Label:  proj.Config.Name,
-			Detail: proj.Config.Name,
+			Detail: protocol.NewOptional(proj.Config.Name),
 		})
 	}
 
@@ -307,7 +307,7 @@ func (c *completions) RootModule() {
 		c.Add(protocol.CompletionItem{
 			Kind:   protocol.CompletionItemKindModule,
 			Label:  proj.Config.Name,
-			Detail: proj.Config.Name,
+			Detail: protocol.NewOptional(proj.Config.Name),
 		})
 	}
 }
@@ -383,7 +383,7 @@ func (c *completions) NamespaceModule(module *project.Module, prefix []*ast.Leaf
 		c.Add(protocol.CompletionItem{
 			Kind:   protocol.CompletionItemKindModule,
 			Label:  child.Name,
-			Detail: moduleDetail(child),
+			Detail: protocol.NewOptional(moduleDetail(child)),
 		})
 	}
 
@@ -721,7 +721,7 @@ func (c *completions) Fields(t *types.Struct, modPath []string) {
 		item := protocol.CompletionItem{
 			Kind:   protocol.CompletionItemKindField,
 			Label:  field.Name,
-			Detail: field.Type.String(),
+			Detail: protocol.NewOptional(field.Type.String()),
 		}
 
 		// Documentation
@@ -945,7 +945,7 @@ func (c *completions) EnclosingLocalVar(block *ast.Block) {
 			c.Add(protocol.CompletionItem{
 				Kind:   protocol.CompletionItemKindVariable,
 				Label:  local.Name.Token.Text,
-				Detail: typeString(c.file, local, local.Type),
+				Detail: protocol.NewOptional(typeString(c.file, local, local.Type)),
 			})
 		}
 	}
@@ -962,7 +962,7 @@ func (c *completions) EnclosingParam(params []*ast.Param) {
 		c.Add(protocol.CompletionItem{
 			Kind:   protocol.CompletionItemKindTypeParameter,
 			Label:  param.Name.Token.Text,
-			Detail: typeString(c.file, param, param.Type),
+			Detail: protocol.NewOptional(typeString(c.file, param, param.Type)),
 		})
 	}
 }
@@ -982,7 +982,7 @@ func (c *completions) EnclosingReceiver(receiver *ast.Receiver) {
 	c.Add(protocol.CompletionItem{
 		Kind:   protocol.CompletionItemKindTypeParameter,
 		Label:  "self",
-		Detail: prefix + typeString(c.file, impl, impl.Type),
+		Detail: protocol.NewOptional(prefix + typeString(c.file, impl, impl.Type)),
 	})
 }
 
@@ -993,28 +993,28 @@ func (c *completions) ExprSnippets() {
 		Kind:             protocol.CompletionItemKindSnippet,
 		Label:            "sizeof",
 		InsertTextFormat: protocol.InsertTextFormatSnippet,
-		InsertText:       "sizeof(${1:type})",
+		InsertText:       protocol.NewOptional("sizeof(${1:type})"),
 	})
 
 	c.Add(protocol.CompletionItem{
 		Kind:             protocol.CompletionItemKindSnippet,
 		Label:            "alignof",
 		InsertTextFormat: protocol.InsertTextFormatSnippet,
-		InsertText:       "alignof(${1:type})",
+		InsertText:       protocol.NewOptional("alignof(${1:type})"),
 	})
 
 	c.Add(protocol.CompletionItem{
 		Kind:             protocol.CompletionItemKindSnippet,
 		Label:            "offsetof",
 		InsertTextFormat: protocol.InsertTextFormatSnippet,
-		InsertText:       "offsetof(${1:type}, ${2:field})",
+		InsertText:       protocol.NewOptional("offsetof(${1:type}, ${2:field})"),
 	})
 
 	c.Add(protocol.CompletionItem{
 		Kind:             protocol.CompletionItemKindSnippet,
 		Label:            "typeof",
 		InsertTextFormat: protocol.InsertTextFormatSnippet,
-		InsertText:       "typeof(${1:type})",
+		InsertText:       protocol.NewOptional("typeof(${1:type})"),
 	})
 }
 
@@ -1022,7 +1022,7 @@ func (c *completions) AssociatedConst(file *project.File, assoc *ast.AssociatedC
 	c.Add(protocol.CompletionItem{
 		Kind:          protocol.CompletionItemKindConstant,
 		Label:         assoc.Name.Token.Text,
-		Detail:        constHoverLabel(file, "", "", assoc.Type, assoc.Value),
+		Detail:        protocol.NewOptional(constHoverLabel(file, "", "", assoc.Type, assoc.Value)),
 		Documentation: c.s.markup(assoc.Documentation),
 	})
 }
@@ -1035,7 +1035,7 @@ func (c *completions) AssociatedType(file *project.File, assoc *ast.AssociatedTy
 
 	if !core.IsNil(assoc.Type) {
 		item.Kind = getAstTypeCompletionKind(file, assoc.Type)
-		item.Detail = typeString(file, assoc, assoc.Type)
+		item.Detail = protocol.NewOptional(typeString(file, assoc, assoc.Type))
 	}
 
 	c.Add(item)
@@ -1051,7 +1051,7 @@ func (c *completions) Self(parent ast.Type) {
 	c.Add(protocol.CompletionItem{
 		Kind:   protocol.CompletionItemKindKeyword,
 		Label:  "Self",
-		Detail: detail,
+		Detail: protocol.NewOptional(detail),
 	})
 }
 
@@ -1127,7 +1127,7 @@ func (c *completions) StaticMember(member sema.MemberSymbol) {
 		item := protocol.CompletionItem{
 			Kind:   protocol.CompletionItemKindEnumMember,
 			Label:  member.Symbol.Name,
-			Detail: member.Type.String(),
+			Detail: protocol.NewOptional(member.Type.String()),
 		}
 
 		if cas, ok := member.Symbol.Node.(*ast.Case); ok {
@@ -1152,7 +1152,7 @@ func (c *completions) StaticMember(member sema.MemberSymbol) {
 		c.Add(protocol.CompletionItem{
 			Kind:   protocol.CompletionItemKindConstant,
 			Label:  member.Symbol.Name,
-			Detail: member.Type.String(),
+			Detail: protocol.NewOptional(member.Type.String()),
 		})
 
 	// Associated type
@@ -1300,7 +1300,7 @@ func (c *completions) Decl(file *project.File, decl ast.Decl, overrideKind proto
 	switch decl := decl.(type) {
 	case *ast.TypeAlias:
 		item.Kind = getAstTypeCompletionKind(file, decl.Type)
-		item.Detail = decl.Type.String()
+		item.Detail = protocol.NewOptional(decl.Type.String())
 
 	case *ast.Struct:
 		item.Kind = protocol.CompletionItemKindStruct
@@ -1310,7 +1310,7 @@ func (c *completions) Decl(file *project.File, decl ast.Decl, overrideKind proto
 
 		if typ, ok := file.NodeTypes[decl]; ok {
 			if enum, ok := typ.(*types.Enum); ok {
-				item.Detail = enum.CaseType.String()
+				item.Detail = protocol.NewOptional(enum.CaseType.String())
 			}
 		}
 
@@ -1319,24 +1319,24 @@ func (c *completions) Decl(file *project.File, decl ast.Decl, overrideKind proto
 
 	case *ast.Const:
 		item.Kind = protocol.CompletionItemKindConstant
-		item.Detail = constHoverLabel(file, "", "", decl.Type, decl.Value)
+		item.Detail = protocol.NewOptional(constHoverLabel(file, "", "", decl.Type, decl.Value))
 		item.CommitCharacters = []string{"."}
 
 	case *ast.GlobalVar:
 		item.Kind = protocol.CompletionItemKindVariable
-		item.Detail = decl.Type.String()
+		item.Detail = protocol.NewOptional(decl.Type.String())
 		item.CommitCharacters = []string{"."}
 
 	case *ast.Func:
 		item.Kind = protocol.CompletionItemKindFunction
-		item.Detail = decl.String(true)
+		item.Detail = protocol.NewOptional(decl.String(true))
 
 		if c.exprContext {
 			if len(decl.Params) == 0 && !decl.VarArgs {
-				item.InsertText = item.Label + "()"
+				item.InsertText = protocol.NewOptional(item.Label + "()")
 			} else {
 				item.InsertTextFormat = protocol.InsertTextFormatSnippet
-				item.InsertText = item.Label + "($1)"
+				item.InsertText = protocol.NewOptional(item.Label + "($1)")
 			}
 		}
 

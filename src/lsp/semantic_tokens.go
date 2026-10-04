@@ -9,12 +9,12 @@ import (
 	"math"
 	"slices"
 
-	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/protocol"
 )
 
 func (s *Server) SemanticTokensFull(_ context.Context, params *protocol.SemanticTokensParams) (*protocol.SemanticTokens, error) {
 	// Get file
-	file, locker := s.getFile(params.TextDocument.URI.Filename())
+	file, locker := s.getFile(params.TextDocument.URI.FsPath())
 	if file == nil {
 		return nil, nil
 	}

@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/fireball-lang/protocol"
 	"github.com/fsnotify/fsnotify"
+	"go.lsp.dev/protocol"
 	"go.lsp.dev/uri"
 )
 

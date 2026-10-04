@@ -10,13 +10,13 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/protocol"
 	"go.lsp.dev/uri"
 )
 
-func (s *Server) PrepareRename(ctx context.Context, params *protocol.PrepareRenameParams) (*protocol.Range, error) {
+func (s *Server) PrepareRename(ctx context.Context, params *protocol.PrepareRenameParams) (protocol.PrepareRenameResult, error) {
 	// Get file
-	file, locker := s.getFile(params.TextDocument.URI.Filename())
+	file, locker := s.getFile(params.TextDocument.URI.FsPath())
 	if file == nil {
 		return nil, nil
 	}
@@ -57,7 +57,7 @@ func (s *Server) PrepareRename(ctx context.Context, params *protocol.PrepareRena
 
 func (s *Server) Rename(ctx context.Context, params *protocol.RenameParams) (*protocol.WorkspaceEdit, error) {
 	// Get file
-	file, locker := s.getFile(params.TextDocument.URI.Filename())
+	file, locker := s.getFile(params.TextDocument.URI.FsPath())
 	if file == nil {
 		return nil, nil
 	}
@@ -147,7 +147,7 @@ func (s *Server) Rename(ctx context.Context, params *protocol.RenameParams) (*pr
 		return 0
 	})
 
-	changes := make(map[protocol.DocumentURI][]protocol.TextEdit)
+	changes := make(map[uri.URI][]protocol.TextEdit)
 
 	for _, e := range edits {
 		uri_ := uri.File(e.file.Path)

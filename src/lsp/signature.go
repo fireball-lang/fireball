@@ -7,12 +7,12 @@ import (
 	"fireball/project"
 	"fireball/types"
 
-	"github.com/fireball-lang/protocol"
+	"go.lsp.dev/protocol"
 )
 
 func (s *Server) SignatureHelp(_ context.Context, params *protocol.SignatureHelpParams) (*protocol.SignatureHelp, error) {
 	// Get file
-	file, locker := s.getFile(params.TextDocument.URI.Filename())
+	file, locker := s.getFile(params.TextDocument.URI.FsPath())
 	if file == nil {
 		return nil, nil
 	}
@@ -60,8 +60,8 @@ func (s *Server) buildSignatureHelp(file *project.File, call *ast.Call, pos core
 
 	return &protocol.SignatureHelp{
 		Signatures:      []protocol.SignatureInformation{signature},
-		ActiveSignature: 0,
-		ActiveParameter: activeParamIndex(call, pos),
+		ActiveSignature: new(uint32(0)),
+		ActiveParameter: protocol.NewNullable(activeParamIndex(call, pos)),
 	}
 }
 
@@ -117,7 +117,7 @@ func buildParamInfos(fn *ast.Func) []protocol.ParameterInformation {
 
 	for _, p := range fn.Params {
 		infos = append(infos, protocol.ParameterInformation{
-			Label: p.Name.Token.Text + ": " + p.Type.String(),
+			Label: protocol.String(p.Name.Token.Text + ": " + p.Type.String()),
 		})
 	}
 
@@ -129,7 +129,7 @@ func buildTypeParamInfos(fn *types.Func) []protocol.ParameterInformation {
 
 	for _, param := range fn.Params {
 		infos = append(infos, protocol.ParameterInformation{
-			Label: param.String(),
+			Label: protocol.String(param.String()),
 		})
 	}
 
