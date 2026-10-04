@@ -150,7 +150,7 @@ func (a *Array) Type() Type {
 // Struct
 
 type Struct struct {
-	Typ    Type
+	Typ    StructLikeType
 	Fields []Value
 }
 

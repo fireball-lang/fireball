@@ -91,6 +91,21 @@ func (f *Function) AddLast(in Instruction) Instruction {
 	return f.Blocks[len(f.Blocks)-1].AddLast(in)
 }
 
+func (f *Function) ShallowClone() *Function {
+	return &Function{
+		baseRuntimeValue: f.baseRuntimeValue,
+		Module:           f.Module,
+		Name:             f.Name,
+		Flags:            f.Flags,
+		Signature:        f.Signature,
+		Params:           f.Params,
+		ReturnAttributes: f.ReturnAttributes,
+		ParamValues:      f.ParamValues,
+		Blocks:           f.Blocks,
+		Data:             f.Data,
+	}
+}
+
 // Block
 
 type Block struct {

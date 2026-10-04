@@ -847,7 +847,7 @@ func (c *Codegen) GetIrValue(val eval.Value, typ types.Type) ir.Value {
 			fields[i] = c.GetIrValue(value, typ.(*types.Struct).Fields[info.Fields[i].Index].Type)
 		}
 
-		return &ir.Struct{Typ: c.Types.Get(typ), Fields: fields}
+		return &ir.Struct{Typ: c.Types.Get(typ).(ir.StructLikeType), Fields: fields}
 
 	case *eval.GlobalValue:
 		if strings.HasPrefix(val.Name, "fb$link_name$") {

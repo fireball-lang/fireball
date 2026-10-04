@@ -2,6 +2,7 @@ package asm
 
 import (
 	"fireball/backend/obj"
+	"fireball/core"
 	"fmt"
 	"math"
 )
@@ -26,6 +27,8 @@ type Assembler struct {
 }
 
 func (a *Assembler) Assemble() ([]uint8, []obj.Relocation) {
+	defer core.Scope()()
+
 	for _, f := range a.fixups {
 		targetOffset, ok := a.labels[f.target]
 		if !ok {
@@ -43,6 +46,16 @@ func (a *Assembler) Assemble() ([]uint8, []obj.Relocation) {
 	a.fixups = nil
 
 	return a.bytes, a.relocations
+}
+
+func (a *Assembler) Len() uint64 {
+	return uint64(len(a.bytes))
+}
+
+func (a *Assembler) Align(align int) {
+	for len(a.bytes)%align != 0 {
+		a.Nop()
+	}
 }
 
 // Integer arithmetic instructions
@@ -472,6 +485,15 @@ func (a *Assembler) Mov32[D RegMem, S RegMem | int32](dst D, src S) {
 	}
 }
 
+func (a *Assembler) Mov8(dst Mem, src Reg) {
+	a.emitMR(false, 0x88, dst, src)
+}
+
+func (a *Assembler) Mov16(dst Mem, src Reg) {
+	a.bytes = append(a.bytes, 0x66)
+	a.emitMR(false, 0x89, dst, src)
+}
+
 // Movzx8 loads an 8-bit value into a register, zero-extending it to 64 bits.
 func (a *Assembler) Movzx8[S RegMem](dst Reg, src S) {
 	a.emitExt(true, 0xB6, dst, src)
@@ -649,6 +671,16 @@ func (a *Assembler) Jge(target Label) {
 	a.emitJcc(0x8D, target)
 }
 
+// Js jumps if sign flag is set (SF=1, negative / MSB set).
+func (a *Assembler) Js(target Label) {
+	a.emitJcc(0x88, target)
+}
+
+// Jns jumps if sign flag is not set (SF=0, positive / MSB clear).
+func (a *Assembler) Jns(target Label) {
+	a.emitJcc(0x89, target)
+}
+
 func (a *Assembler) Call[C Label | RegMem | *obj.Symbol | Sym](callee C) {
 	switch c := any(callee).(type) {
 	case Label:
@@ -785,6 +817,56 @@ func (a *Assembler) Syscall() {
 
 func (a *Assembler) Nop() {
 	a.bytes = append(a.bytes, 0x90)
+}
+
+// Setb sets dst to 1 if below (unsigned <), 0 otherwise.
+func (a *Assembler) Setb(dst Reg) { a.emitSet(0x92, dst) }
+
+// Setae sets dst to 1 if above or equal (unsigned >=), 0 otherwise.
+func (a *Assembler) Setae(dst Reg) { a.emitSet(0x93, dst) }
+
+// Sete sets dst to 1 if equal (==), 0 otherwise.
+func (a *Assembler) Sete(dst Reg) { a.emitSet(0x94, dst) }
+
+// Setne sets dst to 1 if not equal (!=), 0 otherwise.
+func (a *Assembler) Setne(dst Reg) { a.emitSet(0x95, dst) }
+
+// Setbe sets dst to 1 if below or equal (unsigned <=), 0 otherwise.
+func (a *Assembler) Setbe(dst Reg) { a.emitSet(0x96, dst) }
+
+// Seta sets dst to 1 if above (unsigned >), 0 otherwise.
+func (a *Assembler) Seta(dst Reg) { a.emitSet(0x97, dst) }
+
+// Setp sets dst to 1 if parity flag is set (PF=1, NaN in float), 0 otherwise.
+func (a *Assembler) Setp(dst Reg) { a.emitSet(0x9A, dst) }
+
+// Setnp sets dst to 1 if parity flag is clear (PF=0, not NaN), 0 otherwise.
+func (a *Assembler) Setnp(dst Reg) { a.emitSet(0x9B, dst) }
+
+// Setl sets dst to 1 if less (signed <), 0 otherwise.
+func (a *Assembler) Setl(dst Reg) { a.emitSet(0x9C, dst) }
+
+// Setge sets dst to 1 if greater or equal (signed >=), 0 otherwise.
+func (a *Assembler) Setge(dst Reg) { a.emitSet(0x9D, dst) }
+
+// Setle sets dst to 1 if less or equal (signed <=), 0 otherwise.
+func (a *Assembler) Setle(dst Reg) { a.emitSet(0x9E, dst) }
+
+// Setg sets dst to 1 if greater (signed >), 0 otherwise.
+func (a *Assembler) Setg(dst Reg) { a.emitSet(0x9F, dst) }
+
+func (a *Assembler) emitSet(code uint8, dst Reg) {
+	// REX prefix is required for byte registers SPL, BPL, SIL, DIL (4..7) and R8B..R15B (8..15)
+	if dst >= 4 {
+		var rex uint8 = 0x40
+		if dst >= 8 {
+			rex |= 1 << 0 // B bit (extends ModRM rm field)
+		}
+		a.bytes = append(a.bytes, rex)
+	}
+
+	a.bytes = append(a.bytes, 0x0F, code)
+	a.emitModRm(modReg, 0, dst)
 }
 
 // Utils

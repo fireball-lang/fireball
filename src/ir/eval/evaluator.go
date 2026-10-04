@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fireball/core"
 	"fireball/ir"
-	"iter"
 	"math"
 	"unicode/utf8"
 )
@@ -417,8 +416,8 @@ func (e *Evaluator) writeIrValue(constant ir.Value, data []uint8) {
 			s = val.Typ.(*ir.StructType)
 		}
 
-		for i, r := range getStructFieldRanges(s) {
-			e.writeIrValue(val.Fields[i], data[r.offset:r.offset+r.size])
+		for i, r := range ir.GetStructFieldRanges(s) {
+			e.writeIrValue(val.Fields[i], data[r.Offset:r.Offset+r.Size])
 		}
 
 	case *ir.GlobalVar:
@@ -460,50 +459,4 @@ func (e *Evaluator) push(size uint64) uint64 {
 	e.heapPtr += size
 
 	return addr
-}
-
-type fieldRange struct {
-	offset uint64
-	size   uint64
-}
-
-func getStructFieldRanges(s *ir.StructType) iter.Seq2[int, fieldRange] {
-	if s.Packed {
-		return func(yield func(int, fieldRange) bool) {
-			offset := uint64(0)
-
-			for i, field := range s.Fields {
-				size := uint64(field.Type.Info().Size)
-
-				if !yield(i, fieldRange{offset: offset, size: size}) {
-					return
-				}
-
-				offset += size
-			}
-		}
-	}
-
-	return func(yield func(int, fieldRange) bool) {
-		offset := uint64(0)
-
-		for i, field := range s.Fields {
-			info := field.Type.Info()
-			offset = alignTo(offset, uint64(info.Align))
-
-			if !yield(i, fieldRange{offset: offset, size: uint64(info.Size)}) {
-				return
-			}
-
-			offset += uint64(info.Size)
-		}
-	}
-}
-
-func alignTo(num, align uint64) uint64 {
-	if num%align != 0 {
-		num += align - (num % align)
-	}
-
-	return num
 }

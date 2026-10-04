@@ -20,6 +20,8 @@ type Type interface {
 type StructLikeType interface {
 	Type
 
+	IsPacked() bool
+
 	AllFields() iter.Seq2[int, Field]
 	Field(name string) (Type, int)
 }
@@ -207,6 +209,10 @@ func (s StructType) Equals(other Type) bool {
 	}
 }
 
+func (s StructType) IsPacked() bool {
+	return s.Packed
+}
+
 func (s StructType) AllFields() iter.Seq2[int, Field] {
 	return slices.All(s.Fields)
 }
@@ -246,6 +252,10 @@ func (r RefStructType) Equals(other Type) bool {
 	}
 }
 
+func (r RefStructType) IsPacked() bool {
+	return r.Struct.Packed
+}
+
 func (r RefStructType) AllFields() iter.Seq2[int, Field] {
 	return r.Struct.AllFields()
 }
@@ -280,7 +290,7 @@ func alignTo(num, align uint32) uint32 {
 
 func IsAggregate(typ Type) bool {
 	switch typ.(type) {
-	case *ArrayType, *StructType, *RefStructType:
+	case *VectorType, *ArrayType, *StructType, *RefStructType:
 		return true
 
 	default:

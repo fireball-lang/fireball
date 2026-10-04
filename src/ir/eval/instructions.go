@@ -511,14 +511,14 @@ func calcGep(addr uint64, typ ir.Type, indices []int64) Register {
 			typ = t.Element
 
 		case *ir.StructType:
-			ranges := getStructFieldRanges(t)
-			addr += seqAt(ranges, int(idx)).offset
+			ranges := ir.GetStructFieldRanges(t)
+			addr += seqAt(ranges, int(idx)).Offset
 
 			typ = t.Fields[idx].Type
 
 		case *ir.RefStructType:
-			ranges := getStructFieldRanges(&t.Struct)
-			addr += seqAt(ranges, int(idx)).offset
+			ranges := ir.GetStructFieldRanges(&t.Struct)
+			addr += seqAt(ranges, int(idx)).Offset
 
 			typ = t.Struct.Fields[idx].Type
 
@@ -588,8 +588,8 @@ func (e *Evaluator) readRegister(addr uint64, typ ir.Type) Register {
 	case *ir.StructType:
 		aggregate := make([]Register, len(typ.Fields))
 
-		for i, r := range getStructFieldRanges(typ) {
-			aggregate[i] = e.readRegister(addr+r.offset, typ.Fields[i].Type)
+		for i, r := range ir.GetStructFieldRanges(typ) {
+			aggregate[i] = e.readRegister(addr+r.Offset, typ.Fields[i].Type)
 		}
 
 		return Register{Aggregate: aggregate}
@@ -642,8 +642,8 @@ func (e *Evaluator) writeRegister(addr uint64, typ ir.Type, reg Register) {
 		}
 
 	case *ir.StructType:
-		for i, r := range getStructFieldRanges(typ) {
-			e.writeRegister(addr+r.offset, typ.Fields[i].Type, reg.Aggregate[i])
+		for i, r := range ir.GetStructFieldRanges(typ) {
+			e.writeRegister(addr+r.Offset, typ.Fields[i].Type, reg.Aggregate[i])
 		}
 
 	case *ir.RefStructType:

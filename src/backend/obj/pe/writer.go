@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"debug/pe"
 	"encoding/binary"
+	"fireball/core"
 	"fmt"
 	"io"
 	"math"
@@ -61,6 +62,8 @@ type writer struct {
 }
 
 func Write(f *obj.File, w io.Writer) error {
+	defer core.Scope()()
+
 	if f.Arch != obj.AMD64 {
 		return fmt.Errorf("pe: unsupported architecture %v", f.Arch)
 	}
@@ -97,6 +100,8 @@ func Write(f *obj.File, w io.Writer) error {
 }
 
 func WriteTo(f *obj.File, path string) (err error) {
+	defer core.Scope()()
+
 	var file *os.File
 
 	file, err = os.Create(path)

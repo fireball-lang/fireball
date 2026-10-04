@@ -93,6 +93,11 @@ jobs:
           arch: ${{ matrix.arch }}
           path: "llvm"
 
+      - name: Run tests (fireball)
+        shell: bash
+        working-directory: tests
+        run: ../fireball${{ matrix.ext }} test -p fb
+
       - name: Run tests (debug)
         shell: bash
         working-directory: tests

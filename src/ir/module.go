@@ -42,6 +42,54 @@ func (m *Module) IsEmpty() bool {
 	return len(m.functions) == 0 && len(m.globalVars) == 0
 }
 
+// Clone
+
+type CloneParts uint8
+
+const (
+	Structs CloneParts = 1 << iota
+	GlobalVariables
+	Functions
+	Metas
+	Summaries
+	All = Structs | GlobalVariables | Functions | Metas | Summaries
+)
+
+func (m *Module) ShallowClone(parts CloneParts) *Module {
+	n := &Module{
+		Path:       m.Path,
+		DataLayout: m.DataLayout,
+		Triple:     m.Triple,
+	}
+
+	if parts&Structs != 0 {
+		n.namedStructs = maps.Clone(m.namedStructs)
+	}
+
+	if parts&GlobalVariables != 0 {
+		n.globalVars = m.globalVars
+		n.globalVarNameMap = maps.Clone(m.globalVarNameMap)
+	}
+
+	if parts&Functions != 0 {
+		n.functions = m.functions
+		n.functionNameMap = maps.Clone(m.functionNameMap)
+	}
+
+	if parts&Metas != 0 {
+		n.namedMetaRefs = maps.Clone(m.namedMetaRefs)
+		n.metaNodes = m.metaNodes
+	}
+
+	if parts&Summaries != 0 {
+		n.headSummary = m.headSummary
+		n.tailSummary = m.tailSummary
+		n.summaryCount = m.summaryCount
+	}
+
+	return n
+}
+
 // Named structs
 
 func (m *Module) NamedStruct(name string, s StructType) *RefStructType {
@@ -128,6 +176,15 @@ func (m *Module) NewFunction(name string, sig *Signature, params []Param) *Funct
 	m.functionNameMap[name] = fun
 
 	return fun
+}
+
+func (m *Module) AddFunction(fun *Function) {
+	if m.SymbolExists(fun.Name) {
+		panic("ir.Module.NewFunction() - Symbol with the name '" + fun.Name + "' already exists")
+	}
+
+	m.functions = append(m.functions, fun)
+	m.functionNameMap[fun.Name] = fun
 }
 
 func (m *Module) GetFunction(name string) *Function {
