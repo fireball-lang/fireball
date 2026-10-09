@@ -415,3 +415,70 @@ func testPrimitiveVarI32ToF32() bool {
 	var i: i32 = 100000;
 	return (i as f32) == 100000.0f;
 }
+
+// --- Explicit &T -> []T / mut &T -> mut []T, []T casts ---
+
+struct Foo {
+	foo: u32,
+	bar: bool,
+}
+
+#[test("explicit: &T -> []T")]
+func testRefToSlice() bool {
+	var foo: Foo;
+	var ref: &Foo = &foo;
+
+	var slice = ref as []Foo;
+
+	return slice.ptr == (&foo as *Foo) && slice.size == 1;
+}
+
+#[test("explicit: mut &T -> mut []T")]
+func testMutRefToMutSlice() bool {
+	var foo: Foo;
+	var ref: mut &Foo = &foo;
+
+	var slice = ref as mut []Foo;
+
+	return slice.ptr == (&foo as *Foo) && slice.size == 1;
+}
+
+#[test("explicit: mut &T -> []T")]
+func testMutRefToSlice() bool {
+	var foo: Foo;
+	var ref: mut &Foo = &foo;
+
+	var slice = ref as []Foo;
+
+	return slice.ptr == (&foo as *Foo) && slice.size == 1;
+}
+
+#[test("explicit: &T -> []u8")]
+func testRefToByteSlice() bool {
+	var foo: Foo;
+	var ref: &Foo = &foo;
+
+	var slice = ref as []u8;
+
+	return slice.ptr == (&foo as *void) && slice.size == sizeof(Foo);
+}
+
+#[test("explicit: mut &T -> mut []u8")]
+func testMutRefToMutByteSlice() bool {
+	var foo: Foo;
+	var ref: mut &Foo = &foo;
+
+	var slice = ref as mut []u8;
+
+	return slice.ptr == (&foo as *void) && slice.size == sizeof(Foo);
+}
+
+#[test("explicit: mut &T -> []u8")]
+func testMutRefToByteSlice() bool {
+	var foo: Foo;
+	var ref: mut &Foo = &foo;
+
+	var slice = ref as []u8;
+
+	return slice.ptr == (&foo as *void) && slice.size == sizeof(Foo);
+}

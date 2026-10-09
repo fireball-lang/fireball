@@ -1259,6 +1259,31 @@ func (c *Codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 
 		return c.EmitCallExpr(callee, sig, fTyp, receiver, nil, to)
 
+	case sema.RefToSlice:
+		sb := c.Struct(to.(*types.Struct))
+
+		sb.Set("ptr", value)
+		sb.Set("size", &ir.Integer{
+			Typ:   ir.I64,
+			Value: core.Unsigned(false, 1),
+		})
+
+		value = sb.Build()
+
+	case sema.RefToByteSlice:
+		pointee, _ := getPointee(from.Type)
+		info := c.Arch.Info(pointee)
+
+		sb := c.Struct(to.(*types.Struct))
+
+		sb.Set("ptr", value)
+		sb.Set("size", &ir.Integer{
+			Typ:   ir.I64,
+			Value: core.Unsigned(false, uint64(info.Size)),
+		})
+
+		value = sb.Build()
+
 	case sema.ArrayToSlice:
 		panic("codegen.Codegen.Cast() - ArrayToSlice should have been handled before calling Cast()")
 

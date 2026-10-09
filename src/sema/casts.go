@@ -35,6 +35,8 @@ const (
 
 	TypeToOption
 	ImplicitAs
+	RefToSlice
+	RefToByteSlice
 	ArrayToSlice
 )
 
@@ -105,6 +107,16 @@ func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
 				return b
 			}
 
+			if a.Pointee.Equals(b.Pointee) {
+				if a.Mutable && b.Mutable {
+					return a
+				}
+				if a.Mutable {
+					return b
+				}
+				return a
+			}
+
 		case *types.Func:
 			if a.Pointee == types.PrimitiveVoid {
 				return a
@@ -131,6 +143,16 @@ func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
 			}
 			if b.Pointee == types.PrimitiveVoid {
 				return b
+			}
+
+			if a.Pointee.Equals(b.Pointee) {
+				if a.Mutable && b.Mutable {
+					return a
+				}
+				if a.Mutable {
+					return b
+				}
+				return a
 			}
 
 		case *types.Func:
@@ -265,6 +287,16 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 
 		case *types.Reference, *types.Pointer, *types.Func:
 			return Noop, true
+
+		case *types.Struct:
+			if (to.Name == "core::Slice" || (fromT.Mutable && to.Name == "core::MutSlice")) && len(to.Substitutions) == 1 {
+				if to.Substitutions[0].Type.Equals(fromT.Pointee) {
+					return RefToSlice, true
+				}
+				if to.Substitutions[0].Type.Equals(types.PrimitiveU8) {
+					return RefToByteSlice, true
+				}
+			}
 		}
 
 	case *types.Pointer:
