@@ -257,7 +257,7 @@ func (t *TypeCache) createStructType(typ *types.Struct) ir.Type {
 	}
 
 	irTyp := ir.StructType{
-		Packed: typ.Packed,
+		Packed: typ.Layout == types.Packed,
 		Fields: fields,
 	}
 

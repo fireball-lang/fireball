@@ -1,0 +1,128 @@
+mod tests::repr_packed;
+
+// Packed: no gaps in between fields and at the end
+//
+//   a: i8   @ offset  0  (size 1, align 1)
+//   b: i32  @ offset  1  (size 4, align 4)
+//   c: i16  @ offset  5  (size 2, align 2)
+//   d: i64  @ offset  7  (size 8, align 8)
+//
+// Total size: 15, align = 1
+
+#[repr(Packed)]
+struct Mixed {
+    a: i8,
+    b: i32,
+    c: i16,
+    d: i64,
+}
+
+#[test("sizeof(Mixed)")]
+func testSizeofMixed() bool {
+    return sizeof(Mixed) == 15u;
+}
+
+#[test("alignof(Mixed)")]
+func testAlignofMixed() bool {
+    return alignof(Mixed) == 1u;
+}
+
+#[test("offsetof(Mixed, a)")]
+func testOffsetofMixedA() bool {
+    return offsetof(Mixed, a) == 0u;
+}
+
+#[test("offsetof(Mixed, b)")]
+func testOffsetofMixedB() bool {
+    return offsetof(Mixed, b) == 1u;
+}
+
+#[test("offsetof(Mixed, c)")]
+func testOffsetofMixedC() bool {
+    return offsetof(Mixed, c) == 5u;
+}
+
+#[test("offsetof(Mixed, d)")]
+func testOffsetofMixedD() bool {
+    return offsetof(Mixed, d) == 7u;
+}
+
+// Descending: no gaps in between fields and at the end
+//
+//   x: i64  @ offset  0  (size 8, align 8)
+//   y: i32  @ offset  8  (size 4, align 4)
+//   z: i16  @ offset 12  (size 2, align 2)
+//   w: i8   @ offset 14  (size 1, align 1)
+//
+// Total size: 15, align = 1
+
+#[repr(Packed)]
+struct Descending {
+    x: i64,
+    y: i32,
+    z: i16,
+    w: i8,
+}
+
+#[test("sizeof(Descending)")]
+func testSizeofDescending() bool {
+    return sizeof(Descending) == 15u;
+}
+
+#[test("alignof(Descending)")]
+func testAlignofDescending() bool {
+    return alignof(Descending) == 1u;
+}
+
+#[test("offsetof(Descending, x)")]
+func testOffsetofDescendingX() bool {
+    return offsetof(Descending, x) == 0u;
+}
+
+#[test("offsetof(Descending, y)")]
+func testOffsetofDescendingY() bool {
+    return offsetof(Descending, y) == 8u;
+}
+
+#[test("offsetof(Descending, z)")]
+func testOffsetofDescendingZ() bool {
+    return offsetof(Descending, z) == 12u;
+}
+
+#[test("offsetof(Descending, w)")]
+func testOffsetofDescendingW() bool {
+    return offsetof(Descending, w) == 14u;
+}
+
+// BoolAndI64: no gaps in between fields and at the end
+//
+//   flag: bool  @ offset 0  (size 1, align 1)
+//   val:  i64   @ offset 1  (size 8, align 8)
+//
+// Total size: 9, align = 1
+
+#[repr(Packed)]
+struct BoolAndI64 {
+    flag: bool,
+    val: i64,
+}
+
+#[test("sizeof(BoolAndI64)")]
+func testSizeofBoolAndI64() bool {
+    return sizeof(BoolAndI64) == 9u;
+}
+
+#[test("alignof(BoolAndI64)")]
+func testAlignofBoolAndI64() bool {
+    return alignof(BoolAndI64) == 1u;
+}
+
+#[test("offsetof(BoolAndI64, flag)")]
+func testOffsetofBoolAndI64Flag() bool {
+    return offsetof(BoolAndI64, flag) == 0u;
+}
+
+#[test("offsetof(BoolAndI64, val)")]
+func testOffsetofBoolAndI64Val() bool {
+    return offsetof(BoolAndI64, val) == 1u;
+}

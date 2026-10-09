@@ -247,7 +247,7 @@ func (c *InstantiationCache) substitute(generic Type, substitutions []Substituti
 		s := &Struct{
 			Name:          generic.Name,
 			ModulePath:    generic.ModulePath,
-			Packed:        generic.Packed,
+			Layout:        generic.Layout,
 			Fields:        nil,
 			Generic:       generic,
 			Substitutions: substitutions,

@@ -39,7 +39,7 @@ func getStructLayout[T Arch](arch T, s *types.Struct) Info {
 			return cmp.Compare(b.Align, a.Align)
 		})
 
-		layout := structLayout{arch: arch, packed: s.Packed}
+		layout := structLayout{arch: arch, packed: false}
 
 		for _, field := range fields {
 			layout.field(field.index, field.Info)
@@ -48,7 +48,17 @@ func getStructLayout[T Arch](arch T, s *types.Struct) Info {
 		return layout.info()
 
 	case types.C:
-		layout := structLayout{arch: arch, packed: s.Packed}
+		layout := structLayout{arch: arch, packed: false}
+
+		for i, field := range s.Fields {
+			info := arch.Info(field.Type)
+			layout.field(uint32(i), info)
+		}
+
+		return layout.info()
+
+	case types.Packed:
+		layout := structLayout{arch: arch, packed: true}
 
 		for i, field := range s.Fields {
 			info := arch.Info(field.Type)

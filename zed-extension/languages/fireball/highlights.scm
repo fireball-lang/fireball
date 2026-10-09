@@ -130,7 +130,7 @@
 (extern_attribute) @attribute
 (link_name_attribute "link_name" @attribute)
 (repr_attribute "repr" @attribute)
-(repr_attribute layout: [ "Fireball" "C" "Union" ] @attribute)
+(repr_attribute layout: [ "Fireball" "C" "Packed" "Union" ] @attribute)
 (intrinsic_attribute "intrinsic" @attribute)
 (intrinsic_attribute kind: [ "syscall" "memcpy" "memmove" "memset" ] @attribute)
 (cfg_attribute "cfg" @attribute)

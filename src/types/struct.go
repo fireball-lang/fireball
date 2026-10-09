@@ -11,6 +11,7 @@ type Layout uint8
 const (
 	Fireball Layout = iota
 	C
+	Packed
 	Union
 )
 
@@ -26,7 +27,6 @@ type Struct struct {
 	Name       string
 	ModulePath []string
 	Layout     Layout
-	Packed     bool
 	TypeParams []*Param
 	Fields     []Field
 
@@ -35,7 +35,7 @@ type Struct struct {
 }
 
 func (s *Struct) Optimize() {
-	if s.Layout == C {
+	if s.Layout == C || s.Layout == Packed {
 		return
 	}
 
@@ -45,7 +45,7 @@ func (s *Struct) Optimize() {
 }
 
 func (s *Struct) Field(name string) *Field {
-	if s.Layout == C {
+	if s.Layout == C || s.Layout == Packed {
 		for i := range s.Fields {
 			field := &s.Fields[i]
 			if field.Name == name {
