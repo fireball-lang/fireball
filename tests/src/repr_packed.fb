@@ -126,3 +126,15 @@ func testOffsetofBoolAndI64Flag() bool {
 func testOffsetofBoolAndI64Val() bool {
     return offsetof(BoolAndI64, val) == 1u;
 }
+
+// Expressions
+
+#[test("initializer")]
+func testInitializer() bool {
+	var b = BoolAndI64 {
+		flag: true,
+		val: 5,
+	};
+
+	return b.flag && b.val == 5;
+}

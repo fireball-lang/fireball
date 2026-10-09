@@ -69,7 +69,15 @@ func (w *writer) value(value ir.Value) {
 		w.arrayLikeValue("[ ", " ]", value.Elements)
 
 	case *ir.Struct:
-		w.arrayLikeValue("{ ", " }", value.Fields)
+		start := "{ "
+		stop := " }"
+
+		if value.Typ.IsPacked() {
+			start = "<{ "
+			stop = " }>"
+		}
+
+		w.arrayLikeValue(start, stop, value.Fields)
 
 	case *ir.Assembly:
 		w.string("asm")
