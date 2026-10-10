@@ -1,0 +1,449 @@
+mod tests::overflow;
+
+// Overflow and wraparound behavior for integer arithmetic.
+//
+// Fireball integers are two's complement and arithmetic wraps on overflow
+// (the IR is emitted without nsw/nuw). These tests pin that contract down
+// for the runtime backends and the comptime evaluator.
+
+// ── Unsigned wraparound: add ──────────────────────────────────────────────────
+
+#[test("u8 add wraps")]
+func u8AddWrap() bool {
+	var a: u8 = 255;
+	return a + 1 == 0;
+}
+
+#[test("u8 add double max wraps")]
+func u8AddDoubleWrap() bool {
+	var a: u8 = 200;
+	return a + a == 144;
+}
+
+#[test("u16 add wraps")]
+func u16AddWrap() bool {
+	var a: u16 = 65535;
+	return a + 1 == 0;
+}
+
+#[test("u32 add wraps")]
+func u32AddWrap() bool {
+	var a: u32 = 4294967295;
+	return a + 1 == 0;
+}
+
+#[test("u64 add wraps")]
+func u64AddWrap() bool {
+	var a: u64 = 0xFFFF_FFFF_FFFF_FFFF;
+	return a + 1 == 0;
+}
+
+// ── Unsigned wraparound: subtract ─────────────────────────────────────────────
+
+#[test("u8 sub underflows")]
+func u8SubWrap() bool {
+	var a: u8 = 0;
+	return a - 1 == 255;
+}
+
+#[test("u16 sub underflows")]
+func u16SubWrap() bool {
+	var a: u16 = 0;
+	return a - 1 == 65535;
+}
+
+#[test("u32 sub underflows")]
+func u32SubWrap() bool {
+	var a: u32 = 0;
+	return a - 1 == 4294967295;
+}
+
+#[test("u64 sub underflows")]
+func u64SubWrap() bool {
+	var a: u64 = 0;
+	return a - 1 == 0xFFFF_FFFF_FFFF_FFFF;
+}
+
+// ── Unsigned wraparound: multiply ─────────────────────────────────────────────
+
+#[test("u8 mul wraps to zero")]
+func u8MulWrap() bool {
+	var a: u8 = 16;
+	return a * 16 == 0;
+}
+
+#[test("u8 mul wraps mod 256")]
+func u8MulWrapMod() bool {
+	var a: u8 = 255;
+	return a * 2 == 254;
+}
+
+#[test("u16 mul wraps to zero")]
+func u16MulWrap() bool {
+	var a: u16 = 256;
+	return a * 256 == 0;
+}
+
+#[test("u32 mul wraps to zero")]
+func u32MulWrap() bool {
+	var a: u32 = 65536;
+	return a * 65536 == 0;
+}
+
+#[test("u64 mul wraps to zero")]
+func u64MulWrap() bool {
+	var a: u64 = 0x8000_0000_0000_0000;
+	return a * 2 == 0;
+}
+
+// ── Compound assign wraparound ────────────────────────────────────────────────
+
+#[test("u8 add assign wraps")]
+func u8AddAssignWrap() bool {
+	var a: u8 = 255;
+	a += 1;
+	return a == 0;
+}
+
+#[test("u8 sub assign underflows")]
+func u8SubAssignWrap() bool {
+	var a: u8 = 0;
+	a -= 1;
+	return a == 255;
+}
+
+#[test("u8 mul assign wraps")]
+func u8MulAssignWrap() bool {
+	var a: u8 = 16;
+	a *= 16;
+	return a == 0;
+}
+
+#[test("u16 sub assign underflows")]
+func u16SubAssignWrap() bool {
+	var a: u16 = 0;
+	a -= 1;
+	return a == 65535;
+}
+
+#[test("u64 add assign wraps")]
+func u64AddAssignWrap() bool {
+	var a: u64 = 0xFFFF_FFFF_FFFF_FFFF;
+	a += 1;
+	return a == 0;
+}
+
+#[test("i8 add assign overflows")]
+func i8AddAssignOverflow() bool {
+	var a: i8 = 127;
+	a += 1;
+	return a == -128;
+}
+
+#[test("i8 sub assign underflows")]
+func i8SubAssignUnderflow() bool {
+	var a: i8 = -128;
+	a -= 1;
+	return a == 127;
+}
+
+// ── Increment / decrement at boundaries ───────────────────────────────────────
+
+#[test("u8 prefix increment wraps")]
+func u8IncWrap() bool {
+	var a: u8 = 255;
+	++a;
+	return a == 0;
+}
+
+#[test("u8 postfix increment value")]
+func u8IncPostValue() bool {
+	var a: u8 = 255;
+	return a++ == 255;
+}
+
+#[test("i8 prefix decrement wraps")]
+func i8DecWrap() bool {
+	var a: i8 = -128;
+	--a;
+	return a == 127;
+}
+
+#[test("i8 postfix decrement value")]
+func i8DecPostValue() bool {
+	var a: i8 = -128;
+	return a-- == -128;
+}
+
+// ── Signed two's complement overflow ──────────────────────────────────────────
+
+#[test("i8 add overflows to min")]
+func i8AddOverflow() bool {
+	var a: i8 = 127;
+	return a + 1 == -128;
+}
+
+#[test("i8 sub underflows to max")]
+func i8SubUnderflow() bool {
+	var a: i8 = -128;
+	return a - 1 == 127;
+}
+
+#[test("i8 mul wraps to zero")]
+func i8MulWrap() bool {
+	var a: i8 = 64;
+	return a * 4 == 0;
+}
+
+#[test("i8 mul wraps to negative")]
+func i8MulWrapNeg() bool {
+	var a: i8 = 64;
+	return a * 3 == -64;
+}
+
+#[test("i8 neg min wraps in place")]
+func i8NegMin() bool {
+	var a: i8 = -128;
+	return -a == -128;
+}
+
+#[test("i8 double neg of min wraps")]
+func i8DoubleNegMin() bool {
+	var a: i8 = -128;
+	return -(-a) == -128;
+}
+
+#[test("i16 add overflows to min")]
+func i16AddOverflow() bool {
+	var a: i16 = 32767;
+	return a + 1 == -32768;
+}
+
+#[test("i16 sub underflows to max")]
+func i16SubUnderflow() bool {
+	var a: i16 = -32768;
+	return a - 1 == 32767;
+}
+
+#[test("i16 mul wraps to negative")]
+func i16MulWrapNeg() bool {
+	var a: i16 = 16384;
+	return a * 3 == -16384;
+}
+
+#[test("i32 add overflows to min")]
+func i32AddOverflow() bool {
+	var a: i32 = 2147483647;
+	return a + 1 == -2147483648;
+}
+
+#[test("i32 sub underflows to max")]
+func i32SubUnderflow() bool {
+	var a: i32 = -2147483648;
+	return a - 1 == 2147483647;
+}
+
+#[test("i32 mul wraps to zero")]
+func i32MulWrap() bool {
+	var a: i32 = 1073741824;
+	return a * 4 == 0;
+}
+
+#[test("i32 neg min wraps in place")]
+func i32NegMin() bool {
+	var a: i32 = -2147483648;
+	return -a == -2147483648;
+}
+
+#[test("i64 add overflows to min")]
+func i64AddOverflow() bool {
+	var a: i64 = 9223372036854775807;
+	return a + 1 == -9223372036854775808;
+}
+
+#[test("i64 min sub underflows to max")]
+func i64SubUnderflow() bool {
+	var a: i64 = -9223372036854775808;
+	return a - 1 == 9223372036854775807;
+}
+
+#[test("i64 min doubled wraps to zero")]
+func i64DoubledMin() bool {
+	var a: i64 = -9223372036854775808;
+	return a + a == 0;
+}
+
+// ── Same-width vs widened arithmetic ──────────────────────────────────────────
+// Mixed-size operands compute in the wider type, so widening happens before
+// the operation and prevents wrapping. Same-width operands wrap.
+
+#[test("same-width u8 add wraps")]
+func sameWidthU8Add() bool {
+	var a: u8 = 255;
+	var b: u8 = 1;
+	return a + b == 0;
+}
+
+#[test("widened u16 add does not wrap")]
+func widenedU16Add() bool {
+	var a: u8 = 255;
+	var b: u16 = 1;
+	return a + b == 256;
+}
+
+#[test("same-width i8 add wraps")]
+func sameWidthI8Add() bool {
+	var a: i8 = 127;
+	var b: i8 = 1;
+	return a + b == -128;
+}
+
+#[test("widened i16 add does not wrap")]
+func widenedI16Add() bool {
+	var a: i8 = 127;
+	var b: i16 = 1;
+	return a + b == 128;
+}
+
+#[test("wrap happens before widening on assignment")]
+func wrapBeforeWiden() bool {
+	var a: u8 = 255;
+	var w: u16 = a + 1;
+	return w == 0;
+}
+
+// ── Division and modulo edges ─────────────────────────────────────────────────
+
+#[test("signed div truncates toward zero")]
+func divTruncatesTowardZero() bool {
+	return -7 / 2 == -3 && 7 / -2 == -3;
+}
+
+#[test("signed rem sign follows dividend")]
+func remSignFollowsDividend() bool {
+	return -7 % 2 == -1 && 7 % -2 == 1 && -7 % -2 == -1;
+}
+
+#[test("unsigned div u64 max")]
+func u64Div() bool {
+	var a: u64 = 0xFFFF_FFFF_FFFF_FFFF;
+	return a / 3 == 0x5555_5555_5555_5555;
+}
+
+#[test("unsigned rem u8")]
+func u8Rem() bool {
+	var a: u8 = 255;
+	return a % 16 == 15;
+}
+
+#[test("mixed width div widens first")]
+func mixedDivWiden() bool {
+	var a: u8 = 255;
+	var b: u16 = 2;
+	return a / b == 127;
+}
+
+// ── Shift boundary behavior ───────────────────────────────────────────────────
+
+#[test("u8 shift left discards high bits")]
+func u8ShlDiscard() bool {
+	var a: u8 = 0xFF;
+	return (a << 1u) == 0xFE;
+}
+
+#[test("u32 shift left discards high bits")]
+func u32ShlDiscard() bool {
+	var a: u32 = 0x8000_0000;
+	return (a << 1u) == 0;
+}
+
+#[test("i32 shift left into sign bit")]
+func i32ShlSignBit() bool {
+	var a: i32 = 1;
+	return (a << 31) == -2147483648;
+}
+
+#[test("u64 shift left into high bit")]
+func u64ShlHighBit() bool {
+	var a: u64 = 1;
+	return (a << 63u) == 0x8000_0000_0000_0000;
+}
+
+#[test("u8 shl shr roundtrip masks")]
+func u8ShlShrRoundtrip() bool {
+	var a: u8 = 0xAB;
+	return ((a << 4u) >>> 4u) == 0x0B;
+}
+
+#[test("i8 arithmetic shift preserves sign")]
+func i8AshrPreservesSign() bool {
+	var a: i8 = -1;
+	return (a >> 3) == -1;
+}
+
+// ── Comptime wrap parity ──────────────────────────────────────────────────────
+// The comptime evaluator must wrap and truncate exactly like the runtime.
+
+const U8_WRAP: u8 = (255 + 1) as u8;      // 0
+const U16_WRAP: u16 = (65535 + 1) as u16; // 0
+const I8_WRAP: i8 = (-128 - 1) as i8;     // 127
+const I8_MIN_NEG: i8 = (-(-128)) as i8;   // -128
+
+#[test("comptime u8 wrap matches runtime")]
+func comptimeU8Wrap() bool {
+	var a: u8 = 255;
+	return U8_WRAP == a + 1;
+}
+
+#[test("comptime u16 wrap matches runtime")]
+func comptimeU16Wrap() bool {
+	var a: u16 = 65535;
+	return U16_WRAP == a + 1;
+}
+
+#[test("comptime i8 wrap matches runtime")]
+func comptimeI8Wrap() bool {
+	var a: i8 = -128;
+	return I8_WRAP == a - 1;
+}
+
+#[test("comptime i8 min neg matches runtime")]
+func comptimeI8MinNeg() bool {
+	var a: i8 = -128;
+	return I8_MIN_NEG == -a;
+}
+
+#[test("comptime wrap in computation matches runtime")]
+func comptimeWrapInComputation() bool {
+	var a: u8 = 250;
+	return U8_WRAP + a == 250;
+}
+
+// ── Comparisons at boundaries ─────────────────────────────────────────────────
+
+#[test("u8 max compares greater than zero")]
+func u8MaxGtZero() bool {
+	var a: u8 = 255;
+	var b: u8 = 0;
+	return a > b;
+}
+
+#[test("i8 min compares less than max")]
+func i8MinLtMax() bool {
+	var a: i8 = -128;
+	return a < 127;
+}
+
+#[test("u64 max compares greater than zero")]
+func u64MaxGtZero() bool {
+	var a: u64 = 0xFFFF_FFFF_FFFF_FFFF;
+	var b: u64 = 0;
+	return a > b;
+}
+
+#[test("u8 max widens for comparison")]
+func u8MaxWidensForCompare() bool {
+	var a: u8 = 255;
+	var w: u16 = 0;
+	return a > w;
+}
