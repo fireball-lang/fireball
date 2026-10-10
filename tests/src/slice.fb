@@ -397,3 +397,23 @@ func mutSliceOrdSizeFallback() bool {
 	var b: []i32 = bArr;
 	return a.ord(b) == Ordering::Less;
 }
+
+// --- MutSlice.ptr field subscript ---
+
+#[test("MutSlice.ptr field store")]
+func mutSlicePtrFieldStore() bool {
+	var array = [3]i32 { 1, 2, 3 };
+	var s: mut []i32 = array;
+	s.ptr[1] = 99;
+
+	return s[1u] == 99 && array[1] == 99;
+}
+
+#[test("MutSlice.ptr field struct store")]
+func mutSlicePtrFieldStruct() bool {
+	var array: [2]Vec3;
+	var s: mut []Vec3 = array;
+	s.ptr[1] = Vec3 { xyz: [3]i32 { 4, 5, 6 } };
+
+	return array[1].xyz[0] == 4 && s[1u].xyz[2] == 6;
+}

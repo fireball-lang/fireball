@@ -644,6 +644,7 @@ func (c *Codegen) VisitIndex(i *ast.Index) ir.Value {
 		irTyp := c.Types.Get(p.Pointee)
 		ptr := c.Load(i.Expr)
 		index := c.Load(i.Index)
+		index = c.ExtendIndex(index, c.ExprInfos[i.Index].Type)
 		return c.Emitter.GetElementPtrDyn(irTyp, ptr, index)
 	}
 
@@ -663,6 +664,7 @@ func (c *Codegen) VisitIndex(i *ast.Index) ir.Value {
 	}
 
 	index := c.Load(i.Index)
+	index = c.ExtendIndex(index, c.ExprInfos[i.Index].Type)
 	value := c.Emitter.GetElementPtrDyn(irTyp, ptr, ir.False, index)
 
 	if !c.ExprInfos[i].Address {
@@ -1478,6 +1480,14 @@ func (c *Codegen) Load(expr ast.Expr) ir.Value {
 	}
 
 	return value
+}
+
+func (c *Codegen) ExtendIndex(index ir.Value, typ types.Type) ir.Value {
+	if prim, ok := typ.(*types.Primitive); ok && types.IsUnsignedInteger(prim.Kind) && prim.Kind.Size() < 8 {
+		return c.Emitter.Ext(ir.Unsigned, index, ir.I64)
+	}
+
+	return index
 }
 
 func (c *Codegen) ResolveType(typ types.Type) types.Type {

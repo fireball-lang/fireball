@@ -87,6 +87,8 @@ func (c *Codegen) BeginFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 
 		if len(classes) == 1 && classes[0] == abi.Memory {
 			value = c.Emitter.Load(typ, value)
+		} else if value.Type() != typ {
+			value = c.BitCast(value, typ)
 		}
 
 		c.Emitter.Store(value, ptr)

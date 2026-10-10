@@ -1,0 +1,264 @@
+mod tests::calls;
+
+// Aggregate values crossing function boundaries. Small structs are passed
+// and returned packed inside integer registers, which makes them sensitive
+// to how bitcasts between struct and integer types are lowered.
+
+#[extern]
+func malloc(size: u64) mut *void;
+
+#[extern]
+func free(ptr: *void);
+
+// ── Small struct (fits in one register) ───────────────────────────────────────
+
+struct Tri8 {
+	a: u8,
+	b: u8,
+	c: u8,
+}
+
+func tri(a: u8, b: u8, c: u8) Tri8 {
+	return Tri8 { a: a, b: b, c: c };
+}
+
+func ident_tri(v: Tri8) Tri8 {
+	return v;
+}
+
+#[test("small struct argument and return roundtrip")]
+func structArgReturnRoundtrip() bool {
+	var v = tri(1, 2, 3);
+	var w = ident_tri(v);
+
+	return w.a == 1 && w.b == 2 && w.c == 3;
+}
+
+#[test("small struct argument in a loop")]
+func structArgLoop() bool {
+	var ok = true;
+
+	for (var i = 0u; i < 16u; i++) {
+		var v = tri(i as u8, (i * 2) as u8, (i * 3) as u8);
+		var w = ident_tri(v);
+
+		if (w.a != i as u8 || w.b != (i * 2) as u8 || w.c != (i * 3) as u8) ok = false;
+	}
+
+	return ok;
+}
+
+// A struct parameter allocated after scalar parameters: a spill that writes
+// past the struct's size clobbers the following parameter's storage.
+
+func sum_parts(v: Tri8, x: u32, y: u32) u32 {
+	return v.a as u32 + v.b as u32 + v.c as u32 + x + y;
+}
+
+#[test("struct param spill does not clobber following params")]
+func structParamSpill() bool {
+	var v = tri(10, 20, 30);
+
+	return sum_parts(v, 1000, 200) == 1260;
+}
+
+// ── Structs spanning one or two registers ─────────────────────────────────────
+
+struct Pair64 {
+	lo: u64,
+	hi: u64,
+}
+
+func ident_pair(v: Pair64) Pair64 {
+	return v;
+}
+
+#[test("two-register struct argument and return roundtrip")]
+func structArgReturnTwoReg() bool {
+	var v = Pair64 { lo: 0x0123_4567_89AB_CDEF, hi: 0xFEDC_BA98_7654_3210 };
+	var w = ident_pair(v);
+
+	return w.lo == 0x0123_4567_89AB_CDEF && w.hi == 0xFEDC_BA98_7654_3210;
+}
+
+// ── 16-byte struct return used as a handle ────────────────────────────────────
+
+struct Bytes {
+	ptr: mut *u8,
+	size: u64,
+}
+
+func make_bytes(base: *u8, len: u64) Bytes {
+	return Bytes { ptr: base as mut *u8, size: len };
+}
+
+#[test("16-byte struct return then element reads")]
+func structReturnReads() bool {
+	var buf = malloc(16) as mut *u8;
+
+	for (var i = 0u; i < 16u; i++) {
+		buf[i] = (i * 3) as u8;
+	}
+
+	var b = make_bytes(buf, 16);
+
+	var ok = true;
+	for (var i = 0u; i < 16u; i++) {
+		if (b.ptr[i] != (i * 3) as u8) ok = false;
+	}
+
+	free(buf);
+	return ok;
+}
+
+// ── Memory-class struct (larger than two registers) ───────────────────────────
+
+struct Big {
+	data: [5]i64,
+}
+
+func sum_big(v: Big) i64 {
+	return v.data[0] + v.data[1] + v.data[2] + v.data[3] + v.data[4];
+}
+
+#[test("memory-class struct argument")]
+func structArgMemory() bool {
+	var v = Big { data: [5]i64 { 1, 2, 3, 4, 5 } };
+
+	return sum_big(v) == 15;
+}
+
+// ── Interface value passed as argument ────────────────────────────────────────
+
+interface Sink {
+	func put(mut self, b: u8) ?bool;
+}
+
+struct Counter {
+	count: u32,
+	sum: u32,
+}
+
+impl Counter : Sink {
+	pub func put(mut self, b: u8) ?bool {
+		self.count += 1;
+		self.sum += b as u32;
+		return true;
+	}
+}
+
+func feed(sink: mut Sink, n: u32) {
+	for (var i = 0u; i < n; i++) {
+		sink.put(i as u8).unwrap();
+	}
+}
+
+#[test("interface value passed by value and dispatched in a loop")]
+func interfaceArgDispatch() bool {
+	var counter = Counter { count: 0, sum: 0 };
+	feed(&counter, 10);
+
+	return counter.count == 10 && counter.sum == 45;
+}
+
+// ── Grid: slice field + byte-stride addressing through pointer casts ──────────
+
+struct Grid[T] {
+	data: mut []T,
+	width: u32,
+	height: u32,
+	stride: u32,
+}
+
+func new_grid[T](width: u32, height: u32) Grid[T] {
+	var size = width * height * sizeof(T);
+
+	return Grid:[T] {
+		data: MutSlice:[T] {
+			ptr: malloc(size as u64) as mut *T,
+			size: width as u64 * height as u64,
+		},
+		width: width,
+		height: height,
+		stride: width * sizeof(T),
+	};
+}
+
+impl[T] Grid[T] {
+	pub func set(mut self, x: u32, y: u32, value: T) {
+		var row = &(self.data.ptr as mut *u8)[y * self.stride];
+		(row as mut *T)[x] = value;
+	}
+
+	pub func get(self, x: u32, y: u32) T {
+		var row = &(self.data.ptr as *u8)[y * self.stride];
+		return (row as *T)[x];
+	}
+}
+
+#[test("grid set/get roundtrip through byte casts")]
+func gridSetGet() bool {
+	var width = 8u;
+	var height = 4u;
+	var grid = new_grid:[Tri8](width, height);
+
+	for (var y = 0u; y < height; y++) {
+		for (var x = 0u; x < width; x++) {
+			grid.set(x, y, tri((x * 7 + 1) as u8, (y * 5 + 2) as u8, (x + y + 3) as u8));
+		}
+	}
+
+	var ok = true;
+	for (var y = 0u; y < height; y++) {
+		for (var x = 0u; x < width; x++) {
+			var px = grid.get(x, y);
+			if (px.a != (x * 7 + 1) as u8 || px.b != (y * 5 + 2) as u8 || px.c != (x + y + 3) as u8) ok = false;
+		}
+	}
+
+	free(grid.data.ptr);
+	return ok;
+}
+
+// ── View struct reading through a reference field ─────────────────────────────
+
+struct GridView {
+	grid: &Grid[Tri8],
+}
+
+impl GridView {
+	func row(self, idx: u32, _buffer: mut []Tri8) mut []Tri8 {
+		var start = idx * self.grid.stride / sizeof(Tri8);
+		return self.grid.data.slice(start, start + self.grid.width);
+	}
+}
+
+#[test("view struct rows through reference field")]
+func viewRowReads() bool {
+	var width = 8u;
+	var height = 4u;
+	var grid = new_grid:[Tri8](width, height);
+
+	for (var y = 0u; y < height; y++) {
+		for (var x = 0u; x < width; x++) {
+			grid.set(x, y, tri((x * 7 + 1) as u8, (y * 5 + 2) as u8, (x + y + 3) as u8));
+		}
+	}
+
+	var view = GridView { grid: &grid };
+	var scratch = MutSlice:[Tri8] { ptr: malloc(width as u64 * 3) as mut *Tri8, size: width as u64 };
+
+	var ok = true;
+	for (var y = 0u; y < height; y++) {
+		var row = view.row(y, scratch);
+
+		for (var x = 0u; x < width; x++) {
+			var px = row[x];
+			if (px.a != (x * 7 + 1) as u8 || px.b != (y * 5 + 2) as u8 || px.c != (x + y + 3) as u8) ok = false;
+		}
+	}
+
+	free(scratch.ptr);
+	free(grid.data.ptr);
+	return ok;
+}

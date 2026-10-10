@@ -226,3 +226,148 @@ func testRefStructField() bool {
     *h.r = 77;
     return x == 77;
 }
+
+// ── pointer subscript stores of aggregates ─────────────────────────────────────
+
+#[extern]
+func malloc(size: u64) mut *void;
+
+#[extern]
+func free(ptr: *void);
+
+struct Tri8 {
+    a: u8,
+    b: u8,
+    c: u8,
+}
+
+func tri(a: u8, b: u8, c: u8) Tri8 {
+    return Tri8 { a: a, b: b, c: c };
+}
+
+#[test("pointer subscript struct store/load")]
+func testPtrStructStore() bool {
+    var buf = malloc(12) as mut *Tri8;
+
+    buf[0] = tri(1, 2, 3);
+    buf[1] = tri(4, 5, 6);
+    buf[2] = tri(7, 8, 9);
+
+    var ok = buf[0].a == 1 && buf[0].b == 2 && buf[0].c == 3;
+    ok = ok && buf[1].a == 4 && buf[1].b == 5 && buf[1].c == 6;
+    ok = ok && buf[2].a == 7 && buf[2].b == 8 && buf[2].c == 9;
+
+    free(buf);
+    return ok;
+}
+
+#[test("post-increment index on pointer store (bytes)")]
+func testPtrStorePostInc() bool {
+    var buf = malloc(8) as mut *u8;
+    var p: u32 = 0;
+
+    buf[p++] = 10;
+    buf[p++] = 20;
+    buf[p++] = 30;
+
+    var ok = buf[0] == 10 && buf[1] == 20 && buf[2] == 30 && p == 3;
+
+    free(buf);
+    return ok;
+}
+
+#[test("post-increment index on pointer store (struct)")]
+func testPtrStructStorePostInc() bool {
+    var buf = malloc(9) as mut *Tri8;
+    var p: u32 = 0;
+
+    buf[p++] = tri(1, 2, 3);
+    buf[p++] = tri(4, 5, 6);
+    buf[p++] = tri(7, 8, 9);
+
+    var ok = buf[0].a == 1 && buf[1].b == 5 && buf[2].c == 9 && p == 3;
+
+    free(buf);
+    return ok;
+}
+
+#[test("address-of pointer subscript")]
+func testAddrOfPtrSubscript() bool {
+    var buf = malloc(8) as mut *u8;
+
+    for (var i = 0u; i < 8u; i++) {
+        buf[i] = i as u8;
+    }
+
+    var p = &buf[3];
+    return (*p) == 3;
+}
+
+// Byte-offset addressing: cast the struct pointer to *u8, index by a byte
+// offset, take the address, then cast back to the struct pointer.
+
+#[test("byte-offset addressing through pointer casts")]
+func testByteRoundtripCast() bool {
+    var buf = malloc(15) as mut *Tri8;
+
+    var byte_ptr = buf as mut *u8;
+    var row = &(byte_ptr)[6];
+    var dst = row as mut *Tri8;
+
+    dst[0] = tri(1, 2, 3);
+    dst[2] = tri(4, 5, 6);
+
+    // byte 6 = element 2, byte 12 = element 4
+    var ok = buf[2].a == 1 && buf[2].b == 2 && buf[2].c == 3;
+    ok = ok && buf[4].a == 4 && buf[4].b == 5 && buf[4].c == 6;
+
+    free(buf);
+    return ok;
+}
+
+#[test("stride multiply then pointer subscript")]
+func testStrideAddressing() bool {
+    var buf = malloc(24) as mut *u8;
+    var stride: u32 = 8;
+
+    for (var y = 0u; y < 3u; y++) {
+        for (var x = 0u; x < 8u; x++) {
+            (buf as mut *u8)[y * stride + x] = (y * 10 + x) as u8;
+        }
+    }
+
+    var ok = (buf as *u8)[0] == 0 && (buf as *u8)[7] == 7;
+    ok = ok && (buf as *u8)[8] == 10 && (buf as *u8)[15] == 17;
+    ok = ok && (buf as *u8)[16] == 20 && (buf as *u8)[23] == 27;
+
+    free(buf);
+    return ok;
+}
+
+// ── unsigned indices must not sign-extend into negative offsets ────────────────
+
+#[test("unsigned u8 pointer index does not wrap")]
+func testUnsignedIndexU8() bool {
+    var buf = malloc(300) as mut *u8;
+    var i: u8 = 200;
+
+    buf[i] = 42;
+
+    var ok = buf[200] == 42 && buf[199] == 0 && buf[201] == 0;
+
+    free(buf);
+    return ok;
+}
+
+#[test("unsigned u16 pointer index does not wrap")]
+func testUnsignedIndexU16() bool {
+    var buf = malloc(40000) as mut *u8;
+    var i: u16 = 30000;
+
+    buf[i] = 42;
+
+    var ok = buf[30000] == 42 && buf[29999] == 0 && buf[30001] == 0;
+
+    free(buf);
+    return ok;
+}

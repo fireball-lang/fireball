@@ -980,7 +980,14 @@ func (c *Codegen) BitCast(value ir.Value, typ ir.Type) ir.Value {
 	}
 
 	// Store + Load
-	ptr := c.Alloca(value.Type(), "bitcast")
+	slotType := value.Type()
+
+	if typ.Info().Size > slotType.Info().Size {
+		slotType = typ
+	}
+
+	ptr := c.Alloca(slotType, "bitcast")
+	c.Emitter.Store(&ir.ZeroInitializer{Typ: slotType}, ptr)
 	c.Emitter.Store(value, ptr)
 
 	return c.Emitter.Load(typ, ptr)
