@@ -787,8 +787,10 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 					panic("sema.analyzer.VisitMember() - Failed to find interface method node")
 				}
 
-				a.nodeTypes[f] = method.Type
-				return ExprInfo{Type: method.Type, Node: f}
+				methodType := a.applyMethodTypeArgs(m, method.Type, nil)
+
+				a.nodeTypes[f] = methodType
+				return ExprInfo{Type: methodType, Node: f}
 			}
 		}
 
@@ -827,7 +829,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 
 				methodType := method.Type
 				subs := []types.Substitution{{Param: constraint.SelfParam, Type: t}}
-				methodType = a.instantiations.Substitute(methodType, subs).(*types.Func)
+				methodType = a.applyMethodTypeArgs(m, methodType, subs)
 
 				a.nodeTypes[f] = methodType
 				return ExprInfo{Type: methodType, Node: f}
@@ -868,6 +870,10 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 					a.Error(m.Name, "field '%s' is private", m.Name.Token.Text)
 				}
 
+				if len(m.TypeArgs) > 0 {
+					a.ErrorRange(ast.SliceRange(m.TypeArgs), "field '%s' cannot have type arguments", m.Name.Token.Text)
+				}
+
 				return ExprInfo{
 					Type:     field.Type,
 					Node:     a.resolveFieldNode(t, m.Name.Token.Text),
@@ -884,10 +890,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 				a.Error(m.Name, "method '%s' is private", m.Name.Token.Text)
 			}
 
-			methodType := sym.Type
-			if len(subs) > 0 {
-				methodType = a.instantiations.Get(methodType, subs).(*types.Func)
-			}
+			methodType := a.applyMethodTypeArgs(m, sym.Type.(*types.Func), subs)
 
 			a.nodeTypes[sym.Node] = methodType
 			return ExprInfo{Type: methodType, Node: sym.Node}
@@ -903,8 +906,10 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 				a.Error(m.Name, "method '%s' is private", m.Name.Token.Text)
 			}
 
-			a.nodeTypes[sym.Node] = sym.Type
-			return ExprInfo{Type: sym.Type, Node: sym.Node}
+			methodType := a.applyMethodTypeArgs(m, sym.Type.(*types.Func), nil)
+
+			a.nodeTypes[sym.Node] = methodType
+			return ExprInfo{Type: methodType, Node: sym.Node}
 		}
 
 		return a.Error(m.Name, "member '%s' doesn't exist on type '%s'", m.Name.Token.Text, t)
@@ -928,6 +933,72 @@ func (a *analyzer) resolveFieldNode(t *types.Struct, name string) ast.Node {
 	}
 
 	return nil
+}
+
+// applyMethodTypeArgs substitutes a method's own type parameters using the type
+// arguments written on the member access (m.TypeArgs), composing them with the
+// receiver's generic substitutions (structSubs) in a single instantiation. The
+// input `f` must be the canonical method template (whose TypeParams are intact).
+// It emits diagnostics when the method is generic but no type arguments are
+// given, when it is not generic but type arguments are, or when the count is
+// wrong.
+func (a *analyzer) applyMethodTypeArgs(m *ast.Member, f *types.Func, structSubs []types.Substitution) *types.Func {
+	name := m.Name.Token.Text
+
+	if len(f.TypeParams) == 0 {
+		if len(m.TypeArgs) > 0 {
+			a.ErrorRange(ast.SliceRange(m.TypeArgs), "method '%s' does not take type arguments", name)
+		}
+
+		if len(structSubs) > 0 {
+			return a.instantiations.Get(f, structSubs).(*types.Func)
+		}
+
+		return f
+	}
+
+	// f is the canonical template; compose the receiver substitutions with the
+	// method's own type arguments so struct and method params resolve together.
+	subs := append([]types.Substitution{}, structSubs...)
+
+	if len(m.TypeArgs) == 0 {
+		a.Error(m.Name, "generic method '%s' requires type arguments, use '%s:[...]' to specify them", name, name)
+
+		if len(subs) > 0 {
+			return a.instantiations.Get(f, subs).(*types.Func)
+		}
+
+		return f
+	}
+
+	if len(f.TypeParams) != len(m.TypeArgs) {
+		a.ErrorRange(ast.SliceRange(m.TypeArgs), "method '%s' expects %d type arguments, got %d", name, len(f.TypeParams), len(m.TypeArgs))
+
+		if len(subs) > 0 {
+			return a.instantiations.Get(f, subs).(*types.Func)
+		}
+
+		return f
+	}
+
+	// Build the method's own substitutions from the given type arguments
+	base := len(subs)
+
+	for i, param := range f.TypeParams {
+		arg := a.ResolveAndAnalyzeType(m.TypeArgs[i])
+		subs = append(subs, types.Substitution{Param: param, Type: arg})
+	}
+
+	// Check the method type-param constraints
+	for i, param := range f.TypeParams {
+		for _, constraint := range param.Constraints {
+			if in, ok := a.instantiations.Substitute(constraint, subs).(*types.Interface); ok {
+				a.CheckConstraint(subs[base+i].Type, in, m.TypeArgs[i])
+			}
+		}
+	}
+
+	return a.instantiations.Substitute(f, subs).(*types.Func)
 }
 
 func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {

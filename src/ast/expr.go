@@ -520,8 +520,9 @@ func (i *Index) _isExpr() {}
 type Member struct {
 	baseNode
 
-	Expr Expr
-	Name *Leaf
+	Expr     Expr
+	Name     *Leaf
+	TypeArgs []Type
 }
 
 func (m *Member) Children() iter.Seq[Node] {
@@ -529,7 +530,14 @@ func (m *Member) Children() iter.Seq[Node] {
 		if !yield(m.Expr) {
 			return
 		}
-		yield(m.Name)
+		if !yield(m.Name) {
+			return
+		}
+		for _, arg := range m.TypeArgs {
+			if !yield(arg) {
+				return
+			}
+		}
 	}
 }
 

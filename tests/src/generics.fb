@@ -62,6 +62,19 @@ func set(mut self, v: T) {
     func take_u64(self, n: u64) u64 {
         return n;
     }
+
+    // Generic instance method: has its own type parameter 'K' while the impl is
+    // generic over 'T'. Exercises the method's own type-param substitution at an
+    // instance method call site.
+    func transform[K](self, value: K) K {
+        return value;
+    }
+
+    // Generic instance method whose own type parameter is constrained. Passing a
+    // type argument that doesn't satisfy the constraint must be rejected.
+    func eq_pair[K: Eq[K]](self, a: K, b: K) bool {
+        return a.eq(b);
+    }
 }
 
 impl Box[i32] {
@@ -209,6 +222,46 @@ func testBoxSet() bool {
 func testBoxTakeU64() bool {
     var b: Box[i32];
     return b.take_u64(1) == 1 && b.take_u64(0) == 0 && b.take_u64(300) == 300;
+}
+
+// ── Generic instance methods (methods with their own type parameters) ──────
+
+// An instance method with its own type parameter, called with explicit type
+// arguments on a concrete struct instantiation.
+#[test("instance generic method transform u32")]
+func testBoxInstanceGeneric() bool {
+    var b: Box[i32];
+    b.value = 7;
+    return b.transform:[u32](99) == 99;
+}
+
+// The same generic instance method called with two different type arguments on
+// two different struct instantiations — link names/distinct instantiations must
+// not bleed into each other.
+#[test("instance generic method multi instantiation")]
+func testBoxInstanceGenericMulti() bool {
+    var b1: Box[i32];
+    b1.value = 1;
+    var b2: Box[i64];
+    b2.value = 2;
+
+    return b1.transform:[u8](200) == 200 && b2.transform:[u64](3333) == 3333;
+}
+
+// The instance generic method's own type parameter feeds the return type, and
+// the result is used in a wider expression.
+#[test("instance generic method return type")]
+func testBoxInstanceGenericRet() bool {
+    var b: Box[f64];
+    return b.transform:[i32](41) + 1 == 42;
+}
+
+// A generic instance method whose own type parameter is constrained; the type
+// argument must satisfy the constraint.
+#[test("instance generic method constrained type param")]
+func testBoxInstanceGenericConstrainned() bool {
+    var b: Box[i32];
+    return b.eq_pair:[i32](3, 3);
 }
 
 #[test("Box[i32] specific inc method")]

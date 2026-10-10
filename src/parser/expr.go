@@ -687,6 +687,37 @@ func (p *parser) parseMember(left ast.Expr, _ int) (m *ast.Member, recoverId int
 		return
 	}
 
+	// ':' '[' TypeArgs ']'
+	if p.current.Kind == lexer.Colon && p.next.Kind == lexer.LeftBracket {
+		// ':'
+		if recoverId = p.expect(lexer.Colon, "expected ':'"); recoverId >= 0 {
+			return
+		}
+
+		// '['
+		if recoverId = p.expect(lexer.LeftBracket, "expected '['"); recoverId >= 0 {
+			return
+		}
+
+		// TypeArgs
+		myRecoverId := p.pushRecoverPoint(lexer.RightBracket)
+		m.TypeArgs, recoverId = parseCommaList(p, lexer.Comma, lexer.RightBracket, p.parseType)
+		p.popRecoverPoint()
+
+		if recoverId >= 0 {
+			if recoverId == myRecoverId {
+				recoverId = -1
+			} else {
+				return
+			}
+		}
+
+		// ']'
+		if recoverId = p.expect(lexer.RightBracket, "expected ']' after type arguments"); recoverId >= 0 {
+			return
+		}
+	}
+
 	return
 }
 
