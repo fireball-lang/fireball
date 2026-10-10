@@ -39,6 +39,12 @@ type RawMeta struct {
 	Values []RawMetaValue
 }
 
+type GuidMeta struct {
+	baseMetaNode
+
+	GUID uint64
+}
+
 // Specialized meta nodes
 
 type CompileUnitMeta struct {

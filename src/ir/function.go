@@ -58,6 +58,8 @@ type Function struct {
 	ParamValues []Value
 	Blocks      []*Block
 
+	GUIDMeta MetaRef
+
 	Data any
 }
 

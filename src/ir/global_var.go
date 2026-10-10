@@ -19,6 +19,8 @@ type GlobalVar struct {
 	Flags       GlobalVarFlags
 	Initializer Value
 
+	GUIDMeta MetaRef
+
 	Data any
 }
 

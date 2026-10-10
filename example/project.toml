@@ -4,7 +4,7 @@ type = "executable"
 lib-c = true
 
 [profile.fb]
-backend = "fireball"
+backend = "llvm"
 output-ir = true
 
 [profile.debug]
@@ -15,3 +15,7 @@ output-ir = true
 
 [[dependency]]
 path = "foo"
+
+[[dependency]]
+url = "https://github.com/fireball-lang/std.git"
+revision = "04c9fe6854449b626c8b5c4a06446139ee00d8b7"

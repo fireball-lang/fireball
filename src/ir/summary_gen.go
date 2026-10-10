@@ -1,6 +1,8 @@
 package ir
 
 import (
+	"crypto/md5"
+	"encoding/binary"
 	"fireball/core"
 	"slices"
 	"strings"
@@ -46,13 +48,20 @@ func GenerateSummary(m *Module) {
 			continue
 		}
 
+		linkage := LinkageExternal
+		if gVar.Flags&Private != 0 {
+			linkage = LinkagePrivate
+		} else if gVar.Flags&LinkOnce != 0 {
+			linkage = LinkageLinkOnceODR
+		}
+
 		linkFlags := LinkSummaryFlags{
-			Linkage:             LinkageExternal,
+			Linkage:             linkage,
 			Visibility:          VisibilityDefault,
 			NotEligibleToImport: false,
 			Live:                false,
 			DsoLocal:            true,
-			CanAutoHide:         strings.HasPrefix(gVar.Name, "fb$"),
+			CanAutoHide:         linkage == LinkageLinkOnceODR,
 			ImportType:          ImportDefinition,
 		}
 
@@ -61,9 +70,6 @@ func GenerateSummary(m *Module) {
 		if gVar.Flags&Constant != 0 {
 			flags = VarConstant | VarReadOnly
 		}
-		if gVar.Flags&LinkOnce != 0 {
-			linkFlags.Linkage = LinkageLinkOnceODR
-		}
 
 		sg.gVarSummaryRefs[gVar] = m.AddSummary(&VariableSummary{
 			Module:    mRef,
@@ -71,6 +77,8 @@ func GenerateSummary(m *Module) {
 			LinkFlags: linkFlags,
 			Flags:     flags,
 		})
+
+		gVar.GUIDMeta = m.AddMeta(&GuidMeta{GUID: MD5Guid(gVar.Name)})
 	}
 
 	for fun := range m.Functions() {
@@ -86,7 +94,7 @@ func GenerateSummary(m *Module) {
 			NotEligibleToImport: false,
 			Live:                !fb,
 			DsoLocal:            true,
-			CanAutoHide:         fb,
+			CanAutoHide:         fun.Flags&LinkOnceODR != 0,
 			ImportType:          ImportDefinition,
 		}
 
@@ -102,6 +110,8 @@ func GenerateSummary(m *Module) {
 			LinkFlags: linkFlags,
 			Flags:     flags,
 		})
+
+		fun.GUIDMeta = m.AddMeta(&GuidMeta{GUID: MD5Guid(fun.Name)})
 	}
 
 	// Fill in references
@@ -217,4 +227,9 @@ func (sg *summaryGen) GetFunctionRef(fun *Function) SummaryRef {
 	sg.funSummaryRefs[fun] = ref
 
 	return ref
+}
+
+func MD5Guid(name string) uint64 {
+	sum := md5.Sum([]byte(name))
+	return binary.LittleEndian.Uint64(sum[:8])
 }

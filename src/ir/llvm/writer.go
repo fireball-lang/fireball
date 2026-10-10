@@ -187,6 +187,11 @@ func (w *writer) globalVar(gVar *ir.GlobalVar) error {
 		w.metaRef(gVar.Meta())
 	}
 
+	if gVar.GUIDMeta.Valid() {
+		w.string(", !guid ")
+		w.metaRef(gVar.GUIDMeta)
+	}
+
 	w.rune('\n')
 
 	if w.needsFlush() {
@@ -281,6 +286,11 @@ func (w *writer) function(fun *ir.Function) error {
 	if fun.Meta().Valid() {
 		w.string(" !dbg ")
 		w.metaRef(fun.Meta())
+	}
+
+	if fun.GUIDMeta.Valid() {
+		w.string(" !guid ")
+		w.metaRef(fun.GUIDMeta)
 	}
 
 	// Body

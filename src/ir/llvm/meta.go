@@ -4,6 +4,7 @@ import (
 	"fireball/core"
 	"fireball/ir"
 	"path/filepath"
+	"strconv"
 )
 
 func (w *writer) meta(node ir.MetaNode) {
@@ -30,6 +31,12 @@ func (w *writer) meta(node ir.MetaNode) {
 			}
 		}
 
+		w.rune('}')
+		return
+
+	case *ir.GuidMeta:
+		w.string("!{i64 ")
+		w.string(strconv.FormatInt(int64(node.GUID), 10))
 		w.rune('}')
 		return
 
