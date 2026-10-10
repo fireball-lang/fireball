@@ -71,6 +71,20 @@ func sliceOffset() bool {
 	return rest.size == 2u && rest[0u] == 30 && rest[1u] == 40;
 }
 
+#[test("Slice.cast")]
+func sliceCast() bool {
+	var array = [2]Vec3 { Vec3 {}, Vec3 {} };
+	var bytes = (array as []Vec3).cast:[u8]();
+	return bytes.size == 2 * sizeof(Vec3);
+}
+
+#[test("Slice.cast_unaligned")]
+func sliceCastUnaligned() bool {
+	var bytes: [17]u8;
+	var slice = (bytes as []u8).offset(5).cast_unaligned:[Vec3]();
+	return slice.size == 1;
+}
+
 // --- MutSlice methods ---
 
 #[test("MutSlice.is_empty")]
@@ -147,6 +161,20 @@ func mutSliceReverse() bool {
 	var s: mut []i32 = array;
 	s.reverse();
 	return s[0u] == 3 && s[1u] == 2 && s[2u] == 1;
+}
+
+#[test("MutSlice.cast")]
+func mutSliceCast() bool {
+	var array = [2]Vec3 { Vec3 {}, Vec3 {} };
+	var bytes = (array as mut []Vec3).cast:[u8]();
+	return bytes.size == 2 * sizeof(Vec3);
+}
+
+#[test("MutSlice.cast_unaligned")]
+func mutSliceCastUnaligned() bool {
+	var bytes: [17]u8;
+	var slice = (bytes as mut []u8).offset(5).cast_unaligned:[Vec3]();
+	return slice.size == 1;
 }
 
 // --- Slice Eq / search methods ---

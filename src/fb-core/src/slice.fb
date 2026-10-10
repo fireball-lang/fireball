@@ -33,6 +33,40 @@ impl[T] Slice[T] {
 	pub func offset(self, start: u64) []T {
 		return self.slice(start, self.size);
 	}
+
+	pub func cast[K](self) []K {
+		var total_bytes = self.size * sizeof(T);
+
+		if (sizeof(K) == 0 || total_bytes % sizeof(K) != 0) {
+			panic("cannot cast slice: total byte size is not a multiple of target type size");
+		}
+
+		if (((self.ptr as u64) % alignof(K)) != 0u) {
+			panic("cannot cast slice: pointer is misaligned for target type");
+		}
+
+		var new_size = total_bytes / sizeof(K);
+
+		return Slice:[K] {
+			ptr: self.ptr as *K,
+			size: new_size,
+		};
+	}
+
+	pub func cast_unaligned[K](self) []K {
+		var total_bytes = self.size * sizeof(T);
+
+		if (sizeof(K) == 0 || total_bytes % sizeof(K) != 0) {
+			panic("cannot cast slice: total byte size is not a multiple of target type size");
+		}
+
+		var new_size = total_bytes / sizeof(K);
+
+		return Slice:[K] {
+			ptr: self.ptr as *K,
+			size: new_size,
+		};
+	}
 }
 
 impl[T: Eq[T]] Slice[T] {
@@ -120,6 +154,40 @@ impl[T] MutSlice[T] {
 
 	pub func offset(self, start: u64) mut []T {
 		return self.slice(start, self.size);
+	}
+
+	pub func cast[K](self) []K {
+		var total_bytes = self.size * sizeof(T);
+
+		if (sizeof(K) == 0 || total_bytes % sizeof(K) != 0) {
+			panic("cannot cast slice: total byte size is not a multiple of target type size");
+		}
+
+		if (((self.ptr as u64) % alignof(K)) != 0u) {
+			panic("cannot cast slice: pointer is misaligned for target type");
+		}
+
+		var new_size = total_bytes / sizeof(K);
+
+		return Slice:[K] {
+			ptr: self.ptr as *K,
+			size: new_size,
+		};
+	}
+
+	pub func cast_unaligned[K](self) []K {
+		var total_bytes = self.size * sizeof(T);
+
+		if (sizeof(K) == 0 || total_bytes % sizeof(K) != 0) {
+			panic("cannot cast slice: total byte size is not a multiple of target type size");
+		}
+
+		var new_size = total_bytes / sizeof(K);
+
+		return Slice:[K] {
+			ptr: self.ptr as *K,
+			size: new_size,
+		};
 	}
 }
 

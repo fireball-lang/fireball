@@ -112,10 +112,18 @@ type testWriter struct {
 	testFuncs  []*ast.Func
 	index      int
 	successful int
+	panic      bool
 }
 
 func (w *testWriter) Write(p []byte) (n int, err error) {
 	for _, b := range p {
+		if w.panic || (b != '0' && b != '1') {
+			w.panic = true
+			_, _ = os.Stderr.Write([]byte{b})
+
+			continue
+		}
+
 		f := w.testFuncs[w.index]
 		w.index++
 
