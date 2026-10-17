@@ -117,8 +117,8 @@ impl[T: Ord[T]] Slice[T] : Ord[Slice[T]] {
 impl[T] Slice[T] : Index[u64] {
 	type Result = T;
 
-	pub func index(self, i: u64) T {
-		return self.ptr[i];
+	pub func index(self, i: u64) &T {
+		return &self.ptr[i] as &T;
 	}
 }
 
@@ -265,8 +265,16 @@ impl[T: Ord[T]] MutSlice[T] : Ord[Slice[T]] {
 impl[T] MutSlice[T] : Index[u64] {
 	type Result = T;
 
-	pub func index(self, i: u64) T {
-		return self.ptr[i];
+	pub func index(self, i: u64) &T {
+		return &self.ptr[i] as &T;
+	}
+}
+
+impl[T] MutSlice[T] : IndexMut[u64] {
+	type Result = T;
+
+	pub func index_mut(mut self, i: u64) mut &T {
+		return &self.ptr[i] as mut &T;
 	}
 }
 

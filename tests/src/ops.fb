@@ -369,9 +369,9 @@ func compoundBitXorVec2() bool {
 impl Vec2 : Index[i32] {
 	type Result = i32;
 
-	pub func index(self, i: i32) i32 {
-	    if (i == 0) return self.x;
-		return self.y;
+	pub func index(self, i: i32) &i32 {
+	    if (i == 0) return &self.x;
+		return &self.y;
 	}
 }
 
@@ -385,6 +385,14 @@ func indexStructVar() bool {
 	var point = Vec2::new(1, 2);
 
 	return point[1] == 2;
+}
+
+#[test("core::Index[T] - struct reference")]
+func indexStructReference() bool {
+	var point = Vec2::new(1, 2);
+	var ref = &point as &Vec2;
+
+	return ref[1] == 2;
 }
 
 #[test("core::Index[T] - struct pointer")]
@@ -403,6 +411,278 @@ func genericIndex[T](a: *T, i: i32) T {
 func genericPtrIndexVarIndex() bool {
 	var a = Vec2::new(1, 2);
 	return genericIndex:[Vec2](&a as *Vec2, 0).x == 1;
+}
+
+// IndexMut
+
+impl Vec2 : IndexMut[i32] {
+	type Result = i32;
+
+	pub func index_mut(mut self, i: i32) mut &i32 {
+	    if (i == 0) return &self.x;
+		return &self.y;
+	}
+}
+
+#[test("core::IndexMut[T] - struct var")]
+func indexMutStructVar() bool {
+	var point = Vec2::new(1, 2);
+
+	point[1] = 4;
+
+	return point.y == 4;
+}
+
+#[test("core::IndexMut[T] - struct mutable reference")]
+func indexMutStructMutReference() bool {
+	var point = Vec2::new(1, 2);
+	var ref = &point as mut &Vec2;
+
+	ref[1] = 4;
+
+	return point.y == 4;
+}
+
+#[test("core::IndexMut[T] - struct mutable pointer")]
+func indexMutStructPointer() bool {
+	var point = Vec2::new(1, 2);
+	var ptr = &point as mut *Vec2;
+
+	ptr[1] = 4;
+
+	return point.y == 4;
+}
+
+// Index through reference / pointer call results (non-lvalue bases)
+
+func refVec2(v: &Vec2) &Vec2 {
+	return v;
+}
+
+func mutRefVec2(v: mut &Vec2) mut &Vec2 {
+	return v;
+}
+
+func ptrVec2(v: *Vec2) *Vec2 {
+	return v;
+}
+
+func mutPtrVec2(v: mut *Vec2) mut *Vec2 {
+	return v;
+}
+
+#[test("core::Index[T] - immutable reference call result")]
+func indexImmutableRefResult() bool {
+	var point = Vec2::new(1, 2);
+	return refVec2(&point)[1] == 2;
+}
+
+#[test("core::Index[T] - address of immutable reference call result")]
+func indexImmutableRefResultAddress() bool {
+	var point = Vec2::new(1, 2);
+	var p = &refVec2(&point)[1];
+	return *p == 2;
+}
+
+#[test("core::Index[T] - immutable pointer call result")]
+func indexImmutablePtrResult() bool {
+	var point = Vec2::new(1, 2);
+	return ptrVec2(&point as *Vec2)[1] == 2;
+}
+
+#[test("core::IndexMut[T] - mutable reference call result assign")]
+func indexMutRefResultAssign() bool {
+	var point = Vec2::new(1, 2);
+	mutRefVec2(&point)[1] = 4;
+	return point.y == 4;
+}
+
+#[test("core::IndexMut[T] - mutable reference call result compound assign")]
+func indexMutRefResultCompoundAssign() bool {
+	var point = Vec2::new(1, 2);
+	mutRefVec2(&point)[1] += 5;
+	return point.y == 7;
+}
+
+#[test("core::IndexMut[T] - mutable reference call result increment")]
+func indexMutRefResultIncrement() bool {
+	var point = Vec2::new(1, 2);
+	mutRefVec2(&point)[1]++;
+	return point.y == 3;
+}
+
+#[test("core::IndexMut[T] - address of mutable reference call result")]
+func indexMutRefResultAddress() bool {
+	var point = Vec2::new(1, 2);
+	var p = &mutRefVec2(&point)[1];
+	*p = 7;
+	return point.y == 7;
+}
+
+#[test("core::IndexMut[T] - mutable pointer call result assign")]
+func indexMutPtrResultAssign() bool {
+	var point = Vec2::new(1, 2);
+	mutPtrVec2(&point as mut *Vec2)[1] = 9;
+	return point.y == 9;
+}
+
+#[test("core::IndexMut[T] - address of mutable pointer call result")]
+func indexMutPtrResultAddress() bool {
+	var point = Vec2::new(1, 2);
+	var p = &mutPtrVec2(&point as mut *Vec2)[1];
+	*p = 7;
+	return point.y == 7;
+}
+
+// Nested index
+
+struct Vec2Row {
+	a: Vec2,
+	b: Vec2,
+}
+
+impl Vec2Row : Index[i32] {
+	type Result = Vec2;
+
+	pub func index(self, i: i32) &Vec2 {
+		if (i == 0) return &self.a;
+		return &self.b;
+	}
+}
+
+impl Vec2Row : IndexMut[i32] {
+	type Result = Vec2;
+
+	pub func index_mut(mut self, i: i32) mut &Vec2 {
+		if (i == 0) return &self.a;
+		return &self.b;
+	}
+}
+
+func mutRefVec2Row(v: mut &Vec2Row) mut &Vec2Row {
+	return v;
+}
+
+func mutPtrVec2Row(v: mut *Vec2Row) mut *Vec2Row {
+	return v;
+}
+
+#[test("core::Index[T] - nested read")]
+func indexNestedRead() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	return m[1][1] == 4;
+}
+
+#[test("core::IndexMut[T] - nested write")]
+func indexNestedWrite() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	m[0][1] = 9;
+	return m.a.y == 9;
+}
+
+#[test("core::IndexMut[T] - nested compound assign")]
+func indexNestedCompoundAssign() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	m[0][1] += 5;
+	return m.a.y == 7;
+}
+
+#[test("core::IndexMut[T] - nested increment")]
+func indexNestedIncrement() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	m[0][1]++;
+	return m.a.y == 3;
+}
+
+#[test("core::IndexMut[T] - nested address")]
+func indexNestedAddress() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	var p = &m[0][1];
+	*p = 7;
+	return m.a.y == 7;
+}
+
+#[test("core::Index[T] - nested read through immutable reference")]
+func indexNestedRefRead() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	var r = &m as &Vec2Row;
+	return r[1][0] == 3;
+}
+
+#[test("core::IndexMut[T] - nested write through mutable reference")]
+func indexNestedMutRefWrite() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	var r = &m as mut &Vec2Row;
+	r[1][0] = 8;
+	return m.b.x == 8;
+}
+
+#[test("core::IndexMut[T] - nested write through mutable pointer")]
+func indexNestedMutPtrWrite() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	var p = &m as mut *Vec2Row;
+	p[1][0] = 8;
+	return m.b.x == 8;
+}
+
+#[test("core::IndexMut[T] - nested write through mutable reference call result")]
+func indexNestedMutRefResultWrite() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	mutRefVec2Row(&m)[1][0] = 8;
+	return m.b.x == 8;
+}
+
+#[test("core::IndexMut[T] - nested write through mutable pointer call result")]
+func indexNestedMutPtrResultWrite() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	mutPtrVec2Row(&m as mut *Vec2Row)[1][0] = 8;
+	return m.b.x == 8;
+}
+
+#[test("core::IndexMut[T] - nested write with subscript index")]
+func indexNestedSubscriptWrite() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	var arr = [1]i32 { 1 };
+	var ids = arr as []i32;
+	m[ids[0]][0] = 8;
+	return m.b.x == 8;
+}
+
+// Field writes through an indexer
+
+#[test("core::IndexMut[T] - field read via indexer")]
+func indexMemberRead() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	return m[1].y == 4;
+}
+
+#[test("core::IndexMut[T] - field write via indexer")]
+func indexMemberWrite() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	m[1].y = 9;
+	return m.b.y == 9;
+}
+
+#[test("core::IndexMut[T] - field compound assign via indexer")]
+func indexMemberCompoundAssign() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	m[1].y += 5;
+	return m.b.y == 9;
+}
+
+#[test("core::IndexMut[T] - field increment via indexer")]
+func indexMemberIncrement() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	m[1].y++;
+	return m.b.y == 5;
+}
+
+#[test("core::IndexMut[T] - address of field via indexer")]
+func indexMemberAddress() bool {
+	var m = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	var p = &m[1].y;
+	*p = 7;
+	return m.b.y == 7;
 }
 
 // ImplicitAs

@@ -116,8 +116,8 @@ impl StringView : Ord[StringView] {
 impl StringView : Index[u32] {
 	type Result = u8;
 
-	pub func index(self, idx: u32) u8 {
-		return self.ptr[idx];
+	pub func index(self, idx: u32) &u8 {
+		return &self.ptr[idx] as &u8;
 	}
 }
 

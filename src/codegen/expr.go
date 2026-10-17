@@ -631,12 +631,20 @@ func (c *Codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 func (c *Codegen) VisitIndex(i *ast.Index) ir.Value {
 	typ := c.ExprType(i.Expr)
 
-	// core::Index[T]
 	rawType := c.ExprInfos[i.Expr].Type
 	rawIndexType := c.ExprInfos[i.Index].Type
 
-	if fTyp, fName := sema.GetBinaryMethod(c.TypeEnv, c.instantiations, "core::Index", rawType, rawIndexType); fTyp != nil {
-		return c.CallMethodExpr(fTyp, fName, i.Expr, []ast.Expr{i.Index})
+	// core::Index[T] / core::IndexMut[T]
+	for _, name := range sema.GetIndexInterfaceNames(i, c.ExprInfos[i.Expr]) {
+		if fTyp, fName := sema.GetBinaryMethod(c.TypeEnv, c.instantiations, name, rawType, rawIndexType); fTyp != nil {
+			value := c.CallMethodExpr(fTyp, fName, i.Expr, []ast.Expr{i.Index})
+
+			if !c.ExprInfos[i].Address {
+				value = c.Emitter.Load(c.Types.Get(c.UnderlyingExprType(i)), value)
+			}
+
+			return value
+		}
 	}
 
 	// Pointer indexing
@@ -644,7 +652,7 @@ func (c *Codegen) VisitIndex(i *ast.Index) ir.Value {
 		irTyp := c.Types.Get(p.Pointee)
 		ptr := c.Load(i.Expr)
 		index := c.Load(i.Index)
-		index = c.ExtendIndex(index, c.ExprInfos[i.Index].Type)
+		index = c.ExtendIndex(index, rawIndexType)
 		return c.Emitter.GetElementPtrDyn(irTyp, ptr, index)
 	}
 
@@ -664,7 +672,7 @@ func (c *Codegen) VisitIndex(i *ast.Index) ir.Value {
 	}
 
 	index := c.Load(i.Index)
-	index = c.ExtendIndex(index, c.ExprInfos[i.Index].Type)
+	index = c.ExtendIndex(index, rawIndexType)
 	value := c.Emitter.GetElementPtrDyn(irTyp, ptr, ir.False, index)
 
 	if !c.ExprInfos[i].Address {

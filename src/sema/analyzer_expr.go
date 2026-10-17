@@ -718,13 +718,37 @@ func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
 		return ExprInfo{Type: types.Invalid}
 	}
 
-	// core::Index[T]
-	if f, _ := GetBinaryMethod(a.typeEnv, a.instantiations, "core::Index", expr.Type, index.Type); f != nil {
-		if p, ok := f.Returns.(*types.Param); ok && p.Associated {
-			return a.Error(i.Expr, "cannot call a function which return type is not fully defined")
+	// core::Index[T] / core::IndexMut[T]
+	var indexRefType *types.Reference
+
+	for _, name := range GetIndexInterfaceNames(i, expr) {
+		if f, _ := GetBinaryMethod(a.typeEnv, a.instantiations, name, expr.Type, index.Type); f != nil {
+			if ref, ok := f.Returns.(*types.Reference); ok {
+				if p, ok := ref.Pointee.(*types.Param); ok && p.Associated {
+					return a.Error(i.Expr, "cannot call a function which return type is not fully defined")
+				}
+
+				indexRefType = ref
+				break
+			} else {
+				return ExprInfo{Type: types.Invalid}
+			}
+		}
+	}
+
+	if indexRefType != nil {
+		address := expr.Address
+
+		switch expr.Type.(type) {
+		case *types.Reference, *types.Pointer:
+			address = true
 		}
 
-		return ExprInfo{Type: f.Returns}
+		return ExprInfo{
+			Type:    indexRefType.Pointee,
+			Mutable: indexRefType.Mutable,
+			Address: address,
+		}
 	}
 
 	// Pointer
@@ -1164,6 +1188,46 @@ func (a *analyzer) VisitBadExpr(_ *ast.BadExpr) ExprInfo {
 
 // Utils
 
+func GetIndexInterfaceNames(i *ast.Index, base ExprInfo) []string {
+	if !indexBaseMutable(base) {
+		return []string{"core::Index"}
+	}
+
+	if exprContextMutating(i) {
+		return []string{"core::IndexMut", "core::Index"}
+	}
+
+	return []string{"core::Index", "core::IndexMut"}
+}
+
+func exprContextMutating(expr ast.Expr) bool {
+	switch parent := expr.Parent().(type) {
+	case *ast.Prefix:
+		return parent.Op == ast.AddressOf || parent.Op.Mutating()
+	case *ast.Postfix:
+		return parent.Op.Mutating()
+	case *ast.Binary:
+		return parent.Left == expr && (parent.Op == ast.Assign || parent.Op.IsCompoundAssign())
+	case *ast.Index:
+		return parent.Expr == expr && exprContextMutating(parent)
+	case *ast.Member:
+		return parent.Expr == expr && exprContextMutating(parent)
+	default:
+		return false
+	}
+}
+
+func indexBaseMutable(info ExprInfo) bool {
+	switch t := info.Type.(type) {
+	case *types.Reference:
+		return t.Mutable
+	case *types.Pointer:
+		return t.Mutable
+	default:
+		return info.Mutable
+	}
+}
+
 func GetUnaryMethod(typeEnv *TypeEnvironment, instantiations *types.InstantiationCache, inName string, calleeType types.Type) (*types.Func, string) {
 	if inName == "" {
 		return nil, ""
@@ -1216,8 +1280,11 @@ func GetBinaryMethod(typeEnv *TypeEnvironment, instantiations *types.Instantiati
 		return nil, ""
 	}
 
-	if ptr, ok := calleeType.(*types.Pointer); ok {
-		calleeType = ptr.Pointee
+	switch typ := calleeType.(type) {
+	case *types.Reference:
+		calleeType = typ.Pointee
+	case *types.Pointer:
+		calleeType = typ.Pointee
 	}
 
 	for _, in := range typeEnv.GetConformances(calleeType) {

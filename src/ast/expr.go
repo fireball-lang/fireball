@@ -265,6 +265,10 @@ const (
 	Dereference
 )
 
+func (p PrefixOp) Mutating() bool {
+	return p == IncrementE || p == DecrementE
+}
+
 func (p PrefixOp) InterfaceName() string {
 	switch p {
 	case Negate:
@@ -304,6 +308,10 @@ const (
 	DecrementO
 	PropagateO
 )
+
+func (p PostfixOp) Mutating() bool {
+	return p == IncrementO || p == DecrementO
+}
 
 type Postfix struct {
 	baseNode

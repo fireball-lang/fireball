@@ -613,11 +613,22 @@ impl i64 : BitXor[i64] {
 
 // Index
 
-/// Implementing this interface overrides the `[]` operator for the concrete type and a pointer to that type.
+/// Implementing this interface overrides the `[]` operator for the concrete type and a reference / pointer to that type.
+/// Returns an immutable reference.
 pub interface Index[T] {
 	type Result;
 
-	func index(self, i: T) Result;
+	func index(self, i: T) &Result;
+}
+
+// IndexMut
+
+/// Implementing this interface overrides the `[]` operator for the concrete type and a reference / pointer to that type.
+/// Returns a mutable reference.
+pub interface IndexMut[T] {
+	type Result;
+
+	func index_mut(mut self, i: T) mut &Result;
 }
 
 // ImplicitAs
