@@ -116,3 +116,38 @@ func testSumArrViaPtr() bool {
     arr[2] = 3;
     return sumArr(&arr[0]) == 6;
 }
+
+// idk
+
+struct Ints { data: [3]i32 }
+
+#[test("array element write via mutable reference")]
+func arrayElementWriteViaMutRef() bool {
+	var x = Ints { data: [3]i32 { 1, 2, 3 } };
+	var r = &x as mut &Ints;
+	r.data[0] = 9;
+	return x.data[0] == 9;
+}
+
+#[test("array element compound assign via mutable reference")]
+func arrayElementCompoundViaMutRef() bool {
+	var x = Ints { data: [3]i32 { 1, 2, 3 } };
+	var r = &x as mut &Ints;
+	r.data[1] += 5;
+	return x.data[1] == 7;
+}
+
+#[test("array element increment via mutable reference")]
+func arrayElementIncrementViaMutRef() bool {
+	var x = Ints { data: [3]i32 { 1, 2, 3 } };
+	var r = &x as mut &Ints;
+	r.data[2]++;
+	return x.data[2] == 4;
+}
+
+#[test("array element read via immutable reference")]
+func arrayElementReadViaImmutableRef() bool {
+	var x = Ints { data: [3]i32 { 1, 2, 3 } };
+	var r = &x as &Ints;
+	return r.data[0] == 1 && x.data[1] == 2;
+}

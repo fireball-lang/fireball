@@ -769,7 +769,7 @@ func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
 
 		return ExprInfo{
 			Type:     t.Element,
-			Mutable:  true,
+			Mutable:  expr.Mutable,
 			Address:  expr.Address,
 			CompTime: expr.CompTime && index.CompTime,
 		}
