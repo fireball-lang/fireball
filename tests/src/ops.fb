@@ -685,6 +685,37 @@ func indexMemberAddress() bool {
 	return m.b.y == 7;
 }
 
+// Mutable method calls through an indexer
+
+impl Vec2 {
+	func set_y(mut self, y: i32) {
+		self.y = y;
+	}
+}
+
+#[test("mutable method via mutable reference indexer")]
+func mutableMethodThroughMutableRefIndexer() bool {
+	var b = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	var r = &b as mut &Vec2Row;
+	r[1].set_y(9);
+	return b.b.y == 9;
+}
+
+#[test("mutable method via mutable reference field")]
+func mutableMethodThroughMutableRefField() bool {
+	var b = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	var r = &b as mut &Vec2Row;
+	r.a.set_y(9);
+	return b.a.y == 9;
+}
+
+#[test("read method via immutable reference indexer")]
+func readMethodThroughImmutableRefIndexer() bool {
+	var b = Vec2Row { a: Vec2::new(1, 2), b: Vec2::new(3, 4) };
+	var r = &b as &Vec2Row;
+	return r[1].y == 4;
+}
+
 // ImplicitAs
 
 impl Vec2 : ImplicitAs[Vec3] {

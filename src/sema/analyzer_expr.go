@@ -1090,24 +1090,38 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 
 				if funcNode.Receiver.Mutable {
 					if member, ok := c.Callee.(*ast.Member); ok {
-						if r, ok := a.exprInfos[member.Expr].Type.(*types.Reference); ok && !r.Mutable {
-							a.Error(member.Expr, "cannot call mutable method '%s' on an immutable reference", funcNode.Name().Token.Text)
-						}
-						if p, ok := a.exprInfos[member.Expr].Type.(*types.Pointer); ok && !p.Mutable {
-							a.Error(member.Expr, "cannot call mutable method '%s' on an immutable pointer", funcNode.Name().Token.Text)
-						}
-						if in, ok := a.exprInfos[member.Expr].Type.(*types.Interface); ok && !in.Mutable {
-							a.Error(member.Expr, "cannot call mutable method '%s' on an immutable interface", funcNode.Name().Token.Text)
-						}
-						if tp, ok := a.exprInfos[member.Expr].Type.(*types.Param); ok {
+						info := a.exprInfos[member.Expr]
+
+						switch t := info.Type.(type) {
+						case *types.Reference:
+							if !t.Mutable {
+								a.Error(member.Expr, "cannot call mutable method '%s' on an immutable reference", funcNode.Name().Token.Text)
+							}
+
+						case *types.Pointer:
+							if !t.Mutable {
+								a.Error(member.Expr, "cannot call mutable method '%s' on an immutable pointer", funcNode.Name().Token.Text)
+							}
+
+						case *types.Interface:
+							if !t.Mutable {
+								a.Error(member.Expr, "cannot call mutable method '%s' on an immutable interface", funcNode.Name().Token.Text)
+							}
+
+						case *types.Param:
 							// Find which constraint owns this method and check its mutability
 							if parentIface, ok := funcNode.Parent().(*ast.Interface); ok {
-								for _, constraint := range tp.Constraints {
+								for _, constraint := range t.Constraints {
 									if a.typeEnv.GetInterfaceNode(constraint) == parentIface && !constraint.Mutable {
-										a.Error(member.Expr, "cannot call mutable method '%s' on type parameter '%s' with immutable constraint '%s'", funcNode.Name().Token.Text, tp.Name, constraint)
+										a.Error(member.Expr, "cannot call mutable method '%s' on type parameter '%s' with immutable constraint '%s'", funcNode.Name().Token.Text, t.Name, constraint)
 										break
 									}
 								}
+							}
+
+						default:
+							if info.Address && !info.Mutable {
+								a.Error(member.Expr, "cannot call mutable method '%s' on an immutable value", funcNode.Name().Token.Text)
 							}
 						}
 					}
@@ -1212,6 +1226,12 @@ func exprContextMutating(expr ast.Expr) bool {
 		return parent.Expr == expr && exprContextMutating(parent)
 	case *ast.Member:
 		return parent.Expr == expr && exprContextMutating(parent)
+
+	case *ast.Call:
+		// A method call may require a mutable receiver, since the method isn't resolved
+		// yet, prefer a mutable reference and fall back to an immutable one
+		return parent.Callee == expr
+
 	default:
 		return false
 	}
