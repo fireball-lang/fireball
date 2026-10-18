@@ -239,7 +239,7 @@ func (a *analyzer) VisitTupleInitializer(t *ast.TupleInitializer) ExprInfo {
 	var wantedTyp *types.Tuple
 	typ := &types.Tuple{Types: make([]types.Type, len(t.Values))}
 
-	if wantedTypRaw, ok := GetWantedTypeOfParent(a.nodeTypes, a.exprInfos, t); ok {
+	if wantedTypRaw, ok := GetWantedTypeOfParent(a.nodeTypes, a.exprInfos, a.typeEnv, t); ok {
 		if typ, ok := wantedTypRaw.(*types.Tuple); ok {
 			wantedTyp = typ
 		}
@@ -678,7 +678,7 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 	var symbol symbols.Symbol
 	var ok bool
 
-	if WantsFunction(a.nodeTypes, a.exprInfos, i) {
+	if WantsFunction(a.nodeTypes, a.exprInfos, a.typeEnv, i) {
 		prevDiag := a.diagnostics
 		symbol, ok = a.GetSymbol(symbols.Function, i.Path)
 
@@ -757,15 +757,15 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 }
 
 func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
-	// Index
-	index := a.AnalyzeExpr(i.Index)
-	if index.Invalid() {
-		return ExprInfo{Type: types.Invalid}
-	}
-
 	// Expression
 	expr := a.AnalyzeExpr(i.Expr)
 	if expr.Invalid() {
+		return ExprInfo{Type: types.Invalid}
+	}
+
+	// Index
+	index := a.AnalyzeExpr(i.Index)
+	if index.Invalid() {
 		return ExprInfo{Type: types.Invalid}
 	}
 
@@ -987,7 +987,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		if field := t.Field(m.Name.Token.Text); field != nil {
 			_, fieldIsFunc := field.Type.(*types.Func)
 
-			if !WantsFunction(a.nodeTypes, a.exprInfos, m) || fieldIsFunc {
+			if !WantsFunction(a.nodeTypes, a.exprInfos, a.typeEnv, m) || fieldIsFunc {
 				if a.checkVisibility && !field.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
 					a.Error(m.Name, "field '%s' is private", m.Name.Token.Text)
 				}
@@ -1455,14 +1455,14 @@ func (a *analyzer) AddressDerivedFromRawPointer(node ast.Expr) bool {
 // Callers must make sure types read from `nodeTypes` (Var, Const, Cast) have
 // been resolved before this is consulted, see VisitCast for the ordering
 // requirement.
-func WantsFunction(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.Node]ExprInfo, node ast.Node) bool {
+func WantsFunction(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.Node]ExprInfo, typeEnv *TypeEnvironment, node ast.Node) bool {
 	// Callee
 	if parent, ok := node.Parent().(*ast.Call); ok && parent.Callee == node {
 		return true
 	}
 
 	// Wanted type of parent
-	if typ, ok := GetWantedTypeOfParent(nodeTypes, exprInfos, node); ok {
+	if typ, ok := GetWantedTypeOfParent(nodeTypes, exprInfos, typeEnv, node); ok {
 		return TypeWantsFunction(typ)
 	}
 
@@ -1480,7 +1480,7 @@ func TypeWantsFunction(typ types.Type) bool {
 	return ok
 }
 
-func GetWantedTypeOfParent(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.Node]ExprInfo, node ast.Node) (types.Type, bool) {
+func GetWantedTypeOfParent(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.Node]ExprInfo, typeEnv *TypeEnvironment, node ast.Node) (types.Type, bool) {
 	switch parent := node.Parent().(type) {
 	case *ast.Const:
 		if parent.Value == node && !core.IsNil(parent.Type) {
@@ -1511,6 +1511,28 @@ func GetWantedTypeOfParent(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.
 					}
 
 					return f.Params[i], true
+				}
+			}
+		}
+
+	case *ast.Index:
+		if parent.Index == node {
+			expr := exprInfos[parent.Expr]
+
+			for _, name := range GetIndexInterfaceNames(parent, expr) {
+				calleeType := expr.Type
+
+				switch typ := calleeType.(type) {
+				case *types.Reference:
+					calleeType = typ.Pointee
+				case *types.Pointer:
+					calleeType = typ.Pointee
+				}
+
+				for _, in := range typeEnv.GetConformances(calleeType) {
+					if in.Name == name && len(in.Substitutions) == 1 {
+						return in.Substitutions[0].Type, true
+					}
 				}
 			}
 		}

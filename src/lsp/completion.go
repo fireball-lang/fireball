@@ -85,14 +85,14 @@ func (s *Server) Completion(_ context.Context, params *protocol.CompletionParams
 
 		// Identifier path completions
 		if id := ast.GetClosestParent[*ast.Identifier](node); id != nil && len(id.Path) >= 2 && cursor.GreaterThan(id.Path[len(id.Path)-2].Range().End) {
-			c.exprContext = !sema.WantsFunction(c.file.NodeTypes, c.file.ExprInfos, id)
+			c.exprContext = !sema.WantsFunction(c.file.NodeTypes, c.file.ExprInfos, c.file.TypeEnv, id)
 			c.Identifier(id)
 			return c.Build(), nil
 		}
 
 		// Member expression completions
 		if m := ast.GetClosestParent[*ast.Member](node); m != nil && !core.IsNil(m.Expr) && cursor.GreaterThan(m.Expr.Range().End) {
-			c.exprContext = !sema.WantsFunction(c.file.NodeTypes, c.file.ExprInfos, m)
+			c.exprContext = !sema.WantsFunction(c.file.NodeTypes, c.file.ExprInfos, c.file.TypeEnv, m)
 			c.Member(m)
 			return c.Build(), nil
 		}
@@ -102,7 +102,7 @@ func (s *Server) Completion(_ context.Context, params *protocol.CompletionParams
 
 		// Single-segment identifiers: the call/reference decision applies here too
 		if id := ast.GetClosestParent[*ast.Identifier](node); id != nil {
-			c.exprContext = c.exprContext && !sema.WantsFunction(c.file.NodeTypes, c.file.ExprInfos, id)
+			c.exprContext = c.exprContext && !sema.WantsFunction(c.file.NodeTypes, c.file.ExprInfos, c.file.TypeEnv, id)
 		}
 	}
 

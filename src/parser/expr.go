@@ -867,9 +867,12 @@ func (p *parser) parseIndex(left ast.Expr) (i *ast.Index, recoverId int) {
 		return
 	}
 
-	// Index
+	// Indices
 	myRecoverId := p.pushRecoverPoint(lexer.RightBracket)
-	i.Index, recoverId = p.parseExpr()
+
+	var indices []ast.Expr
+	indices, recoverId = parseCommaList(p, lexer.Comma, lexer.RightBracket, p.parseExpr)
+
 	p.popRecoverPoint()
 
 	if recoverId >= 0 {
@@ -877,6 +880,20 @@ func (p *parser) parseIndex(left ast.Expr) (i *ast.Index, recoverId int) {
 			recoverId = -1
 		} else {
 			return
+		}
+	}
+
+	if len(indices) == 0 {
+		recoverId = p.error("index operator cannot be empty")
+		return
+	}
+
+	if len(indices) == 1 {
+		i.Index = indices[0]
+	} else {
+		i.Index = &ast.TupleInitializer{
+			Range_: ast.SliceRange(indices),
+			Values: indices,
 		}
 	}
 
