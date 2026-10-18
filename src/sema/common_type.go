@@ -51,6 +51,34 @@ func (c *common) VisitArrayType(t *ast.ArrayType) types.Type {
 	return typ
 }
 
+func (c *common) VisitTupleType(t *ast.TupleType) types.Type {
+	if len(t.Types) == 0 {
+		return c.Error(t, "tuples cannot be empty").Type
+	}
+
+	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
+		return typ
+	}
+
+	typ := &types.Tuple{
+		Types: make([]types.Type, len(t.Types)),
+	}
+
+	for i, t := range t.Types {
+		tTyp := c.ResolveAndAnalyzeType(t)
+
+		if tTyp == types.PrimitiveVoid {
+			c.Error(t, "void is not allowed inside a tuple")
+			tTyp = types.Invalid
+		}
+
+		typ.Types[i] = tTyp
+	}
+
+	c.nodeTypes[t] = typ
+	return typ
+}
+
 func (c *common) VisitReferenceType(t *ast.ReferenceType) types.Type {
 	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
 		return typ

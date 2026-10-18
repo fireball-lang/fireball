@@ -55,7 +55,21 @@ outer:
 
 		// Variable, function, static-method identifier, member access
 		// (field, method), struct initializer field and offsetof field
-		case *ast.Identifier, *ast.Member, *ast.FieldInitializer, *ast.OffsetOf:
+		case *ast.Identifier, *ast.FieldInitializer, *ast.OffsetOf:
+			info, ok := file.ExprInfos[n]
+			if !ok || core.IsNil(info.Node) {
+				break outer
+			}
+
+			return s.buildHover(file, info.Node, rng)
+
+		case *ast.Member:
+			if t, ok := file.ExprInfos[n.Expr].Type.(*types.Tuple); ok {
+				if field := t.Underlying().(*types.Struct).Field(n.Name.Token.Text); field != nil {
+					return s.formatHover(field.Type.String(), nil, rng)
+				}
+			}
+
 			info, ok := file.ExprInfos[n]
 			if !ok || core.IsNil(info.Node) {
 				break outer

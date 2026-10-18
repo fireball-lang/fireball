@@ -19,7 +19,7 @@ func (c *Codegen) GetTypeInfo(typ types.Type) ir.Value {
 
 	// Instantiate generic / pseudo-generic implementation
 	switch typ := typ.(type) {
-	case *types.Array, *types.Reference, *types.Pointer, *types.Func:
+	case *types.Array, *types.Tuple, *types.Reference, *types.Pointer, *types.Func:
 		return c.CreateTypeInfo(typ, true)
 
 	case *types.Struct:
@@ -190,18 +190,20 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 			kind = 0
 		case *types.Array:
 			kind = 1
-		case *types.Reference:
+		case *types.Tuple:
 			kind = 2
-		case *types.Pointer:
+		case *types.Reference:
 			kind = 3
-		case *types.Func:
+		case *types.Pointer:
 			kind = 4
-		case *types.Enum:
+		case *types.Func:
 			kind = 5
-		case *types.Struct:
+		case *types.Enum:
 			kind = 6
-		case *types.Interface:
+		case *types.Struct:
 			kind = 7
+		case *types.Interface:
+			kind = 8
 
 		default:
 			panic("codegen.Codegen.CreateTypeInfo() - Invalid type")
@@ -278,6 +280,13 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 		case *types.Array:
 			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(typ.Size))})
 			sb.Set("data_ptr1", c.GetTypeInfo(typ.Element))
+			sb.Set("data_ptr2", &ir.Null{})
+
+		case *types.Tuple:
+			tupleTypes := c.CreateTypeInfoTupleTypes(typ, linkOnce)
+
+			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(len(typ.Types)))})
+			sb.Set("data_ptr1", tupleTypes)
 			sb.Set("data_ptr2", &ir.Null{})
 
 		case *types.Reference:
@@ -358,6 +367,26 @@ func (c *Codegen) CreateTypeInfoImplementations(typ types.Type, linkOnce bool) *
 	}
 
 	name := TypeInfoLinkName(typ, "type_info_implementations")
+
+	flags := ir.Constant
+	if linkOnce {
+		flags |= ir.LinkOnce
+	}
+
+	return c.GlobalVar(name, flags, ab.Build())
+}
+
+func (c *Codegen) CreateTypeInfoTupleTypes(typ *types.Tuple, linkOnce bool) *ir.GlobalVar {
+	ab := c.Array(&types.Array{
+		Size:    uint32(len(typ.Types)),
+		Element: &types.Pointer{Pointee: c.Builtins.TypeInfo},
+	})
+
+	for _, typ := range typ.Types {
+		ab.Add(c.GetTypeInfo(typ))
+	}
+
+	name := TypeInfoLinkName(typ, "type_info_tuple_types")
 
 	flags := ir.Constant
 	if linkOnce {
@@ -532,7 +561,7 @@ func TypeInfoLinkName(typ types.Type, kind string) string {
 	var substitutions []types.Substitution
 
 	switch typ := typ.(type) {
-	case *types.Primitive, *types.Array, *types.Reference, *types.Pointer, *types.Func:
+	case *types.Primitive, *types.Array, *types.Tuple, *types.Reference, *types.Pointer, *types.Func:
 		name = typ.String()
 
 	case *types.Enum:

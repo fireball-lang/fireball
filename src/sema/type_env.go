@@ -211,6 +211,15 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 
 		return nil
 
+	case *types.Tuple:
+		for _, typ := range t.Types {
+			if !slices.Contains(e.GetConformances(typ), e.builtins.Zeroable) {
+				return nil
+			}
+		}
+
+		return []*types.Interface{e.builtins.Zeroable}
+
 	case *types.Reference:
 		typ = t.Pointee
 

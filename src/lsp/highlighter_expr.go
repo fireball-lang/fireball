@@ -58,6 +58,14 @@ func (hi *highlighter) VisitArrayInitializer(a *ast.ArrayInitializer) int {
 	return 0
 }
 
+func (hi *highlighter) VisitTupleInitializer(t *ast.TupleInitializer) int {
+	for _, value := range t.Values {
+		hi.VisitExpr(value)
+	}
+
+	return 0
+}
+
 func (hi *highlighter) VisitSizeOf(s *ast.SizeOf) int {
 	hi.VisitType(s.Type)
 

@@ -172,6 +172,26 @@ func (a *ArrayInitializer) Children() iter.Seq[Node] {
 
 func (a *ArrayInitializer) _isExpr() {}
 
+// TupleInitializer
+
+type TupleInitializer struct {
+	baseNode
+
+	Values []Expr
+}
+
+func (t *TupleInitializer) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, value := range t.Values {
+			if !yield(value) {
+				return
+			}
+		}
+	}
+}
+
+func (t *TupleInitializer) _isExpr() {}
+
 // SizeOf
 
 type SizeOf struct {

@@ -156,6 +156,17 @@ func (c *InstantiationCache) resolve(typ Type, substitutions []Substitution) Typ
 			Element: element,
 		}
 
+	case *Tuple:
+		types := make([]Type, len(typ.Types))
+
+		for i, typ := range typ.Types {
+			types[i] = c.resolve(typ, substitutions)
+		}
+
+		return &Tuple{
+			Types: types,
+		}
+
 	case *Enum:
 		return typ
 

@@ -97,6 +97,19 @@ func (p *parser) error(msg string) int {
 	}
 
 	// Synchronize
+	return p.synchronize()
+}
+
+func (p *parser) reportError(range_ core.Range, msg string) {
+	p.diagnostics = append(p.diagnostics, core.Diagnostic{
+		Kind:    core.Error,
+		Path:    p.path,
+		Range:   range_,
+		Message: msg,
+	})
+}
+
+func (p *parser) synchronize() int {
 	for p.current.Kind != lexer.EOF {
 		for i := len(p.recoverFrames) - 1; i >= 0; i-- {
 			start := p.recoverFrames[i]
@@ -117,13 +130,4 @@ func (p *parser) error(msg string) int {
 	}
 
 	return 0
-}
-
-func (p *parser) reportError(range_ core.Range, msg string) {
-	p.diagnostics = append(p.diagnostics, core.Diagnostic{
-		Kind:    core.Error,
-		Path:    p.path,
-		Range:   range_,
-		Message: msg,
-	})
 }

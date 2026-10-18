@@ -130,6 +130,20 @@ func (c *Codegen) VisitArrayInitializer(a *ast.ArrayInitializer) ir.Value {
 	return ab.Build()
 }
 
+func (c *Codegen) VisitTupleInitializer(t *ast.TupleInitializer) ir.Value {
+	typ := c.ExprType(t).(*types.Tuple)
+	s := typ.Underlying().(*types.Struct)
+
+	sb := c.Struct(s)
+
+	for i, value := range t.Values {
+		value := c.LoadImplicitCast(value, typ.Types[i])
+		sb.Set(fmt.Sprintf("_%d", i), value)
+	}
+
+	return sb.Build()
+}
+
 func (c *Codegen) VisitSizeOf(s *ast.SizeOf) ir.Value {
 	typ := c.ResolveType(c.NodeTypes[s.Type])
 	info := c.Arch.Info(typ)
@@ -151,9 +165,16 @@ func (c *Codegen) VisitAlignOf(e *ast.AlignOf) ir.Value {
 }
 
 func (c *Codegen) VisitOffsetOf(o *ast.OffsetOf) ir.Value {
-	typ := c.ResolveType(c.NodeTypes[o.Type]).(*types.Struct)
-	info := c.Arch.Info(typ)
+	var typ *types.Struct
 
+	switch t := c.ResolveType(c.NodeTypes[o.Type]).(type) {
+	case *types.Tuple:
+		typ = t.Underlying().(*types.Struct)
+	case *types.Struct:
+		typ = t
+	}
+
+	info := c.Arch.Info(typ)
 	var field abi.Field
 
 	for _, f := range info.Fields {
@@ -656,6 +677,22 @@ func (c *Codegen) VisitIndex(i *ast.Index) ir.Value {
 		return c.Emitter.GetElementPtrDyn(irTyp, ptr, index)
 	}
 
+	// Tuple indexing
+	if _, ok := typ.(*types.Tuple); ok {
+		irTyp := c.Types.Get(typ)
+
+		n := uint32(lexer.ParseInteger(i.Index.(*ast.Number).Token).Unsigned())
+		_, index := irTyp.(ir.StructLikeType).Field(fmt.Sprintf("_%d", n))
+
+		if c.ExprInfos[i].Address {
+			ptr := c.GenerateExpr(i.Expr)
+			return c.Emitter.GetElementPtrConst(irTyp, ptr, 0, uint32(index))
+		}
+
+		value := c.GenerateExpr(i.Expr)
+		return c.Emitter.ExtractValue(value, uint32(index))
+	}
+
 	// Array indexing
 	irTyp := c.Types.Get(typ)
 
@@ -683,6 +720,16 @@ func (c *Codegen) VisitIndex(i *ast.Index) ir.Value {
 	return value
 }
 
+// underlyingStruct returns the struct a type lowers to, unwrapping composed
+// types such as tuples whose underlying representation is a struct.
+func underlyingStruct(typ types.Type) *types.Struct {
+	if t, ok := typ.(types.Composed); ok {
+		typ = t.Underlying()
+	}
+
+	return typ.(*types.Struct)
+}
+
 func (c *Codegen) VisitMember(m *ast.Member) ir.Value {
 	typ := c.UnderlyingExprType(m.Expr)
 
@@ -692,11 +739,11 @@ func (c *Codegen) VisitMember(m *ast.Member) ir.Value {
 
 	if r, ok := typ.(*types.Reference); ok {
 		dereference = true
-		s = r.Pointee.(*types.Struct)
+		s = underlyingStruct(r.Pointee)
 	} else if p, ok := typ.(*types.Pointer); ok {
 		dereference = true
 		pointer = true
-		s = p.Pointee.(*types.Struct)
+		s = underlyingStruct(p.Pointee)
 	} else {
 		s = typ.(*types.Struct)
 	}

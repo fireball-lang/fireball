@@ -270,3 +270,37 @@ func typeofImplements() bool {
 func typeofNotImplements() bool {
 	return typeof(Point).get_vtable(typeof(Named)).is_none();
 }
+
+// ── tuples ────────────────────────────────────────────────────────────────────
+
+#[test("typeof((i32, i64)) kind")]
+func typeofTupleKind() bool {
+	return typeof((i32, i64)).kind == TypeKind::Tuple;
+}
+
+#[test("typeof((i32, i64)) element count")]
+func typeofTupleCount() bool {
+	return typeof((i32, i64)).types().size == 2u;
+}
+
+#[test("typeof((i32, i64)) element types")]
+func typeofTupleTypes() bool {
+	var elems = typeof((i32, i64)).types();
+	return elems[0u].primitive_kind() == PrimitiveKind::I32 && elems[1u].primitive_kind() == PrimitiveKind::I64;
+}
+
+#[test("typeof((i32, i64)) size and alignment")]
+func typeofTupleSize() bool {
+	var info = typeof((i32, i64));
+	return info.size == sizeof((i32, i64)) && info.alignment == alignof((i32, i64));
+}
+
+#[test("typeof nested tuple element kind")]
+func typeofNestedTupleElement() bool {
+	return typeof(((i32, i32), i64)).types()[0u].kind == TypeKind::Tuple;
+}
+
+#[test("typeof((i32, i64)) is not a declaration")]
+func typeofTupleNotDecl() bool {
+	return !typeof((i32, i64)).kind.is_decl();
+}

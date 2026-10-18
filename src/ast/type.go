@@ -55,6 +55,42 @@ func (a *ArrayType) String() string {
 
 func (a *ArrayType) _isType() {}
 
+// Tuple
+
+type TupleType struct {
+	baseNode
+
+	Types []Type
+}
+
+func (t *TupleType) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, typ := range t.Types {
+			if !yield(typ) {
+				return
+			}
+		}
+	}
+}
+
+func (t *TupleType) String() string {
+	var sb strings.Builder
+	sb.WriteRune('(')
+
+	for i, typ := range t.Types {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+
+		sb.WriteString(typ.String())
+	}
+
+	sb.WriteRune(')')
+	return sb.String()
+}
+
+func (t *TupleType) _isType() {}
+
 // Reference
 
 type ReferenceType struct {

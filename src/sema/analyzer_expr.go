@@ -7,6 +7,7 @@ import (
 	"fireball/symbols"
 	"fireball/types"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -232,6 +233,52 @@ func (a *analyzer) VisitArrayInitializer(ai *ast.ArrayInitializer) ExprInfo {
 	}
 }
 
+func (a *analyzer) VisitTupleInitializer(t *ast.TupleInitializer) ExprInfo {
+	compTime := true
+
+	var wantedTyp *types.Tuple
+	typ := &types.Tuple{Types: make([]types.Type, len(t.Values))}
+
+	if wantedTypRaw, ok := GetWantedTypeOfParent(a.nodeTypes, a.exprInfos, t); ok {
+		if typ, ok := wantedTypRaw.(*types.Tuple); ok {
+			wantedTyp = typ
+		}
+	}
+
+	for i := range t.Values {
+		valueTyp := types.Type(types.Invalid)
+
+		if wantedTyp != nil && i < len(wantedTyp.Types) {
+			valueTyp = wantedTyp.Types[i]
+		}
+
+		typ.Types[i] = valueTyp
+	}
+
+	a.exprInfos[t] = ExprInfo{Type: typ}
+
+	for i, value := range t.Values {
+		expr := a.AnalyzeExpr(value)
+		compTime = compTime && expr.CompTime
+
+		valueTyp := expr.Type
+
+		if wantedTyp != nil && i < len(wantedTyp.Types) {
+			valueTyp = wantedTyp.Types[i]
+			a.ExpectType(valueTyp, expr, value)
+		} else if isLiteralExpr(value) {
+			valueTyp = defaultType(valueTyp)
+		}
+
+		typ.Types[i] = valueTyp
+	}
+
+	return ExprInfo{
+		Type:     typ,
+		CompTime: compTime,
+	}
+}
+
 func (a *analyzer) VisitSizeOf(s *ast.SizeOf) ExprInfo {
 	typ := a.ResolveAndAnalyzeType(s.Type)
 	if typ == types.Invalid {
@@ -262,6 +309,10 @@ func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) ExprInfo {
 		return ExprInfo{Type: types.Invalid}
 	}
 
+	if t, ok := typ.(*types.Tuple); ok {
+		typ = t.Underlying()
+	}
+
 	if s, ok := typ.(*types.Struct); ok {
 		if field := s.Field(o.Field.Token.Text); field == nil {
 			a.Error(o.Field, "field '%s' doesn't exist on '%s'", o.Field.Token.Text, s)
@@ -272,7 +323,7 @@ func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) ExprInfo {
 			}
 		}
 	} else {
-		a.Error(o.Type, "expected a struct type, not '%s'", typ)
+		a.Error(o.Type, "expected a struct or tuple type, not '%s'", typ)
 	}
 
 	return ExprInfo{
@@ -775,8 +826,32 @@ func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
 		}
 	}
 
+	// Tuple
+	if t, ok := expr.Type.(*types.Tuple); ok {
+		num, ok := i.Index.(*ast.Number)
+		if !ok || (num.Token.Kind != lexer.BinaryInteger && num.Token.Kind != lexer.HexInteger && num.Token.Kind != lexer.UnsignedInteger && num.Token.Kind != lexer.SignedInteger) {
+			return a.Error(i.Index, "tuples can only be indexed by literal integers")
+		}
+
+		index := lexer.ParseInteger(num.Token)
+		if index.Negative() {
+			return a.Error(i.Index, "invalid tuple index '%s'", num.Token.Text)
+		}
+
+		if index.Unsigned() >= uint64(len(t.Types)) {
+			return a.Error(i.Index, "invalid tuple index %d for tuple of size %d", index.Unsigned(), len(t.Types))
+		}
+
+		return ExprInfo{
+			Type:     t.Types[index.Unsigned()],
+			Mutable:  expr.Mutable,
+			Address:  expr.Address,
+			CompTime: expr.CompTime,
+		}
+	}
+
 	// Invalid
-	return a.Error(i.Expr, "expected an array, pointer or type implementing 'core::Index[T]', got '%s'", expr.Type)
+	return a.Error(i.Expr, "expected an array, tuple, pointer or type implementing 'core::Index[T]', got '%s'", expr.Type)
 }
 
 func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
@@ -884,6 +959,29 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		typ = p.Pointee
 	}
 
+	// Tuple
+	if t, ok := typ.(*types.Tuple); ok {
+		if len(m.TypeArgs) > 0 {
+			a.ErrorRange(ast.SliceRange(m.TypeArgs), "tuple field '%s' cannot have type arguments", m.Name.Token.Text)
+		}
+
+		num, err := strconv.ParseUint(m.Name.Token.Text[1:], 10, 64)
+		if err != nil {
+			return a.Error(m.Name, "invalid tuple field name '%s'", m.Name.Token.Text)
+		}
+
+		if num < uint64(len(t.Types)) {
+			return ExprInfo{
+				Type:     t.Types[num],
+				Mutable:  mutable,
+				Address:  address,
+				CompTime: expr.CompTime,
+			}
+		}
+
+		return a.Error(m.Name, "member '%s' doesn't exist on type '%s'", m.Name.Token.Text, t)
+	}
+
 	// Struct
 	if t, ok := typ.(*types.Struct); ok {
 		if field := t.Field(m.Name.Token.Text); field != nil {
@@ -939,7 +1037,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		return a.Error(m.Name, "member '%s' doesn't exist on type '%s'", m.Name.Token.Text, t)
 	}
 
-	return a.Error(m.Expr, "expected a struct, enum or a pointer to a struct, got '%s'", expr.Type)
+	return a.Error(m.Expr, "expected a tuple, struct, enum or a reference / pointer to one, got '%s'", expr.Type)
 }
 
 func (a *analyzer) resolveFieldNode(t *types.Struct, name string) ast.Node {
@@ -1358,56 +1456,14 @@ func (a *analyzer) AddressDerivedFromRawPointer(node ast.Expr) bool {
 // been resolved before this is consulted, see VisitCast for the ordering
 // requirement.
 func WantsFunction(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.Node]ExprInfo, node ast.Node) bool {
-	switch parent := node.Parent().(type) {
-	case *ast.Const:
-		if parent.Value == node && !core.IsNil(parent.Type) {
-			return TypeWantsFunction(nodeTypes[parent.Type])
-		}
+	// Callee
+	if parent, ok := node.Parent().(*ast.Call); ok && parent.Callee == node {
+		return true
+	}
 
-	case *ast.Var:
-		if parent.Initializer == node && !core.IsNil(parent.Type) {
-			return TypeWantsFunction(nodeTypes[parent.Type])
-		}
-
-	case *ast.Return:
-		f := ast.GetClosestParent[*ast.Func](parent)
-
-		fn, ok := nodeTypes[f].(*types.Func)
-		if !ok {
-			return false
-		}
-
-		return TypeWantsFunction(fn.Returns)
-
-	case *ast.Call:
-		// Callee position
-		if parent.Callee == node {
-			return true
-		}
-
-		// Argument position
-		for i, arg := range parent.Args {
-			if arg == node {
-				if f, ok := exprInfos[parent.Callee].Type.(*types.Func); ok && i < len(f.Params) {
-					if f.HasReceiver {
-						i++
-					}
-
-					return TypeWantsFunction(f.Params[i])
-				}
-			}
-		}
-
-	case *ast.Binary:
-		if parent.Op == ast.Assign && parent.Right == node {
-			return TypeWantsFunction(exprInfos[parent.Left].Type)
-		}
-
-	case *ast.Cast:
-		return TypeWantsFunction(nodeTypes[parent.Type])
-
-	case *ast.FieldInitializer:
-		return TypeWantsFunction(exprInfos[parent].Type)
+	// Wanted type of parent
+	if typ, ok := GetWantedTypeOfParent(nodeTypes, exprInfos, node); ok {
+		return TypeWantsFunction(typ)
 	}
 
 	return false
@@ -1422,6 +1478,68 @@ func TypeWantsFunction(typ types.Type) bool {
 
 	_, ok := typ.(*types.Func)
 	return ok
+}
+
+func GetWantedTypeOfParent(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.Node]ExprInfo, node ast.Node) (types.Type, bool) {
+	switch parent := node.Parent().(type) {
+	case *ast.Const:
+		if parent.Value == node && !core.IsNil(parent.Type) {
+			return nodeTypes[parent.Type], true
+		}
+
+	case *ast.Var:
+		if parent.Initializer == node && !core.IsNil(parent.Type) {
+			return nodeTypes[parent.Type], true
+		}
+
+	case *ast.Return:
+		f := ast.GetClosestParent[*ast.Func](parent)
+
+		fn, ok := nodeTypes[f].(*types.Func)
+		if !ok {
+			return nil, false
+		}
+
+		return fn.Returns, true
+
+	case *ast.Call:
+		for i, arg := range parent.Args {
+			if arg == node {
+				if f, ok := exprInfos[parent.Callee].Type.(*types.Func); ok && i < len(f.Params) {
+					if f.HasReceiver {
+						i++
+					}
+
+					return f.Params[i], true
+				}
+			}
+		}
+
+	case *ast.Binary:
+		if (parent.Op == ast.Assign || parent.Op.IsCompoundAssign()) && parent.Right == node {
+			return exprInfos[parent.Left].Type, true
+		}
+
+	case *ast.Cast:
+		return nodeTypes[parent.Type], true
+
+	case *ast.FieldInitializer:
+		return exprInfos[parent].Type, true
+
+	case *ast.ArrayInitializer:
+		return nodeTypes[parent.Type], true
+
+	case *ast.TupleInitializer:
+		if t, ok := exprInfos[parent].Type.(*types.Tuple); ok {
+			for i, value := range parent.Values {
+				if value == node && i < len(t.Types) {
+					return t.Types[i], true
+				}
+			}
+		}
+	}
+
+	return nil, false
 }
 
 func (a *analyzer) AnalyzeExpr(expr ast.Expr) ExprInfo {

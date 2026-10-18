@@ -54,7 +54,7 @@ func (p *parser) parseExprWithPower(minPower int) (left ast.Expr, recoverId int)
 func (p *parser) parsePrefixExpr() (ast.Expr, int) {
 	switch p.current.Kind {
 	case lexer.LeftParen:
-		return parseParenWrapped(p, p.parseExpr)
+		return p.parseParenExpr()
 
 	case lexer.True, lexer.False:
 		return p.parseBool()
@@ -105,6 +105,57 @@ func (p *parser) parsePrefixExpr() (ast.Expr, int) {
 
 		return p.parsePrefix(rightPower)
 	}
+}
+
+func (p *parser) parseParenExpr() (e ast.Expr, recoverId int) {
+	start := p.current.Range.Start
+
+	// '('
+	if recoverId = p.expect(lexer.LeftParen, "expected '('"); recoverId >= 0 {
+		return
+	}
+
+	// Expressions
+	myRecoverId := p.pushRecoverPoint(lexer.RightParen)
+
+	var exprs []ast.Expr
+	exprs, recoverId = parseCommaList(p, lexer.Comma, lexer.RightParen, p.parseExpr)
+
+	p.popRecoverPoint()
+
+	if recoverId >= 0 {
+		if recoverId == myRecoverId {
+			recoverId = -1
+		} else {
+			return
+		}
+	}
+
+	// ')'
+	if recoverId = p.expect(lexer.RightParen, "expected ')'"); recoverId >= 0 {
+		return
+	}
+
+	// Group
+	if len(exprs) == 1 {
+		e = exprs[0]
+		return
+	}
+
+	// Tuple initializer
+	if len(exprs) > 1 {
+		e = &ast.TupleInitializer{
+			Range_: core.Range{Start: start, End: p.previous.Range.End},
+			Values: exprs,
+		}
+		return
+	}
+
+	// Error
+	p.reportError(core.Range{Start: start, End: p.previous.Range.End}, "invalid paren expression")
+	recoverId = p.synchronize()
+
+	return
 }
 
 func (p *parser) parseBool() (b *ast.Bool, recoverId int) {

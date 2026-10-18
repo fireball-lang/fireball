@@ -9,7 +9,7 @@ import (
 
 func (p *parser) canStartType() bool {
 	switch p.current.Kind {
-	case lexer.Mut, lexer.Identifier, lexer.LeftBracket, lexer.Ampersand, lexer.Star, lexer.Func, lexer.QuestionMark:
+	case lexer.Mut, lexer.Identifier, lexer.LeftBracket, lexer.LeftParen, lexer.Ampersand, lexer.Star, lexer.Func, lexer.QuestionMark:
 		return true
 	default:
 		return false
@@ -36,6 +36,8 @@ func (p *parser) parseType() (ast.Type, int) {
 			return p.parseSliceType()
 		}
 		return p.parseArrayType()
+	case lexer.LeftParen:
+		return p.parseTupleType()
 	case lexer.Ampersand:
 		return p.parseReferenceType()
 	case lexer.Star:
@@ -183,6 +185,41 @@ func (p *parser) parseArrayType() (a *ast.ArrayType, recoverId int) {
 
 	// Type
 	if a.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseTupleType() (t *ast.TupleType, recoverId int) {
+	t = &ast.TupleType{}
+	t.Range_.Start = p.current.Range.Start
+	defer func() {
+		t.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// '('
+	if recoverId = p.expect(lexer.LeftParen, "expected '(' before tuple types"); recoverId >= 0 {
+		return
+	}
+
+	// Types
+	myRecoverId := p.pushRecoverPoint(lexer.RightParen)
+	t.Types, recoverId = parseCommaList(p, lexer.Comma, lexer.RightParen, p.parseType)
+	p.popRecoverPoint()
+
+	if recoverId >= 0 {
+		if recoverId == myRecoverId {
+			recoverId = -1
+		} else {
+			return
+		}
+	}
+
+	// ')'
+	if recoverId = p.expect(lexer.RightParen, "expected ')' after tuple types"); recoverId >= 0 {
 		return
 	}
 

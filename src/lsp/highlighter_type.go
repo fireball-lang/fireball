@@ -18,6 +18,14 @@ func (hi *highlighter) VisitArrayType(a *ast.ArrayType) int {
 	return 0
 }
 
+func (hi *highlighter) VisitTupleType(t *ast.TupleType) int {
+	for _, typ := range t.Types {
+		hi.VisitType(typ)
+	}
+
+	return 0
+}
+
 func (hi *highlighter) VisitReferenceType(r *ast.ReferenceType) int {
 	hi.VisitType(r.Pointee)
 

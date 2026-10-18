@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"fireball/comptime"
 	"fireball/core"
 	"fireball/ir/eval"
 	"fireball/types"
@@ -135,6 +136,13 @@ func (p *valuePrinter) aggregate(v *eval.AggregateValue, typ types.Type) {
 	if a, ok := typ.(*types.Array); ok {
 		openCh, closeCh = "[ ", " ]"
 		elem = func(int) (string, types.Type) { return "", a.Element }
+	} else if t, ok := typ.(*types.Tuple); ok {
+		openCh, closeCh = "(", ")"
+		info := comptime.Arch.Info(t)
+
+		elem = func(i int) (string, types.Type) {
+			return "", t.Underlying().(*types.Struct).Fields[info.Fields[i].Index].Type
+		}
 	} else if s, ok := typ.(*types.Struct); ok {
 		fields := s.Fields
 		if s.Generic != nil {

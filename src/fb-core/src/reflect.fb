@@ -4,12 +4,13 @@ mod core;
 pub enum TypeKind : u8 {
 	Primitive = 0,
 	Array = 1,
-	Reference = 2,
-	Pointer = 3,
-	Function = 4,
-	Enum = 5,
-	Struct = 6,
-	Interface = 7,
+	Tuple = 2,
+	Reference = 3,
+	Pointer = 4,
+	Function = 5,
+	Enum = 6,
+	Struct = 7,
+	Interface = 8,
 }
 
 impl TypeKind {
@@ -168,6 +169,12 @@ impl TypeInfo {
 	pub func element(self) &TypeInfo {
 		if (self.kind != TypeKind::Array) panic("self.kind is not `TypeKind::Array`");
 		return self.data_ptr1 as &TypeInfo;
+	}
+
+	/// Returns the tuple types if this type is a tuple or panics.
+	pub func types(self) []&TypeInfo {
+		if (self.kind != TypeKind::Tuple) panic("self.kind is not `TypeKind::Tuple`");
+		return Slice:[&TypeInfo] { ptr: self.data_ptr1 as *&TypeInfo, size: self.data_int };
 	}
 
 	/// Returns the pointee type if this type is a reference or a pointer or panics.

@@ -840,6 +840,10 @@ func (c *Codegen) GetIrValue(val eval.Value, typ types.Type) ir.Value {
 			return &ir.Array{Elements: elements}
 		}
 
+		if t, ok := typ.(*types.Tuple); ok {
+			typ = t.Underlying()
+		}
+
 		fields := make([]ir.Value, len(val.Values))
 		info := c.Arch.Info(typ)
 

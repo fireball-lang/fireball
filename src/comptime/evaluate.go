@@ -16,6 +16,9 @@ import (
 	"math"
 )
 
+var Arch = abi.AMD64
+var CallConv = abi.SystemV
+
 type compTime struct {
 	file           *ast.File
 	instantiations *types.InstantiationCache
@@ -197,7 +200,7 @@ func (ct *compTime) EvalExpr(expr ast.Expr, typ types.Type) (eval.Value, bool) {
 	module := ir.NewModule()
 	module.Path = "__comptime__"
 
-	c := codegen.New(module, ct.file, abi.AMD64, abi.SystemV, ct.instantiations, ct.typeEnv, ct.fileDataMap, ct.builtins, true)
+	c := codegen.New(module, ct.file, Arch, CallConv, ct.instantiations, ct.typeEnv, ct.fileDataMap, ct.builtins, true)
 	c.Types.ShallowMeta = true
 
 	val, err, ok := c.GenerateComptimeValue(expr, typ)

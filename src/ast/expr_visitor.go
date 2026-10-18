@@ -10,6 +10,7 @@ type ExprVisitor[T any] interface {
 	VisitStructInitializer(s *StructInitializer) T
 	VisitWith(w *With) T
 	VisitArrayInitializer(a *ArrayInitializer) T
+	VisitTupleInitializer(t *TupleInitializer) T
 
 	VisitSizeOf(s *SizeOf) T
 	VisitAlignOf(a *AlignOf) T
@@ -48,6 +49,8 @@ func VisitExpr[V ExprVisitor[T], T any](visitor V, expr Expr) T {
 		return visitor.VisitWith(expr)
 	case *ArrayInitializer:
 		return visitor.VisitArrayInitializer(expr)
+	case *TupleInitializer:
+		return visitor.VisitTupleInitializer(expr)
 
 	case *SizeOf:
 		return visitor.VisitSizeOf(expr)

@@ -1,0 +1,344 @@
+mod tests::tuples;
+
+// Tuples are laid out like Fireball-layout structs with generated field names
+// `_0`, `_1`, ...: fields are sorted by alignment (descending), so the memory
+// order can differ from the declaration order. The offsets below are written
+// with that in mind (see repr_fireball.fb for the same convention on structs).
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+func makePair() (i32, i32) {
+    return (1, 2);
+}
+
+func makeMixed3() (i32, i32, i64) {
+    return (10, 20, 30);
+}
+
+func sumPair(t: (i32, i32)) i32 {
+    return t[0] + t[1];
+}
+
+func idPair(t: (i32, i32)) (i32, i32) {
+    return t;
+}
+
+func asTuplePtr(t: *(i32, i32)) *(i32, i32) {
+    return t;
+}
+
+func fillPair(t: mut *(i32, i32), a: i32, b: i32) {
+    t._0 = a;
+    t._1 = b;
+}
+
+func makeBig() (i8, i8, i8, i8, i8, i8, i8, i8, i8, i8, i64) {
+    return (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 111);
+}
+
+func firstOf[T](t: (T, i32)) T {
+    return t[0];
+}
+
+func pairOf[T](v: T) (T, i32) {
+    return (v, 7);
+}
+
+struct HasTuple {
+    pair: (i32, i32),
+}
+
+// ── Parsing / init / basics ───────────────────────────────────────────────────
+
+#[test("tuple initializer and index")]
+func tupleInitializerIndex() bool {
+    var t = (1, 2);
+    return t[0] == 1 && t[1] == 2;
+}
+
+#[test("tuple initializer and member")]
+func tupleInitializerMember() bool {
+    var t = (1, 2);
+    return t._0 == 1 && t._1 == 2;
+}
+
+#[test("tuple zero init")]
+func tupleZeroInit() bool {
+    var t: (i32, i32);
+    return t[0] == 0 && t[1] == 0;
+}
+
+#[test("tuple literal element write")]
+func tupleLiteralWrite() bool {
+    var t = (1, 2);
+    t[0] = 9;
+    return t[0] == 9 && t[1] == 2;
+}
+
+#[test("tuple assign")]
+func tupleAssign() bool {
+    var t = (1, 2);
+    t = (5, 6);
+    return t[0] == 5 && t[1] == 6;
+}
+
+#[test("parenthesized expression is not a tuple")]
+func parenGrouping() bool {
+    return (1 + 2) == 3;
+}
+
+#[test("nested tuple")]
+func nestedTuple() bool {
+    var t: ((i32, i32), i32) = ((1, 2), 3);
+    return t[0][0] == 1 && t[0][1] == 2 && t[1] == 3;
+}
+
+// ── Mixed alignment indexing ──────────────────────────────────────────────────
+
+#[test("tuple (i32, i64) index")]
+func mixedTwoIndex() bool {
+    var t: (i32, i64) = (1, 5);
+    return t[0] == 1 && t[1] == 5;
+}
+
+#[test("tuple (i32, i32, i64) index")]
+func mixedThreeIndex() bool {
+    var t: (i32, i32, i64) = (10, 20, 30);
+    return t[0] == 10 && t[1] == 20 && t[2] == 30;
+}
+
+#[test("tuple (i64, i32, i32) index")]
+func mixedReverseIndex() bool {
+    var t: (i64, i32, i32) = (100, 10, 20);
+    return t[0] == 100 && t[1] == 10 && t[2] == 20;
+}
+
+#[test("tuple (i8, i32, i64) index")]
+func mixedSizesIndex() bool {
+    var t: (i8, i32, i64) = (7, 8, 9);
+    return t[0] == 7 && t[1] == 8 && t[2] == 9;
+}
+
+#[test("tuple (i32, i32, i64) member")]
+func mixedThreeMember() bool {
+    var t: (i32, i32, i64) = (10, 20, 30);
+    return t._0 == 10 && t._1 == 20 && t._2 == 30;
+}
+
+#[test("mixed alignment tuple from function")]
+func mixedThreeFromFunction() bool {
+    var t = makeMixed3();
+    return t[0] == 10 && t[1] == 20 && t[2] == 30;
+}
+
+// ── Large tuples (>= 10 fields) ───────────────────────────────────────────────
+
+#[test("11 element tuple index")]
+func bigTupleIndex() bool {
+    var t = makeBig();
+    return t[0] == 1 && t[9] == 10 && t[10] == 111;
+}
+
+#[test("11 element tuple member")]
+func bigTupleMember() bool {
+    var t = makeBig();
+    return t._0 == 1 && t._9 == 10 && t._10 == 111;
+}
+
+#[test("11 element tuple write")]
+func bigTupleWrite() bool {
+    var t = makeBig();
+    t[10] = 222;
+    t[0] = 42;
+    return t[10] == 222 && t[0] == 42 && t[1] == 2;
+}
+
+// ── Tuples as values ──────────────────────────────────────────────────────────
+
+#[test("tuple return")]
+func tupleReturn() bool {
+    var t = makePair();
+    return t[0] == 1 && t[1] == 2;
+}
+
+#[test("tuple parameter")]
+func tupleParameter() bool {
+    return sumPair((3, 4)) == 7;
+}
+
+#[test("tuple parameter to tuple return")]
+func tuplePassthrough() bool {
+    var t = idPair((5, 6));
+    return t[0] == 5 && t[1] == 6;
+}
+
+#[test("temporary tuple index")]
+func temporaryTupleIndex() bool {
+    return makePair()[0] == 1 && makePair()[1] == 2;
+}
+
+#[test("temporary tuple member")]
+func temporaryTupleMember() bool {
+    return makePair()._0 == 1 && makePair()._1 == 2;
+}
+
+#[test("generic tuple parameter")]
+func genericTupleParameter() bool {
+    return firstOf:[i32]((7, 8)) == 7;
+}
+
+#[test("generic tuple return")]
+func genericTupleReturn() bool {
+    var t = pairOf:[i32](5);
+    return t[0] == 5 && t[1] == 7;
+}
+
+// ── Pointers and addressability ───────────────────────────────────────────────
+
+#[test("address of tuple element")]
+func addressOfTupleElement() bool {
+    var t = (10, 20);
+    var p = &t[0] as *i32;
+    return p[0] == 10 && p[1] == 20;
+}
+
+#[test("write through pointer to tuple element")]
+func writeThroughTupleElementPointer() bool {
+    var t = (10, 20);
+    var p = &t[0] as mut *i32;
+    p[0] = 99;
+    return t[0] == 99 && t[1] == 20;
+}
+
+#[test("tuple pointer temporary")]
+func tuplePointerTemporary() bool {
+    var t = (7, 8);
+    return asTuplePtr(&t)._0 == 7 && asTuplePtr(&t)._1 == 8;
+}
+
+#[test("tuple through mutable pointer param")]
+func tupleMutablePointerParam() bool {
+    var t = (1, 2);
+    fillPair(&t as mut *(i32, i32), 5, 6);
+    return t[0] == 5 && t[1] == 6;
+}
+
+#[test("tuple element compound assign")]
+func tupleElementCompoundAssign() bool {
+    var t = (10, 20);
+    t[0] += 5;
+    return t[0] == 15 && t[1] == 20;
+}
+
+#[test("tuple element increment")]
+func tupleElementIncrement() bool {
+    var t = (10, 20);
+    t[1]++;
+    return t[0] == 10 && t[1] == 21;
+}
+
+// ── Tuples in structs ─────────────────────────────────────────────────────────
+
+#[test("struct with tuple field")]
+func structWithTupleField() bool {
+    var h = HasTuple { pair: (1, 2) };
+    return h.pair[0] == 1 && h.pair._1 == 2;
+}
+
+#[test("struct tuple field write via mutable reference")]
+func structTupleFieldWrite() bool {
+    var h = HasTuple { pair: (1, 2) };
+    var r = &h as mut &HasTuple;
+    r.pair[0] = 9;
+    return h.pair[0] == 9 && h.pair[1] == 2;
+}
+
+#[test("struct with tuple field via with")]
+func structTupleWith() bool {
+    var h = HasTuple { pair: (1, 2) } with { pair: (9, 9) };
+    return h.pair[0] == 9 && h.pair[1] == 9;
+}
+
+// ── Comptime / const / global ─────────────────────────────────────────────────
+
+const PAIR: (i32, i32) = (1, 2);
+const NESTED_PAIR: ((i32, i32), i32) = ((1, 2), 3);
+const TUP_OFF: u32 = offsetof((i32, i64), _0);
+
+var GLOBAL_TUPLE: (i32, i32) = (3, 4);
+
+#[test("const tuple index")]
+func constTupleIndex() bool {
+    return PAIR[0] == 1 && PAIR[1] == 2;
+}
+
+#[test("const tuple member")]
+func constTupleMember() bool {
+    return PAIR._0 == 1 && PAIR._1 == 2;
+}
+
+#[test("const nested tuple")]
+func constNestedTuple() bool {
+    return NESTED_PAIR[0][0] == 1 && NESTED_PAIR[0][1] == 2 && NESTED_PAIR[1] == 3;
+}
+
+#[test("const tuple offsetof")]
+func constTupleOffsetof() bool {
+    return TUP_OFF == offsetof((i32, i64), _0);
+}
+
+#[test("global tuple")]
+func globalTuple() bool {
+    return GLOBAL_TUPLE[0] == 3 && GLOBAL_TUPLE[1] == 4;
+}
+
+// ── Layout / sizeof / alignof / offsetof ──────────────────────────────────────
+
+// (i32, i64): i64 @ 0, i32 @ 8 -> size 16, align 8
+
+#[test("sizeof((i32, i64))")]
+func sizeofPair() bool {
+    return sizeof((i32, i64)) == 16u;
+}
+
+#[test("alignof((i32, i64))")]
+func alignofPair() bool {
+    return alignof((i32, i64)) == 8u;
+}
+
+#[test("offsetof((i32, i64), _0/_1)")]
+func offsetofPair() bool {
+    return offsetof((i32, i64), _0) == 8u && offsetof((i32, i64), _1) == 0u;
+}
+
+// (i32, i32, i64): i64 @ 0, i32 @ 8, i32 @ 12 -> size 16, align 8
+
+#[test("offsetof((i32, i32, i64), _0/_1/_2)")]
+func offsetofMixedThree() bool {
+    return offsetof((i32, i32, i64), _0) == 8u
+        && offsetof((i32, i32, i64), _1) == 12u
+        && offsetof((i32, i32, i64), _2) == 0u;
+}
+
+// (i8, i32, i64): i64 @ 0, i32 @ 8, i8 @ 12 -> size 16, align 8
+
+#[test("offsetof((i8, i32, i64), _0/_1/_2)")]
+func offsetofMixedSizes() bool {
+    return offsetof((i8, i32, i64), _0) == 12u
+        && offsetof((i8, i32, i64), _1) == 8u
+        && offsetof((i8, i32, i64), _2) == 0u;
+}
+
+// (i8 x10, i64): i64 @ 0, ten i8 @ 8..17 -> size alignTo(18, 8) = 24, align 8
+
+#[test("sizeof 11 element tuple")]
+func sizeofBigTuple() bool {
+    return sizeof((i8, i8, i8, i8, i8, i8, i8, i8, i8, i8, i64)) == 24u;
+}
+
+#[test("offsetof 11 element tuple")]
+func offsetofBigTuple() bool {
+    return offsetof((i8, i8, i8, i8, i8, i8, i8, i8, i8, i8, i64), _10) == 0u
+        && offsetof((i8, i8, i8, i8, i8, i8, i8, i8, i8, i8, i64), _0) == 8u
+        && offsetof((i8, i8, i8, i8, i8, i8, i8, i8, i8, i8, i64), _9) == 17u;
+}

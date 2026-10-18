@@ -46,6 +46,13 @@ func hasParam(typ Type, seen map[Type]bool) bool {
 	case *Array:
 		return hasParam(typ.Element, seen)
 
+	case *Tuple:
+		for _, typ := range typ.Types {
+			if hasParam(typ, seen) {
+				return true
+			}
+		}
+
 	case *Alias:
 		if len(typ.TypeParams) > 0 {
 			return true

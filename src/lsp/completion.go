@@ -690,6 +690,8 @@ func (c *completions) Member(m *ast.Member) {
 	modPath := modulePath(c.file)
 
 	switch t := typ.(type) {
+	case *types.Tuple:
+		c.StructMember(t.Underlying().(*types.Struct), modPath)
 	case *types.Struct:
 		c.StructMember(t, modPath)
 	case *types.Enum:
