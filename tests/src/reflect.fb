@@ -280,13 +280,19 @@ func typeofTupleKind() bool {
 
 #[test("typeof((i32, i64)) element count")]
 func typeofTupleCount() bool {
-	return typeof((i32, i64)).types().size == 2u;
+	return typeof((i32, i64)).tuple_fields().size == 2u;
+}
+
+#[test("typeof((i32, i64)) element offsets")]
+func typeofTupleOffsets() bool {
+	var fields = typeof((i32, i64)).tuple_fields();
+	return fields[0].offset == offsetof((i32, i64), _0) && fields[1].offset == offsetof((i32, i64), _1);
 }
 
 #[test("typeof((i32, i64)) element types")]
 func typeofTupleTypes() bool {
-	var elems = typeof((i32, i64)).types();
-	return elems[0u].primitive_kind() == PrimitiveKind::I32 && elems[1u].primitive_kind() == PrimitiveKind::I64;
+	var fields = typeof((i32, i64)).tuple_fields();
+	return fields[0].type_info.primitive_kind() == PrimitiveKind::I32 && fields[1].type_info.primitive_kind() == PrimitiveKind::I64;
 }
 
 #[test("typeof((i32, i64)) size and alignment")]
@@ -297,7 +303,7 @@ func typeofTupleSize() bool {
 
 #[test("typeof nested tuple element kind")]
 func typeofNestedTupleElement() bool {
-	return typeof(((i32, i32), i64)).types()[0u].kind == TypeKind::Tuple;
+	return typeof(((i32, i32), i64)).tuple_fields()[0].type_info.kind == TypeKind::Tuple;
 }
 
 #[test("typeof((i32, i64)) is not a declaration")]

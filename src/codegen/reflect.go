@@ -1,11 +1,15 @@
 package codegen
 
 import (
+	"cmp"
+	"fireball/abi"
 	"fireball/ast"
 	"fireball/core"
 	"fireball/ir"
 	"fireball/types"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -283,7 +287,7 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 			sb.Set("data_ptr2", &ir.Null{})
 
 		case *types.Tuple:
-			tupleTypes := c.CreateTypeInfoTupleTypes(typ, linkOnce)
+			tupleTypes := c.CreateTypeInfoTupleFields(typ, linkOnce)
 
 			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(len(typ.Types)))})
 			sb.Set("data_ptr1", tupleTypes)
@@ -376,14 +380,28 @@ func (c *Codegen) CreateTypeInfoImplementations(typ types.Type, linkOnce bool) *
 	return c.GlobalVar(name, flags, ab.Build())
 }
 
-func (c *Codegen) CreateTypeInfoTupleTypes(typ *types.Tuple, linkOnce bool) *ir.GlobalVar {
+func (c *Codegen) CreateTypeInfoTupleFields(typ *types.Tuple, linkOnce bool) *ir.GlobalVar {
 	ab := c.Array(&types.Array{
 		Size:    uint32(len(typ.Types)),
-		Element: &types.Pointer{Pointee: c.Builtins.TypeInfo},
+		Element: c.Builtins.TupleField,
 	})
 
-	for _, typ := range typ.Types {
-		ab.Add(c.GetTypeInfo(typ))
+	s := typ.Underlying().(*types.Struct)
+	fields := c.Arch.Info(typ).Fields
+
+	slices.SortFunc(fields, func(a, b abi.Field) int {
+		ai, _ := strconv.ParseUint(s.Fields[a.Index].Name[1:], 10, 64)
+		bi, _ := strconv.ParseUint(s.Fields[b.Index].Name[1:], 10, 64)
+		return cmp.Compare(ai, bi)
+	})
+
+	for _, field := range fields {
+		sb := c.Struct(c.Builtins.TupleField)
+
+		sb.Set("type_info", c.GetTypeInfo(s.Fields[field.Index].Type))
+		sb.Set("offset", &ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, uint64(field.Offset))})
+
+		ab.Add(sb.Build())
 	}
 
 	name := TypeInfoLinkName(typ, "type_info_tuple_types")

@@ -75,6 +75,15 @@ pub struct Case {
 	pub value: u64,
 }
 
+/// Stores RTTI for tuple fields.
+pub struct TupleField {
+	/// Type info of the field.
+	pub type_info: &TypeInfo,
+
+	/// The offset of the field in bytes from the start of the tuple.
+	pub offset: u32,
+}
+
 /// Stores RTTI for struct fields.
 pub struct Field {
 	/// Name of the field as it appears in the source code.
@@ -171,10 +180,10 @@ impl TypeInfo {
 		return self.data_ptr1 as &TypeInfo;
 	}
 
-	/// Returns the tuple types if this type is a tuple or panics.
-	pub func types(self) []&TypeInfo {
+	/// Returns the tuple fields if this type is a tuple or panics.
+	pub func tuple_fields(self) []TupleField {
 		if (self.kind != TypeKind::Tuple) panic("self.kind is not `TypeKind::Tuple`");
-		return Slice:[&TypeInfo] { ptr: self.data_ptr1 as *&TypeInfo, size: self.data_int };
+		return Slice:[TupleField] { ptr: self.data_ptr1 as *TupleField, size: self.data_int };
 	}
 
 	/// Returns the pointee type if this type is a reference or a pointer or panics.

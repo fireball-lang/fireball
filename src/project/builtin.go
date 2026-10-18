@@ -42,6 +42,12 @@ func GetBuiltins(projMap map[string]*Project) fb_core.Builtins {
 
 	// Reflection
 
+	symbol, ok = proj.Module.GetSymbol(symbols.Type, "TupleField")
+	if !ok {
+		panic("project.GetBuiltins() - Failed to get 'core::TupleField' type")
+	}
+	builtins.TupleField = symbol.Type.(*types.Struct)
+
 	symbol, ok = proj.Module.GetSymbol(symbols.Type, "Case")
 	if !ok {
 		panic("project.GetBuiltins() - Failed to get 'core::Case' type")
