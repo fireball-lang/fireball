@@ -41,6 +41,7 @@ const (
 )
 
 type Symbol struct {
+	ID   uint32
 	Name string
 
 	Kind  SymbolKind
@@ -89,5 +90,6 @@ func (f *File) AddSection(section *Section) *Section {
 
 func (f *File) AddSymbol(symbol *Symbol) *Symbol {
 	f.Symbols = append(f.Symbols, symbol)
+	symbol.ID = uint32(len(f.Symbols))
 	return symbol
 }

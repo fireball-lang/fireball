@@ -57,19 +57,18 @@ func (b *backend) GenerateFunction(fun *ir.Function) {
 		return
 	}
 
-	// Setup assembler
+	// Setup emitter
 	symbol := b.funSymbols[fun]
 	prevAsm := b.asm
 
 	if symbol.Section.Deduplicate {
-		b.asm = asm.Assembler{}
+		b.asm = asm.NewEmitter()
 	} else {
 		b.asm.Align(16)
 	}
 
 	// Start function
 	b.asm.Bind(b.asm.Label(symbol))
-	startOffset := b.asm.Len()
 
 	b.layout = b.CalculateFrameLayout(fun)
 	b.epilogue = b.asm.Label(nil)
@@ -82,7 +81,7 @@ func (b *backend) GenerateFunction(fun *ir.Function) {
 	b.asm.Mov(asm.RBP, asm.RSP)
 
 	if frameSize > 0 {
-		b.asm.Sub(asm.RSP, int32(frameSize))
+		b.asm.Sub(asm.RSP, asm.Imm32(int32(frameSize)))
 	}
 
 	// Instructions
@@ -102,14 +101,12 @@ func (b *backend) GenerateFunction(fun *ir.Function) {
 	b.asm.Pop(asm.RBP)
 	b.asm.Ret()
 
+	b.asm.EndFunction(symbol)
+
 	// Finish assembler and symbol
 	if symbol.Section.Deduplicate {
-		symbol.Section.Data, symbol.Section.Relocations = b.asm.Assemble()
-		symbol.Size = uint64(len(symbol.Section.Data))
-
+		symbol.Section.Data, symbol.Section.Relocations = asm.Encode(b.asm.Instructions(), b.file.Symbols, b.asm.LabelSymbols())
 		b.asm = prevAsm
-	} else {
-		symbol.Size = b.asm.Len() - startOffset
 	}
 }
 

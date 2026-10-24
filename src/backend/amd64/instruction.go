@@ -61,63 +61,63 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			}
 		}
 
-		b.asm.Jmp(b.epilogue)
+		b.asm.Jmp(asm.LabelOp(b.epilogue))
 
 	case *ir.Br:
 		b.ResolvePhis(inst.Block(), inst.Label)
-		b.asm.Jmp(b.blockLabels[inst.Label])
+		b.asm.Jmp(asm.LabelOp(b.blockLabels[inst.Label]))
 
 	case *ir.BrCond:
-		b.LoadOperand(inst.Condition, asm.RAX, 0)
+		b.LoadOperand(inst.Condition, asm.RAX, asm.XMM0)
 		b.asm.Test32(asm.RAX, asm.RAX)
 
 		if !b.HasPhis(inst.IfTrue) && !b.HasPhis(inst.IfFalse) {
-			b.asm.Jne(b.blockLabels[inst.IfTrue])
-			b.asm.Jmp(b.blockLabels[inst.IfFalse])
+			b.asm.Jne(asm.LabelOp(b.blockLabels[inst.IfTrue]))
+			b.asm.Jmp(asm.LabelOp(b.blockLabels[inst.IfFalse]))
 		} else {
 			falseLabel := b.asm.Label(nil)
-			b.asm.Je(falseLabel)
+			b.asm.Je(asm.LabelOp(falseLabel))
 
 			// True edge
 			b.ResolvePhis(inst.Block(), inst.IfTrue)
-			b.asm.Jmp(b.blockLabels[inst.IfTrue])
+			b.asm.Jmp(asm.LabelOp(b.blockLabels[inst.IfTrue]))
 
 			// False edge
 			b.asm.Bind(falseLabel)
 			b.ResolvePhis(inst.Block(), inst.IfFalse)
-			b.asm.Jmp(b.blockLabels[inst.IfFalse])
+			b.asm.Jmp(asm.LabelOp(b.blockLabels[inst.IfFalse]))
 		}
 
 	// Unary instructions
 
 	case *ir.FNeg:
-		mode := b.LoadOperand(inst.Value, 0, asm.XMM0)
+		mode := b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 
 		if mode == f32 {
-			b.asm.Mov(asm.RAX, int64(0x80000000))
+			b.asm.Mov(asm.RAX, asm.Imm(0x80000000))
 			b.asm.MovdToXmm(asm.XMM1, asm.RAX)
 			b.asm.Xorps(asm.XMM0, asm.XMM1)
 		} else {
-			b.asm.Mov(asm.RAX, int64(math.MinInt64))
+			b.asm.Mov(asm.RAX, asm.Imm(math.MinInt64))
 			b.asm.MovqToXmm(asm.XMM1, asm.RAX)
 			b.asm.Xorpd(asm.XMM0, asm.XMM1)
 		}
 
-		b.StoreResult(inst, 0, asm.XMM0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	// Binary instructions
 
 	case *ir.IAdd:
-		b.LoadOperand(inst.Left, asm.RAX, 0)
-		b.LoadOperand(inst.Right, asm.RCX, 0)
+		b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RCX, asm.XMM0)
 
 		switch inst.Type().Info().Size {
 		case 1:
 			b.asm.Add32(asm.RAX, asm.RCX)
-			b.asm.And32(asm.RAX, int32(0xFF))
+			b.asm.And32(asm.RAX, asm.Imm32(0xFF))
 		case 2:
 			b.asm.Add32(asm.RAX, asm.RCX)
-			b.asm.And32(asm.RAX, int32(0xFFFF))
+			b.asm.And32(asm.RAX, asm.Imm32(0xFFFF))
 		case 4:
 			b.asm.Add32(asm.RAX, asm.RCX)
 		case 8:
@@ -126,11 +126,11 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			panic("amd64.backend.GenerateInstruction(): ir.IAdd - Invalid size")
 		}
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.FAdd:
-		mode := b.LoadOperand(inst.Left, 0, asm.XMM0)
-		b.LoadOperand(inst.Right, 0, asm.XMM1)
+		mode := b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RAX, asm.XMM1)
 
 		if mode == f32 {
 			b.asm.Addss(asm.XMM0, asm.XMM1)
@@ -138,19 +138,19 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			b.asm.Addsd(asm.XMM0, asm.XMM1)
 		}
 
-		b.StoreResult(inst, 0, asm.XMM0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.ISub:
-		b.LoadOperand(inst.Left, asm.RAX, 0)
-		b.LoadOperand(inst.Right, asm.RCX, 0)
+		b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RCX, asm.XMM0)
 
 		switch inst.Type().Info().Size {
 		case 1:
 			b.asm.Sub32(asm.RAX, asm.RCX)
-			b.asm.And32(asm.RAX, int32(0xFF))
+			b.asm.And32(asm.RAX, asm.Imm32(0xFF))
 		case 2:
 			b.asm.Sub32(asm.RAX, asm.RCX)
-			b.asm.And32(asm.RAX, int32(0xFFFF))
+			b.asm.And32(asm.RAX, asm.Imm32(0xFFFF))
 		case 4:
 			b.asm.Sub32(asm.RAX, asm.RCX)
 		case 8:
@@ -159,11 +159,11 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			panic("amd64.backend.GenerateInstruction(): ir.ISub - Invalid size")
 		}
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.FSub:
-		mode := b.LoadOperand(inst.Left, 0, asm.XMM0)
-		b.LoadOperand(inst.Right, 0, asm.XMM1)
+		mode := b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RAX, asm.XMM1)
 
 		if mode == f32 {
 			b.asm.Subss(asm.XMM0, asm.XMM1)
@@ -171,11 +171,11 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			b.asm.Subsd(asm.XMM0, asm.XMM1)
 		}
 
-		b.StoreResult(inst, 0, asm.XMM0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.IMul:
-		b.LoadOperand(inst.Left, asm.RAX, 0)
-		b.LoadOperand(inst.Right, asm.RCX, 0)
+		b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RCX, asm.XMM0)
 
 		switch inst.Type().Info().Size {
 		case 1, 2, 4:
@@ -186,11 +186,11 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			panic("amd64.backend.GenerateInstruction(): ir.IMul - Invalid size")
 		}
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.FMul:
-		mode := b.LoadOperand(inst.Left, 0, asm.XMM0)
-		b.LoadOperand(inst.Right, 0, asm.XMM1)
+		mode := b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RAX, asm.XMM1)
 
 		if mode == f32 {
 			b.asm.Mulss(asm.XMM0, asm.XMM1)
@@ -198,17 +198,17 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			b.asm.Mulsd(asm.XMM0, asm.XMM1)
 		}
 
-		b.StoreResult(inst, 0, asm.XMM0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.IDiv:
 		b.PrepareIDiv(inst.Left, inst.Right, inst.Type(), inst.Kind)
 
 		// Quotient is in RAX
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.FDiv:
-		mode := b.LoadOperand(inst.Left, 0, asm.XMM0)
-		b.LoadOperand(inst.Right, 0, asm.XMM1)
+		mode := b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RAX, asm.XMM1)
 
 		if mode == f32 {
 			b.asm.Divss(asm.XMM0, asm.XMM1)
@@ -216,31 +216,31 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			b.asm.Divsd(asm.XMM0, asm.XMM1)
 		}
 
-		b.StoreResult(inst, 0, asm.XMM0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.IRem:
 		b.PrepareIDiv(inst.Left, inst.Right, inst.Type(), inst.Kind)
 
 		// Remainder is in RDX
-		b.StoreResult(inst, asm.RDX, 0)
+		b.StoreResult(inst, asm.RDX, asm.XMM0)
 
 	case *ir.FRem:
-		mode := b.LoadOperand(inst.Left, 0, asm.XMM0)
-		b.LoadOperand(inst.Right, 0, asm.XMM1)
+		mode := b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RAX, asm.XMM1)
 
 		name := "fmod"
 		if mode == f32 {
 			name = "fmodf"
 		}
 
-		b.asm.Call(b.GetFuncSymbol(name))
-		b.StoreResult(inst, 0, asm.XMM0)
+		b.asm.Call(asm.Sym(b.GetFuncSymbol(name)))
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	// Bitwise binary instructions
 
 	case *ir.Shl:
-		b.LoadOperand(inst.Left, asm.RAX, 0)
-		b.LoadOperand(inst.Right, asm.RCX, 0)
+		b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RCX, asm.XMM0)
 
 		switch inst.Type().Info().Size {
 		case 1, 2, 4:
@@ -251,11 +251,11 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			panic("amd64.backend.GenerateInstruction(): ir.Shl - Invalid size")
 		}
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.Shr:
-		b.LoadOperand(inst.Left, asm.RAX, 0)
-		b.LoadOperand(inst.Right, asm.RCX, 0)
+		b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RCX, asm.XMM0)
 
 		size := inst.Type().Info().Size
 
@@ -286,11 +286,11 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			}
 		}
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.And:
-		b.LoadOperand(inst.Left, asm.RAX, 0)
-		b.LoadOperand(inst.Right, asm.RCX, 0)
+		b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RCX, asm.XMM0)
 
 		switch inst.Type().Info().Size {
 		case 1:
@@ -305,19 +305,19 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			panic("amd64.backend.GenerateInstruction(): ir.IAnd - Invalid size")
 		}
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.Or:
-		b.LoadOperand(inst.Left, asm.RAX, 0)
-		b.LoadOperand(inst.Right, asm.RCX, 0)
+		b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RCX, asm.XMM0)
 
 		switch inst.Type().Info().Size {
 		case 1:
 			b.asm.Or32(asm.RAX, asm.RCX)
-			b.asm.And32(asm.RAX, int32(0xFF))
+			b.asm.And32(asm.RAX, asm.Imm32(0xFF))
 		case 2:
 			b.asm.Or32(asm.RAX, asm.RCX)
-			b.asm.And32(asm.RAX, int32(0xFFFF))
+			b.asm.And32(asm.RAX, asm.Imm32(0xFFFF))
 		case 4:
 			b.asm.Or32(asm.RAX, asm.RCX)
 		case 8:
@@ -326,19 +326,19 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			panic("amd64.backend.GenerateInstruction(): ir.IOr - Invalid size")
 		}
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.Xor:
-		b.LoadOperand(inst.Left, asm.RAX, 0)
-		b.LoadOperand(inst.Right, asm.RCX, 0)
+		b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RCX, asm.XMM0)
 
 		switch inst.Type().Info().Size {
 		case 1:
 			b.asm.Xor32(asm.RAX, asm.RCX)
-			b.asm.And32(asm.RAX, int32(0xFF))
+			b.asm.And32(asm.RAX, asm.Imm32(0xFF))
 		case 2:
 			b.asm.Xor32(asm.RAX, asm.RCX)
-			b.asm.And32(asm.RAX, int32(0xFFFF))
+			b.asm.And32(asm.RAX, asm.Imm32(0xFFFF))
 		case 4:
 			b.asm.Xor32(asm.RAX, asm.RCX)
 		case 8:
@@ -347,7 +347,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			panic("amd64.backend.GenerateInstruction(): ir.IXor - Invalid size")
 		}
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	// Vector instructions
 
@@ -378,12 +378,12 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 				b.asm.Movsd(asm.XMM0, asm.RegDisp(asm.RAX, int32(fieldOffset)))
 			}
 
-			b.StoreResult(inst, 0, asm.XMM0)
+			b.StoreResult(inst, asm.RAX, asm.XMM0)
 		} else if fieldSize == 0 {
 			// Zero-sized element (e.g. empty struct): no-op
 		} else if fieldSize <= 8 {
 			b.LoadUpTo8(asm.RCX, asm.RAX, int32(fieldOffset), fieldSize)
-			b.StoreResult(inst, asm.RCX, 0)
+			b.StoreResult(inst, asm.RCX, asm.XMM0)
 		} else {
 			dstOff := b.layout.offsets[inst]
 			b.asm.Lea(asm.RDX, asm.RegDisp(asm.RBP, dstOff))
@@ -409,7 +409,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 
 		// Overwrite the field with the new value
 		if mode := getFloatMode(elemType); mode != none {
-			b.LoadOperand(inst.Element, 0, asm.XMM0)
+			b.LoadOperand(inst.Element, asm.RAX, asm.XMM0)
 
 			if mode == f32 {
 				b.asm.Movss(fieldDest, asm.XMM0)
@@ -418,7 +418,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			}
 		} else if fieldSize <= 8 {
 			if fieldSize > 0 {
-				b.LoadOperand(inst.Element, asm.RCX, 0)
+				b.LoadOperand(inst.Element, asm.RCX, asm.XMM0)
 				b.StoreUpTo8(asm.RAX, int32(fieldOffset), asm.RCX, fieldSize)
 			}
 		} else {
@@ -434,7 +434,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 
 	case *ir.Load:
 		// Load pointer into RCX
-		b.LoadOperand(inst.Pointer, asm.RCX, 0)
+		b.LoadOperand(inst.Pointer, asm.RCX, asm.XMM0)
 
 		// Floating point type
 		if mode := getFloatMode(inst.Type()); mode != none {
@@ -444,7 +444,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 				b.asm.Movsd(asm.XMM0, asm.Ptr(asm.RCX))
 			}
 
-			b.StoreResult(inst, 0, asm.XMM0)
+			b.StoreResult(inst, asm.RAX, asm.XMM0)
 			break
 		}
 
@@ -463,16 +463,16 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			switch size {
 			case 1:
 				b.asm.Movzx8(asm.RAX, asm.Ptr(asm.RCX))
-				b.StoreResult(inst, asm.RAX, 0)
+				b.StoreResult(inst, asm.RAX, asm.XMM0)
 			case 2:
 				b.asm.Movzx16(asm.RAX, asm.Ptr(asm.RCX))
-				b.StoreResult(inst, asm.RAX, 0)
+				b.StoreResult(inst, asm.RAX, asm.XMM0)
 			case 4:
 				b.asm.Mov32(asm.RAX, asm.Ptr(asm.RCX))
-				b.StoreResult(inst, asm.RAX, 0)
+				b.StoreResult(inst, asm.RAX, asm.XMM0)
 			case 8:
 				b.asm.Mov(asm.RAX, asm.Ptr(asm.RCX))
-				b.StoreResult(inst, asm.RAX, 0)
+				b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 			default:
 				panic("amd64.backend.GenerateInstruction(): ir.Load - Invalid integer size")
@@ -488,7 +488,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 
 	case *ir.Store:
 		// Load pointer into RCX
-		b.LoadOperand(inst.Pointer, asm.RCX, 0)
+		b.LoadOperand(inst.Pointer, asm.RCX, asm.XMM0)
 
 		// Zero initializer / Null
 		switch inst.Value.(type) {
@@ -499,7 +499,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 
 		// Floating point type
 		if mode := getFloatMode(inst.Value.Type()); mode != none {
-			b.LoadOperand(inst.Value, 0, asm.XMM0)
+			b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 
 			if mode == f32 {
 				b.asm.Movss(asm.Ptr(asm.RCX), asm.XMM0)
@@ -524,16 +524,16 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 		if isInt {
 			switch size {
 			case 1:
-				b.LoadOperand(inst.Value, asm.RAX, 0)
+				b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 				b.asm.Mov8(asm.Ptr(asm.RCX), asm.RAX)
 			case 2:
-				b.LoadOperand(inst.Value, asm.RAX, 0)
+				b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 				b.asm.Mov16(asm.Ptr(asm.RCX), asm.RAX)
 			case 4:
-				b.LoadOperand(inst.Value, asm.RAX, 0)
+				b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 				b.asm.Mov32(asm.Ptr(asm.RCX), asm.RAX)
 			case 8:
-				b.LoadOperand(inst.Value, asm.RAX, 0)
+				b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 				b.asm.Mov(asm.Ptr(asm.RCX), asm.RAX)
 
 			default:
@@ -548,17 +548,17 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 		b.CopyMemory(asm.RCX, asm.RAX, size)
 
 	case *ir.GetElementPtrConst:
-		b.LoadOperand(inst.Pointer, asm.RAX, 0)
+		b.LoadOperand(inst.Pointer, asm.RAX, asm.XMM0)
 
 		offset := b.CalculateGepConstOffset(inst.Typ, inst.Indices)
 		if offset != 0 {
-			b.asm.Add(asm.RAX, int32(offset))
+			b.asm.Add(asm.RAX, asm.Imm32(int32(offset)))
 		}
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.GetElementPtrDyn:
-		b.LoadOperand(inst.Pointer, asm.RAX, 0)
+		b.LoadOperand(inst.Pointer, asm.RAX, asm.XMM0)
 
 		current := inst.Typ
 
@@ -616,11 +616,11 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 				}
 
 				if totalOffset != 0 {
-					b.asm.Add(asm.RAX, totalOffset)
+					b.asm.Add(asm.RAX, asm.Imm32(totalOffset))
 				}
 			} else {
 				// Dynamic runtime value (LoadOperand preserves RAX)
-				b.LoadOperand(indexVal, asm.RCX, 0)
+				b.LoadOperand(indexVal, asm.RCX, asm.XMM0)
 
 				switch indexVal.Type().Info().Size {
 				case 1:
@@ -638,7 +638,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 				case 2:
 					b.asm.Add(asm.RCX, asm.RCX)
 				default:
-					b.asm.Mov(asm.RDX, int64(stride))
+					b.asm.Mov(asm.RDX, asm.Imm(int64(stride)))
 					b.asm.Imul(asm.RCX, asm.RDX)
 				}
 
@@ -649,25 +649,25 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			current = nextType
 		}
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	// Conversion instructions
 
 	case *ir.ITrunc:
-		b.LoadOperand(inst.Value, asm.RAX, 0)
+		b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 
 		// b.Store() only stores the exact sub-region of the register,
 		// so basically truncating it
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.FTrunc:
-		b.LoadOperand(inst.Value, 0, asm.XMM0)
+		b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 		b.asm.Cvtsd2ss(asm.XMM0, asm.XMM0)
-		b.StoreResult(inst, 0, asm.XMM0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.IExt:
-		b.LoadOperand(inst.Value, asm.RAX, 0)
+		b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 
 		if inst.Kind == ir.Signed {
 			switch inst.Value.Type().Info().Size {
@@ -685,15 +685,15 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 		// Unsigned is intentionally a nop, b.Load() guarantees the register
 		// is already zero-extended via movzx, mov32, or masked constants
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.FExt:
-		b.LoadOperand(inst.Value, 0, asm.XMM0)
+		b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 		b.asm.Cvtss2sd(asm.XMM0, asm.XMM0)
-		b.StoreResult(inst, 0, asm.XMM0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.FpToInt:
-		mode := b.LoadOperand(inst.Value, 0, asm.XMM0)
+		mode := b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 		size := inst.Type().Info().Size
 
 		if size != 1 && size != 2 && size != 4 && size != 8 {
@@ -705,16 +705,16 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			doneLabel := b.asm.Label(nil)
 
 			if mode == f32 {
-				b.asm.Mov(asm.RAX, int64(0x5f000000))
+				b.asm.Mov(asm.RAX, asm.Imm(0x5f000000))
 				b.asm.MovdToXmm(asm.XMM1, asm.RAX)
 				b.asm.Ucomiss(asm.XMM0, asm.XMM1)
 			} else {
-				b.asm.Mov(asm.RAX, int64(0x43e0000000000000))
+				b.asm.Mov(asm.RAX, asm.Imm(0x43e0000000000000))
 				b.asm.MovqToXmm(asm.XMM1, asm.RAX)
 				b.asm.Ucomisd(asm.XMM0, asm.XMM1)
 			}
 
-			b.asm.Jae(largeLabel)
+			b.asm.Jae(asm.LabelOp(largeLabel))
 
 			// Fast path: 0 <= XMM0 < 2^63
 			if mode == f32 {
@@ -723,7 +723,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 				b.asm.Cvttsd2si(true, asm.RAX, asm.XMM0)
 			}
 
-			b.asm.Jmp(doneLabel)
+			b.asm.Jmp(asm.LabelOp(doneLabel))
 
 			// Slow path: XMM0 >= 2^63
 			b.asm.Bind(largeLabel)
@@ -736,7 +736,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 				b.asm.Cvttsd2si(true, asm.RAX, asm.XMM0)
 			}
 
-			b.asm.Mov(asm.RCX, int64(math.MinInt64))
+			b.asm.Mov(asm.RCX, asm.Imm(math.MinInt64))
 			b.asm.Xor(asm.RAX, asm.RCX)
 
 			b.asm.Bind(doneLabel)
@@ -750,10 +750,10 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			}
 		}
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.IntToFp:
-		b.LoadOperand(inst.Value, asm.RAX, 0)
+		b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 		size := inst.Value.Type().Info().Size
 
 		if size != 1 && size != 2 && size != 4 && size != 8 {
@@ -778,7 +778,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 
 			// Check if MSB (bit 63) is set:
 			b.asm.Test(asm.RAX, asm.RAX)
-			b.asm.Js(largeLabel)
+			b.asm.Js(asm.LabelOp(largeLabel))
 
 			// --- Fast Path: 0 <= RAX < 2^63 ---
 			if isF32 {
@@ -787,7 +787,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 				b.asm.Cvtsi2sd(true, asm.XMM0, asm.RAX)
 			}
 
-			b.asm.Jmp(doneLabel)
+			b.asm.Jmp(asm.LabelOp(doneLabel))
 
 			// --- Slow Path: RAX >= 2^63 ---
 			b.asm.Bind(largeLabel)
@@ -797,7 +797,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			b.asm.ShrImm(asm.RCX, 1)
 
 			// RAX = RAX & 1 (sticky bit)
-			b.asm.And32(asm.RAX, int32(1))
+			b.asm.And32(asm.RAX, asm.Imm32(1))
 
 			// RCX = (RAX >> 1) | (RAX & 1)
 			b.asm.Or(asm.RCX, asm.RAX)
@@ -823,15 +823,15 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			}
 		}
 
-		b.StoreResult(inst, 0, asm.XMM0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.PtrToInt:
-		b.LoadOperand(inst.Value, asm.RAX, 0)
-		b.StoreResult(inst, asm.RAX, 0)
+		b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.IntToPtr:
-		b.LoadOperand(inst.Value, asm.RAX, 0)
-		b.StoreResult(inst, asm.RAX, 0)
+		b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.BitCast:
 		srcMode := getFloatMode(inst.Value.Type())
@@ -839,15 +839,15 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 
 		if srcMode == none && dstMode == none {
 			// Int/Ptr <-> Int/Ptr
-			b.LoadOperand(inst.Value, asm.RAX, 0)
-			b.StoreResult(inst, asm.RAX, 0)
+			b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
+			b.StoreResult(inst, asm.RAX, asm.XMM0)
 		} else if srcMode != none && dstMode != none {
 			// Float <-> Float
-			b.LoadOperand(inst.Value, 0, asm.XMM0)
-			b.StoreResult(inst, 0, asm.XMM0)
+			b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
+			b.StoreResult(inst, asm.RAX, asm.XMM0)
 		} else if srcMode == none && dstMode != none {
 			// Int -> Float
-			b.LoadOperand(inst.Value, asm.RAX, 0)
+			b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 
 			if dstMode == f32 {
 				b.asm.MovdToXmm(asm.XMM0, asm.RAX)
@@ -855,10 +855,10 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 				b.asm.MovqToXmm(asm.XMM0, asm.RAX)
 			}
 
-			b.StoreResult(inst, 0, asm.XMM0)
+			b.StoreResult(inst, asm.RAX, asm.XMM0)
 		} else {
 			// Float -> Int
-			b.LoadOperand(inst.Value, 0, asm.XMM0)
+			b.LoadOperand(inst.Value, asm.RAX, asm.XMM0)
 
 			if srcMode == f32 {
 				b.asm.MovdToReg(asm.RAX, asm.XMM0)
@@ -866,14 +866,14 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 				b.asm.MovqToReg(asm.RAX, asm.XMM0)
 			}
 
-			b.StoreResult(inst, asm.RAX, 0)
+			b.StoreResult(inst, asm.RAX, asm.XMM0)
 		}
 
 	// Other instructions
 
 	case *ir.ICmp:
-		b.LoadOperand(inst.Left, asm.RAX, 0)
-		b.LoadOperand(inst.Right, asm.RCX, 0)
+		b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RCX, asm.XMM0)
 
 		size := inst.Left.Type().Info().Size
 
@@ -926,11 +926,11 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 		}
 
 		b.asm.Movzx8(asm.RAX, asm.RAX)
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.FCmp:
-		mode := b.LoadOperand(inst.Left, 0, asm.XMM0)
-		b.LoadOperand(inst.Right, 0, asm.XMM1)
+		mode := b.LoadOperand(inst.Left, asm.RAX, asm.XMM0)
+		b.LoadOperand(inst.Right, asm.RAX, asm.XMM1)
 
 		b.asm.Xor(asm.RAX, asm.RAX)
 		b.asm.Xor(asm.RCX, asm.RCX)
@@ -985,7 +985,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			}
 		}
 
-		b.StoreResult(inst, asm.RAX, 0)
+		b.StoreResult(inst, asm.RAX, asm.XMM0)
 
 	case *ir.Phi:
 		// nop, values are assigned when doing a jump
@@ -994,13 +994,13 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 		size := inst.Type().Info().Size
 
 		// Evaluate condition
-		b.LoadOperand(inst.Condition, asm.RAX, 0)
+		b.LoadOperand(inst.Condition, asm.RAX, asm.XMM0)
 		b.asm.Test32(asm.RAX, asm.RAX)
 
 		trueLabel := b.asm.Label(nil)
 		endLabel := b.asm.Label(nil)
 
-		b.asm.Jne(trueLabel)
+		b.asm.Jne(asm.LabelOp(trueLabel))
 
 		// False branch
 		if size <= 8 {
@@ -1012,7 +1012,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			b.CopyMemory(asm.RAX, asm.RCX, size)
 		}
 
-		b.asm.Jmp(endLabel)
+		b.asm.Jmp(asm.LabelOp(endLabel))
 
 		// True branch
 		b.asm.Bind(trueLabel)
@@ -1063,10 +1063,10 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			isPureFP bool
 			isTwoFP  bool
 			size     uint32
-			intR1    asm.Reg
-			intR2    asm.Reg
-			fpR      asm.XmmReg
-			fpR2     asm.XmmReg
+			intR1    asm.Operand
+			intR2    asm.Operand
+			fpR      asm.Operand
+			fpR2     asm.Operand
 		}
 
 		var regArgs []regArg
@@ -1178,20 +1178,20 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 					}
 				}
 			} else if ra.isFP {
-				b.LoadOperand(ra.val, 0, ra.fpR)
+				b.LoadOperand(ra.val, asm.RAX, ra.fpR)
 			} else if ra.isTwoReg {
 				b.LoadAddress(ra.val, asm.R10)
 				b.asm.Mov(ra.intR1, asm.RegDisp(asm.R10, 0))
 				b.LoadUpTo8(ra.intR2, asm.R10, 8, ra.size-8)
 			} else {
-				b.LoadOperand(ra.val, ra.intR1, 0)
+				b.LoadOperand(ra.val, ra.intR1, asm.XMM0)
 			}
 		}
 
 		// Perform call
 		if !strings.Contains(b.module.Triple, "windows") {
 			if fpI > 0 {
-				b.asm.Mov(asm.RAX, int64(fpI))
+				b.asm.Mov(asm.RAX, asm.Imm(int64(fpI)))
 			} else {
 				b.asm.Xor(asm.RAX, asm.RAX)
 			}
@@ -1199,7 +1199,7 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 
 		switch callee := inst.Callee.(type) {
 		case *ir.Function:
-			b.asm.Call(b.funSymbols[callee])
+			b.asm.Call(asm.Sym(b.funSymbols[callee]))
 
 		default:
 			off, ok := b.layout.offsets[callee]
@@ -1251,14 +1251,14 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 
 // Utils
 
-var asmRegNames = map[string]asm.Reg{
+var asmRegNames = map[string]asm.Operand{
 	"rax": asm.RAX, "rcx": asm.RCX, "rdx": asm.RDX, "rbx": asm.RBX,
 	"rsi": asm.RSI, "rdi": asm.RDI, "rbp": asm.RBP, "rsp": asm.RSP,
 	"r8": asm.R8, "r9": asm.R9, "r10": asm.R10, "r11": asm.R11,
 	"r12": asm.R12, "r13": asm.R13, "r14": asm.R14, "r15": asm.R15,
 }
 
-func parseRegConstraint(c string) (asm.Reg, bool) {
+func parseRegConstraint(c string) (asm.Operand, bool) {
 	c = strings.TrimPrefix(c, "=")
 	c = strings.TrimPrefix(c, "+") // in-out operand
 	c = strings.TrimPrefix(c, "&") // early-clobber
@@ -1285,7 +1285,7 @@ func parseRegConstraint(c string) (asm.Reg, bool) {
 		return asm.RDI, true
 	}
 
-	return 0, false
+	return asm.Operand{}, false
 }
 
 func (b *backend) GenerateInlineAssembly(inst *ir.Call, as *ir.Assembly) {
@@ -1302,7 +1302,7 @@ func (b *backend) GenerateInlineAssembly(inst *ir.Call, as *ir.Assembly) {
 	argIdx := 0
 
 	type inputBinding struct {
-		reg asm.Reg
+		reg asm.Operand
 		val ir.Value
 	}
 
@@ -1342,7 +1342,7 @@ func (b *backend) GenerateInlineAssembly(inst *ir.Call, as *ir.Assembly) {
 
 	// Load all inputs into their specified registers
 	for _, in := range inputs {
-		b.LoadOperand(in.val, in.reg, 0)
+		b.LoadOperand(in.val, in.reg, asm.XMM0)
 	}
 
 	// Emit the assembly instruction
@@ -1359,7 +1359,7 @@ func (b *backend) GenerateInlineAssembly(inst *ir.Call, as *ir.Assembly) {
 	// 5. Save the output register if non-void
 	if hasOutput {
 		if s, ok := inst.Type().(*ir.SimpleType); !ok || s.Kind != ir.VoidKind {
-			b.StoreResult(inst, outReg, 0)
+			b.StoreResult(inst, outReg, asm.XMM0)
 		}
 	}
 }
@@ -1518,7 +1518,7 @@ func (b *backend) ResolvePhis(from *ir.Block, to *ir.Block) {
 	totalAlloc := uint32(obj.AlignUp(uint64(tempSize), 16))
 
 	if totalAlloc > 0 {
-		b.asm.Sub(asm.RSP, int32(totalAlloc))
+		b.asm.Sub(asm.RSP, asm.Imm32(int32(totalAlloc)))
 
 		// Snapshot the current values of conflicting Phis to [RSP + tempOff]
 		for phi, tempOff := range tempOffsets {
@@ -1560,20 +1560,20 @@ func (b *backend) ResolvePhis(from *ir.Block, to *ir.Block) {
 					b.asm.Movsd(asm.XMM0, asm.RegDisp(asm.RSP, savedTempOff))
 				}
 			} else {
-				b.LoadOperand(item.val, 0, asm.XMM0)
+				b.LoadOperand(item.val, asm.RAX, asm.XMM0)
 			}
 
-			b.StoreResult(item.phi, 0, asm.XMM0)
+			b.StoreResult(item.phi, asm.RAX, asm.XMM0)
 		} else if size <= 8 {
 			if isPhi && hasSaved {
 				if size > 0 {
 					b.LoadUpTo8(asm.RAX, asm.RSP, savedTempOff, size)
 				}
 			} else {
-				b.LoadOperand(item.val, asm.RAX, 0)
+				b.LoadOperand(item.val, asm.RAX, asm.XMM0)
 			}
 
-			b.StoreResult(item.phi, asm.RAX, 0)
+			b.StoreResult(item.phi, asm.RAX, asm.XMM0)
 		} else {
 			dstOff := b.layout.offsets[item.phi]
 			b.asm.Lea(asm.RAX, asm.RegDisp(asm.RBP, dstOff))
@@ -1590,13 +1590,13 @@ func (b *backend) ResolvePhis(from *ir.Block, to *ir.Block) {
 
 	// 5. Restore stack pointer before jumping
 	if totalAlloc > 0 {
-		b.asm.Add(asm.RSP, int32(totalAlloc))
+		b.asm.Add(asm.RSP, asm.Imm32(int32(totalAlloc)))
 	}
 }
 
 func (b *backend) PrepareIDiv(left, right ir.Value, typ ir.Type, kind ir.DivKind) {
-	b.LoadOperand(left, asm.RAX, 0)
-	b.LoadOperand(right, asm.RCX, 0)
+	b.LoadOperand(left, asm.RAX, asm.XMM0)
+	b.LoadOperand(right, asm.RCX, asm.XMM0)
 
 	size := typ.Info().Size
 
@@ -1636,7 +1636,7 @@ func (b *backend) PrepareIDiv(left, right ir.Value, typ ir.Type, kind ir.DivKind
 	}
 }
 
-func (b *backend) LoadOperand(val ir.Value, intReg asm.Reg, fpReg asm.XmmReg) floatMode {
+func (b *backend) LoadOperand(val ir.Value, intReg asm.Operand, fpReg asm.Operand) floatMode {
 	switch val := val.(type) {
 	case *ir.ZeroInitializer:
 		// Floating point zero
@@ -1677,7 +1677,7 @@ func (b *backend) LoadOperand(val ir.Value, intReg asm.Reg, fpReg asm.XmmReg) fl
 		if v == 0 {
 			b.asm.Xor(intReg, intReg)
 		} else {
-			b.asm.Mov(intReg, int64(v))
+			b.asm.Mov(intReg, asm.Imm(int64(v)))
 		}
 
 		return none
@@ -1790,7 +1790,7 @@ func (b *backend) LoadOperand(val ir.Value, intReg asm.Reg, fpReg asm.XmmReg) fl
 	}
 }
 
-func (b *backend) StoreResult(inst ir.Instruction, intReg asm.Reg, fpReg asm.XmmReg) {
+func (b *backend) StoreResult(inst ir.Instruction, intReg asm.Operand, fpReg asm.Operand) {
 	offset, ok := b.layout.offsets[inst]
 	if !ok {
 		return // void instruction
@@ -1819,7 +1819,7 @@ func (b *backend) StoreResult(inst ir.Instruction, intReg asm.Reg, fpReg asm.Xmm
 	panic("amd64.backend.Store() - Invalid size: " + strconv.FormatUint(uint64(size), 10))
 }
 
-func (b *backend) LoadAddress(val ir.Value, reg asm.Reg) {
+func (b *backend) LoadAddress(val ir.Value, reg asm.Operand) {
 	switch v := val.(type) {
 	case *ir.GlobalVar:
 		b.asm.Lea(reg, asm.Rip(b.gVarSymbols[v]))
@@ -1885,7 +1885,7 @@ func (b *backend) LoadAddress(val ir.Value, reg asm.Reg) {
 }
 
 // LoadUpTo8 loads 'size' bytes (1 <= size <= 8) from [base + off] into reg, zero-extending it.
-func (b *backend) LoadUpTo8(reg asm.Reg, base asm.Reg, off int32, size uint32) {
+func (b *backend) LoadUpTo8(reg asm.Operand, base asm.Operand, off int32, size uint32) {
 	if reg == base && (size == 3 || size == 5 || size == 6 || size == 7) {
 		b.asm.Mov(asm.R10, base)
 		base = asm.R10
@@ -1944,7 +1944,7 @@ func (b *backend) LoadUpTo8(reg asm.Reg, base asm.Reg, off int32, size uint32) {
 }
 
 // StoreUpTo8 writes 'size' bytes (1 <= size <= 8) from reg into [base + off].
-func (b *backend) StoreUpTo8(base asm.Reg, off int32, reg asm.Reg, size uint32) {
+func (b *backend) StoreUpTo8(base asm.Operand, off int32, reg asm.Operand, size uint32) {
 	switch size {
 	case 1:
 		b.asm.Mov8(asm.RegDisp(base, off), reg)
@@ -1985,7 +1985,7 @@ func (b *backend) StoreUpTo8(base asm.Reg, off int32, reg asm.Reg, size uint32) 
 	}
 }
 
-func (b *backend) CopyMemory(dstReg, srcReg asm.Reg, size uint32) {
+func (b *backend) CopyMemory(dstReg, srcReg asm.Operand, size uint32) {
 	var off int32 = 0
 
 	for size >= 8 {
@@ -2018,7 +2018,7 @@ func (b *backend) CopyMemory(dstReg, srcReg asm.Reg, size uint32) {
 	}
 }
 
-func (b *backend) ZeroMemory(base asm.Reg, size uint32) {
+func (b *backend) ZeroMemory(base asm.Operand, size uint32) {
 	var off int32 = 0
 
 	b.asm.Xor(asm.R11, asm.R11)

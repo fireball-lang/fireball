@@ -11,8 +11,8 @@ type backend struct {
 	module *ir.Module
 	file   *obj.File
 
-	intParamRegs []asm.Reg
-	fpParamRegs  []asm.XmmReg
+	intParamRegs []asm.Operand
+	fpParamRegs  []asm.Operand
 
 	text   *obj.Section
 	data   *obj.Section
@@ -23,7 +23,7 @@ type backend struct {
 
 	symbols map[string]*obj.Symbol
 
-	asm asm.Assembler
+	asm *asm.Emitter
 
 	layout      frameLayout
 	epilogue    asm.Label
@@ -35,11 +35,11 @@ type frameLayout struct {
 	size    uint32
 }
 
-var intParamRegsSysV = []asm.Reg{asm.RDI, asm.RSI, asm.RDX, asm.RCX, asm.R8, asm.R9}
-var fpParamRegsSysV = []asm.XmmReg{asm.XMM0, asm.XMM1, asm.XMM2, asm.XMM3, asm.XMM4, asm.XMM5, asm.XMM6, asm.XMM7}
+var intParamRegsSysV = []asm.Operand{asm.RDI, asm.RSI, asm.RDX, asm.RCX, asm.R8, asm.R9}
+var fpParamRegsSysV = []asm.Operand{asm.XMM0, asm.XMM1, asm.XMM2, asm.XMM3, asm.XMM4, asm.XMM5, asm.XMM6, asm.XMM7}
 
-var intParamRegsWin = []asm.Reg{asm.RCX, asm.RDX, asm.R8, asm.R9}
-var fpParamRegsWin = []asm.XmmReg{asm.XMM0, asm.XMM1, asm.XMM2, asm.XMM3}
+var intParamRegsWin = []asm.Operand{asm.RCX, asm.RDX, asm.R8, asm.R9}
+var fpParamRegsWin = []asm.Operand{asm.XMM0, asm.XMM1, asm.XMM2, asm.XMM3}
 
 func Generate(module *ir.Module) *obj.File {
 	defer core.Scope()()
@@ -51,6 +51,7 @@ func Generate(module *ir.Module) *obj.File {
 		gVarSymbols: make(map[*ir.GlobalVar]*obj.Symbol),
 		funSymbols:  make(map[*ir.Function]*obj.Symbol),
 		symbols:     make(map[string]*obj.Symbol),
+		asm:         asm.NewEmitter(),
 	}
 
 	switch b.module.Triple {
@@ -102,7 +103,7 @@ func Generate(module *ir.Module) *obj.File {
 	}
 
 	// Finish
-	b.text.Data, b.text.Relocations = b.asm.Assemble()
+	b.text.Data, b.text.Relocations = asm.Encode(b.asm.Instructions(), b.file.Symbols, b.asm.LabelSymbols())
 
 	return b.file
 }
