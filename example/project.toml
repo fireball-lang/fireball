@@ -4,7 +4,7 @@ type = "executable"
 lib-c = true
 
 [profile.fb]
-backend = "llvm"
+backend = "fireball"
 output-ir = true
 
 [profile.debug]

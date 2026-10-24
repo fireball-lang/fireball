@@ -11,6 +11,8 @@ type backend struct {
 	module *ir.Module
 	file   *obj.File
 
+	peepholePasses uint8
+
 	intParamRegs []asm.Operand
 	fpParamRegs  []asm.Operand
 
@@ -41,17 +43,18 @@ var fpParamRegsSysV = []asm.Operand{asm.XMM0, asm.XMM1, asm.XMM2, asm.XMM3, asm.
 var intParamRegsWin = []asm.Operand{asm.RCX, asm.RDX, asm.R8, asm.R9}
 var fpParamRegsWin = []asm.Operand{asm.XMM0, asm.XMM1, asm.XMM2, asm.XMM3}
 
-func Generate(module *ir.Module) *obj.File {
+func Generate(module *ir.Module, peepholePasses uint8) *obj.File {
 	defer core.Scope()()
 
 	// Create backend
 	b := backend{
-		module:      module,
-		file:        &obj.File{Arch: obj.AMD64},
-		gVarSymbols: make(map[*ir.GlobalVar]*obj.Symbol),
-		funSymbols:  make(map[*ir.Function]*obj.Symbol),
-		symbols:     make(map[string]*obj.Symbol),
-		asm:         asm.NewEmitter(),
+		module:         module,
+		file:           &obj.File{Arch: obj.AMD64},
+		peepholePasses: peepholePasses,
+		gVarSymbols:    make(map[*ir.GlobalVar]*obj.Symbol),
+		funSymbols:     make(map[*ir.Function]*obj.Symbol),
+		symbols:        make(map[string]*obj.Symbol),
+		asm:            asm.NewEmitter(),
 	}
 
 	switch b.module.Triple {
@@ -103,7 +106,10 @@ func Generate(module *ir.Module) *obj.File {
 	}
 
 	// Finish
-	b.text.Data, b.text.Relocations = asm.Encode(b.asm.Instructions(), b.file.Symbols, b.asm.LabelSymbols())
+	instructions := b.asm.Instructions()
+
+	asm.PeepholeOptimize(instructions, b.peepholePasses)
+	b.text.Data, b.text.Relocations = asm.Encode(instructions, b.file.Symbols, b.asm.LabelSymbols())
 
 	return b.file
 }

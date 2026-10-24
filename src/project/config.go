@@ -18,12 +18,13 @@ const (
 )
 
 type Profile struct {
-	Name     string
-	Backend  Backend
-	Opt      uint8
-	Debug    bool
-	Lto      bool
-	OutputIr bool
+	Name           string
+	Backend        Backend
+	Opt            uint8
+	PeepholePasses uint8
+	Debug          bool
+	Lto            bool
+	OutputIr       bool
 }
 
 type Dependency struct {
@@ -67,12 +68,13 @@ type Config struct {
 }
 
 type rawProfile struct {
-	Name     *string `toml:"-"`
-	Backend  *string `toml:"backend"`
-	Opt      *uint8  `toml:"opt"`
-	Debug    *bool   `toml:"debug"`
-	Lto      *bool   `toml:"lto"`
-	OutputIr *bool   `toml:"output-ir"`
+	Name           *string `toml:"-"`
+	Backend        *string `toml:"backend"`
+	Opt            *uint8  `toml:"opt"`
+	PeepholePasses *uint8  `toml:"peephole-passes"`
+	Debug          *bool   `toml:"debug"`
+	Lto            *bool   `toml:"lto"`
+	OutputIr       *bool   `toml:"output-ir"`
 }
 
 type rawConfig struct {
@@ -131,13 +133,15 @@ func readConfig(path string) (Config, error) {
 		Libs:     raw.Libs,
 		Profiles: map[string]Profile{
 			"debug": {
-				Name:  "debug",
-				Debug: true,
+				Name:           "debug",
+				PeepholePasses: 4,
+				Debug:          true,
 			},
 			"release": {
-				Name: "release",
-				Opt:  2,
-				Lto:  true,
+				Name:           "release",
+				Opt:            2,
+				PeepholePasses: 4,
+				Lto:            true,
 			},
 		},
 		Dependencies: raw.Dependencies,
@@ -155,7 +159,7 @@ func readConfig(path string) (Config, error) {
 
 	// Profiles
 	for name, raw := range raw.Profiles {
-		profile := Profile{Name: name}
+		profile := Profile{Name: name, PeepholePasses: 4}
 
 		if p, ok := config.Profiles[name]; ok {
 			profile = p
@@ -219,6 +223,9 @@ func (p Profile) merge(raw rawProfile) (Profile, error) {
 	}
 	if raw.Opt != nil {
 		p.Opt = *raw.Opt
+	}
+	if raw.PeepholePasses != nil {
+		p.PeepholePasses = *raw.PeepholePasses
 	}
 	if raw.Debug != nil {
 		p.Debug = *raw.Debug

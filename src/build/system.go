@@ -269,7 +269,7 @@ func (s *System) compileModule(objPath, irPath string, name string, module *ir.M
 		}
 
 		// Generate object file
-		obj := amd64.Generate(module)
+		obj := amd64.Generate(module, s.profile.PeepholePasses)
 		var err error
 
 		switch strings.Split(s.target.Name, "-")[0] {

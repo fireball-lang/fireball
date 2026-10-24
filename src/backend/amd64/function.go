@@ -35,7 +35,7 @@ func (b *backend) CreateFunction(fun *ir.Function) {
 
 	if fun.Flags&ir.LinkOnceODR != 0 {
 		section = b.file.AddSection(&obj.Section{
-			Name:        ".text",
+			Name:        ".text" + name,
 			Kind:        obj.SecText,
 			Align:       16,
 			Deduplicate: true,
@@ -105,7 +105,11 @@ func (b *backend) GenerateFunction(fun *ir.Function) {
 
 	// Finish assembler and symbol
 	if symbol.Section.Deduplicate {
-		symbol.Section.Data, symbol.Section.Relocations = asm.Encode(b.asm.Instructions(), b.file.Symbols, b.asm.LabelSymbols())
+		instructions := b.asm.Instructions()
+
+		asm.PeepholeOptimize(instructions, b.peepholePasses)
+		symbol.Section.Data, symbol.Section.Relocations = asm.Encode(instructions, b.file.Symbols, b.asm.LabelSymbols())
+
 		b.asm = prevAsm
 	}
 }
@@ -347,6 +351,14 @@ func (b *backend) CalculateCallStackBytes(call *ir.Call) uint32 {
 			fpI++
 			if mergedIndices {
 				intI++
+			}
+		} else if !mergedIndices && ir.IsAggregate(arg.Type()) && isPureFloat(arg.Type()) && size <= 16 {
+			if size <= 8 && fpI < len(b.fpParamRegs) {
+				fpI++
+			} else if size > 8 && fpI+1 < len(b.fpParamRegs) {
+				fpI += 2
+			} else {
+				stackBytes += uint32(obj.AlignUp(uint64(size), 8))
 			}
 		} else if !isFP && size > 8 && size <= 16 && !mergedIndices && intI+1 < len(b.intParamRegs) {
 			intI += 2

@@ -280,6 +280,7 @@ func (e *Emitter) Pop(r Operand) {
 
 func (e *Emitter) Mov(dst, src Operand) {
 	dst.Assert(OpReg, OpMem)
+	src.Assert(OpReg, OpMem, OpImm, OpSym)
 	e.emit2(OcMov, 8, dst, src)
 }
 
@@ -292,14 +293,14 @@ func (e *Emitter) Mov32(dst, src Operand) {
 
 func (e *Emitter) Mov8(dst, src Operand) {
 	dst.Assert(OpMem)
-	src.Assert(OpReg)
+	src.Assert(OpReg, OpImm)
 
 	e.emit2(OcMov8, 1, dst, src)
 }
 
 func (e *Emitter) Mov16(dst, src Operand) {
 	dst.Assert(OpMem)
-	src.Assert(OpReg)
+	src.Assert(OpReg, OpImm)
 
 	e.emit2(OcMov16, 2, dst, src)
 }

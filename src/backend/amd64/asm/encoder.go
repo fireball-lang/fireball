@@ -176,10 +176,24 @@ func (a *encoder) Encode(inst *Instruction) {
 	case OcMov32:
 		a.encodeMov32(inst.Args[0], inst.Args[1])
 	case OcMov8:
-		a.encodeMR(false, 0x88, inst.Args[0], inst.Args[1].Reg)
+		switch inst.Args[1].Kind {
+		case OpReg:
+			a.encodeMR(false, 0x88, inst.Args[0], inst.Args[1].Reg)
+		case OpImm:
+			a.encodeMI8(inst.Args[0], int8(inst.Args[1].Val))
+		default:
+			panic(fmt.Sprintf("backend.amd64.asm.Assembler.Encode() - Invalid src kind '%s' for OcMov8", inst.Args[1].Kind))
+		}
 	case OcMov16:
-		a.bytes = append(a.bytes, 0x66)
-		a.encodeMR(false, 0x89, inst.Args[0], inst.Args[1].Reg)
+		switch inst.Args[1].Kind {
+		case OpReg:
+			a.bytes = append(a.bytes, 0x66)
+			a.encodeMR(false, 0x89, inst.Args[0], inst.Args[1].Reg)
+		case OpImm:
+			a.encodeMI16(inst.Args[0], int16(inst.Args[1].Val))
+		default:
+			panic(fmt.Sprintf("backend.amd64.asm.Assembler.Encode() - Invalid src kind '%s' for OcMov16", inst.Args[1].Kind))
+		}
 	case OcMovzx8:
 		a.encodeExt(true, 0xB6, inst.Args[0].Reg, inst.Args[1])
 	case OcMovzx16:
@@ -435,7 +449,7 @@ func (a *encoder) encodeImul(is64 bool, dst Register, src Operand) {
 			return
 		}
 
-		a.encodeRexMem(is64, dst, src)
+		a.encodeRexMem(is64, dst, src, false)
 		a.bytes = append(a.bytes, 0x0F, 0xAF)
 		a.encodeMemDisp(src, dst)
 
@@ -473,7 +487,7 @@ func (a *encoder) encodeUnary(is64 bool, ext uint8, target Operand) {
 			return
 		}
 
-		a.encodeRexMem(is64, Register(ext), target)
+		a.encodeRexMem(is64, Register(ext), target, false)
 		a.bytes = append(a.bytes, 0xF7)
 		a.encodeMemDisp(target, Register(ext))
 
@@ -511,7 +525,7 @@ func (a *encoder) encodeShiftImm(is64 bool, ext uint8, target Operand, count Ope
 
 			a.encodeRipDisp(target, Register(ext), trailing)
 		} else {
-			a.encodeRexMem(is64, Register(ext), target)
+			a.encodeRexMem(is64, Register(ext), target, false)
 			a.bytes = append(a.bytes, opcode)
 			a.encodeMemDisp(target, Register(ext))
 		}
@@ -540,7 +554,7 @@ func (a *encoder) encodeShiftCl(is64 bool, ext uint8, target Operand) {
 			return
 		}
 
-		a.encodeRexMem(is64, Register(ext), target)
+		a.encodeRexMem(is64, Register(ext), target, false)
 		a.bytes = append(a.bytes, 0xD3)
 		a.encodeMemDisp(target, Register(ext))
 
@@ -655,7 +669,7 @@ func (a *encoder) encodeMovsxd(dst Register, src Operand) {
 			return
 		}
 
-		a.encodeRexMem(true, dst, src)
+		a.encodeRexMem(true, dst, src, false)
 		a.bytes = append(a.bytes, 0x63)
 		a.encodeMemDisp(src, dst)
 
@@ -672,7 +686,7 @@ func (a *encoder) encodeLea(dst Register, mem Operand) {
 		return
 	}
 
-	a.encodeRexMem(true, dst, mem)
+	a.encodeRexMem(true, dst, mem, false)
 	a.bytes = append(a.bytes, 0x8D)
 	a.encodeMemDisp(mem, dst)
 }
@@ -694,7 +708,7 @@ func (a *encoder) encodeJmp(target Operand) {
 			a.bytes = append(a.bytes, 0xFF)
 			a.encodeRipDisp(target, 4, 0)
 		} else {
-			a.encodeRexMem(false, 4, target)
+			a.encodeRexMem(false, 4, target, false)
 			a.bytes = append(a.bytes, 0xFF)
 			a.encodeMemDisp(target, 4)
 		}
@@ -731,7 +745,7 @@ func (a *encoder) encodeCall(callee Operand) {
 			a.bytes = append(a.bytes, 0xFF)
 			a.encodeRipDisp(callee, 2, 0)
 		} else {
-			a.encodeRexMem(false, 2, callee)
+			a.encodeRexMem(false, 2, callee, false)
 			a.bytes = append(a.bytes, 0xFF)
 			a.encodeMemDisp(callee, 2)
 		}
@@ -882,7 +896,7 @@ func (a *encoder) encodeSseRM(prefix uint8, is64 bool, opcode uint8, dst Registe
 		return
 	}
 
-	a.encodeRexMem(is64, dst, src)
+	a.encodeRexMem(is64, dst, src, false)
 	a.bytes = append(a.bytes, 0x0F, opcode)
 	a.encodeMemDisp(src, dst)
 }
@@ -900,7 +914,7 @@ func (a *encoder) encodeSseMR(prefix uint8, is64 bool, opcode uint8, dst Operand
 		return
 	}
 
-	a.encodeRexMem(is64, src, dst)
+	a.encodeRexMem(is64, src, dst, false)
 	a.bytes = append(a.bytes, 0x0F, opcode)
 	a.encodeMemDisp(dst, src)
 }
@@ -950,7 +964,7 @@ func (a *encoder) encodeAluMI(is64 bool, regOpcodeExt uint8, dst Operand, imm in
 		return
 	}
 
-	a.encodeRexMem(is64, Register(regOpcodeExt), dst)
+	a.encodeRexMem(is64, Register(regOpcodeExt), dst, false)
 
 	if imm >= -128 && imm <= 127 {
 		a.bytes = append(a.bytes, 0x83)
@@ -995,7 +1009,7 @@ func (a *encoder) encodeExt(is64 bool, opcode2 uint8, dst Register, src Operand)
 			return
 		}
 
-		a.encodeRexMem(is64, dst, src)
+		a.encodeRexMem(is64, dst, src, false)
 		a.bytes = append(a.bytes, 0x0F, opcode2)
 		a.encodeMemDisp(src, dst)
 
@@ -1025,21 +1039,28 @@ func (a *encoder) encodeRM(is64 bool, opcode uint8, dst Register, src Operand) {
 		return
 	}
 
-	a.encodeRexMem(is64, dst, src)
+	a.encodeRexMem(is64, dst, src, false)
 	a.bytes = append(a.bytes, opcode)
 	a.encodeMemDisp(src, dst)
 }
 
 // encodeMR encodes: op [mem], reg
 func (a *encoder) encodeMR(is64 bool, opcode uint8, dst Operand, src Register) {
+	forceRex := opcode == 0x88 && (src >= 4 && src <= 7) // 0x88 is 8-bit mov
+
 	if dst.SymbolID != 0 {
-		a.encodeRex(is64, src, 0)
+		if forceRex {
+			a.bytes = append(a.bytes, 0x40)
+		} else {
+			a.encodeRex(is64, src, 0)
+		}
+
 		a.bytes = append(a.bytes, opcode)
 		a.encodeRipDisp(dst, src, 0)
 		return
 	}
 
-	a.encodeRexMem(is64, src, dst)
+	a.encodeRexMem(is64, src, dst, forceRex)
 	a.bytes = append(a.bytes, opcode)
 	a.encodeMemDisp(dst, src)
 }
@@ -1062,10 +1083,44 @@ func (a *encoder) encodeMI(is64 bool, opcode uint8, regOpcodeExt Register, dst O
 		return
 	}
 
-	a.encodeRexMem(is64, regOpcodeExt, dst)
+	a.encodeRexMem(is64, regOpcodeExt, dst, false)
 	a.bytes = append(a.bytes, opcode)
 	a.encodeMemDisp(dst, regOpcodeExt)
 	a.encodeInt32(imm)
+}
+
+// encodeMI16 encodes: 66 [REX] C7 /0 [mem] imm16
+func (a *encoder) encodeMI16(dst Operand, imm int16) {
+	a.bytes = append(a.bytes, 0x66)
+
+	if dst.SymbolID != 0 {
+		a.encodeRex(false, 0, 0)
+		a.bytes = append(a.bytes, 0xC7)
+		a.encodeRipDisp(dst, 0, 2)
+		a.encodeInt16(imm)
+		return
+	}
+
+	a.encodeRexMem(false, 0, dst, false)
+	a.bytes = append(a.bytes, 0xC7)
+	a.encodeMemDisp(dst, 0)
+	a.encodeInt16(imm)
+}
+
+// encodeMI8 encodes: [REX] C6 /0 [mem] imm8
+func (a *encoder) encodeMI8(dst Operand, imm int8) {
+	if dst.SymbolID != 0 {
+		a.encodeRex(false, 0, 0)
+		a.bytes = append(a.bytes, 0xC6)
+		a.encodeRipDisp(dst, 0, 1)
+		a.bytes = append(a.bytes, uint8(imm))
+		return
+	}
+
+	a.encodeRexMem(false, 0, dst, false)
+	a.bytes = append(a.bytes, 0xC6)
+	a.encodeMemDisp(dst, 0)
+	a.bytes = append(a.bytes, uint8(imm))
 }
 
 func (a *encoder) encodeMemDisp(dst Operand, src Register) {
@@ -1146,7 +1201,7 @@ func (a *encoder) encodeSib(mem Operand) {
 }
 
 // encodeRexMem encodes REX prefix for an instruction with a register and a memory operand.
-func (a *encoder) encodeRexMem(is64 bool, reg Register, mem Operand) {
+func (a *encoder) encodeRexMem(is64 bool, reg Register, mem Operand, forceRex bool) {
 	var rex uint8 = 0x40
 
 	if is64 {
@@ -1162,7 +1217,7 @@ func (a *encoder) encodeRexMem(is64 bool, reg Register, mem Operand) {
 		rex |= 1 << 0 // B bit (extension of SIB base field or ModRM rm field)
 	}
 
-	if is64 || rex != 0x40 {
+	if is64 || rex != 0x40 || forceRex {
 		a.bytes = append(a.bytes, rex)
 	}
 }
@@ -1202,6 +1257,13 @@ func (a *encoder) encodeInt32(v int32) {
 		uint8(v>>8),
 		uint8(v>>16),
 		uint8(v>>24),
+	)
+}
+
+func (a *encoder) encodeInt16(v int16) {
+	a.bytes = append(a.bytes,
+		uint8(v),
+		uint8(v>>8),
 	)
 }
 
