@@ -124,6 +124,11 @@ func (s *Server) Completion(_ context.Context, params *protocol.CompletionParams
 		c.EnclosingDecl(ast.GetClosestParent[ast.Decl](node))
 	}
 
+	// Implicitly imported core symbols
+	if module, sameModule := c.coreModule(); module != nil {
+		c.ModuleSymbol(module, sameModule, false)
+	}
+
 	// Expression snippets
 	if c.exprContext {
 		c.ExprSnippets()
@@ -310,6 +315,19 @@ func (c *completions) RootModule() {
 			Detail: protocol.NewOptional(proj.Config.Name),
 		})
 	}
+}
+
+// coreModule returns the language core module and whether the file being
+// completed belongs to it. Core is embedded in the compiler and implicitly
+// imported into every file, so its public symbols are always in scope.
+func (c *completions) coreModule() (*project.Module, bool) {
+	proj, ok := c.workspace.depMap[project.Dependency{Path: "core"}]
+	if !ok {
+		return nil, false
+	}
+
+	sameModule := slices.Equal(modulePath(c.file), []string{proj.Config.Name})
+	return proj.Module, sameModule
 }
 
 func (c *completions) ModuleSymbol(module *project.Module, sameModule, typesOnly bool) {
@@ -578,6 +596,11 @@ func (c *completions) Types(typ ast.Type) {
 
 	// Types in scope (type parameters, 'Self')
 	c.scopeTypes(ast.GetClosestParent[ast.Decl](c.node))
+
+	// Implicitly imported core types
+	if module, sameModule := c.coreModule(); module != nil {
+		c.ModuleSymbol(module, sameModule, true)
+	}
 }
 
 func (c *completions) TypePath(prefix []*ast.Leaf) {
