@@ -87,23 +87,9 @@ func Generate(module *ir.Module, peepholePasses uint8) *obj.File {
 		Align: 8,
 	})
 
-	// Create symbols
-	for gVar := range b.module.GlobalVars() {
-		b.CreateGlobalVar(gVar)
-	}
-
-	for fun := range b.module.Functions() {
-		b.CreateFunction(fun)
-	}
-
-	// Generate symbols (initializers, instructions)
-	for gVar := range b.module.GlobalVars() {
-		b.GenerateGlobalVar(gVar)
-	}
-
-	for fun := range b.module.Functions() {
-		b.GenerateFunction(fun)
-	}
+	// Generate
+	b.CreateSymbols()
+	b.GenerateSymbols()
 
 	// Finish
 	instructions := b.asm.Instructions()
@@ -112,6 +98,30 @@ func Generate(module *ir.Module, peepholePasses uint8) *obj.File {
 	b.text.Data, b.text.Relocations = asm.Encode(instructions, b.file.Symbols, b.asm.LabelSymbols())
 
 	return b.file
+}
+
+func (b *backend) CreateSymbols() {
+	defer core.Scope()()
+
+	for gVar := range b.module.GlobalVars() {
+		b.CreateGlobalVar(gVar)
+	}
+
+	for fun := range b.module.Functions() {
+		b.CreateFunction(fun)
+	}
+}
+
+func (b *backend) GenerateSymbols() {
+	defer core.Scope()()
+
+	for gVar := range b.module.GlobalVars() {
+		b.GenerateGlobalVar(gVar)
+	}
+
+	for fun := range b.module.Functions() {
+		b.GenerateFunction(fun)
+	}
 }
 
 func (b *backend) GetFuncSymbol(name string) *obj.Symbol {

@@ -27,7 +27,11 @@ type goId struct {
 	tid uint32
 }
 
-var start atomic.Uint64
+type session struct {
+	origin time.Time
+}
+
+var current atomic.Pointer[session]
 var events []event
 
 var norW io.Writer
@@ -35,10 +39,16 @@ var bufW *bufio.Writer
 var wHasEvents = false
 
 var mutex sync.Mutex
-var goIds map[int64]goId
 
 func StartProfiler() {
-	start.Store(uint64(time.Now().UnixMicro()))
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if current.Load() != nil {
+		return
+	}
+
+	current.Store(&session{origin: time.Now()})
 }
 
 func SetProfilerOutput(w io.Writer) {
@@ -46,7 +56,7 @@ func SetProfilerOutput(w io.Writer) {
 	defer mutex.Unlock()
 
 	norW = w
-	bufW = bufio.NewWriter(w)
+	bufW = bufio.NewWriterSize(w, 1024*16)
 
 	_, _ = bufW.WriteString("[\n")
 
@@ -57,40 +67,39 @@ func SetProfilerOutput(w io.Writer) {
 }
 
 func EndProfiler() {
-	if start.Load() == 0 {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if current.Swap(nil) == nil {
 		return
 	}
 
-	mutex.Lock()
-
 	if bufW != nil {
 		_, _ = bufW.WriteString("\n]\n")
-
 		_ = bufW.Flush()
 
 		if c, ok := norW.(io.Closer); ok {
 			_ = c.Close()
 		}
-
-		norW = nil
-		bufW = nil
-		wHasEvents = false
 	}
 
 	events = nil
 
-	mutex.Unlock()
-
-	start.Store(0)
+	norW = nil
+	bufW = nil
+	wHasEvents = false
 }
 
 func Scope() func() {
-	if start.Load() == 0 {
+	s := current.Load()
+	if s == nil {
 		return func() {}
 	}
 
+	startMono := time.Now()
+
 	// Get caller name
-	name := ""
+	name := "unknown"
 
 	var pc [1]uintptr
 	n := runtime.Callers(2, pc[:])
@@ -101,25 +110,25 @@ func Scope() func() {
 
 		name = frame.Function
 
-		i := strings.IndexByte(name, '/')
+		i := strings.LastIndexByte(name, '/')
 		if i != -1 {
 			name = name[i+1:]
 		}
 	}
 
-	// Capture start timestamp
-	ts := uint64(time.Now().UnixMicro()) - start.Load()
-
 	// Complete event
 	return func() {
-		if start.Load() != 0 {
-			recordEvent(name, ts, uint64(time.Now().UnixMicro())-start.Load()-ts)
-		}
+		end := time.Since(s.origin)
+		begin := startMono.Sub(s.origin)
+		recordEvent(s, name, begin, end)
 	}
 }
 
-func recordEvent(name string, ts uint64, dur uint64) {
+func recordEvent(s *session, name string, begin, end time.Duration) {
 	goroutineID := goid.Get()
+
+	ts := uint64(begin / time.Microsecond)
+	dur := uint64(end/time.Microsecond) - ts
 
 	e := event{
 		name: name,
@@ -130,14 +139,16 @@ func recordEvent(name string, ts uint64, dur uint64) {
 		dur:  dur,
 	}
 
+	if id, ok := getWorkerID(goroutineID); ok {
+		e.pid = id.pid
+		e.tid = id.tid
+	}
+
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	if goIds != nil {
-		id := goIds[goroutineID]
-
-		e.pid = id.pid
-		e.tid = id.tid
+	if current.Load() != s {
+		return
 	}
 
 	if bufW != nil {
@@ -156,9 +167,12 @@ func (e event) write() {
 	}
 
 	if e.name != "" {
-		_, _ = bufW.WriteString("\t{\"name\":\"")
-		_, _ = bufW.WriteString(e.name)
-		_, _ = bufW.WriteString("\",\"ph\":\"")
+		_, _ = bufW.WriteString("\t{\"name\":")
+
+		name := strconv.AppendQuote(buffer[:0], e.name)
+		_, _ = bufW.Write(name)
+
+		_, _ = bufW.WriteString(",\"ph\":\"")
 	} else {
 		_, _ = bufW.WriteString("\t{\"ph\":\"")
 	}
@@ -167,25 +181,51 @@ func (e event) write() {
 
 	_, _ = bufW.WriteString("\",\"pid\":")
 
-	size := len(strconv.AppendInt(buffer[0:0], int64(e.pid), 10))
-	_, _ = bufW.Write(buffer[:size])
+	pid := strconv.AppendUint(buffer[:0], uint64(e.pid), 10)
+	_, _ = bufW.Write(pid)
 
 	_, _ = bufW.WriteString(",\"tid\":")
 
-	size = len(strconv.AppendUint(buffer[0:0], uint64(e.tid), 10))
-	_, _ = bufW.Write(buffer[:size])
+	tid := strconv.AppendUint(buffer[:0], uint64(e.tid), 10)
+	_, _ = bufW.Write(tid)
 
 	_, _ = bufW.WriteString(",\"ts\":")
 
-	size = len(strconv.AppendUint(buffer[0:0], e.ts, 10))
-	_, _ = bufW.Write(buffer[:size])
+	ts := strconv.AppendUint(buffer[:0], e.ts, 10)
+	_, _ = bufW.Write(ts)
 
 	_, _ = bufW.WriteString(",\"dur\":")
 
-	size = len(strconv.AppendUint(buffer[0:0], e.dur, 10))
-	_, _ = bufW.Write(buffer[:size])
+	dur := strconv.AppendUint(buffer[:0], e.dur, 10)
+	_, _ = bufW.Write(dur)
 
 	_ = bufW.WriteByte('}')
 
 	wHasEvents = true
+}
+
+// go routines
+
+var (
+	goIdMutex sync.RWMutex
+	goIdMap   = make(map[int64]goId)
+)
+
+func registerWorker(gid int64, pid, tid uint32) {
+	goIdMutex.Lock()
+	goIdMap[gid] = goId{pid: pid, tid: tid}
+	goIdMutex.Unlock()
+}
+
+func unregisterWorker(gid int64) {
+	goIdMutex.Lock()
+	delete(goIdMap, gid)
+	goIdMutex.Unlock()
+}
+
+func getWorkerID(gid int64) (goId, bool) {
+	goIdMutex.RLock()
+	id, ok := goIdMap[gid]
+	goIdMutex.RUnlock()
+	return id, ok
 }

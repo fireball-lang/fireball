@@ -139,9 +139,24 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		module.GetMeta(c.UnitRef).(*ir.CompileUnitMeta).RetainedTypes = ref
 	}
 
-	// Function / Global Var declarations
+	// Generate
 
 	c.scope.Push()
+
+	c.Declarations(file)
+	c.VTables(file)
+	c.TypeInfos(file)
+	c.Definitions(file)
+
+	c.scope.Pop()
+
+	c.Instantiations()
+
+	return c.Module
+}
+
+func (c *Codegen) Declarations(file *ast.File) {
+	defer core.Scope()()
 
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
@@ -169,8 +184,10 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 			}
 		}
 	}
+}
 
-	// V-Tables
+func (c *Codegen) VTables(file *ast.File) {
+	defer core.Scope()()
 
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
@@ -190,10 +207,12 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 			}
 		}
 	}
+}
 
-	// Type Infos
+func (c *Codegen) TypeInfos(file *ast.File) {
+	defer core.Scope()()
 
-	if strings.HasSuffix(filepath.ToSlash(path), "build/dependencies/core/src/reflect.fb") {
+	if strings.HasSuffix(filepath.ToSlash(c.Module.Path), "build/dependencies/core/src/reflect.fb") {
 		c.CreateTypeInfo(types.PrimitiveVoid, false)
 		c.CreateTypeInfo(types.PrimitiveBool, false)
 
@@ -228,8 +247,10 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 			}
 		}
 	}
+}
 
-	// Function / Global Var definitions
+func (c *Codegen) Definitions(file *ast.File) {
+	defer core.Scope()()
 
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
@@ -238,7 +259,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 				typ := c.NodeTypes[decl]
 				gVar := c.GetGlobalVar(decl, nil)
 
-				gVar.Initializer = c.GetIrValue(fileDataMap[file].Evaluations[decl.Initializer], typ)
+				gVar.Initializer = c.GetIrValue(c.fileDataMap[file].Evaluations[decl.Initializer], typ)
 			}
 
 		case *ast.Impl:
@@ -265,10 +286,10 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 			}
 		}
 	}
+}
 
-	c.scope.Pop()
-
-	// Function instantiations
+func (c *Codegen) Instantiations() {
+	defer core.Scope()()
 
 	for len(c.pendingInstantiations) > 0 {
 		pending := c.pendingInstantiations[len(c.pendingInstantiations)-1]
@@ -297,8 +318,6 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 		c.funcTyp = nil
 		c.substitutions = nil
 	}
-
-	return c.Module
 }
 
 // Utils

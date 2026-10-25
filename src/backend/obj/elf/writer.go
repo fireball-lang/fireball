@@ -1,6 +1,7 @@
 package elf
 
 import (
+	"bufio"
 	"bytes"
 	"debug/elf"
 	"encoding/binary"
@@ -70,7 +71,12 @@ func Write(f *obj.File, w io.Writer) error {
 	wr.BuildSectionNameTable()
 	wr.Layout()
 
-	return wr.Emit(w)
+	bw := bufio.NewWriter(w)
+
+	//goland:noinspection GoUnhandledErrorResult
+	defer bw.Flush()
+
+	return wr.Emit(bw)
 }
 
 func WriteTo(f *obj.File, path string) (err error) {

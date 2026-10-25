@@ -9,61 +9,51 @@ import (
 	"github.com/petermattis/goid"
 )
 
-var parallelForActive atomic.Bool
 var parallelForCount atomic.Uint32
 
 func ParallelFor[T any](items []T, fun func(int, T) error) error {
-	defer Scope()()
-
-	if !parallelForActive.CompareAndSwap(false, true) {
-		panic("core.ParallelFor() - Nested parallel fors not supported")
+	if len(items) == 0 {
+		return nil
 	}
 
-	defer parallelForActive.Store(false)
+	defer Scope()()
 
 	batch := parallelForCount.Add(1)
+	numWorkers := min(runtime.GOMAXPROCS(-1), len(items))
 
 	var wg sync.WaitGroup
+	var currentIdx atomic.Int64
 
 	var errsMutex sync.Mutex
 	var errs []error
 
-	numWorkers := runtime.GOMAXPROCS(-1)
-
-	mutex.Lock()
-	goIds = make(map[int64]goId)
-	mutex.Unlock()
-
-	indexes := make(chan int)
-
 	for w := range numWorkers {
+		workerTid := uint32(w + 1)
+
 		wg.Go(func() {
-			mutex.Lock()
-			goIds[goid.Get()] = goId{batch, uint32(w + 1)}
-			mutex.Unlock()
+			gid := goid.Get()
 
-			for i := range indexes {
-				err := fun(i, items[i])
+			// Register this worker's lane (PID = batch, TID = worker slot)
+			registerWorker(gid, batch, workerTid)
+			defer unregisterWorker(gid)
 
-				if err != nil {
+			for {
+				i := int(currentIdx.Add(1) - 1)
+				if i >= len(items) {
+					break
+				}
+
+				if err := fun(i, items[i]); err != nil {
 					errsMutex.Lock()
 					errs = append(errs, err)
 					errsMutex.Unlock()
 				}
+
+				runtime.Gosched()
 			}
 		})
 	}
 
-	for i := range items {
-		indexes <- i
-	}
-	close(indexes)
-
 	wg.Wait()
-
-	mutex.Lock()
-	goIds = nil
-	mutex.Unlock()
-
 	return errors.Join(errs...)
 }

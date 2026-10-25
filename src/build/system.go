@@ -253,19 +253,10 @@ func (s *System) compileModule(objPath, irPath string, name string, module *ir.M
 	if s.profile.Backend == project.Fireball {
 		// Emit IR
 		if s.profile.OutputIr {
-			irFilePath := filepath.Join(irPath, name+".ll")
-
-			irFile, err := os.Create(irFilePath)
+			_, err := s.writeIr(module, irPath, name)
 			if err != nil {
 				return "", err
 			}
-
-			if err := llvm.Write(module, irFile); err != nil {
-				_ = irFile.Close()
-				return "", err
-			}
-
-			_ = irFile.Close()
 		}
 
 		// Generate object file
@@ -293,19 +284,10 @@ func (s *System) compileModule(objPath, irPath string, name string, module *ir.M
 
 	if s.profile.OutputIr {
 		// Write into .ll file
-		irFilePath := filepath.Join(irPath, name+".ll")
-
-		irFile, err := os.Create(irFilePath)
+		irFilePath, err := s.writeIr(module, irPath, name)
 		if err != nil {
 			return "", err
 		}
-
-		if err := llvm.Write(module, irFile); err != nil {
-			_ = irFile.Close()
-			return "", err
-		}
-
-		_ = irFile.Close()
 
 		irReader, err = os.Open(irFilePath)
 		if err != nil {
@@ -339,4 +321,24 @@ func (s *System) compileModule(objPath, irPath string, name string, module *ir.M
 	}
 
 	return objFilePath, nil
+}
+
+func (s *System) writeIr(module *ir.Module, irPath, name string) (string, error) {
+	defer core.Scope()()
+
+	irFilePath := filepath.Join(irPath, name+".ll")
+
+	irFile, err := os.Create(irFilePath)
+	if err != nil {
+		return "", err
+	}
+
+	//goland:noinspection GoUnhandledErrorResult
+	defer irFile.Close()
+
+	if err := llvm.Write(module, irFile); err != nil {
+		return "", err
+	}
+
+	return irFilePath, nil
 }

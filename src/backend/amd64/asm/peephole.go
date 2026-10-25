@@ -51,7 +51,6 @@ func PeepholeOptimize(instructions []Instruction, passes uint8) {
 	}
 
 	defer core.Scope()()
-	i := 0
 
 	for range passes {
 		changed := false
@@ -73,8 +72,6 @@ func PeepholeOptimize(instructions []Instruction, passes uint8) {
 				}
 			}
 		}
-
-		i++
 
 		if !changed {
 			break
