@@ -282,7 +282,7 @@ func (ct *compTime) Evaluate(value ast.Expr, typ ast.Type, errNode ast.Node) {
 
 func (ct *compTime) EvalExpr(expr ast.Expr, typ types.Type) (eval.Value, bool) {
 	// Get literal value directly
-	value := ct.GetLiteralEvalValue(expr)
+	value := ct.GetLiteralEvalValue(expr, typ)
 	if value != nil {
 		return value, true
 	}
@@ -352,7 +352,24 @@ func (ct *compTime) CheckCompTimeExpr(expr ast.Expr, seen map[ast.Expr]any, errN
 	return true
 }
 
-func (ct *compTime) GetLiteralEvalValue(expr ast.Expr) eval.Value {
+func (ct *compTime) GetLiteralEvalValue(expr ast.Expr, typ types.Type) eval.Value {
+	switch expr.(type) {
+	case *ast.Bool, *ast.Number, *ast.Character, *ast.String:
+	default:
+		return nil
+	}
+
+	kind, ok := sema.GetImplicitCast(ct.ctx, ct.sema.ExprInfos[expr], typ)
+	if !ok {
+		return nil
+	}
+
+	switch kind {
+	case sema.Noop, sema.ZeroExtend, sema.SignExtend, sema.Truncate, sema.FloatExtend:
+	default:
+		return nil
+	}
+
 	switch expr := expr.(type) {
 	case *ast.Bool:
 		if expr.Value {

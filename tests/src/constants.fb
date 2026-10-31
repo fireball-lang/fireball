@@ -27,6 +27,16 @@ const LIT_CHAR: u8 = 'A';
 const LIT_HEX: u32 = 0xFFFF;
 const LIT_BIN: u8 = 0b1010;
 
+// ── Literal conversions ───────────────────────────────────────────────────────
+
+const INTEGER_AS_FLOAT: f64 = 5;
+const CHARACTER_AS_FLOAT: f64 = 'A';
+const OPTIONAL_INTEGER: ?i32 = 5;
+const OPTIONAL_BOOLEAN: ?bool = true;
+const OPTIONAL_STRING: ?StringView = "hello";
+const WIDENED_FLOAT: f64 = 0.1f;
+const WIDENED_FLOAT_EXPR: f64 = 0.1f + 0.0f;
+
 // ── Arithmetic / bitwise / float folding ──────────────────────────────────────
 
 const ARITH: i32 = 2 + 3 * 4 - 6 / 2;    // 11
@@ -270,4 +280,31 @@ func testArrayInLoop() bool {
     }
 
     return sum == 6;
+}
+
+#[test("comptime literal numeric conversions and match patterns")]
+func testNumericConversions() bool {
+    var value: f64 = 5.0;
+    var matched = false;
+
+    match (value) {
+        5 => matched = true;
+        _ => {}
+    }
+
+    return INTEGER_AS_FLOAT == value && CHARACTER_AS_FLOAT == 65.0 && matched;
+}
+
+#[test("comptime literals converted to options")]
+func testOptionConversions() bool {
+    return OPTIONAL_INTEGER.is_some() && OPTIONAL_INTEGER.unwrap() == 5
+        && OPTIONAL_BOOLEAN.is_some() && OPTIONAL_BOOLEAN.unwrap()
+        && OPTIONAL_STRING.is_some() && OPTIONAL_STRING.unwrap() == "hello";
+}
+
+#[test("comptime f32 literal widening preserves source precision")]
+func testFloatPrecision() bool {
+    return WIDENED_FLOAT == WIDENED_FLOAT_EXPR
+        && WIDENED_FLOAT == 0.10000000149011612
+        && WIDENED_FLOAT != 0.1;
 }
