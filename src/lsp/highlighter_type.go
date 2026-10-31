@@ -52,7 +52,7 @@ func (hi *highlighter) VisitFuncType(f *ast.FuncType) int {
 func (hi *highlighter) VisitIdentifierType(i *ast.IdentifierType) int {
 	if len(i.Path) > 0 {
 		last := i.Path[len(i.Path)-1].Name
-		hi.AddType(last, hi.file.NodeTypes[i])
+		hi.AddType(last, hi.file.Sema.NodeTypes[i])
 	}
 
 	for _, entry := range i.Path {
@@ -65,7 +65,7 @@ func (hi *highlighter) VisitIdentifierType(i *ast.IdentifierType) int {
 }
 
 func (hi *highlighter) VisitSelfType(s *ast.SelfType) int {
-	hi.AddType(s, hi.file.NodeTypes[s])
+	hi.AddType(s, hi.file.Sema.NodeTypes[s])
 
 	return 0
 }

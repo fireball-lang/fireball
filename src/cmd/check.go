@@ -17,7 +17,7 @@ func getCheckCmd() *cobra.Command {
 			env.TargetOs = targetOs.Value
 			env.ComputeDerived()
 
-			_, _, err := parseProject(env, nil)
+			_, _, _, err := parseProject(env, nil)
 			if err != nil {
 				return err
 			}

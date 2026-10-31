@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"fireball/ast"
 	"fireball/core"
-	"fireball/fb-core"
 	"fireball/symbols"
 	"fireball/types"
 	"iter"
@@ -34,6 +33,8 @@ type implKey struct {
 //
 // Constraint satisfaction is implemented in constraints.go.
 type TypeEnvironment struct {
+	ctx *Context
+
 	static   map[types.Type][]symbols.Symbol
 	instance map[types.Type][]symbols.Symbol
 
@@ -48,25 +49,21 @@ type TypeEnvironment struct {
 	implTargets   map[*types.Struct][]*types.Struct
 	implForTarget map[*types.Struct]*ast.Impl
 
-	instantiations *types.InstantiationCache
-	builtins       fb_core.Builtins
-
 	checked bool
 }
 
-func NewTypeEnvironment(instantiations *types.InstantiationCache, builtins fb_core.Builtins) *TypeEnvironment {
+func NewTypeEnvironment(ctx *Context) *TypeEnvironment {
 	return &TypeEnvironment{
-		static:         make(map[types.Type][]symbols.Symbol),
-		instance:       make(map[types.Type][]symbols.Symbol),
-		typeDeclNodes:  make(map[types.Type]ast.Decl),
-		implNodes:      make(map[implKey]*ast.Impl),
-		implParams:     make(map[*ast.Impl][]*types.Param),
-		conformances:   make(map[types.Type][]*types.Interface),
-		paramScopes:    make(map[*types.Param]symbols.Scope),
-		implTargets:    make(map[*types.Struct][]*types.Struct),
-		implForTarget:  make(map[*types.Struct]*ast.Impl),
-		instantiations: instantiations,
-		builtins:       builtins,
+		ctx:           ctx,
+		static:        make(map[types.Type][]symbols.Symbol),
+		instance:      make(map[types.Type][]symbols.Symbol),
+		typeDeclNodes: make(map[types.Type]ast.Decl),
+		implNodes:     make(map[implKey]*ast.Impl),
+		implParams:    make(map[*ast.Impl][]*types.Param),
+		conformances:  make(map[types.Type][]*types.Interface),
+		paramScopes:   make(map[*types.Param]symbols.Scope),
+		implTargets:   make(map[*types.Struct][]*types.Struct),
+		implForTarget: make(map[*types.Struct]*ast.Impl),
 	}
 }
 
@@ -202,36 +199,36 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 
 	switch t := typ.(type) {
 	case *types.Primitive:
-		result = []*types.Interface{e.builtins.Zeroable}
+		result = []*types.Interface{e.ctx.Builtins.Zeroable}
 
 	case *types.Array:
-		if slices.Contains(e.GetConformances(t.Element), e.builtins.Zeroable) {
-			return []*types.Interface{e.builtins.Zeroable}
+		if slices.Contains(e.GetConformances(t.Element), e.ctx.Builtins.Zeroable) {
+			return []*types.Interface{e.ctx.Builtins.Zeroable}
 		}
 
 		return nil
 
 	case *types.Tuple:
 		for _, typ := range t.Types {
-			if !slices.Contains(e.GetConformances(typ), e.builtins.Zeroable) {
+			if !slices.Contains(e.GetConformances(typ), e.ctx.Builtins.Zeroable) {
 				return nil
 			}
 		}
 
-		return []*types.Interface{e.builtins.Zeroable}
+		return []*types.Interface{e.ctx.Builtins.Zeroable}
 
 	case *types.Reference:
 		typ = t.Pointee
 
 	case *types.Pointer:
-		result = []*types.Interface{e.builtins.Zeroable}
+		result = []*types.Interface{e.ctx.Builtins.Zeroable}
 		typ = t.Pointee
 
 	case *types.Func:
 		return []*types.Interface{}
 
 	case *types.Enum:
-		result = []*types.Interface{e.builtins.Zeroable}
+		result = []*types.Interface{e.ctx.Builtins.Zeroable}
 
 	case *types.Struct:
 		var zeroable bool
@@ -240,7 +237,7 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 			zeroable = false
 
 			for _, field := range t.Fields {
-				if !field.Required && slices.Contains(e.GetConformances(field.Type), e.builtins.Zeroable) {
+				if !field.Required && slices.Contains(e.GetConformances(field.Type), e.ctx.Builtins.Zeroable) {
 					zeroable = true
 					break
 				}
@@ -249,7 +246,7 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 			zeroable = true
 
 			for _, field := range t.Fields {
-				if field.Required || !slices.Contains(e.GetConformances(field.Type), e.builtins.Zeroable) {
+				if field.Required || !slices.Contains(e.GetConformances(field.Type), e.ctx.Builtins.Zeroable) {
 					zeroable = false
 					break
 				}
@@ -257,7 +254,7 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 		}
 
 		if zeroable {
-			result = []*types.Interface{e.builtins.Zeroable}
+			result = []*types.Interface{e.ctx.Builtins.Zeroable}
 		}
 
 	case *types.Interface:
@@ -292,7 +289,7 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 			continue
 		}
 
-		instantiated := e.instantiations.Substitute(in, s.Substitutions).(*types.Interface)
+		instantiated := e.ctx.Instantiations.Substitute(in, s.Substitutions).(*types.Interface)
 		result = append(result, instantiated)
 	}
 
@@ -308,7 +305,7 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 		}
 
 		for _, in := range e.conformances[pt] {
-			instantiated := e.instantiations.Substitute(in, subs).(*types.Interface)
+			instantiated := e.ctx.Instantiations.Substitute(in, subs).(*types.Interface)
 			result = append(result, instantiated)
 		}
 	}
@@ -587,7 +584,7 @@ func (e *TypeEnvironment) ParamInstanceMembers(tp *types.Param) iter.Seq[MemberS
 
 				if canonical.SelfParam != nil {
 					subs := []types.Substitution{{Param: canonical.SelfParam, Type: tp}}
-					methodType = e.instantiations.Substitute(methodType, subs).(*types.Func)
+					methodType = e.ctx.Instantiations.Substitute(methodType, subs).(*types.Func)
 				}
 
 				symbol := symbols.Symbol{
@@ -620,7 +617,7 @@ func (e *TypeEnvironment) resolveMembers(m map[types.Type][]symbols.Symbol, typ 
 			member := MemberSymbol{Symbol: entry.symbol, Type: entry.symbol.Type}
 
 			if len(entry.subs) > 0 {
-				member.Type = e.instantiations.Get(entry.symbol.Type, entry.subs)
+				member.Type = e.ctx.Instantiations.Get(entry.symbol.Type, entry.subs)
 			}
 
 			if !yield(member) {
@@ -738,7 +735,7 @@ func (e *TypeEnvironment) GetTypeScope(typ types.Type) symbols.Scope {
 				constType := assocConst.Type
 				if canonical.SelfParam != nil {
 					subs := []types.Substitution{{Param: canonical.SelfParam, Type: tp}}
-					constType = e.instantiations.Substitute(constType, subs)
+					constType = e.ctx.Instantiations.Substitute(constType, subs)
 				}
 
 				staticSymbols = append(staticSymbols, symbols.Symbol{
@@ -768,7 +765,7 @@ func (e *TypeEnvironment) GetTypeScope(typ types.Type) symbols.Scope {
 				methodType := method.Type
 				if canonical.SelfParam != nil {
 					subs := []types.Substitution{{Param: canonical.SelfParam, Type: tp}}
-					methodType = e.instantiations.Substitute(methodType, subs).(*types.Func)
+					methodType = e.ctx.Instantiations.Substitute(methodType, subs).(*types.Func)
 				}
 
 				staticSymbols = append(staticSymbols, symbols.Symbol{

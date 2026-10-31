@@ -61,7 +61,7 @@ outer:
 		// Variable, function, static-method identifier, member access
 		// (field, method), struct initializer field and offsetof field
 		case *ast.Identifier, *ast.Member, *ast.FieldInitializer, *ast.OffsetOf:
-			info, ok := file.ExprInfos[n]
+			info, ok := file.Sema.ExprInfos[n]
 			if !ok || core.IsNil(info.Node) {
 				break outer
 			}
@@ -85,7 +85,7 @@ outer:
 		case *ast.Leaf:
 			// Import symbols
 			if _, ok := n.Parent().(*ast.Import); ok {
-				typ, ok := file.NodeTypes[n]
+				typ, ok := file.Sema.NodeTypes[n]
 				if !ok {
 					break outer
 				}
@@ -107,7 +107,7 @@ outer:
 			isLast := path[len(path)-1] == n
 
 			if !isLast {
-				typ, ok := file.NodeTypes[n]
+				typ, ok := file.Sema.NodeTypes[n]
 				if !ok {
 					break outer
 				}
@@ -124,13 +124,13 @@ outer:
 
 func (s *Server) resolveSelf(file *project.File, n *ast.SelfType) types.Type {
 	if impl := ast.GetClosestParent[*ast.Impl](n); !core.IsNil(impl) {
-		if typ, ok := file.NodeTypes[impl.Type]; ok {
+		if typ, ok := file.Sema.NodeTypes[impl.Type]; ok {
 			return typ
 		}
 	}
 
 	if iface := ast.GetClosestParent[*ast.Interface](n); !core.IsNil(iface) {
-		if typ, ok := file.NodeTypes[iface]; ok {
+		if typ, ok := file.Sema.NodeTypes[iface]; ok {
 			return typ
 		}
 	}
@@ -140,14 +140,14 @@ func (s *Server) resolveSelf(file *project.File, n *ast.SelfType) types.Type {
 
 func resolveIdentifierType(file *project.File, n *ast.IdentifierType) (types.Type, bool) {
 	if len(n.Path) > 0 {
-		if typ, ok := file.NodeTypes[n.Path[len(n.Path)-1]]; ok {
+		if typ, ok := file.Sema.NodeTypes[n.Path[len(n.Path)-1]]; ok {
 			if _, isAlias := typ.(*types.Alias); isAlias {
 				return typ, true
 			}
 		}
 	}
 
-	typ, ok := file.NodeTypes[n]
+	typ, ok := file.Sema.NodeTypes[n]
 	return typ, ok
 }
 
@@ -259,7 +259,7 @@ func (s *Server) findParamNode(p *types.Param) ast.Node {
 	outer:
 		for _, proj := range workspace.projMap {
 			for _, file := range proj.Files {
-				for node, typ := range file.NodeTypes {
+				for node, typ := range file.Sema.NodeTypes {
 					if typ != p {
 						continue
 					}
@@ -291,7 +291,7 @@ func (s *Server) allSymbols() iter.Seq[symbols.Symbol] {
 			cont := true
 			for _, proj := range workspace.projMap {
 				for _, file := range proj.Files {
-					for _, sym := range file.Symbols {
+					for _, sym := range file.Sema.Symbols {
 						if !yield(sym) {
 							cont = false
 							break

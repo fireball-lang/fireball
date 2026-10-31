@@ -118,7 +118,7 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 	}
 
 	// Check for required and non Zeroable fields that are not initialized
-	isZeroable := slices.Contains(a.typeEnv.GetConformances(t), a.builtins.Zeroable)
+	isZeroable := slices.Contains(a.ctx.TypeEnv.GetConformances(t), a.ctx.Builtins.Zeroable)
 
 	if t.Layout == types.Union {
 		if len(s.Fields) == 0 && !isZeroable {
@@ -130,7 +130,7 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 
 			if field.Required {
 				kind = "required"
-			} else if !isZeroable && !slices.Contains(a.typeEnv.GetConformances(field.Type), a.builtins.Zeroable) {
+			} else if !isZeroable && !slices.Contains(a.ctx.TypeEnv.GetConformances(field.Type), a.ctx.Builtins.Zeroable) {
 				kind = "non Zeroable"
 			}
 
@@ -239,7 +239,7 @@ func (a *analyzer) VisitTupleInitializer(t *ast.TupleInitializer) ExprInfo {
 	var wantedTyp *types.Tuple
 	typ := &types.Tuple{Types: make([]types.Type, len(t.Values))}
 
-	if wantedTypRaw, ok := GetWantedTypeOfParent(a.nodeTypes, a.exprInfos, a.typeEnv, t); ok {
+	if wantedTypRaw, ok := GetWantedTypeOfParent(a.ctx, t); ok {
 		if typ, ok := wantedTypRaw.(*types.Tuple); ok {
 			wantedTyp = typ
 		}
@@ -349,7 +349,7 @@ func (a *analyzer) VisitPrefix(p *ast.Prefix) ExprInfo {
 
 	// core::<interface>
 	if _, ok := expr.Type.(*types.Primitive); !ok {
-		if f, _ := GetUnaryMethod(a.typeEnv, a.instantiations, p.Op.InterfaceName(), expr.Type); f != nil {
+		if f, _ := GetUnaryMethod(a.ctx, p.Op.InterfaceName(), expr.Type); f != nil {
 			if param, ok := f.Returns.(*types.Param); ok && param.Associated {
 				return a.Error(p, "cannot call a function which return type is not fully defined")
 			}
@@ -555,7 +555,7 @@ func (a *analyzer) VisitBinary(b *ast.Binary) ExprInfo {
 func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op ast.BinaryOp) ExprInfo {
 	// core::<interface>
 	if _, ok := left.Type.(*types.Primitive); !ok {
-		if f, _ := GetBinaryMethod(a.typeEnv, a.instantiations, op.InterfaceName(), left.Type, right.Type); f != nil {
+		if f, _ := GetBinaryMethod(a.ctx, op.InterfaceName(), left.Type, right.Type); f != nil {
 			if p, ok := f.Returns.(*types.Param); ok && p.Associated {
 				return a.Error(b, "cannot call a function which return type is not fully defined")
 			}
@@ -577,7 +577,7 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 			return ExprInfo{Type: types.Invalid}
 		}
 
-		typ := CommonType(a.typeEnv, leftT, rightT)
+		typ := CommonType(a.ctx, leftT, rightT)
 		if typ == nil {
 			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", leftT, rightT)
 		}
@@ -597,7 +597,7 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 			return ExprInfo{Type: types.Invalid}
 		}
 
-		typ := CommonType(a.typeEnv, leftT, rightT)
+		typ := CommonType(a.ctx, leftT, rightT)
 		if typ == nil {
 			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", leftT, rightT)
 		}
@@ -621,7 +621,7 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 
 	// Equality
 	if op.IsEquality() {
-		if common := CommonType(a.typeEnv, left.Type, right.Type); common == nil && !left.Type.Equals(right.Type) {
+		if common := CommonType(a.ctx, left.Type, right.Type); common == nil && !left.Type.Equals(right.Type) {
 			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left.Type, right.Type)
 		}
 
@@ -646,7 +646,7 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 			return ExprInfo{Type: types.Invalid}
 		}
 
-		if common := CommonType(a.typeEnv, leftT, rightT); common == nil {
+		if common := CommonType(a.ctx, leftT, rightT); common == nil {
 			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", leftT, rightT)
 		}
 
@@ -678,7 +678,7 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 	var symbol symbols.Symbol
 	var ok bool
 
-	if WantsFunction(a.nodeTypes, a.exprInfos, a.typeEnv, i) {
+	if WantsFunction(a.ctx, i) {
 		prevDiag := a.diagnostics
 		symbol, ok = a.GetSymbol(symbols.Function, i.Path)
 
@@ -694,7 +694,7 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 		}
 	}
 
-	a.nodeTypes[symbol.Node] = symbol.Type
+	a.sema.NodeTypes[symbol.Node] = symbol.Type
 
 	switch symbol.Kind {
 	case symbols.Case:
@@ -773,7 +773,7 @@ func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
 	var indexRefType *types.Reference
 
 	for _, name := range GetIndexInterfaceNames(i, expr) {
-		if f, _ := GetBinaryMethod(a.typeEnv, a.instantiations, name, expr.Type, index.Type); f != nil {
+		if f, _ := GetBinaryMethod(a.ctx, name, expr.Type, index.Type); f != nil {
 			if ref, ok := f.Returns.(*types.Reference); ok {
 				if p, ok := ref.Pointee.(*types.Param); ok && p.Associated {
 					return a.Error(i.Expr, "cannot call a function which return type is not fully defined")
@@ -868,7 +868,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 	if t, ok := typ.(*types.Interface); ok {
 		for _, method := range t.InstanceMethods {
 			if method.Name == m.Name.Token.Text {
-				in := a.typeEnv.GetInterfaceNode(t)
+				in := a.ctx.TypeEnv.GetInterfaceNode(t)
 				if in == nil {
 					return ExprInfo{Type: types.Invalid}
 				}
@@ -888,7 +888,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 
 				methodType := a.applyMethodTypeArgs(m, method.Type, nil)
 
-				a.nodeTypes[f] = methodType
+				a.sema.NodeTypes[f] = methodType
 				return ExprInfo{Type: methodType, Node: f}
 			}
 		}
@@ -908,7 +908,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 					continue
 				}
 
-				in := a.typeEnv.GetInterfaceNode(constraint)
+				in := a.ctx.TypeEnv.GetInterfaceNode(constraint)
 				if in == nil {
 					return ExprInfo{Type: types.Invalid}
 				}
@@ -930,7 +930,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 				subs := []types.Substitution{{Param: constraint.SelfParam, Type: t}}
 				methodType = a.applyMethodTypeArgs(m, methodType, subs)
 
-				a.nodeTypes[f] = methodType
+				a.sema.NodeTypes[f] = methodType
 				return ExprInfo{Type: methodType, Node: f}
 			}
 		}
@@ -987,7 +987,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		if field := t.Field(m.Name.Token.Text); field != nil {
 			_, fieldIsFunc := field.Type.(*types.Func)
 
-			if !WantsFunction(a.nodeTypes, a.exprInfos, a.typeEnv, m) || fieldIsFunc {
+			if !WantsFunction(a.ctx, m) || fieldIsFunc {
 				if a.checkVisibility && !field.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
 					a.Error(m.Name, "field '%s' is private", m.Name.Token.Text)
 				}
@@ -1007,14 +1007,14 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		}
 
 		// Instance method
-		if sym, subs, ok := a.typeEnv.GetInstanceMethodWithSubs(t, m.Name.Token.Text); ok {
+		if sym, subs, ok := a.ctx.TypeEnv.GetInstanceMethodWithSubs(t, m.Name.Token.Text); ok {
 			if a.checkVisibility && !sym.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
 				a.Error(m.Name, "method '%s' is private", m.Name.Token.Text)
 			}
 
 			methodType := a.applyMethodTypeArgs(m, sym.Type.(*types.Func), subs)
 
-			a.nodeTypes[sym.Node] = methodType
+			a.sema.NodeTypes[sym.Node] = methodType
 			return ExprInfo{Type: methodType, Node: sym.Node}
 		}
 
@@ -1023,14 +1023,14 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 
 	if t, ok := typ.(*types.Enum); ok {
 		// Instance method
-		if sym, ok := a.typeEnv.GetInstanceMethod(t, m.Name.Token.Text); ok {
+		if sym, ok := a.ctx.TypeEnv.GetInstanceMethod(t, m.Name.Token.Text); ok {
 			if a.checkVisibility && !sym.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
 				a.Error(m.Name, "method '%s' is private", m.Name.Token.Text)
 			}
 
 			methodType := a.applyMethodTypeArgs(m, sym.Type.(*types.Func), nil)
 
-			a.nodeTypes[sym.Node] = methodType
+			a.sema.NodeTypes[sym.Node] = methodType
 			return ExprInfo{Type: methodType, Node: sym.Node}
 		}
 
@@ -1046,7 +1046,7 @@ func (a *analyzer) resolveFieldNode(t *types.Struct, name string) ast.Node {
 		lookupStruct = t.Generic
 	}
 
-	if structNode := a.typeEnv.GetStructNode(lookupStruct); structNode != nil {
+	if structNode := a.ctx.TypeEnv.GetStructNode(lookupStruct); structNode != nil {
 		for _, f := range structNode.Fields {
 			if f.Name.Token.Text == name {
 				return f
@@ -1073,7 +1073,7 @@ func (a *analyzer) applyMethodTypeArgs(m *ast.Member, f *types.Func, structSubs 
 		}
 
 		if len(structSubs) > 0 {
-			return a.instantiations.Get(f, structSubs).(*types.Func)
+			return a.ctx.Instantiations.Get(f, structSubs).(*types.Func)
 		}
 
 		return f
@@ -1087,7 +1087,7 @@ func (a *analyzer) applyMethodTypeArgs(m *ast.Member, f *types.Func, structSubs 
 		a.Error(m.Name, "generic method '%s' requires type arguments, use '%s:[...]' to specify them", name, name)
 
 		if len(subs) > 0 {
-			return a.instantiations.Get(f, subs).(*types.Func)
+			return a.ctx.Instantiations.Get(f, subs).(*types.Func)
 		}
 
 		return f
@@ -1097,7 +1097,7 @@ func (a *analyzer) applyMethodTypeArgs(m *ast.Member, f *types.Func, structSubs 
 		a.ErrorRange(ast.SliceRange(m.TypeArgs), "method '%s' expects %d type arguments, got %d", name, len(f.TypeParams), len(m.TypeArgs))
 
 		if len(subs) > 0 {
-			return a.instantiations.Get(f, subs).(*types.Func)
+			return a.ctx.Instantiations.Get(f, subs).(*types.Func)
 		}
 
 		return f
@@ -1114,13 +1114,13 @@ func (a *analyzer) applyMethodTypeArgs(m *ast.Member, f *types.Func, structSubs 
 	// Check the method type-param constraints
 	for i, param := range f.TypeParams {
 		for _, constraint := range param.Constraints {
-			if in, ok := a.instantiations.Substitute(constraint, subs).(*types.Interface); ok {
+			if in, ok := a.ctx.Instantiations.Substitute(constraint, subs).(*types.Interface); ok {
 				a.CheckConstraint(subs[base+i].Type, in, m.TypeArgs[i])
 			}
 		}
 	}
 
-	return a.instantiations.Substitute(f, subs).(*types.Func)
+	return a.ctx.Instantiations.Substitute(f, subs).(*types.Func)
 }
 
 func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
@@ -1157,11 +1157,11 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 
 						if len(template.TypeParams) == len(implNode.TypeParams) {
 							for i, typeParam := range implNode.TypeParams {
-								if resolvedParam, ok := a.nodeTypes[typeParam].(*types.Param); ok {
+								if resolvedParam, ok := a.sema.NodeTypes[typeParam].(*types.Param); ok {
 									for _, constraint := range resolvedParam.Constraints {
 										for _, sub := range s.Substitutions {
 											if sub.Param == template.TypeParams[i] {
-												substituted := a.instantiations.Substitute(constraint, []types.Substitution{{Param: resolvedParam, Type: sub.Type}}).(*types.Interface)
+												substituted := a.ctx.Instantiations.Substitute(constraint, []types.Substitution{{Param: resolvedParam, Type: sub.Type}}).(*types.Interface)
 												a.CheckConstraint(sub.Type, substituted, c.Callee)
 												break
 											}
@@ -1176,9 +1176,9 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 
 			// Instantiate
 			if len(subs) > 0 {
-				f = a.instantiations.Substitute(f, subs).(*types.Func)
-				a.nodeTypes[funcNode] = f
-				a.nodeTypes[c] = f
+				f = a.ctx.Instantiations.Substitute(f, subs).(*types.Func)
+				a.sema.NodeTypes[funcNode] = f
+				a.sema.NodeTypes[c] = f
 			}
 
 			params = f.Params
@@ -1210,7 +1210,7 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 							// Find which constraint owns this method and check its mutability
 							if parentIface, ok := funcNode.Parent().(*ast.Interface); ok {
 								for _, constraint := range t.Constraints {
-									if a.typeEnv.GetInterfaceNode(constraint) == parentIface && !constraint.Mutable {
+									if a.ctx.TypeEnv.GetInterfaceNode(constraint) == parentIface && !constraint.Mutable {
 										a.Error(member.Expr, "cannot call mutable method '%s' on type parameter '%s' with immutable constraint '%s'", funcNode.Name().Token.Text, t.Name, constraint)
 										break
 									}
@@ -1270,11 +1270,11 @@ func (a *analyzer) VisitCast(c *ast.Cast) ExprInfo {
 		return ExprInfo{Type: types.Invalid}
 	}
 
-	if kind, ok := GetExplicitCast(a.typeEnv, expr, to); ok {
+	if kind, ok := GetExplicitCast(a.ctx, expr, to); ok {
 		switch kind {
 		case InterfaceToOptionReference, InterfaceToOptionInterface:
-			opt := a.instantiations.Get(a.builtins.Option, []types.Substitution{{
-				Param: a.builtins.Option.TypeParams[0],
+			opt := a.ctx.Instantiations.Get(a.ctx.Builtins.Option, []types.Substitution{{
+				Param: a.ctx.Builtins.Option.TypeParams[0],
 				Type:  to,
 			}})
 
@@ -1346,7 +1346,7 @@ func indexBaseMutable(info ExprInfo) bool {
 	}
 }
 
-func GetUnaryMethod(typeEnv *TypeEnvironment, instantiations *types.InstantiationCache, inName string, calleeType types.Type) (*types.Func, string) {
+func GetUnaryMethod(ctx *Context, inName string, calleeType types.Type) (*types.Func, string) {
 	if inName == "" {
 		return nil, ""
 	}
@@ -1365,12 +1365,12 @@ func GetUnaryMethod(typeEnv *TypeEnvironment, instantiations *types.Instantiatio
 		calleeType = ptr.Pointee
 	}
 
-	for _, in := range typeEnv.GetConformances(calleeType) {
+	for _, in := range ctx.TypeEnv.GetConformances(calleeType) {
 		if in.Name == inName {
-			if sym, subs, ok := typeEnv.GetInstanceMethodWithSubs(calleeType, in.InstanceMethods[0].Name); ok {
+			if sym, subs, ok := ctx.TypeEnv.GetInstanceMethodWithSubs(calleeType, in.InstanceMethods[0].Name); ok {
 				fTyp := sym.Type
 				if len(subs) > 0 {
-					fTyp = instantiations.Get(fTyp, subs).(*types.Func)
+					fTyp = ctx.Instantiations.Get(fTyp, subs).(*types.Func)
 				}
 
 				return fTyp.(*types.Func), sym.Name
@@ -1381,7 +1381,7 @@ func GetUnaryMethod(typeEnv *TypeEnvironment, instantiations *types.Instantiatio
 	return nil, ""
 }
 
-func GetBinaryMethod(typeEnv *TypeEnvironment, instantiations *types.InstantiationCache, inName string, calleeType types.Type, rhsType types.Type) (*types.Func, string) {
+func GetBinaryMethod(ctx *Context, inName string, calleeType types.Type, rhsType types.Type) (*types.Func, string) {
 	if inName == "" {
 		return nil, ""
 	}
@@ -1389,7 +1389,7 @@ func GetBinaryMethod(typeEnv *TypeEnvironment, instantiations *types.Instantiati
 	if param, ok := calleeType.(*types.Param); ok {
 		for _, in := range param.Constraints {
 			if in.Name == inName && len(in.Substitutions) == 1 {
-				if _, ok := GetImplicitCast(typeEnv, ExprInfo{Type: rhsType}, in.Substitutions[0].Type); ok {
+				if _, ok := GetImplicitCast(ctx, ExprInfo{Type: rhsType}, in.Substitutions[0].Type); ok {
 					return in.InstanceMethods[0].Type, in.InstanceMethods[0].Name
 				}
 			}
@@ -1405,13 +1405,13 @@ func GetBinaryMethod(typeEnv *TypeEnvironment, instantiations *types.Instantiati
 		calleeType = typ.Pointee
 	}
 
-	for _, in := range typeEnv.GetConformances(calleeType) {
+	for _, in := range ctx.TypeEnv.GetConformances(calleeType) {
 		if in.Name == inName && len(in.Substitutions) == 1 {
-			if _, ok := GetImplicitCast(typeEnv, ExprInfo{Type: rhsType}, in.Substitutions[0].Type); ok {
-				if sym, subs, ok := typeEnv.GetInstanceMethodWithSubs(calleeType, in.InstanceMethods[0].Name); ok {
+			if _, ok := GetImplicitCast(ctx, ExprInfo{Type: rhsType}, in.Substitutions[0].Type); ok {
+				if sym, subs, ok := ctx.TypeEnv.GetInstanceMethodWithSubs(calleeType, in.InstanceMethods[0].Name); ok {
 					fTyp := sym.Type
 					if len(subs) > 0 {
-						fTyp = instantiations.Get(fTyp, subs).(*types.Func)
+						fTyp = ctx.Instantiations.Get(fTyp, subs).(*types.Func)
 					}
 
 					return fTyp.(*types.Func), sym.Name
@@ -1455,14 +1455,14 @@ func (a *analyzer) AddressDerivedFromRawPointer(node ast.Expr) bool {
 // Callers must make sure types read from `nodeTypes` (Var, Const, Cast) have
 // been resolved before this is consulted, see VisitCast for the ordering
 // requirement.
-func WantsFunction(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.Node]ExprInfo, typeEnv *TypeEnvironment, node ast.Node) bool {
+func WantsFunction(ctx *Context, node ast.Node) bool {
 	// Callee
 	if parent, ok := node.Parent().(*ast.Call); ok && parent.Callee == node {
 		return true
 	}
 
 	// Wanted type of parent
-	if typ, ok := GetWantedTypeOfParent(nodeTypes, exprInfos, typeEnv, node); ok {
+	if typ, ok := GetWantedTypeOfParent(ctx, node); ok {
 		return TypeWantsFunction(typ)
 	}
 
@@ -1480,22 +1480,24 @@ func TypeWantsFunction(typ types.Type) bool {
 	return ok
 }
 
-func GetWantedTypeOfParent(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.Node]ExprInfo, typeEnv *TypeEnvironment, node ast.Node) (types.Type, bool) {
+func GetWantedTypeOfParent(ctx *Context, node ast.Node) (types.Type, bool) {
+	data := ctx.Files[ast.GetFile(node)]
+
 	switch parent := node.Parent().(type) {
 	case *ast.Const:
 		if parent.Value == node && !core.IsNil(parent.Type) {
-			return nodeTypes[parent.Type], true
+			return data.NodeTypes[parent.Type], true
 		}
 
 	case *ast.Var:
 		if parent.Initializer == node && !core.IsNil(parent.Type) {
-			return nodeTypes[parent.Type], true
+			return data.NodeTypes[parent.Type], true
 		}
 
 	case *ast.Return:
 		f := ast.GetClosestParent[*ast.Func](parent)
 
-		fn, ok := nodeTypes[f].(*types.Func)
+		fn, ok := data.NodeTypes[f].(*types.Func)
 		if !ok {
 			return nil, false
 		}
@@ -1505,7 +1507,7 @@ func GetWantedTypeOfParent(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.
 	case *ast.Call:
 		for i, arg := range parent.Args {
 			if arg == node {
-				if f, ok := exprInfos[parent.Callee].Type.(*types.Func); ok && i < len(f.Params) {
+				if f, ok := data.ExprInfos[parent.Callee].Type.(*types.Func); ok && i < len(f.Params) {
 					if f.HasReceiver {
 						i++
 					}
@@ -1517,7 +1519,7 @@ func GetWantedTypeOfParent(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.
 
 	case *ast.Index:
 		if parent.Index == node {
-			expr := exprInfos[parent.Expr]
+			expr := data.ExprInfos[parent.Expr]
 
 			for _, name := range GetIndexInterfaceNames(parent, expr) {
 				calleeType := expr.Type
@@ -1529,7 +1531,7 @@ func GetWantedTypeOfParent(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.
 					calleeType = typ.Pointee
 				}
 
-				for _, in := range typeEnv.GetConformances(calleeType) {
+				for _, in := range ctx.TypeEnv.GetConformances(calleeType) {
 					if in.Name == name && len(in.Substitutions) == 1 {
 						return in.Substitutions[0].Type, true
 					}
@@ -1539,20 +1541,20 @@ func GetWantedTypeOfParent(nodeTypes map[ast.Node]types.Type, exprInfos map[ast.
 
 	case *ast.Binary:
 		if (parent.Op == ast.Assign || parent.Op.IsCompoundAssign()) && parent.Right == node {
-			return exprInfos[parent.Left].Type, true
+			return data.ExprInfos[parent.Left].Type, true
 		}
 
 	case *ast.Cast:
-		return nodeTypes[parent.Type], true
+		return data.NodeTypes[parent.Type], true
 
 	case *ast.FieldInitializer:
-		return exprInfos[parent].Type, true
+		return data.ExprInfos[parent].Type, true
 
 	case *ast.ArrayInitializer:
-		return nodeTypes[parent.Type], true
+		return data.NodeTypes[parent.Type], true
 
 	case *ast.TupleInitializer:
-		if t, ok := exprInfos[parent].Type.(*types.Tuple); ok {
+		if t, ok := data.ExprInfos[parent].Type.(*types.Tuple); ok {
 			for i, value := range parent.Values {
 				if value == node && i < len(t.Types) {
 					return t.Types[i], true

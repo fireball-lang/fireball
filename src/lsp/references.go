@@ -157,7 +157,7 @@ func (s *Server) collectReferences(defNode ast.Node, includeSelf bool, add func(
 
 func (s *Server) collectFileReferences(file *project.File, defNode ast.Node, includeSelf bool, add func(*project.File, core.Range)) {
 	// Expression references: variables, functions, members, enum cases, ...
-	for expr, info := range file.ExprInfos {
+	for expr, info := range file.Sema.ExprInfos {
 		if core.IsNil(info.Node) || info.Node != defNode {
 			continue
 		}
@@ -180,7 +180,7 @@ func (s *Server) collectFileReferences(file *project.File, defNode ast.Node, inc
 	}
 
 	// Type references: type annotations, casts, struct literals, generic args, ...
-	for node, typ := range file.NodeTypes {
+	for node, typ := range file.Sema.NodeTypes {
 		if node == defNode {
 			continue
 		}

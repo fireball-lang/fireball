@@ -2,9 +2,7 @@ package project
 
 import (
 	"fireball/ast"
-	"fireball/codegen"
 	"fireball/core"
-	"fireball/fb-core"
 	"fireball/sema"
 	"fireball/symbols"
 	"fireball/types"
@@ -93,31 +91,31 @@ func (p *Project) AssignFilesToModules() {
 	}
 }
 
-func (p *Project) Resolve(depMap map[Dependency]*Project, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins fb_core.Builtins) {
+func (p *Project) Resolve(ctx *sema.Context, depMap map[Dependency]*Project) {
 	defer core.Scope()()
 
 	root := p.GetRootScope(depMap)
 
 	for _, file := range p.Files {
-		file.resolve(root, instantiations, typeEnv, builtins)
+		file.resolve(ctx, root)
 	}
 }
 
-func (p *Project) Analyze(depMap map[Dependency]*Project, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins fb_core.Builtins) {
+func (p *Project) Analyze(ctx *sema.Context, depMap map[Dependency]*Project) {
 	defer core.Scope()()
 
 	root := p.GetRootScope(depMap)
 
 	for _, file := range p.Files {
-		file.analyze(root, instantiations, typeEnv, builtins)
+		file.analyze(ctx, root)
 	}
 }
 
-func (p *Project) EvalCompTime(instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]codegen.FileData, builtins fb_core.Builtins) {
+func (p *Project) EvalCompTime(ctx *sema.Context) {
 	defer core.Scope()()
 
 	for _, file := range p.Files {
-		file.evalCompTime(instantiations, typeEnv, fileDataMap, builtins)
+		file.evalCompTime(ctx)
 	}
 }
 

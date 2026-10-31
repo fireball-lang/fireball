@@ -14,8 +14,8 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 		n := symbol.Node.(*ast.TypeAlias)
 		t := symbol.Type.(*types.Alias)
 
-		r.typeEnv.RegisterTypeDeclNode(t, n)
-		r.nodeTypes[n] = t
+		r.ctx.TypeEnv.RegisterTypeDeclNode(t, n)
+		r.sema.NodeTypes[n] = t
 
 		if r.ResolveTypeParams(n.TypeParams, t.TypeParams) {
 			defer r.scopes.Pop()
@@ -27,8 +27,8 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 		s := symbol.Node.(*ast.Struct)
 		t := symbol.Type.(*types.Struct)
 
-		r.typeEnv.RegisterTypeDeclNode(t, s)
-		r.nodeTypes[s] = t
+		r.ctx.TypeEnv.RegisterTypeDeclNode(t, s)
+		r.sema.NodeTypes[s] = t
 
 		if r.ResolveTypeParams(s.TypeParams, t.TypeParams) {
 			defer r.scopes.Pop()
@@ -85,15 +85,15 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 			}
 		}
 
-		r.typeEnv.RegisterTypeDeclNode(t, e)
-		r.nodeTypes[e] = t
+		r.ctx.TypeEnv.RegisterTypeDeclNode(t, e)
+		r.sema.NodeTypes[e] = t
 
 	case symbols.Interface:
 		in := symbol.Node.(*ast.Interface)
 		inType := symbol.Type.(*types.Interface)
 
-		r.typeEnv.RegisterTypeDeclNode(inType, in)
-		r.nodeTypes[in] = inType
+		r.ctx.TypeEnv.RegisterTypeDeclNode(inType, in)
+		r.sema.NodeTypes[in] = inType
 
 		prevSelf := r.selfType
 		r.selfType = inType.SelfParam
@@ -160,7 +160,7 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 			typ = types.Invalid
 		}
 
-		r.nodeTypes[c] = typ
+		r.sema.NodeTypes[c] = typ
 		symbol.Type = typ
 
 	case symbols.Var:
@@ -173,7 +173,7 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 			typ = types.Invalid
 		}
 
-		r.nodeTypes[g] = typ
+		r.sema.NodeTypes[g] = typ
 		symbol.Type = typ
 
 	case symbols.Func:
@@ -207,7 +207,7 @@ func (r *resolver) ResolveFunc(f *ast.Func, t *types.Func) {
 
 	t.Returns = r.ResolveAndAnalyzeType(f.Returns)
 
-	r.nodeTypes[f] = t
+	r.sema.NodeTypes[f] = t
 }
 
 func (r *resolver) ResolveTypeParams(astParams []*ast.TypeParam, typeParams []*types.Param) bool {
@@ -221,7 +221,7 @@ func (r *resolver) ResolveTypeParams(astParams []*ast.TypeParam, typeParams []*t
 	})
 
 	for i, param := range astParams {
-		r.nodeTypes[param] = typeParams[i]
+		r.sema.NodeTypes[param] = typeParams[i]
 
 		for _, constraintAst := range param.Constraints {
 			constraint := r.ResolveAndAnalyzeType(constraintAst)
@@ -245,7 +245,7 @@ func (r *resolver) ResolveAssociatedTypeParams(astAssocTypes []*ast.AssociatedTy
 	syms := make([]symbols.Symbol, 0, len(astAssocTypes))
 
 	for i, assocType := range astAssocTypes {
-		r.nodeTypes[assocType] = typeAssocTypes[i]
+		r.sema.NodeTypes[assocType] = typeAssocTypes[i]
 
 		syms = append(syms, symbols.Symbol{
 			Kind: symbols.TypeParam,

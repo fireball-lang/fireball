@@ -40,8 +40,8 @@ func (m *Module) CheckCollisions() {
 	for _, file := range m.Files {
 		file.collisionDiagnostics = nil
 
-		for i := range file.Symbols {
-			symbol := &file.Symbols[i]
+		for i := range file.Sema.Symbols {
+			symbol := &file.Sema.Symbols[i]
 
 			switch symbol.Kind.Domain() {
 			case symbols.Type:

@@ -145,7 +145,7 @@ func (c *Codegen) VisitTupleInitializer(t *ast.TupleInitializer) ir.Value {
 }
 
 func (c *Codegen) VisitSizeOf(s *ast.SizeOf) ir.Value {
-	typ := c.ResolveType(c.NodeTypes[s.Type])
+	typ := c.ResolveType(c.Sema.NodeTypes[s.Type])
 	info := c.Arch.Info(typ)
 
 	return &ir.Integer{
@@ -155,7 +155,7 @@ func (c *Codegen) VisitSizeOf(s *ast.SizeOf) ir.Value {
 }
 
 func (c *Codegen) VisitAlignOf(e *ast.AlignOf) ir.Value {
-	typ := c.ResolveType(c.NodeTypes[e.Type])
+	typ := c.ResolveType(c.Sema.NodeTypes[e.Type])
 	info := c.Arch.Info(typ)
 
 	return &ir.Integer{
@@ -167,7 +167,7 @@ func (c *Codegen) VisitAlignOf(e *ast.AlignOf) ir.Value {
 func (c *Codegen) VisitOffsetOf(o *ast.OffsetOf) ir.Value {
 	var typ *types.Struct
 
-	switch t := c.ResolveType(c.NodeTypes[o.Type]).(type) {
+	switch t := c.ResolveType(c.Sema.NodeTypes[o.Type]).(type) {
 	case *types.Tuple:
 		typ = t.Underlying().(*types.Struct)
 	case *types.Struct:
@@ -191,7 +191,7 @@ func (c *Codegen) VisitOffsetOf(o *ast.OffsetOf) ir.Value {
 }
 
 func (c *Codegen) VisitTypeOf(t *ast.TypeOf) ir.Value {
-	typ := c.ResolveType(c.NodeTypes[t.Type])
+	typ := c.ResolveType(c.Sema.NodeTypes[t.Type])
 	return c.GetTypeInfo(typ)
 }
 
@@ -201,7 +201,7 @@ func (c *Codegen) VisitPrefix(p *ast.Prefix) ir.Value {
 
 	if _, ok := typ_.(*types.Primitive); !ok {
 		if name := p.Op.InterfaceName(); name != "" {
-			if fTyp, fName := sema.GetUnaryMethod(c.TypeEnv, c.instantiations, name, typ_); fTyp != nil {
+			if fTyp, fName := sema.GetUnaryMethod(c.Ctx, name, typ_); fTyp != nil {
 				return c.CallMethodExpr(fTyp, fName, p.Expr, nil)
 			}
 		}
@@ -350,7 +350,7 @@ func (c *Codegen) VisitBinary(b *ast.Binary) ir.Value {
 
 	if _, ok := typ.(*types.Primitive); !ok {
 		if name := b.Op.InterfaceName(); name != "" {
-			if fTyp, fName := sema.GetBinaryMethod(c.TypeEnv, c.instantiations, name, typ, c.ExprType(b.Right)); fTyp != nil {
+			if fTyp, fName := sema.GetBinaryMethod(c.Ctx, name, typ, c.ExprType(b.Right)); fTyp != nil {
 				value := c.CallMethodExpr(fTyp, fName, b.Left, []ast.Expr{b.Right})
 
 				switch b.Op {
@@ -531,7 +531,7 @@ func (c *Codegen) VisitCompoundBaseBinaryOp(b *ast.Binary, left, right ir.Value,
 
 	if _, ok := typ.(*types.Primitive); !ok {
 		if name := op.InterfaceName(); name != "" {
-			if fTyp, fName := sema.GetBinaryMethod(c.TypeEnv, c.instantiations, name, typ, c.ExprType(b.Right)); fTyp != nil {
+			if fTyp, fName := sema.GetBinaryMethod(c.Ctx, name, typ, c.ExprType(b.Right)); fTyp != nil {
 				return c.CallMethodExpr(fTyp, fName, b.Left, []ast.Expr{b.Right})
 			}
 		}
@@ -596,7 +596,7 @@ func (c *Codegen) VisitCompoundBaseBinaryOp(b *ast.Binary, left, right ir.Value,
 }
 
 func (c *Codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
-	switch node := c.ExprInfos[i].Node.(type) {
+	switch node := c.Sema.ExprInfos[i].Node.(type) {
 	case *ast.AssociatedConst:
 		implConst, subs := c.resolveAssociatedConst(node, i)
 
@@ -645,22 +645,22 @@ func (c *Codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 		return c.scope.Get("self")
 
 	default:
-		panic(fmt.Sprintf("codegen.Codegen.VisitIdentifier() - Invalid node '%T' at %s:%d:%d (info: %+v)", c.ExprInfos[i].Node, c.Module.Path, i.Range().Start.Line, i.Range().Start.Column, c.ExprInfos[i]))
+		panic(fmt.Sprintf("codegen.Codegen.VisitIdentifier() - Invalid node '%T' at %s:%d:%d (info: %+v)", c.Sema.ExprInfos[i].Node, c.Module.Path, i.Range().Start.Line, i.Range().Start.Column, c.Sema.ExprInfos[i]))
 	}
 }
 
 func (c *Codegen) VisitIndex(i *ast.Index) ir.Value {
 	typ := c.ExprType(i.Expr)
 
-	rawType := c.ExprInfos[i.Expr].Type
-	rawIndexType := c.ExprInfos[i.Index].Type
+	rawType := c.Sema.ExprInfos[i.Expr].Type
+	rawIndexType := c.Sema.ExprInfos[i.Index].Type
 
 	// core::Index[T] / core::IndexMut[T]
-	for _, name := range sema.GetIndexInterfaceNames(i, c.ExprInfos[i.Expr]) {
-		if fTyp, fName := sema.GetBinaryMethod(c.TypeEnv, c.instantiations, name, rawType, rawIndexType); fTyp != nil {
+	for _, name := range sema.GetIndexInterfaceNames(i, c.Sema.ExprInfos[i.Expr]) {
+		if fTyp, fName := sema.GetBinaryMethod(c.Ctx, name, rawType, rawIndexType); fTyp != nil {
 			value := c.CallMethodExpr(fTyp, fName, i.Expr, []ast.Expr{i.Index})
 
-			if !c.ExprInfos[i].Address {
+			if !c.Sema.ExprInfos[i].Address {
 				value = c.Emitter.Load(c.Types.Get(c.UnderlyingExprType(i)), value)
 			}
 
@@ -684,7 +684,7 @@ func (c *Codegen) VisitIndex(i *ast.Index) ir.Value {
 		n := uint32(lexer.ParseInteger(i.Index.(*ast.Number).Token).Unsigned())
 		_, index := irTyp.(ir.StructLikeType).Field(fmt.Sprintf("_%d", n))
 
-		if c.ExprInfos[i].Address {
+		if c.Sema.ExprInfos[i].Address {
 			ptr := c.GenerateExpr(i.Expr)
 			return c.Emitter.GetElementPtrConst(irTyp, ptr, 0, uint32(index))
 		}
@@ -699,7 +699,7 @@ func (c *Codegen) VisitIndex(i *ast.Index) ir.Value {
 	var ptr ir.Value
 
 	// Get pointer to expression
-	if c.ExprInfos[i].Address {
+	if c.Sema.ExprInfos[i].Address {
 		ptr = c.GenerateExpr(i.Expr)
 	} else {
 		value := c.GenerateExpr(i.Expr)
@@ -712,7 +712,7 @@ func (c *Codegen) VisitIndex(i *ast.Index) ir.Value {
 	index = c.ExtendIndex(index, rawIndexType)
 	value := c.Emitter.GetElementPtrDyn(irTyp, ptr, ir.False, index)
 
-	if !c.ExprInfos[i].Address {
+	if !c.Sema.ExprInfos[i].Address {
 		typ := c.Types.Get(typ.(*types.Array).Element)
 		value = c.Emitter.Load(typ, value)
 	}
@@ -761,7 +761,7 @@ func (c *Codegen) VisitMember(m *ast.Member) ir.Value {
 
 	// Method
 	if index == -1 {
-		f := c.ExprInfos[m].Node.(*ast.Func)
+		f := c.Sema.ExprInfos[m].Node.(*ast.Func)
 		typ := c.ExprType(m).(*types.Func)
 		in := c.GetFuncInterface(f)
 
@@ -778,7 +778,7 @@ func (c *Codegen) VisitMember(m *ast.Member) ir.Value {
 	}
 
 	// Pointer
-	if c.ExprInfos[m].Address {
+	if c.Sema.ExprInfos[m].Address {
 		if pointer {
 			c.CheckNull(value, m, "encountered a null pointer when accessing field '%s' on '%s'", m.Name.Token.Text, s)
 		}
@@ -801,10 +801,10 @@ func (c *Codegen) VisitMember(m *ast.Member) ir.Value {
 }
 
 func (c *Codegen) VisitCall(e *ast.Call) ir.Value {
-	funcNode, isDecl := c.ExprInfos[e.Callee].Node.(*ast.Func)
+	funcNode, isDecl := c.Sema.ExprInfos[e.Callee].Node.(*ast.Func)
 	typ := c.ExprType(e.Callee).(*types.Func)
 
-	if instTyp, ok := c.NodeTypes[e].(*types.Func); ok {
+	if instTyp, ok := c.Sema.NodeTypes[e].(*types.Func); ok {
 		typ = c.ResolveType(instTyp).(*types.Func)
 	}
 
@@ -853,7 +853,7 @@ func (c *Codegen) VisitCall(e *ast.Call) ir.Value {
 		// Static method from interface, resolved to concrete impl
 		ident := e.Callee.(*ast.Identifier)
 		typeLeaf := ident.Path[len(ident.Path)-2]
-		concreteTyp := c.ResolveType(c.NodeTypes[typeLeaf])
+		concreteTyp := c.ResolveType(c.Sema.NodeTypes[typeLeaf])
 		callee, sig, typ = c.ResolveInterfaceMethod(concreteTyp, f.Name().Token.Text, true)
 	} else {
 		// Static method from impl block
@@ -866,10 +866,10 @@ func (c *Codegen) VisitCall(e *ast.Call) ir.Value {
 }
 
 func (c *Codegen) VisitCast(e *ast.Cast) ir.Value {
-	to := c.ResolveType(c.NodeTypes[e.Type])
+	to := c.ResolveType(c.Sema.NodeTypes[e.Type])
 	final := c.ExprType(e)
 
-	kind, _ := sema.GetExplicitCast(c.TypeEnv, c.ExprInfo(e.Expr), to)
+	kind, _ := sema.GetExplicitCast(c.Ctx, c.ExprInfo(e.Expr), to)
 
 	// sema.ArrayToSlice
 	if kind == sema.ArrayToSlice {
@@ -896,7 +896,7 @@ func (c *Codegen) StringView(runes []rune) ir.Value {
 
 	// Value
 
-	sb := c.Struct(c.Builtins.StringView)
+	sb := c.Struct(c.Ctx.Builtins.StringView)
 
 	sb.Set("ptr", gVar)
 	sb.Set("size", &ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, uint64(init.Size))})
@@ -960,7 +960,7 @@ func (c *Codegen) CallMethod(fTyp *types.Func, fName string, calleeExpr ast.Expr
 func (c *Codegen) LoadImplicitCast(expr ast.Expr, typ types.Type) ir.Value {
 	from := c.ExprInfo(expr)
 
-	kind, ok := sema.GetImplicitCast(c.TypeEnv, from, typ)
+	kind, ok := sema.GetImplicitCast(c.Ctx, from, typ)
 	if !ok {
 		return c.Load(expr)
 	}
@@ -976,7 +976,7 @@ func (c *Codegen) LoadImplicitCast(expr ast.Expr, typ types.Type) ir.Value {
 }
 
 func (c *Codegen) ImplicitCast(value ir.Value, from sema.ExprInfo, to types.Type, errNode ast.Node) ir.Value {
-	if kind, ok := sema.GetImplicitCast(c.TypeEnv, from, to); ok {
+	if kind, ok := sema.GetImplicitCast(c.Ctx, from, to); ok {
 		value = c.Cast(value, kind, from, to, to, errNode)
 	}
 
@@ -986,7 +986,7 @@ func (c *Codegen) ImplicitCast(value ir.Value, from sema.ExprInfo, to types.Type
 func (c *Codegen) CastArrayToSlice(expr ast.Expr, to types.Type) ir.Value {
 	from := c.ExprType(expr)
 
-	if !c.ExprInfos[expr].Address {
+	if !c.Sema.ExprInfos[expr].Address {
 		panic("codegen.Codegen.CastArrayToSlice() - Expression is not addressable")
 	}
 
@@ -1255,7 +1255,7 @@ func (c *Codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			targetTypeInfoPtr := c.GetTypeInfo(to)
 
 			// Call 'src.get_vtable(target)'
-			symbol, ok := c.TypeEnv.GetInstanceMethod(c.Builtins.TypeInfo, "get_vtable")
+			symbol, ok := c.Ctx.TypeEnv.GetInstanceMethod(c.Ctx.Builtins.TypeInfo, "get_vtable")
 			if !ok {
 				panic("codegen.Codegen.Cast() - Failed to find 'get_vtable' method on 'core::TypeInfo'")
 			}
@@ -1267,7 +1267,7 @@ func (c *Codegen) Cast(value ir.Value, kind sema.CastKind, from sema.ExprInfo, t
 			sig := callee.Signature
 			receiver := srcTypeInfoPtr
 
-			vtableOpt := c.EmitCall(callee, sig, typ, receiver, []ir.Value{targetTypeInfoPtr}, []types.Type{&types.Pointer{Pointee: c.Builtins.TypeInfo}}, typ.Returns)
+			vtableOpt := c.EmitCall(callee, sig, typ, receiver, []ir.Value{targetTypeInfoPtr}, []types.Type{&types.Pointer{Pointee: c.Ctx.Builtins.TypeInfo}}, typ.Returns)
 			vtable := c.Emitter.ExtractValue(vtableOpt, uint32(valueI))
 			isTarget := c.Emitter.ICmp(ir.Ne, false, vtable, &ir.ZeroInitializer{Typ: ir.I64})
 
@@ -1414,7 +1414,7 @@ func (c *Codegen) EmitCmp(op ir.CmpOp, left, right ast.Expr) ir.Value {
 	leftType := c.ExprType(left)
 	rightType := c.ExprType(right)
 
-	common := sema.CommonType(c.TypeEnv, leftType, rightType)
+	common := sema.CommonType(c.Ctx, leftType, rightType)
 	if common == nil {
 		common = leftType
 	}
@@ -1485,7 +1485,7 @@ func (c *Codegen) GetDivKind(expr ast.Expr) (fp bool, kind ir.DivKind) {
 }
 
 func (c *Codegen) ExprInfo(expr ast.Expr) sema.ExprInfo {
-	info := c.ExprInfos[expr]
+	info := c.Sema.ExprInfos[expr]
 	info.Type = c.ResolveType(info.Type)
 
 	return info
@@ -1502,11 +1502,11 @@ func (c *Codegen) UnderlyingExprType(expr ast.Expr) types.Type {
 }
 
 func (c *Codegen) ExprType(expr ast.Expr) types.Type {
-	return c.ResolveType(c.ExprInfos[expr].Type)
+	return c.ResolveType(c.Sema.ExprInfos[expr].Type)
 }
 
 func (c *Codegen) NodeType(node ast.Node) types.Type {
-	typ := c.NodeTypes[node]
+	typ := c.Sema.NodeTypes[node]
 	typ = c.ResolveType(typ)
 
 	return typ
@@ -1525,7 +1525,7 @@ func (c *Codegen) UnderlyingNodeType(node ast.Node) types.Type {
 func (c *Codegen) Load(expr ast.Expr) ir.Value {
 	value := c.GenerateExpr(expr)
 
-	if info := c.ExprInfos[expr]; info.Address {
+	if info := c.Sema.ExprInfos[expr]; info.Address {
 		typ := c.ResolveType(info.Type)
 		if t, ok := typ.(types.Composed); ok {
 			typ = t.Underlying()
@@ -1550,7 +1550,7 @@ func (c *Codegen) ResolveType(typ types.Type) types.Type {
 		return typ
 	}
 
-	return c.instantiations.Substitute(typ, c.substitutions)
+	return c.Ctx.Instantiations.Substitute(typ, c.substitutions)
 }
 
 func (c *Codegen) GenerateExpr(expr ast.Expr) ir.Value {

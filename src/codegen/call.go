@@ -31,7 +31,7 @@ func (c *Codegen) ResolveReceiver(node ast.Expr) ir.Value {
 	case *types.Reference, *types.Pointer:
 		return c.ValueToReceiver(c.Load(node), typ, false, node)
 	default:
-		return c.ValueToReceiver(c.GenerateExpr(node), typ, c.ExprInfos[node].Address, node)
+		return c.ValueToReceiver(c.GenerateExpr(node), typ, c.Sema.ExprInfos[node].Address, node)
 	}
 }
 
@@ -234,9 +234,9 @@ func (c *Codegen) ResolveInterfaceMethod(receiverType types.Type, methodName str
 	var ok bool
 
 	if isStatic {
-		sym, subs, ok = c.TypeEnv.GetStaticMethodWithSubs(receiverType, methodName)
+		sym, subs, ok = c.Ctx.TypeEnv.GetStaticMethodWithSubs(receiverType, methodName)
 	} else {
-		sym, subs, ok = c.TypeEnv.GetInstanceMethodWithSubs(receiverType, methodName)
+		sym, subs, ok = c.Ctx.TypeEnv.GetInstanceMethodWithSubs(receiverType, methodName)
 	}
 
 	if !ok || sym.Kind != symbols.Func {
@@ -247,7 +247,7 @@ func (c *Codegen) ResolveInterfaceMethod(receiverType types.Type, methodName str
 	concreteTyp := sym.Type.(*types.Func)
 
 	if len(subs) > 0 {
-		concreteTyp = c.instantiations.Substitute(concreteTyp, subs).(*types.Func)
+		concreteTyp = c.Ctx.Instantiations.Substitute(concreteTyp, subs).(*types.Func)
 	}
 
 	in := c.GetFuncInterface(concreteFunc)

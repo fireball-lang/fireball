@@ -6,7 +6,6 @@ import (
 	"fireball/ast"
 	"fireball/codegen"
 	"fireball/core"
-	"fireball/fb-core"
 	"fireball/ir"
 	"fireball/ir/eval"
 	"fireball/lexer"
@@ -20,34 +19,28 @@ var Arch = abi.AMD64
 var CallConv = abi.SystemV
 
 type compTime struct {
-	file           *ast.File
-	instantiations *types.InstantiationCache
-	typeEnv        *sema.TypeEnvironment
-	fileDataMap    map[*ast.File]codegen.FileData
-	builtins       fb_core.Builtins
+	ctx  *sema.Context
+	file *ast.File
 
 	diagnostics []core.Diagnostic
 	evaluations map[ast.Expr]eval.Value
 }
 
-func Evaluate(file *ast.File, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]codegen.FileData, builtins fb_core.Builtins) (map[ast.Expr]eval.Value, []core.Diagnostic) {
+func Evaluate(ctx *sema.Context, file *ast.File) []core.Diagnostic {
 	defer core.Scope()()
 
 	ct := compTime{
-		file:           file,
-		instantiations: instantiations,
-		typeEnv:        typeEnv,
-		fileDataMap:    fileDataMap,
-		builtins:       builtins,
+		ctx:  ctx,
+		file: file,
 
 		diagnostics: nil,
-		evaluations: make(map[ast.Expr]eval.Value),
+		evaluations: ctx.Files[file].Evaluations,
 	}
 
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
 		case *ast.Enum:
-			typ := fileDataMap[file].NodeTypes[decl].(*types.Enum)
+			typ := ctx.Files[file].NodeTypes[decl].(*types.Enum)
 
 			allowedMin := core.Unsigned(true, math.MaxUint64)
 			allowedMax := core.Unsigned(false, math.MaxUint64)
@@ -65,7 +58,7 @@ func Evaluate(file *ast.File, instantiations *types.InstantiationCache, typeEnv 
 
 			for i, cas := range decl.Cases {
 				if !core.IsNil(cas.Value) {
-					info := fileDataMap[file].ExprInfos[cas.Value]
+					info := ctx.Files[file].ExprInfos[cas.Value]
 
 					if !info.CompTime {
 						okAll = false
@@ -157,11 +150,11 @@ func Evaluate(file *ast.File, instantiations *types.InstantiationCache, typeEnv 
 		}
 	}
 
-	return ct.evaluations, ct.diagnostics
+	return ct.diagnostics
 }
 
 func (ct *compTime) Evaluate(value ast.Expr, typ ast.Type, errNode ast.Node) {
-	if !ct.fileDataMap[ct.file].ExprInfos[value].CompTime {
+	if !ct.ctx.Files[ct.file].ExprInfos[value].CompTime {
 		return
 	}
 
@@ -170,7 +163,7 @@ func (ct *compTime) Evaluate(value ast.Expr, typ ast.Type, errNode ast.Node) {
 		return
 	}
 
-	typ_ := ct.fileDataMap[ct.file].NodeTypes[typ]
+	typ_ := ct.ctx.Files[ct.file].NodeTypes[typ]
 	if core.IsNil(typ_) || typ_ == types.Invalid {
 		return
 	}
@@ -200,7 +193,7 @@ func (ct *compTime) EvalExpr(expr ast.Expr, typ types.Type) (eval.Value, bool) {
 	module := ir.NewModule()
 	module.Path = "__comptime__"
 
-	c := codegen.New(module, ct.file, Arch, CallConv, ct.instantiations, ct.typeEnv, ct.fileDataMap, ct.builtins, true)
+	c := codegen.New(ct.ctx, module, ct.file, Arch, CallConv, true)
 	c.Types.ShallowMeta = true
 
 	val, err, ok := c.GenerateComptimeValue(expr, typ)
@@ -226,7 +219,7 @@ func (ct *compTime) CheckCompTimeExprRoot(expr ast.Expr, errNode ast.Node) bool 
 func (ct *compTime) CheckCompTimeExpr(expr ast.Expr, seen map[ast.Expr]any, errNode ast.Node) bool {
 	switch expr := expr.(type) {
 	case *ast.Identifier:
-		switch node := ct.fileDataMap[ast.GetFile(expr)].ExprInfos[expr].Node.(type) {
+		switch node := ct.ctx.Files[ast.GetFile(expr)].ExprInfos[expr].Node.(type) {
 		case *ast.AssociatedConst:
 			if _, ok := seen[node.Value]; ok {
 				ct.Error(errNode, "cyclic reference of constant '%s'", node.Name.Token.Text)
@@ -295,10 +288,10 @@ func (ct *compTime) GetLiteralEvalValue(expr ast.Expr) eval.Value {
 		return &eval.IntValue{Value: uint64(expr.Rune)}
 
 	case *ast.String:
-		fields := abi.AMD64.Info(ct.builtins.StringView).Fields
+		fields := abi.AMD64.Info(ct.ctx.Builtins.StringView).Fields
 
 		ptrI := 0
-		if ct.builtins.StringView.Fields[fields[0].Index].Name == "size" {
+		if ct.ctx.Builtins.StringView.Fields[fields[0].Index].Name == "size" {
 			ptrI = 1
 		}
 

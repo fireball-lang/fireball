@@ -41,7 +41,7 @@ func (s *Server) SemanticTokensFull(_ context.Context, params *protocol.Semantic
 		}
 
 		for _, symbol := range im.Symbols {
-			hi.AddType(symbol, file.NodeTypes[symbol])
+			hi.AddType(symbol, file.Sema.NodeTypes[symbol])
 		}
 	}
 

@@ -14,12 +14,12 @@ import (
 func (c *common) VisitPrimitiveType(t *ast.PrimitiveType) types.Type {
 	typ := types.GetPrimitive(t.Kind)
 
-	c.nodeTypes[t] = typ
+	c.sema.NodeTypes[t] = typ
 	return typ
 }
 
 func (c *common) VisitArrayType(t *ast.ArrayType) types.Type {
-	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
+	if typ := c.sema.NodeTypes[t]; !core.IsNil(typ) {
 		return typ
 	}
 
@@ -47,7 +47,7 @@ func (c *common) VisitArrayType(t *ast.ArrayType) types.Type {
 		Element: element,
 	}
 
-	c.nodeTypes[t] = typ
+	c.sema.NodeTypes[t] = typ
 	return typ
 }
 
@@ -56,7 +56,7 @@ func (c *common) VisitTupleType(t *ast.TupleType) types.Type {
 		return c.Error(t, "tuples cannot be empty").Type
 	}
 
-	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
+	if typ := c.sema.NodeTypes[t]; !core.IsNil(typ) {
 		return typ
 	}
 
@@ -75,12 +75,12 @@ func (c *common) VisitTupleType(t *ast.TupleType) types.Type {
 		typ.Types[i] = tTyp
 	}
 
-	c.nodeTypes[t] = typ
+	c.sema.NodeTypes[t] = typ
 	return typ
 }
 
 func (c *common) VisitReferenceType(t *ast.ReferenceType) types.Type {
-	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
+	if typ := c.sema.NodeTypes[t]; !core.IsNil(typ) {
 		return typ
 	}
 
@@ -94,12 +94,12 @@ func (c *common) VisitReferenceType(t *ast.ReferenceType) types.Type {
 		Pointee: pointee,
 	}
 
-	c.nodeTypes[t] = typ
+	c.sema.NodeTypes[t] = typ
 	return typ
 }
 
 func (c *common) VisitPointerType(t *ast.PointerType) types.Type {
-	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
+	if typ := c.sema.NodeTypes[t]; !core.IsNil(typ) {
 		return typ
 	}
 
@@ -113,12 +113,12 @@ func (c *common) VisitPointerType(t *ast.PointerType) types.Type {
 		Pointee: pointee,
 	}
 
-	c.nodeTypes[t] = typ
+	c.sema.NodeTypes[t] = typ
 	return typ
 }
 
 func (c *common) VisitFuncType(t *ast.FuncType) types.Type {
-	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
+	if typ := c.sema.NodeTypes[t]; !core.IsNil(typ) {
 		return typ
 	}
 
@@ -134,7 +134,7 @@ func (c *common) VisitFuncType(t *ast.FuncType) types.Type {
 		Returns: c.ResolveAndAnalyzeType(t.Returns),
 	}
 
-	c.nodeTypes[t] = typ
+	c.sema.NodeTypes[t] = typ
 	return typ
 }
 
@@ -146,7 +146,7 @@ func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
 	}
 
 	// Check nodeTypes for an existing type
-	cached := c.nodeTypes[t]
+	cached := c.sema.NodeTypes[t]
 	if !core.IsNil(cached) {
 		return cached
 	}
@@ -159,7 +159,7 @@ func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
 			return c.Error(t, "cannot resolve type alias '%s', aliases must be declared before use", symbol.Name).Type
 		}
 
-		c.nodeTypes[t] = a.Type
+		c.sema.NodeTypes[t] = a.Type
 		return a.Type
 
 	case symbols.Struct:
@@ -169,7 +169,7 @@ func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
 			c.Error(t, "struct type '%s' cannot be mutable", s)
 		}
 
-		c.nodeTypes[t] = s
+		c.sema.NodeTypes[t] = s
 		return s
 
 	case symbols.Enum:
@@ -177,7 +177,7 @@ func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
 			c.Error(t, "enum type '%s' cannot be mutable", symbol.Name)
 		}
 
-		c.nodeTypes[t] = symbol.Type
+		c.sema.NodeTypes[t] = symbol.Type
 		return symbol.Type
 
 	case symbols.Interface:
@@ -187,7 +187,7 @@ func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
 			in = in.AsMutable()
 		}
 
-		c.nodeTypes[t] = in
+		c.sema.NodeTypes[t] = in
 		return in
 
 	case symbols.TypeParam:
@@ -195,7 +195,7 @@ func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
 			c.Error(t, "type parameter '%s' cannot be mutable", symbol.Name)
 		}
 
-		c.nodeTypes[t] = symbol.Type
+		c.sema.NodeTypes[t] = symbol.Type
 		return symbol.Type
 
 	case symbols.Func, symbols.Param, symbols.Var:
@@ -208,7 +208,7 @@ func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
 }
 
 func (c *common) VisitSelfType(t *ast.SelfType) types.Type {
-	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
+	if typ := c.sema.NodeTypes[t]; !core.IsNil(typ) {
 		return typ
 	}
 
@@ -216,12 +216,12 @@ func (c *common) VisitSelfType(t *ast.SelfType) types.Type {
 		return c.Error(t, "'Self' can only be used inside an impl or interface block").Type
 	}
 
-	c.nodeTypes[t] = c.selfType
+	c.sema.NodeTypes[t] = c.selfType
 	return c.selfType
 }
 
 func (c *common) VisitOptionType(t *ast.OptionType) types.Type {
-	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
+	if typ := c.sema.NodeTypes[t]; !core.IsNil(typ) {
 		return typ
 	}
 
@@ -240,12 +240,12 @@ func (c *common) VisitOptionType(t *ast.OptionType) types.Type {
 		panic("sema.common.VisitOptionType() - Failed to find 'core::Option'")
 	}
 
-	c.nodeTypes[t] = symbol.Type
+	c.sema.NodeTypes[t] = symbol.Type
 	return symbol.Type
 }
 
 func (c *common) VisitSliceType(t *ast.SliceType) types.Type {
-	if typ := c.nodeTypes[t]; !core.IsNil(typ) {
+	if typ := c.sema.NodeTypes[t]; !core.IsNil(typ) {
 		return typ
 	}
 
@@ -269,7 +269,7 @@ func (c *common) VisitSliceType(t *ast.SliceType) types.Type {
 		panic("sema.common.VisitSliceType() - Failed to find 'core::" + name + "'")
 	}
 
-	c.nodeTypes[t] = symbol.Type
+	c.sema.NodeTypes[t] = symbol.Type
 	return symbol.Type
 }
 

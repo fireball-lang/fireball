@@ -3,7 +3,6 @@ package sema
 import (
 	"fireball/ast"
 	"fireball/core"
-	"fireball/fb-core"
 	"fireball/symbols"
 	"fireball/types"
 	"fmt"
@@ -17,19 +16,17 @@ type common struct {
 	path        string
 	fileModPath []string
 
-	instantiations *types.InstantiationCache
-	typeEnv        *TypeEnvironment
-	builtins       fb_core.Builtins
+	ctx  *Context
+	sema *FileData
 
 	checkVisibility      bool
 	checkTypeConstraints bool
 	selfType             types.Type
 
-	nodeTypes   map[ast.Node]types.Type
 	diagnostics []core.Diagnostic
 }
 
-func setupCommon(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, builtins fb_core.Builtins, nodeTypes map[ast.Node]types.Type, path string) common {
+func setupCommon(ctx *Context, file *ast.File, root symbols.Scope, path string) common {
 	fileModPath := make([]string, 0, len(file.Mod.Path))
 	for _, entry := range file.Mod.Path {
 		fileModPath = append(fileModPath, entry.Token.Text)
@@ -38,17 +35,15 @@ func setupCommon(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scop
 	c := common{
 		path:                 path,
 		fileModPath:          fileModPath,
-		instantiations:       instantiations,
-		builtins:             builtins,
-		typeEnv:              typeEnv,
+		ctx:                  ctx,
+		sema:                 ctx.Files[file],
 		checkVisibility:      true,
 		checkTypeConstraints: false,
-		nodeTypes:            nodeTypes,
 	}
 
 	c.scopes.Push(root)
 	c.scopes.Push(c.GetImportsScope(root, file))
-	c.scopes.Push(symbols.NewBinaryScope(fileSymbols))
+	c.scopes.Push(symbols.NewBinaryScope(c.sema.Symbols))
 
 	return c
 }
@@ -117,7 +112,7 @@ func (c *common) GetImportsScope(root symbols.Scope, file *ast.File) symbols.Sco
 
 			scope.AddSymbol(symbol)
 
-			c.nodeTypes[name] = symbol.Type
+			c.sema.NodeTypes[name] = symbol.Type
 		}
 	}
 
@@ -141,9 +136,9 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 
 		// Self:: inside impl / interface blocks
 		if name == "Self" && c.selfType != nil {
-			c.nodeTypes[entry] = c.selfType
+			c.sema.NodeTypes[entry] = c.selfType
 
-			if typeScope := c.typeEnv.GetTypeScope(c.selfType); typeScope != nil {
+			if typeScope := c.ctx.TypeEnv.GetTypeScope(c.selfType); typeScope != nil {
 				if len(entry.TypeArgs) != 0 {
 					c.ErrorRange(ast.SliceRange(entry.TypeArgs), "'Self' type cannot have type arguments")
 				}
@@ -172,13 +167,13 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 		if kind, ok := types.GetPrimitiveByName(name); ok {
 			typ := types.GetPrimitive(kind)
 
-			c.nodeTypes[entry] = typ
+			c.sema.NodeTypes[entry] = typ
 
 			if len(entry.TypeArgs) != 0 {
 				c.ErrorRange(ast.SliceRange(entry.TypeArgs), "primitive type cannot have type arguments")
 			}
 
-			if typeScope := c.typeEnv.GetTypeScope(typ); !core.IsNil(typeScope) {
+			if typeScope := c.ctx.TypeEnv.GetTypeScope(typ); !core.IsNil(typeScope) {
 				scope = typeScope
 				continue
 			}
@@ -186,14 +181,14 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 
 		// Type
 		if symbol, ok := scope.GetSymbol(symbols.Type, name); ok {
-			c.nodeTypes[entry] = symbol.Type
+			c.sema.NodeTypes[entry] = symbol.Type
 
 			// Type alias
 			if symbol.Kind == symbols.TypeAlias {
 				a := symbol.Type.(*types.Alias)
 
 				subs = c.CheckTypeArgsForSymbolEntry(symbol, entry, subs)
-				underlying := c.instantiations.Substitute(a.Type, subs)
+				underlying := c.ctx.Instantiations.Substitute(a.Type, subs)
 
 				scopeTyp := underlying
 				switch t := underlying.(type) {
@@ -208,7 +203,7 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 					}
 				}
 
-				if typeScope := c.typeEnv.GetTypeScope(scopeTyp); !core.IsNil(typeScope) {
+				if typeScope := c.ctx.TypeEnv.GetTypeScope(scopeTyp); !core.IsNil(typeScope) {
 					switch inst := underlying.(type) {
 					case *types.Struct:
 						if inst.Generic != nil {
@@ -221,14 +216,14 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 						}
 					}
 
-					c.nodeTypes[entry] = symbol.Type
+					c.sema.NodeTypes[entry] = symbol.Type
 					scope = typeScope
 					continue
 				}
 			}
 
 			// Type scope
-			if typeScope := c.typeEnv.GetTypeScope(symbol.Type); !core.IsNil(typeScope) {
+			if typeScope := c.ctx.TypeEnv.GetTypeScope(symbol.Type); !core.IsNil(typeScope) {
 				// Check if this type belongs to a different module
 				if c.checkVisibility {
 					var modulePath []string
@@ -293,11 +288,11 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 	if len(subs) > 0 {
 		// Substitute (not Get): the symbol's type may be a concrete type like a
 		// primitive, or an already-instantiated value, which Get cannot handle
-		symbol.Type = c.instantiations.Substitute(symbol.Type, subs)
+		symbol.Type = c.ctx.Instantiations.Substitute(symbol.Type, subs)
 	}
 
 	// Assign type and return
-	c.nodeTypes[entry] = symbol.Type
+	c.sema.NodeTypes[entry] = symbol.Type
 
 	return symbol, ok
 }
@@ -354,7 +349,7 @@ func (c *common) CheckTypeArgs(typ types.Type, typeParams []*types.Param, entry 
 	if c.checkTypeConstraints {
 		for i, param := range typeParams {
 			for _, constraint := range param.Constraints {
-				if in, ok := c.instantiations.Substitute(constraint, subs).(*types.Interface); ok {
+				if in, ok := c.ctx.Instantiations.Substitute(constraint, subs).(*types.Interface); ok {
 					c.CheckConstraint(subs[base+i].Type, in, entry.TypeArgs[i])
 				}
 			}
@@ -405,8 +400,8 @@ func (c *common) CheckConstraint(typ types.Type, constraint *types.Interface, no
 	}
 
 	// Check interface conformances
-	for _, conf := range c.typeEnv.GetConformances(checkTyp) {
-		if c.typeEnv.interfaceMatches(conf, constraint) {
+	for _, conf := range c.ctx.TypeEnv.GetConformances(checkTyp) {
+		if c.ctx.TypeEnv.interfaceMatches(conf, constraint) {
 			return true
 		}
 	}
@@ -481,7 +476,7 @@ func (c *common) pushImplScope(impl *ast.Impl, typ *types.Struct) (*types.Struct
 
 			if full {
 				params[j] = template.TypeParams[j]
-			} else if resolved, ok := c.nodeTypes[param].(*types.Param); ok {
+			} else if resolved, ok := c.sema.NodeTypes[param].(*types.Param); ok {
 				params[j] = resolved
 			} else {
 				params[j] = &types.Param{Name: names[j]}

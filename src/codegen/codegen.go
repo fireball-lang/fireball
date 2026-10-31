@@ -4,7 +4,6 @@ import (
 	"fireball/abi"
 	"fireball/ast"
 	"fireball/core"
-	"fireball/fb-core"
 	"fireball/ir"
 	"fireball/ir/eval"
 	"fireball/lexer"
@@ -16,12 +15,6 @@ import (
 	"strings"
 )
 
-type FileData struct {
-	ExprInfos   map[ast.Node]sema.ExprInfo
-	NodeTypes   map[ast.Node]types.Type
-	Evaluations map[ast.Expr]eval.Value
-}
-
 type pendingInstantiation struct {
 	f   *ast.Func
 	typ *types.Func
@@ -32,13 +25,11 @@ type Codegen struct {
 	Module *ir.Module
 	Uid    string
 
-	Arch      abi.Arch
-	CallConv  abi.CallConv
-	ExprInfos map[ast.Node]sema.ExprInfo
-	NodeTypes map[ast.Node]types.Type
-	TypeEnv   *sema.TypeEnvironment
+	Arch     abi.Arch
+	CallConv abi.CallConv
 
-	Builtins fb_core.Builtins
+	Ctx  *sema.Context
+	Sema *sema.FileData
 
 	CompTime bool
 
@@ -62,28 +53,21 @@ type Codegen struct {
 	bLoopBreak    *ir.Block
 	bLoopContinue *ir.Block
 
-	instantiations        *types.InstantiationCache
 	pendingInstantiations []pendingInstantiation
-
-	fileDataMap map[*ast.File]FileData
 }
 
-func New(module *ir.Module, file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]FileData, builtins fb_core.Builtins, compTime bool) *Codegen {
+func New(ctx *sema.Context, module *ir.Module, file *ast.File, arch abi.Arch, callConv abi.CallConv, compTime bool) *Codegen {
 	c := &Codegen{
 		Module: module,
 		Uid:    fmt.Sprintf("%08x", crc32.ChecksumIEEE([]byte(module.Path))),
 
-		Arch:      arch,
-		CallConv:  callConv,
-		ExprInfos: fileDataMap[file].ExprInfos,
-		NodeTypes: fileDataMap[file].NodeTypes,
-		TypeEnv:   typeEnv,
+		Arch:     arch,
+		CallConv: callConv,
 
-		Builtins: builtins,
+		Ctx:  ctx,
+		Sema: ctx.Files[file],
+
 		CompTime: compTime,
-
-		instantiations: instantiations,
-		fileDataMap:    fileDataMap,
 
 		Types:   &TypeCache{Arch: arch, Module: module, ShallowMeta: false},
 		Emitter: ir.Emitter{Module: module},
@@ -115,13 +99,13 @@ func New(module *ir.Module, file *ast.File, arch abi.Arch, callConv abi.CallConv
 	return c
 }
 
-func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]FileData, builtins fb_core.Builtins, path string, compTime bool) *ir.Module {
+func Generate(ctx *sema.Context, file *ast.File, arch abi.Arch, callConv abi.CallConv, path string, compTime bool) *ir.Module {
 	defer core.Scope()()
 
 	module := ir.NewModule()
 	module.Path = path
 
-	c := New(module, file, arch, callConv, instantiations, typeEnv, fileDataMap, builtins, compTime)
+	c := New(ctx, module, file, arch, callConv, compTime)
 
 	// Setup meta
 
@@ -129,7 +113,7 @@ func Generate(file *ast.File, arch abi.Arch, callConv abi.CallConv, instantiatio
 
 	for _, decl := range file.Decls {
 		if s, ok := decl.(*ast.Struct); ok && len(s.TypeParams) == 0 {
-			ref := c.Types.GetMeta(c.NodeTypes[s])
+			ref := c.Types.GetMeta(c.Sema.NodeTypes[s])
 			retainedTypeRefs = append(retainedTypeRefs, ir.RawMetaValue{Ref: ref})
 		}
 	}
@@ -161,25 +145,25 @@ func (c *Codegen) Declarations(file *ast.File) {
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
 		case *ast.GlobalVar:
-			typ := c.NodeTypes[decl]
+			typ := c.Sema.NodeTypes[decl]
 			c.scope.Add(decl.Name().Token.Text, c.CreateGlobalVar(decl, typ, false))
 
 		case *ast.Impl:
 			var in *types.Interface
 			if decl.Interface != nil {
-				in, _ = c.NodeTypes[decl.Interface].(*types.Interface)
+				in, _ = c.Sema.NodeTypes[decl.Interface].(*types.Interface)
 			}
 
 			for _, f := range decl.Methods {
 				if !c.HasTypeParams(f) {
-					typ := c.NodeTypes[f].(*types.Func)
+					typ := c.Sema.NodeTypes[f].(*types.Func)
 					c.CreateFunction(f, typ, false, in)
 				}
 			}
 
 		case *ast.Func:
 			if !c.HasTypeParams(decl) && ast.GetAttribute[*ast.Intrinsic](decl) == nil {
-				typ := c.NodeTypes[decl].(*types.Func)
+				typ := c.Sema.NodeTypes[decl].(*types.Func)
 				c.scope.Add(decl.Name().Token.Text, c.CreateFunction(decl, typ, false, nil))
 			}
 		}
@@ -193,14 +177,14 @@ func (c *Codegen) VTables(file *ast.File) {
 		switch decl := decl.(type) {
 		case *ast.Impl:
 			if decl.Interface != nil && len(decl.TypeParams) == 0 {
-				in := c.NodeTypes[decl.Interface].(*types.Interface)
+				in := c.Sema.NodeTypes[decl.Interface].(*types.Interface)
 
 				var typ types.Type
 
 				if p, ok := decl.Type.(*ast.PrimitiveType); ok {
 					typ = types.GetPrimitive(p.Kind)
 				} else {
-					typ = c.NodeTypes[decl.Type]
+					typ = c.Sema.NodeTypes[decl.Type]
 				}
 
 				c.CreateVTable(typ, in, false)
@@ -232,18 +216,18 @@ func (c *Codegen) TypeInfos(file *ast.File) {
 
 	for _, decl := range file.Decls {
 		if decl, ok := decl.(*ast.Interface); ok && !c.HasTypeParams(decl) {
-			c.CreateTypeInfo(c.NodeTypes[decl], false)
+			c.CreateTypeInfo(c.Sema.NodeTypes[decl], false)
 		}
 	}
 
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
 		case *ast.Enum:
-			c.CreateTypeInfo(c.NodeTypes[decl], false)
+			c.CreateTypeInfo(c.Sema.NodeTypes[decl], false)
 
 		case *ast.Struct:
 			if !c.HasTypeParams(decl) {
-				c.CreateTypeInfo(c.NodeTypes[decl], false)
+				c.CreateTypeInfo(c.Sema.NodeTypes[decl], false)
 			}
 		}
 	}
@@ -256,21 +240,21 @@ func (c *Codegen) Definitions(file *ast.File) {
 		switch decl := decl.(type) {
 		case *ast.GlobalVar:
 			if !core.IsNil(decl.Initializer) {
-				typ := c.NodeTypes[decl]
+				typ := c.Sema.NodeTypes[decl]
 				gVar := c.GetGlobalVar(decl, nil)
 
-				gVar.Initializer = c.GetIrValue(c.fileDataMap[file].Evaluations[decl.Initializer], typ)
+				gVar.Initializer = c.GetIrValue(c.Ctx.Files[file].Evaluations[decl.Initializer], typ)
 			}
 
 		case *ast.Impl:
 			var in *types.Interface
 			if decl.Interface != nil {
-				in, _ = c.NodeTypes[decl.Interface].(*types.Interface)
+				in, _ = c.Sema.NodeTypes[decl.Interface].(*types.Interface)
 			}
 
 			for _, f := range decl.Methods {
 				if !c.HasTypeParams(f) {
-					typ := c.NodeTypes[f].(*types.Func)
+					typ := c.Sema.NodeTypes[f].(*types.Func)
 					fun := c.GetFunction(f, typ, in)
 
 					c.VisitFunc(f, typ, fun)
@@ -279,7 +263,7 @@ func (c *Codegen) Definitions(file *ast.File) {
 
 		case *ast.Func:
 			if !c.HasTypeParams(decl) && ast.GetAttribute[*ast.Intrinsic](decl) == nil {
-				typ := c.NodeTypes[decl].(*types.Func)
+				typ := c.Sema.NodeTypes[decl].(*types.Func)
 				fun := c.GetFunction(decl, typ, nil)
 
 				c.VisitFunc(decl, typ, fun)
@@ -295,9 +279,8 @@ func (c *Codegen) Instantiations() {
 		pending := c.pendingInstantiations[len(c.pendingInstantiations)-1]
 		c.pendingInstantiations = c.pendingInstantiations[:len(c.pendingInstantiations)-1]
 
-		if fd, ok := c.fileDataMap[ast.GetFile(pending.f)]; ok {
-			c.ExprInfos = fd.ExprInfos
-			c.NodeTypes = fd.NodeTypes
+		if fd, ok := c.Ctx.Files[ast.GetFile(pending.f)]; ok {
+			c.Sema = fd
 		}
 
 		c.substitutions = pending.typ.Substitutions
@@ -326,8 +309,8 @@ func (c *Codegen) EmitPanic(_ ast.Node, format string, args ...any) {
 	str := fmt.Sprintf(format, args...)
 	msg := c.StringView([]rune(str))
 
-	f := c.Builtins.PanicNode
-	typ := c.Builtins.PanicType
+	f := c.Ctx.Builtins.PanicNode
+	typ := c.Ctx.Builtins.PanicType
 
 	callee := c.GetFunction(f, typ, nil)
 
@@ -368,21 +351,21 @@ func typeSubsString(subs []types.Substitution) string {
 func (c *Codegen) HasTypeParams(decl ast.Decl) bool {
 	switch decl := decl.(type) {
 	case *ast.Struct:
-		typ := c.NodeTypes[decl].(*types.Struct)
+		typ := c.Sema.NodeTypes[decl].(*types.Struct)
 
 		if len(typ.TypeParams) > 0 || typ.Generic != nil {
 			return true
 		}
 
 	case *ast.Interface:
-		typ := c.NodeTypes[decl].(*types.Interface)
+		typ := c.Sema.NodeTypes[decl].(*types.Interface)
 
 		if len(typ.TypeParams) > 0 || typ.Generic != nil {
 			return true
 		}
 
 	case *ast.Func:
-		typ := c.NodeTypes[decl].(*types.Func)
+		typ := c.Sema.NodeTypes[decl].(*types.Func)
 
 		if len(typ.TypeParams) > 0 || typ.Generic != nil {
 			return true
@@ -612,7 +595,7 @@ func (c *Codegen) GetAssociatedConst(decl *ast.AssociatedConst, subs []types.Sub
 
 	file := ast.GetFile(decl)
 
-	fd, ok := c.fileDataMap[file]
+	fd, ok := c.Ctx.Files[file]
 	if !ok {
 		panic("codegen.Codegen.GetAssociatedConst() - No file data for '" + file.Path + "'")
 	}
@@ -636,7 +619,7 @@ func (c *Codegen) GetAssociatedConst(decl *ast.AssociatedConst, subs []types.Sub
 	typ := rawTyp
 
 	if len(subs) > 0 {
-		typ = c.instantiations.Substitute(typ, subs)
+		typ = c.Ctx.Instantiations.Substitute(typ, subs)
 	}
 
 	typ = c.ResolveType(typ)
@@ -667,7 +650,7 @@ func (c *Codegen) resolveAssociatedConst(node *ast.AssociatedConst, i *ast.Ident
 		// instantiated type sema resolved the symbol to.
 		subs := c.substitutions
 
-		if s, ok := c.ResolveType(c.ExprInfos[i].Type).(*types.Struct); ok && s.Generic != nil {
+		if s, ok := c.ResolveType(c.Sema.ExprInfos[i].Type).(*types.Struct); ok && s.Generic != nil {
 			subs = s.Substitutions
 		}
 
@@ -680,9 +663,9 @@ func (c *Codegen) resolveAssociatedConst(node *ast.AssociatedConst, i *ast.Ident
 	}
 
 	typeLeaf := i.Path[len(i.Path)-2]
-	typ := c.ResolveType(c.NodeTypes[typeLeaf])
+	typ := c.ResolveType(c.Sema.NodeTypes[typeLeaf])
 
-	sym, subs, ok := c.TypeEnv.GetAssociatedConstWithSubs(typ, node.Name.Token.Text)
+	sym, subs, ok := c.Ctx.TypeEnv.GetAssociatedConstWithSubs(typ, node.Name.Token.Text)
 	if !ok {
 		panic("codegen.Codegen.resolveAssociatedConst() - Failed to find associated constant '" + node.Name.Token.Text + "' for type '" + typ.String() + "'")
 	}
@@ -696,24 +679,26 @@ func (c *Codegen) resolveAssociatedConst(node *ast.AssociatedConst, i *ast.Ident
 }
 
 func (c *Codegen) materializeConstValue(file *ast.File, typNode ast.Type, value ast.Expr, subs []types.Substitution) ir.Value {
-	prevExprInfos, prevNodeTypes, prevSubs := c.ExprInfos, c.NodeTypes, c.substitutions
+	prevSema := c.Sema
+	prevSubstitutions := c.substitutions
 
-	if fd, ok := c.fileDataMap[file]; ok {
-		c.ExprInfos, c.NodeTypes = fd.ExprInfos, fd.NodeTypes
+	if fd, ok := c.Ctx.Files[file]; ok {
+		c.Sema = fd
 	}
 
 	if len(subs) > 0 {
 		c.substitutions = subs
 	}
 
-	typ := c.ResolveType(c.NodeTypes[typNode])
+	typ := c.ResolveType(c.Sema.NodeTypes[typNode])
 
 	irTyp := c.Types.Get(typ)
 	ptr := c.Alloca(irTyp, "const")
 	c.Emitter.Store(&ir.ZeroInitializer{Typ: irTyp}, ptr)
 	c.Emitter.Store(c.GenerateExpr(value), ptr)
 
-	c.ExprInfos, c.NodeTypes, c.substitutions = prevExprInfos, prevNodeTypes, prevSubs
+	c.substitutions = prevSubstitutions
+	c.Sema = prevSema
 
 	return ptr
 }
@@ -722,7 +707,7 @@ func (c *Codegen) evalConstValue(file *ast.File, expr ast.Expr, typ types.Type, 
 	module := ir.NewModule()
 	module.Path = "__comptime__"
 
-	sub := New(module, file, c.Arch, c.CallConv, c.instantiations, c.TypeEnv, c.fileDataMap, c.Builtins, true)
+	sub := New(c.Ctx, module, file, c.Arch, c.CallConv, true)
 	sub.substitutions = subs
 
 	return sub.GenerateComptimeValue(expr, typ)
@@ -790,8 +775,10 @@ func (c *Codegen) GetConst(decl *ast.Const) *ir.GlobalVar {
 	}
 
 	// Create constant
-	typ := c.ResolveType(c.fileDataMap[ast.GetFile(decl)].NodeTypes[decl.Type])
-	val := c.fileDataMap[ast.GetFile(decl)].Evaluations[decl.Value]
+	fd := c.Ctx.Files[ast.GetFile(decl)]
+
+	typ := c.ResolveType(fd.NodeTypes[decl.Type])
+	val := fd.Evaluations[decl.Value]
 
 	gVar := c.GlobalVar(name, ir.Constant|ir.UnnamedAddr|ir.LinkOnce, c.GetIrValue(val, typ))
 
@@ -888,7 +875,7 @@ func (c *Codegen) GetIrValue(val eval.Value, typ types.Type) ir.Value {
 
 	case *eval.FuncValue:
 		f := val.Data.(*ast.Func)
-		typ := c.fileDataMap[ast.GetFile(f)].NodeTypes[f].(*types.Func)
+		typ := c.Ctx.Files[ast.GetFile(f)].NodeTypes[f].(*types.Func)
 		in := c.GetFuncInterface(f)
 
 		return c.GetFunction(f, typ, in)
@@ -903,7 +890,7 @@ func (c *Codegen) getImplInterface(impl *ast.Impl) *types.Interface {
 		return nil
 	}
 
-	fileData, ok := c.fileDataMap[ast.GetFile(impl)]
+	fileData, ok := c.Ctx.Files[ast.GetFile(impl)]
 	if !ok {
 		return nil
 	}

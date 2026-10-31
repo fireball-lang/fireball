@@ -27,7 +27,7 @@ func (c *Codegen) VisitExpression(e *ast.Expression) {
 
 func (c *Codegen) VisitVar(v *ast.Var) {
 	// Type
-	varTyp := c.ResolveType(c.NodeTypes[v])
+	varTyp := c.ResolveType(c.Sema.NodeTypes[v])
 	typ := c.Types.Get(varTyp)
 
 	// Pointer

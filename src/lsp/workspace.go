@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"fireball/ast"
-	"fireball/codegen"
 	"fireball/core"
 	"fireball/project"
 	"fireball/sema"
@@ -23,8 +22,7 @@ type Workspace struct {
 	projMap map[string]*project.Project
 	depMap  map[project.Dependency]*project.Project
 
-	typeEnv        *sema.TypeEnvironment
-	instantiations *types.InstantiationCache
+	ctx *sema.Context
 }
 
 func (s *Server) openWorkspace(ctx context.Context, path string) {
@@ -125,6 +123,7 @@ func (w *Workspace) parseFiles(files []*project.File) {
 	for _, proj := range ordered {
 		for _, file := range proj.Files {
 			if len(files) == 0 || slices.Contains(files, file) {
+				file.Sema = &sema.FileData{}
 				file.Parse(w.server.Env)
 			}
 		}
@@ -138,44 +137,42 @@ func (w *Workspace) parseFiles(files []*project.File) {
 		proj.Module.CheckCollisions()
 	}
 
-	// Resolve
-	builtins := project.GetBuiltins(w.projMap)
-	instantiations := types.NewInstantiationCache()
-	typeEnv := sema.NewTypeEnvironment(instantiations, builtins)
-
-	for _, proj := range ordered {
-		proj.Resolve(w.depMap, instantiations, typeEnv, builtins)
+	// Create context
+	ctx := &sema.Context{
+		Instantiations: types.NewInstantiationCache(),
+		Builtins:       project.GetBuiltins(w.projMap),
+		Files:          make(map[*ast.File]*sema.FileData),
 	}
 
-	instantiations.SubstituteDependentTypes()
+	w.ctx = ctx
 
-	// Check type-local collisions
-	project.CheckTypeLocalCollisions(w.projMap, typeEnv)
-
-	// Analyze
-	for _, proj := range ordered {
-		proj.Analyze(w.depMap, instantiations, typeEnv, builtins)
-	}
-
-	// Evaluate comp-time
-	fileDataMap := make(map[*ast.File]codegen.FileData)
+	ctx.TypeEnv = sema.NewTypeEnvironment(ctx)
 
 	for _, proj := range ordered {
 		for _, file := range proj.Files {
-			fileDataMap[file.Ast] = codegen.FileData{
-				ExprInfos:   file.ExprInfos,
-				NodeTypes:   file.NodeTypes,
-				Evaluations: file.Evaluations,
-			}
+			ctx.Files[file.Ast] = file.Sema
 		}
 	}
 
+	// Resolve
 	for _, proj := range ordered {
-		proj.EvalCompTime(instantiations, typeEnv, fileDataMap, builtins)
+		proj.Resolve(ctx, w.depMap)
 	}
 
-	w.typeEnv = typeEnv
-	w.instantiations = instantiations
+	ctx.Instantiations.SubstituteDependentTypes()
+
+	// Check type-local collisions
+	project.CheckTypeLocalCollisions(w.projMap, ctx.TypeEnv)
+
+	// Analyze
+	for _, proj := range ordered {
+		proj.Analyze(ctx, w.depMap)
+	}
+
+	// Evaluate comp-time
+	for _, proj := range ordered {
+		proj.EvalCompTime(ctx)
+	}
 }
 
 func (w *Workspace) getProject(file string) *project.Project {

@@ -117,7 +117,7 @@ func (hi *highlighter) VisitIdentifier(i *ast.Identifier) int {
 
 	// Entries before last one
 	for _, entry := range i.Path[:len(i.Path)-1] {
-		if typ, ok := hi.file.NodeTypes[entry]; ok {
+		if typ, ok := hi.file.Sema.NodeTypes[entry]; ok {
 			hi.AddType(entry.Name, typ)
 		}
 
@@ -127,7 +127,7 @@ func (hi *highlighter) VisitIdentifier(i *ast.Identifier) int {
 	}
 
 	// Last entry
-	if info, ok := hi.file.ExprInfos[i]; ok {
+	if info, ok := hi.file.Sema.ExprInfos[i]; ok {
 		entry := i.Path[len(i.Path)-1].Name
 
 		switch info.Symbol {
@@ -187,7 +187,7 @@ func (hi *highlighter) VisitIndex(i *ast.Index) int {
 func (hi *highlighter) VisitMember(m *ast.Member) int {
 	hi.VisitExpr(m.Expr)
 
-	if info, ok := hi.file.ExprInfos[m]; ok {
+	if info, ok := hi.file.Sema.ExprInfos[m]; ok {
 		switch info.Node.(type) {
 		case *ast.Func:
 			hi.Add(m.Name, functionKind, 0)

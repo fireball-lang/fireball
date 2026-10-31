@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fireball/abi"
-	"fireball/ast"
 	"fireball/backend/amd64"
 	"fireball/backend/obj/elf"
 	"fireball/backend/obj/pe"
@@ -13,6 +12,7 @@ import (
 	"fireball/ir"
 	"fireball/ir/llvm"
 	"fireball/project"
+	"fireball/sema"
 	"fireball/toolchain"
 	"fmt"
 	"io"
@@ -78,7 +78,7 @@ func Init(path string, profile project.Profile) (*System, error) {
 	}, nil
 }
 
-func (s *System) CompileProjectHierarchy(projMap map[string]*project.Project) ([]string, error) {
+func (s *System) CompileProjectHierarchy(ctx *sema.Context, projMap map[string]*project.Project) ([]string, error) {
 	defer core.Scope()()
 
 	split := strings.Split(s.target.Name, "-")
@@ -110,18 +110,6 @@ func (s *System) CompileProjectHierarchy(projMap map[string]*project.Project) ([
 		}
 	}
 
-	fileDataMap := make(map[*ast.File]codegen.FileData, len(files))
-
-	for _, file := range files {
-		fileDataMap[file.Ast] = codegen.FileData{
-			ExprInfos:   file.ExprInfos,
-			NodeTypes:   file.NodeTypes,
-			Evaluations: file.Evaluations,
-		}
-	}
-
-	builtins := project.GetBuiltins(projMap)
-
 	err := core.ParallelFor(files, func(i int, file *project.File) error {
 		buildPath := filepath.Join(s.profilePath, file.Proj.Config.Name)
 
@@ -139,7 +127,7 @@ func (s *System) CompileProjectHierarchy(projMap map[string]*project.Project) ([
 		}
 
 		name := getBuildFileName(file)
-		module := codegen.Generate(file.Ast, s.target.Arch, s.target.CallConv, file.Instantiations, file.TypeEnv, fileDataMap, builtins, file.Path, false)
+		module := codegen.Generate(ctx, file.Ast, s.target.Arch, s.target.CallConv, file.Path, false)
 
 		if module.IsEmpty() {
 			return nil

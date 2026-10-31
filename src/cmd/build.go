@@ -19,7 +19,7 @@ func getBuildCmd() *cobra.Command {
 			start := time.Now()
 
 			// Parse
-			proj, projMap, err := parseProject(cfg.GetHost(), &start)
+			proj, ctx, projMap, err := parseProject(cfg.GetHost(), &start)
 			if err != nil {
 				return err
 			}
@@ -34,7 +34,7 @@ func getBuildCmd() *cobra.Command {
 				entrypointProvider = nil
 			}
 
-			_, err = buildProject(proj, projMap, profileName, start, entrypointProvider)
+			_, err = buildProject(proj, ctx, projMap, profileName, start, entrypointProvider)
 
 			return err
 		}),

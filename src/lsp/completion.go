@@ -85,14 +85,14 @@ func (s *Server) Completion(_ context.Context, params *protocol.CompletionParams
 
 		// Identifier path completions
 		if id := ast.GetClosestParent[*ast.Identifier](node); id != nil && len(id.Path) >= 2 && cursor.GreaterThan(id.Path[len(id.Path)-2].Range().End) {
-			c.exprContext = !sema.WantsFunction(c.file.NodeTypes, c.file.ExprInfos, c.file.TypeEnv, id)
+			c.exprContext = !sema.WantsFunction(workspace.ctx, id)
 			c.Identifier(id)
 			return c.Build(), nil
 		}
 
 		// Member expression completions
 		if m := ast.GetClosestParent[*ast.Member](node); m != nil && !core.IsNil(m.Expr) && cursor.GreaterThan(m.Expr.Range().End) {
-			c.exprContext = !sema.WantsFunction(c.file.NodeTypes, c.file.ExprInfos, c.file.TypeEnv, m)
+			c.exprContext = !sema.WantsFunction(workspace.ctx, m)
 			c.Member(m)
 			return c.Build(), nil
 		}
@@ -102,7 +102,7 @@ func (s *Server) Completion(_ context.Context, params *protocol.CompletionParams
 
 		// Single-segment identifiers: the call/reference decision applies here too
 		if id := ast.GetClosestParent[*ast.Identifier](node); id != nil {
-			c.exprContext = c.exprContext && !sema.WantsFunction(c.file.NodeTypes, c.file.ExprInfos, c.file.TypeEnv, id)
+			c.exprContext = c.exprContext && !sema.WantsFunction(workspace.ctx, id)
 		}
 	}
 
@@ -332,7 +332,7 @@ func (c *completions) coreModule() (*project.Module, bool) {
 
 func (c *completions) ModuleSymbol(module *project.Module, sameModule, typesOnly bool) {
 	for _, moduleFile := range module.Files {
-		for _, symbol := range moduleFile.Symbols {
+		for _, symbol := range moduleFile.Sema.Symbols {
 			// Visibility
 			if !symbol.Public && !sameModule {
 				continue
@@ -385,7 +385,7 @@ func (c *completions) Identifier(id *ast.Identifier) {
 	}
 
 	// Type scope
-	if typ, ok := c.file.NodeTypes[entries[len(entries)-1]]; ok {
+	if typ, ok := c.file.Sema.NodeTypes[entries[len(entries)-1]]; ok {
 		c.TypeMember(typ)
 	}
 }
@@ -690,13 +690,13 @@ func (c *completions) emptyTypeSlot(typ ast.Type, name *ast.Leaf, declStart core
 
 func (c *completions) Member(m *ast.Member) {
 	// Base expression type
-	info, ok := c.file.ExprInfos[m.Expr]
+	info, ok := c.file.Sema.ExprInfos[m.Expr]
 	if !ok || info.Invalid() {
 		return
 	}
 
 	// Type environment
-	if c.workspace.typeEnv == nil {
+	if c.workspace.ctx.TypeEnv == nil {
 		return
 	}
 
@@ -755,7 +755,7 @@ func (c *completions) Fields(t *types.Struct, modPath []string) {
 			lookup = lookup.Generic
 		}
 
-		if structNode := c.workspace.typeEnv.GetStructNode(lookup); structNode != nil {
+		if structNode := c.workspace.ctx.TypeEnv.GetStructNode(lookup); structNode != nil {
 			for _, fieldNode := range structNode.Fields {
 				if fieldNode.Name.Token.Text == field.Name {
 					item.Documentation = c.s.markup(fieldNode.Documentation)
@@ -769,7 +769,7 @@ func (c *completions) Fields(t *types.Struct, modPath []string) {
 }
 
 func (c *completions) InstanceMember(typ types.Type, declModPath, modPath []string) {
-	for member := range c.workspace.typeEnv.InstanceMembers(typ) {
+	for member := range c.workspace.ctx.TypeEnv.InstanceMembers(typ) {
 		if !member.Symbol.Public && !slices.Equal(declModPath, modPath) {
 			continue
 		}
@@ -780,7 +780,7 @@ func (c *completions) InstanceMember(typ types.Type, declModPath, modPath []stri
 
 func (c *completions) InterfaceMember(t *types.Interface) {
 	// Interface node
-	inNode := c.workspace.typeEnv.GetInterfaceNode(t)
+	inNode := c.workspace.ctx.TypeEnv.GetInterfaceNode(t)
 	if inNode == nil {
 		return
 	}
@@ -805,7 +805,7 @@ func (c *completions) InterfaceMember(t *types.Interface) {
 }
 
 func (c *completions) ParamMember(t *types.Param) {
-	for member := range c.workspace.typeEnv.ParamInstanceMembers(t) {
+	for member := range c.workspace.ctx.TypeEnv.ParamInstanceMembers(t) {
 		c.Func(member.Symbol.Node, protocol.CompletionItemKindMethod)
 	}
 }
@@ -891,11 +891,11 @@ func (c *completions) InitializerType(typeAst ast.Type) types.Type {
 		return nil
 	}
 
-	return c.file.NodeTypes[typeAst]
+	return c.file.Sema.NodeTypes[typeAst]
 }
 
 func (c *completions) WithType(w *ast.With) types.Type {
-	info, ok := c.file.ExprInfos[w.Expr]
+	info, ok := c.file.Sema.ExprInfos[w.Expr]
 	if !ok || info.Invalid() {
 		return nil
 	}
@@ -1115,13 +1115,13 @@ func (c *completions) TypeMember(typ types.Type) {
 	}
 
 	// Type environment
-	if c.workspace.typeEnv == nil {
+	if c.workspace.ctx.TypeEnv == nil {
 		return
 	}
 
 	// Constrained type parameter: merged scope of all constraints
 	if tp, ok := typ.(*types.Param); ok {
-		if scope, ok := c.workspace.typeEnv.GetTypeScope(tp).(symbols.SymbolScope); ok {
+		if scope, ok := c.workspace.ctx.TypeEnv.GetTypeScope(tp).(symbols.SymbolScope); ok {
 			for _, symbol := range scope {
 				c.StaticMember(sema.MemberSymbol{Symbol: symbol, Type: symbol.Type})
 			}
@@ -1136,7 +1136,7 @@ func (c *completions) TypeMember(typ types.Type) {
 	}
 
 	// Registered static members
-	for member := range c.workspace.typeEnv.StaticMembers(typ) {
+	for member := range c.workspace.ctx.TypeEnv.StaticMembers(typ) {
 		c.StaticMember(member)
 	}
 }
@@ -1333,7 +1333,7 @@ func (c *completions) Decl(file *project.File, decl ast.Decl, overrideKind proto
 	case *ast.Enum:
 		item.Kind = protocol.CompletionItemKindEnum
 
-		if typ, ok := file.NodeTypes[decl]; ok {
+		if typ, ok := file.Sema.NodeTypes[decl]; ok {
 			if enum, ok := typ.(*types.Enum); ok {
 				item.Detail = protocol.NewOptional(enum.CaseType.String())
 			}
@@ -1383,7 +1383,7 @@ func getAstTypeCompletionKind(file *project.File, typ ast.Type) protocol.Complet
 	case *ast.FuncType:
 		return protocol.CompletionItemKindFunction
 	case *ast.IdentifierType:
-		return getTypeCompletionKind(file.NodeTypes[typ])
+		return getTypeCompletionKind(file.Sema.NodeTypes[typ])
 	case *ast.OptionType, *ast.SliceType:
 		return protocol.CompletionItemKindStruct
 	default:

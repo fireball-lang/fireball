@@ -74,7 +74,7 @@ func (s *Server) resolveFuncSignature(file *project.File, callee ast.Expr) (*ast
 	}
 
 	// Value of function type (function pointer)
-	info, ok := file.ExprInfos[callee]
+	info, ok := file.Sema.ExprInfos[callee]
 	if !ok {
 		return nil, nil
 	}

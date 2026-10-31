@@ -71,7 +71,7 @@ func (a *analyzer) IntrinsicExpectParamCount(f *ast.Func, expected int) bool {
 }
 
 func (a *analyzer) IntrinsicExpectPrimitiveKind(kind ast.IntrinsicKind, t ast.Type, primKind types.PrimitiveKind) {
-	typ := a.nodeTypes[t]
+	typ := a.sema.NodeTypes[t]
 
 	if typ, ok := typ.(*types.Primitive); ok && typ.Kind == primKind {
 		return
@@ -81,7 +81,7 @@ func (a *analyzer) IntrinsicExpectPrimitiveKind(kind ast.IntrinsicKind, t ast.Ty
 }
 
 func (a *analyzer) IntrinsicExpectPrimitiveClass(kind ast.IntrinsicKind, t ast.Type, name string, predicate func(types.PrimitiveKind) bool) {
-	typ := a.nodeTypes[t]
+	typ := a.sema.NodeTypes[t]
 
 	if typ, ok := typ.(*types.Primitive); ok && predicate(typ.Kind) {
 		return
@@ -91,7 +91,7 @@ func (a *analyzer) IntrinsicExpectPrimitiveClass(kind ast.IntrinsicKind, t ast.T
 }
 
 func (a *analyzer) IntrinsicExpectPointer(kind ast.IntrinsicKind, t ast.Type) {
-	typ := a.nodeTypes[t]
+	typ := a.sema.NodeTypes[t]
 
 	if _, ok := typ.(*types.Pointer); ok {
 		return

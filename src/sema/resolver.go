@@ -3,7 +3,6 @@ package sema
 import (
 	"fireball/ast"
 	"fireball/core"
-	"fireball/fb-core"
 	"fireball/symbols"
 	"fireball/types"
 	"slices"
@@ -13,16 +12,18 @@ type resolver struct {
 	common
 }
 
-func Resolve(file *ast.File, fileSymbols []symbols.Symbol, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, builtins fb_core.Builtins, root symbols.Scope, path string) (map[ast.Node]types.Type, []core.Diagnostic) {
+func Resolve(ctx *Context, file *ast.File, root symbols.Scope, path string) []core.Diagnostic {
 	defer core.Scope()()
 
 	r := resolver{
-		common: setupCommon(file, fileSymbols, root, instantiations, typeEnv, builtins, make(map[ast.Node]types.Type), path),
+		common: setupCommon(ctx, file, root, path),
 	}
 
 	r.checkTypeConstraints = false
 
 	// Resolve
+
+	fileSymbols := ctx.Files[file].Symbols
 
 	for i := range fileSymbols {
 		if fileSymbols[i].Kind == symbols.TypeAlias {
@@ -51,7 +52,7 @@ func Resolve(file *ast.File, fileSymbols []symbols.Symbol, instantiations *types
 
 	r.scopes.ValidateEmpty()
 
-	return r.nodeTypes, r.diagnostics
+	return r.diagnostics
 }
 
 func (r *resolver) ResolveImpl(impl *ast.Impl) {
@@ -64,7 +65,7 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 		}
 
 		r.ResolveTypeParams(impl.TypeParams, typeParams)
-		r.typeEnv.RegisterImplParams(impl, typeParams)
+		r.ctx.TypeEnv.RegisterImplParams(impl, typeParams)
 		defer r.scopes.Pop()
 	}
 
@@ -91,7 +92,7 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 		defer pop()
 	}
 
-	r.typeEnv.RegisterImplTarget(methodTyp, impl)
+	r.ctx.TypeEnv.RegisterImplTarget(methodTyp, impl)
 
 	// Self
 	prevSelf := r.selfType
@@ -106,7 +107,7 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 		if inRaw != types.Invalid && !ok {
 			r.Error(impl.Interface, "'%s' is not an interface", impl.Interface)
 		} else if ok {
-			if !r.typeEnv.AddConformance(methodTyp, in) {
+			if !r.ctx.TypeEnv.AddConformance(methodTyp, in) {
 				r.Error(impl.Type, "type '%s' already implements interface '%s'", typ, in)
 			}
 
@@ -115,7 +116,7 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 				inGeneric = in
 			}
 
-			r.typeEnv.RegisterImplNode(methodTyp, inGeneric, impl)
+			r.ctx.TypeEnv.RegisterImplNode(methodTyp, inGeneric, impl)
 
 			// Associated types
 			matchedNodes := make([]*ast.AssociatedType, 0, len(impl.AssociatedTypes))
@@ -171,7 +172,7 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 	for _, assocConst := range impl.AssociatedConsts {
 		constTyp := r.ResolveAndAnalyzeType(assocConst.Type)
 
-		ok := r.typeEnv.AddAssociatedConst(methodTyp, symbols.Symbol{
+		ok := r.ctx.TypeEnv.AddAssociatedConst(methodTyp, symbols.Symbol{
 			Kind:   symbols.AssociatedConst,
 			Public: true,
 			Name:   assocConst.Name.Token.Text,
@@ -241,9 +242,9 @@ func (r *resolver) ResolveMethod(f *ast.Func, okType bool, typ, methodTyp types.
 	var okAdd bool
 
 	if f.Receiver == nil {
-		okAdd = r.typeEnv.AddStaticMethod(methodTyp, symbol)
+		okAdd = r.ctx.TypeEnv.AddStaticMethod(methodTyp, symbol)
 	} else {
-		okAdd = r.typeEnv.AddInstanceMethod(methodTyp, symbol)
+		okAdd = r.ctx.TypeEnv.AddInstanceMethod(methodTyp, symbol)
 	}
 
 	if okType && !okAdd {
@@ -263,7 +264,7 @@ func (r *resolver) PushAssociatedTypes(astAssocTypes []*ast.AssociatedType, alia
 			continue
 		}
 
-		r.nodeTypes[assocType] = aliasTypes[i]
+		r.sema.NodeTypes[assocType] = aliasTypes[i]
 
 		syms = append(syms, symbols.Symbol{
 			Kind: symbols.TypeParam,

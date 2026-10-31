@@ -58,29 +58,29 @@ func (t *TargetOsValue) Type() string {
 	return "TargetOs"
 }
 
-func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*project.Project, error) {
+func parseProject(env cfg.Env, start *time.Time) (*project.Project, *sema.Context, map[string]*project.Project, error) {
 	defer core.Scope()()
 
 	main, err := project.Open(".")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	err = os.MkdirAll(filepath.Join(main.Path, "build"), 0750)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	timings, err := os.Create(filepath.Join(main.Path, "build", "timings.json"))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	core.SetProfilerOutput(timings)
 
 	projMap, depMap, err := project.LoadHierarchy(main)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Order projects by dependency (dependencies before dependents)
@@ -94,7 +94,9 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*
 	}
 
 	_ = core.ParallelFor(files, func(_ int, file *project.File) error {
+		file.Sema = &sema.FileData{}
 		file.Parse(env)
+
 		return nil
 	})
 
@@ -106,40 +108,39 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*
 		proj.Module.CheckCollisions()
 	}
 
-	// Resolve
-	builtins := project.GetBuiltins(projMap)
-	instantiations := types.NewInstantiationCache()
-	typeEnv := sema.NewTypeEnvironment(instantiations, builtins)
-
-	for _, proj := range ordered {
-		proj.Resolve(depMap, instantiations, typeEnv, builtins)
+	// Create context
+	ctx := &sema.Context{
+		Instantiations: types.NewInstantiationCache(),
+		Builtins:       project.GetBuiltins(projMap),
+		Files:          make(map[*ast.File]*sema.FileData),
 	}
 
-	instantiations.SubstituteDependentTypes()
-
-	// Check type-local collisions
-	project.CheckTypeLocalCollisions(projMap, typeEnv)
-
-	// Analyze
-	for _, proj := range ordered {
-		proj.Analyze(depMap, instantiations, typeEnv, builtins)
-	}
-
-	// Evaluate comp-time
-	fileDataMap := make(map[*ast.File]codegen.FileData)
+	ctx.TypeEnv = sema.NewTypeEnvironment(ctx)
 
 	for _, proj := range ordered {
 		for _, file := range proj.Files {
-			fileDataMap[file.Ast] = codegen.FileData{
-				ExprInfos:   file.ExprInfos,
-				NodeTypes:   file.NodeTypes,
-				Evaluations: file.Evaluations,
-			}
+			ctx.Files[file.Ast] = file.Sema
 		}
 	}
 
+	// Resolve
 	for _, proj := range ordered {
-		proj.EvalCompTime(instantiations, typeEnv, fileDataMap, builtins)
+		proj.Resolve(ctx, depMap)
+	}
+
+	ctx.Instantiations.SubstituteDependentTypes()
+
+	// Check type-local collisions
+	project.CheckTypeLocalCollisions(projMap, ctx.TypeEnv)
+
+	// Analyze
+	for _, proj := range ordered {
+		proj.Analyze(ctx, depMap)
+	}
+
+	// Evaluate comp-time
+	for _, proj := range ordered {
+		proj.EvalCompTime(ctx)
 	}
 
 	// Print diagnostics
@@ -177,13 +178,13 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, map[string]*
 			color.White("  took %s", duration)
 		}
 
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
-	return main, projMap, nil
+	return main, ctx, projMap, nil
 }
 
-func buildProject(proj *project.Project, projMap map[string]*project.Project, profileName string, start time.Time, entrypointFnProvider func(projMap map[string]*project.Project, project2 *project.Project) (build.EntrypointFn, error)) (string, error) {
+func buildProject(proj *project.Project, ctx *sema.Context, projMap map[string]*project.Project, profileName string, start time.Time, entrypointFnProvider func(projMap map[string]*project.Project, project2 *project.Project) (build.EntrypointFn, error)) (string, error) {
 	defer core.Scope()()
 
 	// Initialize build system
@@ -198,7 +199,7 @@ func buildProject(proj *project.Project, projMap map[string]*project.Project, pr
 	}
 
 	// Compile project
-	objFilePaths, err := system.CompileProjectHierarchy(projMap)
+	objFilePaths, err := system.CompileProjectHierarchy(ctx, projMap)
 	if err != nil {
 		return "", err
 	}
@@ -248,7 +249,7 @@ outer:
 	for _, file := range proj.Files {
 		for _, decl := range file.Ast.Decls {
 			if f, ok := decl.(*ast.Func); ok && f.Name().Token.Text == "main" && len(f.Params) == 0 && !f.VarArgs {
-				typ := file.NodeTypes[f].(*types.Func)
+				typ := file.Sema.NodeTypes[f].(*types.Func)
 
 				if p, ok := typ.Returns.(*types.Primitive); (ok && types.IsInteger(p.Kind)) || typ.Returns == types.PrimitiveVoid {
 					mainFunc = f
@@ -325,7 +326,7 @@ func findInitFunctions(projMap map[string]*project.Project) []initFunc {
 				if f, ok := decl.(*ast.Func); ok && ast.GetAttribute[*ast.Init](f) != nil {
 					inits = append(inits, initFunc{
 						node: f,
-						typ:  file.NodeTypes[f].(*types.Func),
+						typ:  file.Sema.NodeTypes[f].(*types.Func),
 					})
 				}
 			}

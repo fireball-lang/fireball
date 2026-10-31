@@ -3,10 +3,8 @@ package project
 import (
 	"fireball/ast"
 	"fireball/cfg"
-	"fireball/codegen"
 	"fireball/comptime"
 	"fireball/core"
-	"fireball/fb-core"
 	"fireball/ir/eval"
 	"fireball/parser"
 	"fireball/sema"
@@ -29,19 +27,12 @@ type File struct {
 	Ast              *ast.File
 	parseDiagnostics []core.Diagnostic
 
-	Symbols              []symbols.Symbol
+	Sema *sema.FileData
+
 	collisionDiagnostics []core.Diagnostic
-
-	resolveDiagnostics []core.Diagnostic
-
-	ExprInfos       map[ast.Node]sema.ExprInfo
-	NodeTypes       map[ast.Node]types.Type
-	Instantiations  *types.InstantiationCache
-	TypeEnv         *sema.TypeEnvironment
-	Evaluations     map[ast.Expr]eval.Value
-	semaDiagnostics []core.Diagnostic
-
-	compTimeDiagnostics []core.Diagnostic
+	resolveDiagnostics   []core.Diagnostic
+	semaDiagnostics      []core.Diagnostic
+	compTimeDiagnostics  []core.Diagnostic
 }
 
 type Source interface {
@@ -70,21 +61,22 @@ func (f *File) Parse(env cfg.Env) {
 
 	env.Strip(f.Ast)
 
-	f.Symbols = symbols.Collect(f.Ast)
+	f.Sema.Symbols = symbols.Collect(f.Ast)
 }
 
-func (f *File) resolve(root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins fb_core.Builtins) {
-	f.Instantiations = instantiations
-	f.TypeEnv = typeEnv
-	f.NodeTypes, f.resolveDiagnostics = sema.Resolve(f.Ast, f.Symbols, instantiations, typeEnv, builtins, root, f.Path)
+func (f *File) resolve(ctx *sema.Context, root symbols.Scope) {
+	f.Sema.NodeTypes = make(map[ast.Node]types.Type)
+	f.resolveDiagnostics = sema.Resolve(ctx, f.Ast, root, f.Path)
 }
 
-func (f *File) analyze(root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, builtins fb_core.Builtins) {
-	f.ExprInfos, f.semaDiagnostics = sema.Analyze(f.Ast, f.Symbols, root, instantiations, typeEnv, builtins, f.NodeTypes, f.Proj.Config.Name, f.Path)
+func (f *File) analyze(ctx *sema.Context, root symbols.Scope) {
+	f.Sema.ExprInfos = make(map[ast.Node]sema.ExprInfo)
+	f.semaDiagnostics = sema.Analyze(ctx, f.Ast, root, f.Proj.Config.Name, f.Path)
 }
 
-func (f *File) evalCompTime(instantiations *types.InstantiationCache, typeEnv *sema.TypeEnvironment, fileDataMap map[*ast.File]codegen.FileData, builtins fb_core.Builtins) {
-	f.Evaluations, f.compTimeDiagnostics = comptime.Evaluate(f.Ast, instantiations, typeEnv, fileDataMap, builtins)
+func (f *File) evalCompTime(ctx *sema.Context) {
+	f.Sema.Evaluations = make(map[ast.Expr]eval.Value)
+	f.compTimeDiagnostics = comptime.Evaluate(ctx, f.Ast)
 }
 
 func (f *File) Diagnostics() iter.Seq[core.Diagnostic] {

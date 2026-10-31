@@ -3,7 +3,7 @@ package sema
 import "fireball/types"
 
 func (e *TypeEnvironment) satisfiesConstraint(typ types.Type, constraint *types.Interface, substitutions []types.Substitution) bool {
-	instantiated := e.instantiations.Substitute(constraint, substitutions).(*types.Interface)
+	instantiated := e.ctx.Instantiations.Substitute(constraint, substitutions).(*types.Interface)
 	instantiated = instantiated.AsImmutable()
 
 	// Type parameter: satisfied if any of its own constraints matches.
@@ -66,7 +66,7 @@ func (e *TypeEnvironment) interfaceMatches(conf, in *types.Interface) bool {
 	}
 
 	for i, sub := range in.Substitutions {
-		if _, ok := GetImplicitCast(e, ExprInfo{Type: sub.Type}, conf.Substitutions[i].Type); !ok {
+		if _, ok := GetImplicitCast(e.ctx, ExprInfo{Type: sub.Type}, conf.Substitutions[i].Type); !ok {
 			return false
 		}
 	}

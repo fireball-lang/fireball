@@ -43,7 +43,7 @@ func (c *Codegen) GetTypeInfo(typ types.Type) ir.Value {
 	}
 
 	// Extern type info
-	gVar := c.Module.NewGlobalVar(name, c.Types.Get(c.Builtins.TypeInfo))
+	gVar := c.Module.NewGlobalVar(name, c.Types.Get(c.Ctx.Builtins.TypeInfo))
 	gVar.Data = typ
 	gVar.Flags = ir.External
 
@@ -124,7 +124,7 @@ func (c *Codegen) CreateVTableInitializer(typ types.Type, in *types.Interface) i
 
 func (c *Codegen) VtableStruct(in *types.Interface) *types.Struct {
 	return &types.Struct{Layout: types.C, Fields: []types.Field{
-		{Name: "type_info", Type: &types.Pointer{Pointee: c.Builtins.TypeInfo}},
+		{Name: "type_info", Type: &types.Pointer{Pointee: c.Ctx.Builtins.TypeInfo}},
 		{Name: "methods", Type: &types.Array{
 			Size:    uint32(len(in.InstanceMethods)),
 			Element: &types.Pointer{Pointee: types.PrimitiveVoid},
@@ -133,7 +133,7 @@ func (c *Codegen) VtableStruct(in *types.Interface) *types.Struct {
 }
 
 func (c *Codegen) VtableMethod(typ types.Type, in *types.Interface, im types.Method) ir.Value {
-	sym, subs, ok := c.TypeEnv.GetInstanceMethodWithSubs(typ, im.Name)
+	sym, subs, ok := c.Ctx.TypeEnv.GetInstanceMethodWithSubs(typ, im.Name)
 	if !ok {
 		panic(fmt.Sprintf("codegen.vtableMethod() - interface method '%s' not found on '%s'", im.Name, typ))
 	}
@@ -142,7 +142,7 @@ func (c *Codegen) VtableMethod(typ types.Type, in *types.Interface, im types.Met
 	concreteTyp := sym.Type.(*types.Func)
 
 	if len(subs) > 0 {
-		concreteTyp = c.instantiations.Substitute(concreteTyp, subs).(*types.Func)
+		concreteTyp = c.Ctx.Instantiations.Substitute(concreteTyp, subs).(*types.Func)
 	}
 
 	return c.GetFunction(concreteFunc, concreteTyp, in)
@@ -153,7 +153,7 @@ func (c *Codegen) CreateTypeInfo(typ types.Type, linkOnce bool) *ir.GlobalVar {
 	gVar := c.Module.GetGlobalVar(name)
 
 	if gVar == nil {
-		gVar = c.Module.NewGlobalVar(name, c.Types.Get(c.Builtins.TypeInfo))
+		gVar = c.Module.NewGlobalVar(name, c.Types.Get(c.Ctx.Builtins.TypeInfo))
 		gVar.Data = typ
 	}
 	if !core.IsNil(gVar.Initializer) {
@@ -178,11 +178,11 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 	}
 
 	info := c.Arch.Info(typ)
-	sb := c.Struct(c.Builtins.TypeInfo)
+	sb := c.Struct(c.Ctx.Builtins.TypeInfo)
 
 	// kind
 	{
-		field := c.Builtins.TypeInfo.Field("kind")
+		field := c.Ctx.Builtins.TypeInfo.Field("kind")
 		if field == nil {
 			panic("codegen.Codegen.CreateTypeInfo() - Failed to find 'kind' field on 'core::TypeInfo'")
 		}
@@ -218,7 +218,7 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 
 	// name
 	{
-		field := c.Builtins.TypeInfo.Field("name")
+		field := c.Ctx.Builtins.TypeInfo.Field("name")
 		if field == nil {
 			panic("codegen.Codegen.CreateTypeInfo() - Failed to find 'name' field on 'core::TypeInfo'")
 		}
@@ -234,7 +234,7 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 
 	// size
 	{
-		field := c.Builtins.TypeInfo.Field("size")
+		field := c.Ctx.Builtins.TypeInfo.Field("size")
 		if field == nil {
 			panic("codegen.Codegen.CreateTypeInfo() - Failed to find 'size' field on 'core::TypeInfo'")
 		}
@@ -244,7 +244,7 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 
 	// alignment
 	{
-		field := c.Builtins.TypeInfo.Field("alignment")
+		field := c.Ctx.Builtins.TypeInfo.Field("alignment")
 		if field == nil {
 			panic("codegen.Codegen.CreateTypeInfo() - Failed to find 'alignment' field on 'core::TypeInfo'")
 		}
@@ -254,7 +254,7 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 
 	// implementations
 	{
-		field := c.Builtins.TypeInfo.Field("implementations")
+		field := c.Ctx.Builtins.TypeInfo.Field("implementations")
 		if field == nil {
 			panic("codegen.Codegen.CreateTypeInfo() - Failed to find 'implementations' field on 'core::TypeInfo'")
 		}
@@ -338,18 +338,18 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 }
 
 func (c *Codegen) CreateTypeInfoImplementations(typ types.Type, linkOnce bool) *ir.GlobalVar {
-	interfaces := c.TypeEnv.GetConformances(typ)
+	interfaces := c.Ctx.TypeEnv.GetConformances(typ)
 	if len(interfaces) == 0 {
 		return nil
 	}
 
 	ab := c.Array(&types.Array{
 		Size:    uint32(len(interfaces)),
-		Element: c.Builtins.Implementation,
+		Element: c.Ctx.Builtins.Implementation,
 	})
 
 	for _, in := range interfaces {
-		sb := c.Struct(c.Builtins.Implementation)
+		sb := c.Struct(c.Ctx.Builtins.Implementation)
 
 		var vtable ir.Value
 		if len(in.InstanceMethods) == 0 {
@@ -383,7 +383,7 @@ func (c *Codegen) CreateTypeInfoImplementations(typ types.Type, linkOnce bool) *
 func (c *Codegen) CreateTypeInfoTupleFields(typ *types.Tuple, linkOnce bool) *ir.GlobalVar {
 	ab := c.Array(&types.Array{
 		Size:    uint32(len(typ.Types)),
-		Element: c.Builtins.TupleField,
+		Element: c.Ctx.Builtins.TupleField,
 	})
 
 	s := typ.Underlying().(*types.Struct)
@@ -396,7 +396,7 @@ func (c *Codegen) CreateTypeInfoTupleFields(typ *types.Tuple, linkOnce bool) *ir
 	})
 
 	for _, field := range fields {
-		sb := c.Struct(c.Builtins.TupleField)
+		sb := c.Struct(c.Ctx.Builtins.TupleField)
 
 		sb.Set("type_info", c.GetTypeInfo(s.Fields[field.Index].Type))
 		sb.Set("offset", &ir.Integer{Typ: ir.I32, Value: core.Unsigned(false, uint64(field.Offset))})
@@ -417,7 +417,7 @@ func (c *Codegen) CreateTypeInfoTupleFields(typ *types.Tuple, linkOnce bool) *ir
 func (c *Codegen) CreateTypeInfoParameters(typ *types.Func, linkOnce bool) *ir.GlobalVar {
 	ab := c.Array(&types.Array{
 		Size:    uint32(len(typ.Params)),
-		Element: &types.Pointer{Pointee: c.Builtins.TypeInfo},
+		Element: &types.Pointer{Pointee: c.Ctx.Builtins.TypeInfo},
 	})
 
 	for _, param := range typ.Params {
@@ -437,11 +437,11 @@ func (c *Codegen) CreateTypeInfoParameters(typ *types.Func, linkOnce bool) *ir.G
 func (c *Codegen) CreateTypeInfoCases(typ *types.Enum, linkOnce bool) *ir.GlobalVar {
 	ab := c.Array(&types.Array{
 		Size:    uint32(len(typ.Cases)),
-		Element: c.Builtins.Case,
+		Element: c.Ctx.Builtins.Case,
 	})
 
 	for _, case_ := range typ.Cases {
-		sb := c.Struct(c.Builtins.Case)
+		sb := c.Struct(c.Ctx.Builtins.Case)
 
 		negative := ir.False
 		if case_.Value.Negative() {
@@ -468,13 +468,13 @@ func (c *Codegen) CreateTypeInfoCases(typ *types.Enum, linkOnce bool) *ir.Global
 func (c *Codegen) CreateTypeInfoFields(typ *types.Struct, linkOnce bool) *ir.GlobalVar {
 	ab := c.Array(&types.Array{
 		Size:    uint32(len(typ.Fields)),
-		Element: c.Builtins.Field,
+		Element: c.Ctx.Builtins.Field,
 	})
 
 	info := c.Arch.Info(typ)
 
 	for _, infoField := range info.Fields {
-		sb := c.Struct(c.Builtins.Field)
+		sb := c.Struct(c.Ctx.Builtins.Field)
 
 		field := typ.Fields[infoField.Index]
 

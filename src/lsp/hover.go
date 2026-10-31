@@ -56,7 +56,7 @@ outer:
 		// Variable, function, static-method identifier, member access
 		// (field, method), struct initializer field and offsetof field
 		case *ast.Identifier, *ast.FieldInitializer, *ast.OffsetOf:
-			info, ok := file.ExprInfos[n]
+			info, ok := file.Sema.ExprInfos[n]
 			if !ok || core.IsNil(info.Node) {
 				break outer
 			}
@@ -64,13 +64,13 @@ outer:
 			return s.buildHover(file, info.Node, rng)
 
 		case *ast.Member:
-			if t, ok := file.ExprInfos[n.Expr].Type.(*types.Tuple); ok {
+			if t, ok := file.Sema.ExprInfos[n.Expr].Type.(*types.Tuple); ok {
 				if field := t.Underlying().(*types.Struct).Field(n.Name.Token.Text); field != nil {
 					return s.formatHover(field.Type.String(), nil, rng)
 				}
 			}
 
-			info, ok := file.ExprInfos[n]
+			info, ok := file.Sema.ExprInfos[n]
 			if !ok || core.IsNil(info.Node) {
 				break outer
 			}
@@ -107,7 +107,7 @@ outer:
 		case *ast.Leaf:
 			// Import symbols
 			if _, ok := n.Parent().(*ast.Import); ok {
-				typ, ok := file.NodeTypes[n]
+				typ, ok := file.Sema.NodeTypes[n]
 				if !ok {
 					break outer
 				}
@@ -131,7 +131,7 @@ outer:
 			isLast := path[len(path)-1] == n
 
 			if !isLast {
-				typ, ok := file.NodeTypes[n]
+				typ, ok := file.Sema.NodeTypes[n]
 				if !ok {
 					break outer
 				}
@@ -171,7 +171,7 @@ func (s *Server) buildHover(file *project.File, node ast.Node, rng core.Range) *
 		label = n.Name.Token.Text
 
 		if enumDecl := ast.GetClosestParent[*ast.Enum](n); !core.IsNil(enumDecl) {
-			if typ, ok := file.NodeTypes[enumDecl]; ok {
+			if typ, ok := file.Sema.NodeTypes[enumDecl]; ok {
 				if e, ok := typ.(*types.Enum); ok {
 					label = e.Name + "::" + label
 
@@ -313,7 +313,7 @@ func (s *Server) formatHover(label string, documentation []*ast.Leaf, rng core.R
 
 func typeString(file *project.File, node ast.Node, astType ast.Type) string {
 	if core.IsNil(astType) {
-		if typ, ok := file.NodeTypes[node]; ok && typ != nil && typ != types.Invalid {
+		if typ, ok := file.Sema.NodeTypes[node]; ok && typ != nil && typ != types.Invalid {
 			return typ.String()
 		}
 
@@ -325,12 +325,12 @@ func typeString(file *project.File, node ast.Node, astType ast.Type) string {
 	// tree mentions it. Inside interfaces the resolved type still prints
 	// 'Self' via the interface's self parameter.
 	if containsSelfType(astType) {
-		if typ, ok := file.NodeTypes[astType]; ok && typ != nil && typ != types.Invalid {
+		if typ, ok := file.Sema.NodeTypes[astType]; ok && typ != nil && typ != types.Invalid {
 			return typ.String()
 		}
 
 		if !core.IsNil(node) {
-			if typ, ok := file.NodeTypes[node]; ok && typ != nil && typ != types.Invalid {
+			if typ, ok := file.Sema.NodeTypes[node]; ok && typ != nil && typ != types.Invalid {
 				return typ.String()
 			}
 		}
@@ -376,14 +376,14 @@ func constHoverLabel(file *project.File, prefix, name string, typeAst ast.Type, 
 		return label
 	}
 
-	v, ok := file.Evaluations[value]
+	v, ok := file.Sema.Evaluations[value]
 	if !ok {
 		return label
 	}
 
-	typ, ok := file.NodeTypes[value]
+	typ, ok := file.Sema.NodeTypes[value]
 	if !ok || typ == nil || typ == types.Invalid {
-		typ = file.NodeTypes[typeAst]
+		typ = file.Sema.NodeTypes[typeAst]
 	}
 
 	if typ == nil || typ == types.Invalid {
@@ -398,7 +398,7 @@ func constHoverLabel(file *project.File, prefix, name string, typeAst ast.Type, 
 }
 
 func declTypeString(file *project.File, node ast.Node, fallback string) string {
-	if typ, ok := file.NodeTypes[node]; ok && typ != nil {
+	if typ, ok := file.Sema.NodeTypes[node]; ok && typ != nil {
 		return typ.String()
 	}
 

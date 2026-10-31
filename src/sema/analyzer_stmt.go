@@ -56,12 +56,12 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 	}
 
 	if typ != types.Invalid && core.IsNil(v.Initializer) {
-		if !slices.Contains(a.typeEnv.GetConformances(typ), a.builtins.Zeroable) {
+		if !slices.Contains(a.ctx.TypeEnv.GetConformances(typ), a.ctx.Builtins.Zeroable) {
 			a.Error(v.Name, "cannot zero-initialize a non Zeroable type '%s'", typ)
 		}
 	}
 
-	a.nodeTypes[v] = typ
+	a.sema.NodeTypes[v] = typ
 
 	symbol := symbols.Symbol{
 		Kind:   symbols.Var,

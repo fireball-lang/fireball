@@ -3,27 +3,11 @@ package sema
 import (
 	"fireball/ast"
 	"fireball/core"
-	"fireball/fb-core"
 	"fireball/lexer"
 	"fireball/symbols"
 	"fireball/types"
 	"reflect"
 )
-
-type ExprInfo struct {
-	Type types.Type
-	Node ast.Node
-
-	Symbol symbols.Kind
-
-	Mutable  bool
-	Address  bool
-	CompTime bool
-}
-
-func (e ExprInfo) Invalid() bool {
-	return e.Type == types.Invalid
-}
 
 type analyzer struct {
 	common
@@ -50,16 +34,16 @@ var importAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
 }
 
-func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, instantiations *types.InstantiationCache, typeEnv *TypeEnvironment, builtins fb_core.Builtins, nodeTypes map[ast.Node]types.Type, topLevelModule, path string) (map[ast.Node]ExprInfo, []core.Diagnostic) {
+func Analyze(ctx *Context, file *ast.File, root symbols.Scope, topLevelModule, path string) []core.Diagnostic {
 	defer core.Scope()()
 
 	// Setup
 
 	a := analyzer{
-		common:         setupCommon(file, fileSymbols, root, instantiations, typeEnv, builtins, nodeTypes, path),
+		common:         setupCommon(ctx, file, root, path),
 		locals:         &symbols.BlockScope{},
 		topLevelModule: topLevelModule,
-		exprInfos:      make(map[ast.Node]ExprInfo),
+		exprInfos:      ctx.Files[file].ExprInfos,
 	}
 
 	a.checkTypeConstraints = true
@@ -116,7 +100,7 @@ func Analyze(file *ast.File, fileSymbols []symbols.Symbol, root symbols.Scope, i
 
 	a.scopes.ValidateEmpty()
 
-	return a.exprInfos, a.diagnostics
+	return a.diagnostics
 }
 
 // Utils
@@ -144,7 +128,7 @@ func (a *analyzer) ExpectPrimitiveClass(predicate func(kind types.PrimitiveKind)
 
 func (a *analyzer) ExpectType(typ types.Type, expr ExprInfo, node ast.Node) {
 	if typ != types.Invalid && !expr.Invalid() {
-		_, ok := GetImplicitCast(a.typeEnv, expr, typ)
+		_, ok := GetImplicitCast(a.ctx, expr, typ)
 
 		if !ok {
 			a.Error(node, "expected '%s', got '%s'", typ, expr.Type)

@@ -28,7 +28,7 @@ func getTestCmd() *cobra.Command {
 			start := time.Now()
 
 			// Parse
-			proj, projMap, err := parseProject(cfg.GetHost(), &start)
+			proj, ctx, projMap, err := parseProject(cfg.GetHost(), &start)
 			if err != nil {
 				return err
 			}
@@ -43,7 +43,7 @@ func getTestCmd() *cobra.Command {
 			// Build
 			proj.Config.LibC = true
 
-			exePath, err := buildProject(proj, projMap, profileName, start, func(projMap map[string]*project.Project, proj *project.Project) (build.EntrypointFn, error) {
+			exePath, err := buildProject(proj, ctx, projMap, profileName, start, func(projMap map[string]*project.Project, proj *project.Project) (build.EntrypointFn, error) {
 				return func(module *ir.Module, fun *ir.Function) *project.Project {
 					testEntrypoint(projMap, module, fun, testFuncs)
 					return proj

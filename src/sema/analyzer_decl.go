@@ -40,7 +40,7 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 	symbol, _ := a.scopes.GetSymbol(symbols.Type, s.Name().Token.Text)
 
 	typ := symbol.Type.(*types.Struct)
-	a.nodeTypes[s] = typ
+	a.sema.NodeTypes[s] = typ
 
 	// Fields
 	names := make(map[string]any)
@@ -85,7 +85,7 @@ func (a *analyzer) VisitEnum(e *ast.Enum) {
 		return
 	}
 
-	a.nodeTypes[e] = typ
+	a.sema.NodeTypes[e] = typ
 
 	// Duplicate names and const expressions
 	names := make(map[string]any)
@@ -143,7 +143,7 @@ func (a *analyzer) VisitInterface(i *ast.Interface) {
 	symbol, _ := a.scopes.GetSymbol(symbols.Type, i.Name().Token.Text)
 
 	typ := symbol.Type.(*types.Interface)
-	a.nodeTypes[i] = typ
+	a.sema.NodeTypes[i] = typ
 
 	// Associated types
 	for _, assocType := range i.AssociatedTypes {
@@ -181,7 +181,7 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	var lookupTyp types.Type
 	var popScope func()
 
-	if prev, ok := a.nodeTypes[i.Type]; ok {
+	if prev, ok := a.sema.NodeTypes[i.Type]; ok {
 		if s, ok := prev.(*types.Struct); ok {
 			lookupTyp, popScope = a.pushImplScope(i, s)
 			defer popScope()
@@ -198,7 +198,7 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		lookupTyp = typ
 	}
 
-	a.nodeTypes[i] = typ
+	a.sema.NodeTypes[i] = typ
 
 	// Self
 	prevSelf := a.selfType
@@ -217,9 +217,9 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 			for j, tp := range template.TypeParams {
 				savedConstraints[j] = tp.Constraints
 
-				if resolvedParam, ok := a.nodeTypes[i.TypeParams[j]].(*types.Param); ok {
+				if resolvedParam, ok := a.sema.NodeTypes[i.TypeParams[j]].(*types.Param); ok {
 					for _, c := range resolvedParam.Constraints {
-						substituted := a.instantiations.Substitute(c, []types.Substitution{{Param: resolvedParam, Type: tp}}).(*types.Interface)
+						substituted := a.ctx.Instantiations.Substitute(c, []types.Substitution{{Param: resolvedParam, Type: tp}}).(*types.Interface)
 						tp.Constraints = append(tp.Constraints, substituted)
 					}
 				}
@@ -238,7 +238,7 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 
 		// Type
 		typ := a.ResolveAndAnalyzeType(assocConst.Type)
-		a.nodeTypes[assocConst] = typ
+		a.sema.NodeTypes[assocConst] = typ
 
 		// Value
 		value := a.AnalyzeExpr(assocConst.Value)
@@ -260,12 +260,12 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		var receiverTyp types.Type
 
 		if f.Receiver == nil {
-			if sym, ok := a.typeEnv.GetStaticMethod(lookupTyp, f.Name().Token.Text); ok {
+			if sym, ok := a.ctx.TypeEnv.GetStaticMethod(lookupTyp, f.Name().Token.Text); ok {
 				fTyp = sym.Type.(*types.Func)
 			}
 			receiverTyp = nil
 		} else {
-			if sym, ok := a.typeEnv.GetInstanceMethod(lookupTyp, f.Name().Token.Text); ok {
+			if sym, ok := a.ctx.TypeEnv.GetInstanceMethod(lookupTyp, f.Name().Token.Text); ok {
 				fTyp = sym.Type.(*types.Func)
 				receiverTyp = fTyp.Params[0]
 			}
@@ -284,7 +284,7 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 
 		a.CheckAttributes(f.Attributes(), methodAllowedAttributes)
 
-		a.nodeTypes[f] = fTyp
+		a.sema.NodeTypes[f] = fTyp
 		a.VisitFuncInner(f, fTyp, receiverTyp)
 
 		if len(fTyp.TypeParams) > 0 {
@@ -302,7 +302,7 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 
 	// Interface
 	if i.Interface != nil {
-		inType, ok := a.nodeTypes[i.Interface]
+		inType, ok := a.sema.NodeTypes[i.Interface]
 		if !ok || inType == types.Invalid {
 			return
 		}
@@ -327,7 +327,7 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 					continue
 				}
 
-				if alias, ok := a.nodeTypes[implAssoc]; ok {
+				if alias, ok := a.sema.NodeTypes[implAssoc]; ok {
 					methodSubs = append(methodSubs, types.Substitution{Param: assocParam, Type: alias})
 				}
 
@@ -344,8 +344,8 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 				// The impl side never references the interface's 'Self' param or
 				// associated types (they resolve to the impl's own types), so it
 				// is compared as-is; only the interface side is substituted.
-				aTyp := a.nodeTypes[assocConst]
-				bTyp := a.instantiations.Substitute(in.AssociatedConsts[i].Type, methodSubs)
+				aTyp := a.sema.NodeTypes[assocConst]
+				bTyp := a.ctx.Instantiations.Substitute(in.AssociatedConsts[i].Type, methodSubs)
 
 				if aTyp != types.Invalid && bTyp != types.Invalid && !aTyp.Equals(bTyp) {
 					a.Error(assocConst.Type, "associated constant type doesn't match interface, expected '%s', got '%s'", bTyp, aTyp)
@@ -358,11 +358,11 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 				return t
 			}
 
-			return a.instantiations.Substitute(t, methodSubs).(*types.Func)
+			return a.ctx.Instantiations.Substitute(t, methodSubs).(*types.Func)
 		}
 
 		for _, method := range inGeneric.InstanceMethods {
-			sym, ok := a.typeEnv.GetInstanceMethod(lookupTyp, method.Name)
+			sym, ok := a.ctx.TypeEnv.GetInstanceMethod(lookupTyp, method.Name)
 			if !ok {
 				a.Error(i.Type, "type '%s' does not implement interface '%s': missing instance method '%s'", typ, in, method.Name)
 				continue
@@ -387,7 +387,7 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 		}
 
 		for _, method := range inGeneric.StaticMethods {
-			sym, ok := a.typeEnv.GetStaticMethod(lookupTyp, method.Name)
+			sym, ok := a.ctx.TypeEnv.GetStaticMethod(lookupTyp, method.Name)
 			if !ok {
 				a.Error(i.Type, "type '%s' does not implement interface '%s': missing static method '%s'", typ, in, method.Name)
 				continue
@@ -459,7 +459,7 @@ func (a *analyzer) VisitConst(c *ast.Const) {
 
 	// Type
 	typ := a.ResolveAndAnalyzeType(c.Type)
-	a.nodeTypes[c] = typ
+	a.sema.NodeTypes[c] = typ
 
 	// Value
 	value := a.AnalyzeExpr(c.Value)
@@ -484,10 +484,10 @@ func (a *analyzer) VisitGlobalVar(g *ast.GlobalVar) {
 	a.CheckAttributes(g.Attributes(), globalVarAllowedAttributes)
 
 	// Initializer
-	typ := a.nodeTypes[g.Type]
+	typ := a.sema.NodeTypes[g.Type]
 
 	if core.IsNil(g.Initializer) {
-		if !slices.Contains(a.typeEnv.GetConformances(typ), a.builtins.Zeroable) {
+		if !slices.Contains(a.ctx.TypeEnv.GetConformances(typ), a.ctx.Builtins.Zeroable) {
 			a.Error(g.Name(), "cannot zero-initialize a non Zeroable type '%s'", typ)
 		}
 	} else {
@@ -526,7 +526,7 @@ func (a *analyzer) VisitFunc(f *ast.Func) {
 	symbol, _ := a.scopes.GetSymbol(symbols.Function, f.Name().Token.Text)
 
 	typ := symbol.Type.(*types.Func)
-	a.nodeTypes[f] = typ
+	a.sema.NodeTypes[f] = typ
 
 	// Init
 	if init {

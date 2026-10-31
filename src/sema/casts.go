@@ -49,17 +49,17 @@ func (c CastKind) CompTime() bool {
 	}
 }
 
-func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
+func CommonType(ctx *Context, a, b types.Type) types.Type {
 	if ia, ok := a.(*types.Integer); ok {
 		if pb, ok := b.(*types.Primitive); ok && (types.IsInteger(pb.Kind) || types.IsFloating(pb.Kind)) {
-			if _, ok := GetImplicitCast(env, ExprInfo{Type: ia}, pb); ok {
+			if _, ok := GetImplicitCast(ctx, ExprInfo{Type: ia}, pb); ok {
 				return pb
 			}
 		}
 	}
 	if ib, ok := b.(*types.Integer); ok {
 		if pa, ok := a.(*types.Primitive); ok && (types.IsInteger(pa.Kind) || types.IsFloating(pa.Kind)) {
-			if _, ok := GetImplicitCast(env, ExprInfo{Type: ib}, pa); ok {
+			if _, ok := GetImplicitCast(ctx, ExprInfo{Type: ib}, pa); ok {
 				return pa
 			}
 		}
@@ -123,7 +123,7 @@ func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
 			}
 
 		case *types.Interface:
-			if slices.Contains(env.GetConformances(a.Pointee), b.AsImmutable()) {
+			if slices.Contains(ctx.TypeEnv.GetConformances(a.Pointee), b.AsImmutable()) {
 				common := b.AsImmutable()
 				if a.Mutable {
 					common = b.AsMutable()
@@ -161,7 +161,7 @@ func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
 			}
 
 		case *types.Interface:
-			if slices.Contains(env.GetConformances(a.Pointee), b.AsImmutable()) {
+			if slices.Contains(ctx.TypeEnv.GetConformances(a.Pointee), b.AsImmutable()) {
 				common := b.AsImmutable()
 				if a.Mutable {
 					common = b.AsMutable()
@@ -186,7 +186,7 @@ func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
 	case *types.Interface:
 		switch b := b.(type) {
 		case *types.Reference:
-			if slices.Contains(env.GetConformances(b.Pointee), a.AsImmutable()) {
+			if slices.Contains(ctx.TypeEnv.GetConformances(b.Pointee), a.AsImmutable()) {
 				common := a.AsImmutable()
 				if b.Mutable {
 					common = a.AsMutable()
@@ -195,7 +195,7 @@ func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
 			}
 
 		case *types.Pointer:
-			if slices.Contains(env.GetConformances(b.Pointee), a.AsImmutable()) {
+			if slices.Contains(ctx.TypeEnv.GetConformances(b.Pointee), a.AsImmutable()) {
 				common := a.AsImmutable()
 				if b.Mutable {
 					common = a.AsMutable()
@@ -208,8 +208,8 @@ func CommonType(env *TypeEnvironment, a, b types.Type) types.Type {
 	return nil
 }
 
-func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKind, bool) {
-	if kind, ok := GetImplicitCast(env, from, to); ok {
+func GetExplicitCast(ctx *Context, from ExprInfo, to types.Type) (CastKind, bool) {
+	if kind, ok := GetImplicitCast(ctx, from, to); ok {
 		return kind, true
 	}
 
@@ -313,7 +313,7 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 			return Noop, true
 
 		case *types.Interface:
-			if slices.Contains(env.GetConformances(fromT.Pointee), to.AsImmutable()) {
+			if slices.Contains(ctx.TypeEnv.GetConformances(fromT.Pointee), to.AsImmutable()) {
 				if to.Mutable && !fromT.Mutable {
 					break
 				}
@@ -343,7 +343,7 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 	case *types.Interface:
 		switch to := to.(type) {
 		case *types.Reference:
-			if slices.Contains(env.GetConformances(to.Pointee), fromT.AsImmutable()) {
+			if slices.Contains(ctx.TypeEnv.GetConformances(to.Pointee), fromT.AsImmutable()) {
 				if !fromT.Mutable && to.Mutable {
 					break
 				}
@@ -352,7 +352,7 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 			}
 
 		case *types.Pointer:
-			if slices.Contains(env.GetConformances(to.Pointee), fromT.AsImmutable()) {
+			if slices.Contains(ctx.TypeEnv.GetConformances(to.Pointee), fromT.AsImmutable()) {
 				if !fromT.Mutable && to.Mutable {
 					break
 				}
@@ -372,7 +372,7 @@ func GetExplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 	return Noop, false
 }
 
-func GetImplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKind, bool) {
+func GetImplicitCast(ctx *Context, from ExprInfo, to types.Type) (CastKind, bool) {
 	if from.Type.Equals(to) {
 		return Noop, true
 	}
@@ -497,7 +497,7 @@ func GetImplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 			}
 
 		case *types.Interface:
-			if slices.Contains(env.GetConformances(fromT.Pointee), to.AsImmutable()) {
+			if slices.Contains(ctx.TypeEnv.GetConformances(fromT.Pointee), to.AsImmutable()) {
 				if to.Mutable && !fromT.Mutable {
 					break
 				}
@@ -541,12 +541,12 @@ func GetImplicitCast(env *TypeEnvironment, from ExprInfo, to types.Type) (CastKi
 	}
 
 	if toInner := getOptionInnerType(to); !core.IsNil(toInner) {
-		if _, ok := GetImplicitCast(env, from, toInner); ok {
+		if _, ok := GetImplicitCast(ctx, from, toInner); ok {
 			return TypeToOption, true
 		}
 	}
 
-	for _, in := range env.GetConformances(from.Type) {
+	for _, in := range ctx.TypeEnv.GetConformances(from.Type) {
 		if in.Name == "core::ImplicitAs" && len(in.Substitutions) == 1 && in.Substitutions[0].Type.Equals(to) {
 			return ImplicitAs, true
 		}

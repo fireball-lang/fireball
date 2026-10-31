@@ -74,7 +74,7 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 		for _, decl := range file.Ast.Decls {
 			switch decl := decl.(type) {
 			case *ast.Struct:
-				typ, ok := file.NodeTypes[decl]
+				typ, ok := file.Sema.NodeTypes[decl]
 				if !ok {
 					continue
 				}
@@ -101,7 +101,7 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 				decls[typ] = id
 
 			case *ast.Enum:
-				typ, ok := file.NodeTypes[decl]
+				typ, ok := file.Sema.NodeTypes[decl]
 				if !ok {
 					continue
 				}
@@ -131,7 +131,7 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 				decls[typ] = id
 
 			case *ast.Interface:
-				typ, ok := file.NodeTypes[decl]
+				typ, ok := file.Sema.NodeTypes[decl]
 				if !ok {
 					continue
 				}
@@ -222,7 +222,7 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 					continue
 				}
 
-				typ, ok := file.NodeTypes[decl]
+				typ, ok := file.Sema.NodeTypes[decl]
 				if !ok {
 					continue
 				}
