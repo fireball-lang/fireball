@@ -138,6 +138,9 @@ func (l *Lexer) Next() Token {
 		return l.makeMatch('&', Ampersand, AmpersandAmpersand)
 
 	case '=':
+		if l.match('>') {
+			return l.make(EqualGreater)
+		}
 		return l.makeMatch('=', Equal, EqualEqual)
 
 	case '!':
@@ -379,6 +382,8 @@ func (l *Lexer) keywordIdentifier() Token {
 		token.Kind = If
 	case "else":
 		token.Kind = Else
+	case "match":
+		token.Kind = Match
 	case "while":
 		token.Kind = While
 	case "for":

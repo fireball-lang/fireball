@@ -19,8 +19,11 @@ type Context struct {
 type FileData struct {
 	Symbols []symbols.Symbol
 
-	ExprInfos   map[ast.Node]ExprInfo
+	ExprInfos map[ast.Node]ExprInfo
+
 	NodeTypes   map[ast.Node]types.Type
+	ArmPatterns map[*ast.Arm][]Pattern
+
 	Evaluations map[ast.Expr]eval.Value
 }
 

@@ -99,6 +99,52 @@ func (i *If) Children() iter.Seq[Node] {
 
 func (i *If) _isStmt() {}
 
+// Match
+
+type Match struct {
+	baseNode
+
+	Value Expr
+	Arms  []*Arm
+}
+
+func (m *Match) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if !yield(m.Value) {
+			return
+		}
+		for _, arm := range m.Arms {
+			if !yield(arm) {
+				return
+			}
+		}
+	}
+}
+
+func (m *Match) _isStmt() {}
+
+// Arm
+
+type Arm struct {
+	baseNode
+
+	Patterns []Expr
+	Body     Stmt
+}
+
+func (a *Arm) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, pattern := range a.Patterns {
+			if !yield(pattern) {
+				return
+			}
+		}
+		if !yield(a.Body) {
+			return
+		}
+	}
+}
+
 // While
 
 type While struct {

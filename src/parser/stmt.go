@@ -25,6 +25,8 @@ func (p *parser) parseStmt() (stmt ast.Stmt, recoverId int) {
 		return p.parseVar()
 	case lexer.If:
 		return p.parseIf()
+	case lexer.Match:
+		return p.parseMatch()
 	case lexer.While:
 		return p.parseWhile()
 	case lexer.For:
@@ -191,6 +193,103 @@ func (p *parser) parseIf() (i *ast.If, recoverId int) {
 		if i.BranchFalse, recoverId = p.parseStmt(); recoverId >= 0 {
 			return
 		}
+	}
+
+	return
+}
+
+func (p *parser) parseMatch() (m *ast.Match, recoverId int) {
+	m = &ast.Match{}
+	m.Range_.Start = p.current.Range.Start
+	defer func() {
+		m.Range_.End = p.previous.Range.End
+
+		if core.IsNil(m.Value) {
+			m.Value = p.badExpr()
+		}
+	}()
+
+	recoverId = -1
+
+	// 'match'
+	if recoverId = p.expect(lexer.Match, "expected 'match' before value"); recoverId >= 0 {
+		return
+	}
+
+	// '(' Value ')'
+	if m.Value, recoverId = parseParenWrapped(p, p.parseExpr); recoverId >= 0 {
+		return
+	}
+
+	// '{' Arms '}'
+	{
+		// '{'
+		if recoverId = p.expect(lexer.LeftBrace, "expected '{' before match arms"); recoverId >= 0 {
+			return
+		}
+
+		// Arms
+		for p.current.Kind != lexer.RightBrace && p.current.Kind != lexer.EOF {
+			myRecoverId := p.pushRecoverPoint(lexer.Identifier, lexer.Comma)
+
+			var arm *ast.Arm
+			arm, recoverId = p.parseArm()
+			m.Arms = append(m.Arms, arm)
+
+			p.popRecoverPoint()
+
+			if recoverId >= 0 {
+				if recoverId == myRecoverId {
+					recoverId = -1
+				} else {
+					return
+				}
+			}
+		}
+
+		// '}'
+		if recoverId = p.expect(lexer.RightBrace, "expected '}' after match arms"); recoverId >= 0 {
+			return
+		}
+	}
+
+	return
+}
+
+func (p *parser) parseArm() (a *ast.Arm, recoverId int) {
+	a = &ast.Arm{}
+	a.Range_.Start = p.current.Range.Start
+	defer func() {
+		a.Range_.End = p.previous.Range.End
+
+		if core.IsNil(a.Body) {
+			a.Body = p.badStmt()
+		}
+	}()
+
+	recoverId = -1
+
+	// Patterns
+	myRecoverId := p.pushRecoverPoint(lexer.RightBrace)
+	a.Patterns, recoverId = parseCommaList(p, lexer.Identifier, lexer.EqualGreater, p.parseExpr)
+	p.popRecoverPoint()
+
+	if recoverId >= 0 {
+		if recoverId == myRecoverId {
+			recoverId = -1
+		} else {
+			return
+		}
+	}
+
+	// '=>'
+	if recoverId = p.expect(lexer.EqualGreater, "expected '=>' after arm patterns"); recoverId >= 0 {
+		return
+	}
+
+	// Body
+	if a.Body, recoverId = p.parseStmt(); recoverId >= 0 {
+		return
 	}
 
 	return
@@ -377,6 +476,8 @@ func needsSemicolon(stmt ast.Stmt) bool {
 	case *ast.Var:
 		return true
 	case *ast.If:
+		return false
+	case *ast.Match:
 		return false
 	case *ast.While:
 		return false

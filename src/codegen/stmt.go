@@ -4,7 +4,9 @@ import (
 	"fireball/ast"
 	"fireball/core"
 	"fireball/ir"
+	"fireball/sema"
 	"fireball/types"
+	"fmt"
 )
 
 // Visitor
@@ -80,6 +82,175 @@ func (c *Codegen) VisitIf(i *ast.If) {
 
 	// Exit
 	c.Emitter.Begin(bExit)
+}
+
+type armBlocks struct {
+	condition *ir.Block
+	body      *ir.Block
+}
+
+func (c *Codegen) VisitMatch(m *ast.Match) {
+	// Empty match
+	if len(m.Arms) == 0 {
+		c.GenerateExpr(m.Value)
+		return
+	}
+
+	// Match with a single fallback arm
+	if len(m.Arms) == 1 && len(m.Arms[0].Patterns) == 1 && c.Sema.ArmPatterns[m.Arms[0]][0] == sema.Fallback {
+		c.GenerateExpr(m.Value)
+
+		c.Emitter.PushScope(c.emitMetaScope(m.Arms[0]))
+		c.scope.Push()
+
+		c.GenerateStmt(m.Arms[0].Body)
+
+		c.scope.Pop()
+		c.Emitter.PopScope()
+
+		return
+	}
+
+	// Create arm blocks
+	blocks := make([]armBlocks, len(m.Arms))
+
+	for i, arm := range m.Arms {
+		patterns := c.Sema.ArmPatterns[arm]
+
+		if len(patterns) == 1 && patterns[0] == sema.Fallback {
+			bBody := c.fun.NewBlock(fmt.Sprintf("match.body.%d", i))
+			blocks[i] = armBlocks{condition: bBody, body: bBody}
+		} else {
+			blocks[i] = armBlocks{
+				condition: c.fun.NewBlock(fmt.Sprintf("match.condition.%d", i)),
+				body:      c.fun.NewBlock(fmt.Sprintf("match.body.%d", i)),
+			}
+		}
+	}
+
+	bExit := c.fun.NewBlock("match.exit")
+
+	// Prepare receiver / primitive value for comparisons
+	value := ir.Value(nil)
+	typ := c.ExprType(m.Value)
+
+	if _, ok := typ.(*types.Primitive); !ok {
+		if fTyp, _ := sema.GetBinaryMethod(c.Ctx, ast.Equal.InterfaceName(), typ, typ); fTyp != nil {
+			if _, ok := typ.(*types.Interface); ok {
+				value = c.Load(m.Value)
+			} else {
+				value = c.ResolveReceiver(m.Value)
+			}
+		}
+	}
+
+	if value == nil {
+		value = c.Load(m.Value)
+	}
+
+	// Start
+	c.Emitter.Br(blocks[0].condition)
+
+	// Arms
+	for i, arm := range m.Arms {
+		bCondition := blocks[i].condition
+		bBody := blocks[i].body
+
+		// Condition
+		if bCondition != bBody {
+			bNext := bExit
+			if i+1 < len(m.Arms) {
+				bNext = blocks[i+1].condition
+			}
+
+			c.Emitter.Begin(bCondition)
+			matched := c.EmitCmpPatterns(m.Value, value, typ, c.Sema.ArmPatterns[arm], i)
+			c.Emitter.BrCond(matched, bBody, bNext)
+		}
+
+		// Body
+		c.Emitter.PushScope(c.emitMetaScope(arm))
+		c.scope.Push()
+
+		c.Emitter.Begin(bBody)
+		c.GenerateStmt(arm.Body)
+		c.Emitter.Br(bExit)
+
+		c.scope.Pop()
+		c.Emitter.PopScope()
+	}
+
+	// Exit
+	c.Emitter.Begin(bExit)
+}
+
+func (c *Codegen) EmitCmpPatterns(valueExpr ast.Expr, value ir.Value, typ types.Type, patterns []sema.Pattern, armI int) ir.Value {
+	// Single
+	if len(patterns) == 1 {
+		return c.EmitCmpPattern(valueExpr, value, typ, patterns[0])
+	}
+
+	// Multiple
+	bExit := c.fun.NewBlock(fmt.Sprintf("match.condition.%d.exit", armI))
+	pairs := make([]ir.PhiPair, len(patterns))
+
+	for i, pattern := range patterns {
+		matched := c.EmitCmpPattern(valueExpr, value, typ, pattern)
+		from := c.Emitter.Block()
+
+		if i == len(patterns)-1 {
+			pairs[i] = ir.PhiPair{Block: from, Value: matched}
+			c.Emitter.Br(bExit)
+		} else {
+			bNext := c.fun.NewBlock(fmt.Sprintf("match.condition.%d.pattern.%d", armI, i+1))
+			pairs[i] = ir.PhiPair{Block: from, Value: ir.True}
+
+			c.Emitter.BrCond(matched, bExit, bNext)
+			c.Emitter.Begin(bNext)
+		}
+	}
+
+	c.Emitter.Begin(bExit)
+	return c.Emitter.Phi(pairs...)
+}
+
+func (c *Codegen) EmitCmpPattern(valueExpr ast.Expr, value ir.Value, typ types.Type, pattern sema.Pattern) ir.Value {
+	expr := pattern.(*sema.ExprPattern).Expr
+	target := c.GetIrValue(c.Sema.Evaluations[expr], typ)
+
+	// core::Eq
+	if _, ok := typ.(*types.Primitive); !ok {
+		if fTyp, fName := sema.GetBinaryMethod(c.Ctx, ast.Equal.InterfaceName(), typ, typ); fTyp != nil {
+			var callee ir.Value
+			var sig *ir.Signature
+			var receiver ir.Value
+
+			_, isInterfaceDispatch := typ.(*types.Interface)
+
+			if isInterfaceDispatch {
+				// Interface dispatch
+				callee, receiver = c.LookupInterfaceMethod(typ.(*types.Interface), value, fName, valueExpr)
+				sig = c.BuildCallSignature(fTyp, true)
+			} else {
+				// Method from interface, resolved to concrete impl
+				callee, sig, fTyp = c.ResolveInterfaceMethod(typ, fName, false)
+				receiver = value
+			}
+
+			rhsType := fTyp.Params[1]
+			target = c.ImplicitCast(target, sema.ExprInfo{Type: typ}, rhsType, expr)
+
+			return c.EmitCall(callee, sig, fTyp, receiver, []ir.Value{target}, []types.Type{rhsType}, types.PrimitiveBool)
+		}
+	}
+
+	// Native
+	if sema.HasNativeEquality(typ) {
+		return c.EmitCmpRaw(ir.Eq, typ, value, target)
+	}
+
+	// Invalid
+	panic("codegen.Codegen.EmitCmpPattern - Invalid type")
 }
 
 func (c *Codegen) VisitWhile(w *ast.While) {

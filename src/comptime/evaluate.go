@@ -22,9 +22,13 @@ type compTime struct {
 	ctx  *sema.Context
 	file *ast.File
 
+	sema *sema.FileData
+
 	diagnostics []core.Diagnostic
-	evaluations map[ast.Expr]eval.Value
 }
+
+var valueTrue eval.Value = &eval.IntValue{Value: 1}
+var valueFalse eval.Value = &eval.IntValue{Value: 0}
 
 func Evaluate(ctx *sema.Context, file *ast.File) []core.Diagnostic {
 	defer core.Scope()()
@@ -33,8 +37,7 @@ func Evaluate(ctx *sema.Context, file *ast.File) []core.Diagnostic {
 		ctx:  ctx,
 		file: file,
 
-		diagnostics: nil,
-		evaluations: ctx.Files[file].Evaluations,
+		sema: ctx.Files[file],
 	}
 
 	for _, decl := range file.Decls {
@@ -138,6 +141,12 @@ func Evaluate(ctx *sema.Context, file *ast.File) []core.Diagnostic {
 				ct.Evaluate(assocConst.Value, assocConst.Type, assocConst.Name)
 			}
 
+			for _, method := range decl.Methods {
+				if !core.IsNil(method.Body) {
+					ct.EvaluateStmt(method.Body)
+				}
+			}
+
 		case *ast.Const:
 			ct.Evaluate(decl.Value, decl.Type, decl.Name())
 
@@ -147,11 +156,100 @@ func Evaluate(ctx *sema.Context, file *ast.File) []core.Diagnostic {
 			}
 
 			ct.Evaluate(decl.Initializer, decl.Type, decl.Name())
+
+		case *ast.Func:
+			if !core.IsNil(decl.Body) {
+				ct.EvaluateStmt(decl.Body)
+			}
 		}
 	}
 
 	return ct.diagnostics
 }
+
+// Stmt
+
+func (ct *compTime) EvaluateStmt(stmt ast.Stmt) {
+	switch stmt := stmt.(type) {
+	case *ast.Match:
+		typ := ct.sema.ExprInfos[stmt.Value].Type
+		if typ == types.Invalid {
+			return
+		}
+
+		// Evaluate patterns
+		count := 0
+		fallbackExpr := ast.Expr(nil)
+
+		for _, arm := range stmt.Arms {
+			// Evaluate
+			for i, pattern := range ct.sema.ArmPatterns[arm] {
+				switch pattern := pattern.(type) {
+				case *sema.ExprPattern:
+					if ct.sema.ExprInfos[pattern.Expr].CompTime {
+						if val, ok := ct.EvalExpr(pattern.Expr, typ); ok {
+							ct.sema.Evaluations[pattern.Expr] = val
+							count++
+						}
+					}
+
+				case *sema.FallbackPattern:
+					fallbackExpr = arm.Patterns[i]
+				}
+			}
+		}
+
+		// Check for duplicates
+		seen := make([]eval.Value, 0, count)
+
+		for _, arm := range stmt.Arms {
+		pattern:
+			for i, pattern := range ct.sema.ArmPatterns[arm] {
+				if pattern, ok := pattern.(*sema.ExprPattern); ok {
+					if val, ok := ct.sema.Evaluations[pattern.Expr]; ok {
+						for _, value := range seen {
+							if value.Equals(val) {
+								ct.Error(arm.Patterns[i], "duplicate expression pattern")
+								continue pattern
+							}
+						}
+
+						seen = append(seen, val)
+					}
+				}
+			}
+		}
+
+		// Check exhaustiveness
+		exhaustive := false
+
+		if typ == types.PrimitiveBool {
+			if len(seen) == 2 && ((seen[0].Equals(valueTrue) && seen[1].Equals(valueFalse)) || (seen[0].Equals(valueFalse) && seen[1].Equals(valueTrue))) {
+				exhaustive = true
+			}
+		}
+
+		if fallbackExpr == nil && !exhaustive {
+			ct.Error(stmt.Value, "missing fallback arm, match is not exhaustive")
+		} else if fallbackExpr != nil && exhaustive {
+			ct.Error(fallbackExpr, "fallback arm is not needed, match is fully exhaustive")
+		}
+
+		// Arm statements
+		for _, arm := range stmt.Arms {
+			ct.EvaluateStmt(arm.Body)
+		}
+
+	default:
+		for child := range stmt.Children() {
+			if child, ok := child.(ast.Stmt); ok {
+				ct.EvaluateStmt(child)
+			}
+		}
+	}
+}
+
+// Utils
 
 func (ct *compTime) Evaluate(value ast.Expr, typ ast.Type, errNode ast.Node) {
 	if !ct.ctx.Files[ct.file].ExprInfos[value].CompTime {
@@ -178,7 +276,7 @@ func (ct *compTime) Evaluate(value ast.Expr, typ ast.Type, errNode ast.Node) {
 	val, ok := ct.EvalExpr(value, typ_)
 
 	if ok {
-		ct.evaluations[value] = val
+		ct.sema.Evaluations[value] = val
 	}
 }
 

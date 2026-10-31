@@ -81,7 +81,7 @@
             "name": "comment.block.documentation.fb"
         },
 		"operator": {
-            "match": "=|\\+=|-=|\\*=|\\/=|%=|<<=|>>=|>>>=|\\|=|\\^=|&=|\\+|-|\\*|\\/|%|\\+\\+|--|\\?|<<|>>|>>>|\\&|\\|\\^|!|&&|\\|\\||==|!=|~|<|<=|>|>=",
+            "match": "=|\\+=|-=|\\*=|\\/=|%=|<<=|>>=|>>>=|\\|=|\\^=|&=|\\+|-|\\*|\\/|%|\\+\\+|--|\\?|=>|<<|>>|>>>|\\&|\\|\\^|!|&&|\\|\\||==|!=|~|<|<=|>|>=",
 			"name": "keyword.operator.fb"
 		},
 		"terminator": {
@@ -143,7 +143,7 @@
             "name": "constant.language.fb"
         },
 		"keyword": {
-			"match": "\\b(pub|mut|mod|import|struct|enum|interface|impl|type|func|const|var|if|else|while|for|return|break|continue|with|as|or|sizeof|alignof|offsetof|typeof)\\b",
+			"match": "\\b(pub|mut|mod|import|struct|enum|interface|impl|type|func|const|var|if|else|match|while|for|return|break|continue|with|as|or|sizeof|alignof|offsetof|typeof)\\b",
 			"name": "keyword.fb"
 		},
 		"attribute": {

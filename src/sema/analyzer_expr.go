@@ -625,9 +625,7 @@ func (a *analyzer) AnalyzeBaseBinaryOp(b *ast.Binary, left, right ExprInfo, op a
 			return a.Error(b, "binary operator needs compatible types, got '%s' and '%s'", left.Type, right.Type)
 		}
 
-		switch left.Type.(type) {
-		case *types.Null, *types.Integer, *types.Primitive, *types.Reference, *types.Pointer, *types.Func, *types.Enum, *types.Interface:
-		default:
+		if !HasNativeEquality(left.Type) {
 			return a.Error(b, "equality operators only work on primitive types, references, pointers, function references or enums, not %s", left.Type)
 		}
 
@@ -1299,6 +1297,25 @@ func (a *analyzer) VisitBadExpr(_ *ast.BadExpr) ExprInfo {
 }
 
 // Utils
+
+func HasEquality(ctx *Context, typ types.Type) bool {
+	if HasNativeEquality(typ) {
+		return true
+	}
+
+	f, _ := GetBinaryMethod(ctx, ast.Equal.InterfaceName(), typ, typ)
+	return f != nil
+}
+
+func HasNativeEquality(typ types.Type) bool {
+	switch typ.(type) {
+	case *types.Null, *types.Integer, *types.Primitive, *types.Reference, *types.Pointer, *types.Func, *types.Enum, *types.Interface:
+		return true
+
+	default:
+		return false
+	}
+}
 
 func GetIndexInterfaceNames(i *ast.Index, base ExprInfo) []string {
 	if !indexBaseMutable(base) {

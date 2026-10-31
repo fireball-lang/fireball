@@ -6,6 +6,7 @@ type StmtVisitor interface {
 
 	VisitVar(v *Var)
 	VisitIf(i *If)
+	VisitMatch(m *Match)
 	VisitWhile(w *While)
 	VisitFor(f *For)
 
@@ -27,6 +28,8 @@ func VisitStmt[V StmtVisitor](visitor V, stmt Stmt) {
 		visitor.VisitVar(stmt)
 	case *If:
 		visitor.VisitIf(stmt)
+	case *Match:
+		visitor.VisitMatch(stmt)
 	case *While:
 		visitor.VisitWhile(stmt)
 	case *For:

@@ -27,6 +27,18 @@ func (hi *highlighter) VisitIf(i *ast.If) {
 	hi.VisitStmt(i.BranchFalse)
 }
 
+func (hi *highlighter) VisitMatch(m *ast.Match) {
+	hi.VisitExpr(m.Value)
+
+	for _, arm := range m.Arms {
+		for _, pattern := range arm.Patterns {
+			hi.VisitExpr(pattern)
+		}
+
+		hi.VisitStmt(arm.Body)
+	}
+}
+
 func (hi *highlighter) VisitWhile(w *ast.While) {
 	hi.VisitExpr(w.Condition)
 	hi.VisitStmt(w.Body)

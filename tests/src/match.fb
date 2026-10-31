@@ -1,0 +1,167 @@
+mod tests::match_statements;
+
+func classify(value: i32) i32 {
+    var result = 0;
+
+    match (value) {
+        1 => result = 10;
+        2, 3, 4 => result = 20;
+        5 => result = 30;
+        _ => result = 40;
+    }
+
+    return result;
+}
+
+#[test("match dispatch and multiple patterns")]
+func testDispatch() bool {
+    return classify(1) == 10
+        && classify(2) == 20
+        && classify(3) == 20
+        && classify(4) == 20
+        && classify(5) == 30
+        && classify(6) == 40;
+}
+
+struct Key {
+    id: i32,
+    ignored: i32,
+}
+
+var subjectCalls: i32 = 0;
+var comparisonTrace: i32 = 0;
+
+impl Key : Eq[Key] {
+    pub func eq(self, rhs: Key) bool {
+        comparisonTrace = comparisonTrace * 10 + rhs.id;
+        return self.id == rhs.id;
+    }
+}
+
+func nextKey() Key {
+    subjectCalls++;
+    return Key { id: 2, ignored: 99 };
+}
+
+#[test("match evaluates once and short circuits equality")]
+func testEvaluationOrder() bool {
+    subjectCalls = 0;
+    comparisonTrace = 0;
+    var result = 0;
+
+    match (nextKey()) {
+        Key { id: 1, ignored: 0 } => result = 1;
+        Key { id: 2, ignored: 0 }, Key { id: 3, ignored: 0 } => result = 2;
+        Key { id: 4, ignored: 0 } => result = 3;
+        _ => result = 4;
+    }
+
+    return result == 2 && subjectCalls == 1 && comparisonTrace == 12;
+}
+
+#[test("match equality receivers for local and temporary values")]
+func testReceivers() bool {
+    var key = Key { id: 2, ignored: 99 };
+    var result = 0;
+
+    match (key) {
+        Key { id: 2, ignored: 0 } => result = result + 1;
+        _ => {}
+    }
+
+    match (Key { id: 2, ignored: 99 }) {
+        Key { id: 2, ignored: 0 } => result = result + 2;
+        _ => {}
+    }
+
+    return result == 3 && key.ignored == 99;
+}
+
+struct OptionalKey {
+    id: i32,
+}
+
+impl OptionalKey : Eq[?OptionalKey] {
+    pub func eq(self, rhs: ?OptionalKey) bool {
+        if (rhs.is_none()) return false;
+        var other = rhs.unwrap();
+        return self.id == other.id;
+    }
+}
+
+#[test("match converts patterns to equality parameter type")]
+func testEqualityArgumentConversion() bool {
+    var key = OptionalKey { id: 0 };
+    var result = 0;
+
+    // Equality must receive Some(pattern), not the raw OptionalKey value.
+    match (key) {
+        OptionalKey { id: 1 } => result = 1;
+        OptionalKey { id: 0 } => result = 2;
+        _ => result = 3;
+    }
+
+    return result == 2;
+}
+
+func booleanValue(value: bool) i32 {
+    var result = 0;
+
+    match (value) {
+        false => result = 1;
+        true => result = 2;
+    }
+
+    return result;
+}
+
+#[test("match exhaustive boolean arms")]
+func testBoolean() bool {
+    return booleanValue(false) == 1 && booleanValue(true) == 2;
+}
+
+func nestedValue(value: i32) i32 {
+    match (value) {
+        2 => return 10;
+        _ => {}
+    }
+
+    return 100;
+}
+
+#[test("match nested control flow preserves loop targets")]
+func testLoopControl() bool {
+    var result = 0;
+
+    for (var i = 0; i < 5; i++) {
+        match (i) {
+            0 => continue;
+            1 => result = result + 1;
+            _ => match (i) {
+                2 => result = result + nestedValue(i);
+                _ => break;
+            }
+        }
+
+        result = result + 100;
+    }
+
+    return result == 211;
+}
+
+#[test("match fallback only evaluates subject and isolates locals")]
+func testFallbackOnly() bool {
+    subjectCalls = 0;
+
+    var value = 7;
+    var result = 0;
+
+    match (nextKey()) {
+        _ => {
+            var value = 9;
+            result = value;
+        }
+    }
+
+    return subjectCalls == 1 && result == 9 && value == 7;
+}

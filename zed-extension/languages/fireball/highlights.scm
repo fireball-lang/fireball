@@ -18,6 +18,7 @@
 "var" @keyword
 "if" @keyword.control.conditional
 "else" @keyword.control.conditional
+"match" @keyword.control.conditional
 "while" @keyword.control.repeat
 "for" @keyword.control.repeat
 
@@ -74,6 +75,10 @@
 (func type_param: (type_param name: (identifier) @type.parameter))
 (func param: (param name: (identifier) @variable.parameter))
 
+; Statements
+
+((arm pattern: (identifier_expr) @keyword) (#eq? @keyword "_"))
+
 ; Expressions
 
 (member_expr name: (identifier) @property)
@@ -91,7 +96,7 @@
 [
     "=" "+=" "-=" "*=" "/=" "%=" "<<=" ">>=" ">>>=" "|=" "^=" "&="
     "+" "-" "/" "%"
-    "++" "--" "?"
+    "++" "--" "?" "=>"
     "<<" ">>" ">>>"
     "&" "|" "^"
     "!" "&&" "||"

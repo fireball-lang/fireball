@@ -2,6 +2,7 @@ package ir
 
 import (
 	"fireball/core"
+	"slices"
 	"unicode/utf8"
 )
 
@@ -106,6 +107,14 @@ func NewString(runes []rune, nullTerminated bool) *String {
 		Runes:          runes,
 		NullTerminated: nullTerminated,
 	}
+}
+
+func (s *String) Equals(other *String) bool {
+	if s.NullTerminated != other.NullTerminated {
+		return false
+	}
+
+	return slices.Equal(s.Runes, other.Runes)
 }
 
 func (s *String) Type() Type {

@@ -86,6 +86,51 @@ func (a *analyzer) VisitIf(i *ast.If) {
 	a.AnalyzeStmt(i.BranchFalse)
 }
 
+func (a *analyzer) VisitMatch(m *ast.Match) {
+	// Value
+	value := a.AnalyzeExpr(m.Value)
+
+	if !HasEquality(a.ctx, value.Type) {
+		a.Error(m.Value, "type '%s' doesn't have equality operators defined and cannot be matched", value.Type)
+	}
+
+	// Analyze arm patterns individually and their statements
+	for _, arm := range m.Arms {
+		patterns := make([]Pattern, len(arm.Patterns))
+
+		for i, pattern := range arm.Patterns {
+			patterns[i] = a.AnalyzePattern(value, pattern)
+		}
+
+		if len(patterns) == 0 {
+			a.Error(arm.Body, "a match arm needs to have a pattern")
+		} else if len(patterns) > 1 {
+			for i, pattern := range patterns {
+				if _, ok := pattern.(*ExprPattern); !ok {
+					a.Error(arm.Patterns[i], "a match arm can only have multiple expression patterns")
+				}
+			}
+		}
+
+		a.sema.ArmPatterns[arm] = patterns
+
+		a.locals.Push()
+		a.AnalyzeStmt(arm.Body)
+		a.locals.Pop()
+	}
+
+	// Analyze fallback arm
+	for i, arm := range m.Arms {
+		patterns := a.sema.ArmPatterns[arm]
+
+		if len(patterns) == 1 {
+			if _, ok := patterns[0].(*FallbackPattern); ok && i != len(m.Arms)-1 {
+				a.Error(m.Arms[i].Patterns[0], "a fallback pattern needs to be the the last arm")
+			}
+		}
+	}
+}
+
 func (a *analyzer) VisitWhile(w *ast.While) {
 	condition := a.AnalyzeExpr(w.Condition)
 	a.ExpectType(types.PrimitiveBool, condition, w.Condition)

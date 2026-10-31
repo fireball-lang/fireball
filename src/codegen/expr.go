@@ -1422,51 +1422,60 @@ func (c *Codegen) EmitCmp(op ir.CmpOp, left, right ast.Expr) ir.Value {
 	leftV := c.LoadImplicitCast(left, common)
 	rightV := c.LoadImplicitCast(right, common)
 
+	return c.EmitCmpRaw(op, common, leftV, rightV)
+}
+
+func (c *Codegen) EmitCmpRaw(op ir.CmpOp, typ types.Type, left, right ir.Value) ir.Value {
+	switch typ.(type) {
+	case *types.Integer, *types.Null, *types.Func:
+		typ = typ.(types.Composed).Underlying()
+	}
+
 	// Interface
-	if _, ok := common.(*types.Interface); ok {
+	if _, ok := typ.(*types.Interface); ok {
 		_, dataI := c.Types.Get(types.InterfaceUnderlying).(ir.StructLikeType).Field("data")
 		if dataI < 0 {
 			panic("codegen.Codegen.VisitBinary() - Failed to find 'data' field on 'core::Interface'")
 		}
 
-		leftPtr := leftV
-		if s, ok := leftV.Type().(*ir.RefStructType); ok && s.Name == types.InterfaceUnderlying.Name {
-			leftPtr = c.Emitter.ExtractValue(leftV, uint32(dataI))
+		leftPtr := left
+		if s, ok := left.Type().(*ir.RefStructType); ok && s.Name == types.InterfaceUnderlying.Name {
+			leftPtr = c.Emitter.ExtractValue(left, uint32(dataI))
 		}
 
-		rightPtr := rightV
-		if s, ok := rightV.Type().(*ir.RefStructType); ok && s.Name == types.InterfaceUnderlying.Name {
-			rightPtr = c.Emitter.ExtractValue(rightV, uint32(dataI))
+		rightPtr := right
+		if s, ok := right.Type().(*ir.RefStructType); ok && s.Name == types.InterfaceUnderlying.Name {
+			rightPtr = c.Emitter.ExtractValue(right, uint32(dataI))
 		}
 
 		return c.Emitter.ICmp(op, false, leftPtr, rightPtr)
 	}
 
 	// Enum
-	if t, ok := common.(*types.Enum); ok {
+	if t, ok := typ.(*types.Enum); ok {
 		signed := types.IsSignedInteger(t.CaseType.(*types.Primitive).Kind)
-		return c.Emitter.ICmp(op, signed, leftV, rightV)
+		return c.Emitter.ICmp(op, signed, left, right)
 	}
 
 	// Pointer
-	if _, ok := common.(*types.Pointer); ok {
-		return c.Emitter.ICmp(op, false, leftV, rightV)
+	if _, ok := typ.(*types.Pointer); ok {
+		return c.Emitter.ICmp(op, false, left, right)
 	}
 
 	// Reference
-	if _, ok := common.(*types.Reference); ok {
-		return c.Emitter.ICmp(op, false, leftV, rightV)
+	if _, ok := typ.(*types.Reference); ok {
+		return c.Emitter.ICmp(op, false, left, right)
 	}
 
 	// Primitive
-	prim := common.(*types.Primitive).Kind
+	prim := typ.(*types.Primitive).Kind
 
 	if types.IsFloating(prim) {
-		return c.Emitter.FCmp(op, false, leftV, rightV)
+		return c.Emitter.FCmp(op, false, left, right)
 	}
 
 	signed := types.IsSignedInteger(prim)
-	return c.Emitter.ICmp(op, signed, leftV, rightV)
+	return c.Emitter.ICmp(op, signed, left, right)
 }
 
 func (c *Codegen) GetDivKind(expr ast.Expr) (fp bool, kind ir.DivKind) {

@@ -47,6 +47,7 @@ const (
 	Var
 	If
 	Else
+	Match
 	While
 	For
 
@@ -75,6 +76,7 @@ const (
 	Semicolon
 	Hashtag
 	QuestionMark
+	EqualGreater
 
 	LeftParen
 	RightParen

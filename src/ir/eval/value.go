@@ -6,36 +6,85 @@ import (
 )
 
 type Value interface {
-	isValue()
+	Equals(other Value) bool
+
+	_isValue()
 }
 
 type IntValue struct {
 	Value uint64
 }
 
-func (i *IntValue) isValue() {}
+func (i *IntValue) Equals(other Value) bool {
+	if other, ok := other.(*IntValue); ok {
+		return i.Value == other.Value
+	}
+
+	return false
+}
+
+func (i *IntValue) _isValue() {}
 
 type FloatValue struct {
 	Value float64
 }
 
-func (f *FloatValue) isValue() {}
+func (f *FloatValue) Equals(other Value) bool {
+	if other, ok := other.(*FloatValue); ok {
+		return f.Value == other.Value
+	}
+
+	return false
+}
+
+func (f *FloatValue) _isValue() {}
 
 type StringValue struct {
 	Value *ir.String
 }
 
-func (s *StringValue) isValue() {}
+func (s *StringValue) Equals(other Value) bool {
+	if other, ok := other.(*StringValue); ok {
+		return s.Value.Equals(other.Value)
+	}
+
+	return false
+}
+
+func (s *StringValue) _isValue() {}
 
 type NullValue struct{}
 
-func (n *NullValue) isValue() {}
+func (n *NullValue) Equals(other Value) bool {
+	_, ok := other.(*NullValue)
+	return ok
+}
+
+func (n *NullValue) _isValue() {}
 
 type AggregateValue struct {
 	Values []Value
 }
 
-func (a *AggregateValue) isValue() {}
+func (a *AggregateValue) Equals(other Value) bool {
+	if other, ok := other.(*AggregateValue); ok {
+		if len(a.Values) != len(other.Values) {
+			return false
+		}
+
+		for i, value := range a.Values {
+			if !value.Equals(other.Values[i]) {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	return false
+}
+
+func (a *AggregateValue) _isValue() {}
 
 type GlobalValue struct {
 	Name  string
@@ -44,7 +93,15 @@ type GlobalValue struct {
 	Data  any
 }
 
-func (g *GlobalValue) isValue() {}
+func (g *GlobalValue) Equals(other Value) bool {
+	if other, ok := other.(*GlobalValue); ok {
+		return g.Name == other.Name
+	}
+
+	return false
+}
+
+func (g *GlobalValue) _isValue() {}
 
 type FuncValue struct {
 	Name      string
@@ -52,7 +109,15 @@ type FuncValue struct {
 	Data      any
 }
 
-func (f *FuncValue) isValue() {}
+func (f *FuncValue) Equals(other Value) bool {
+	if other, ok := other.(*FuncValue); ok {
+		return f.Name == other.Name
+	}
+
+	return false
+}
+
+func (f *FuncValue) _isValue() {}
 
 func (e *Evaluator) GetValue(reg Register, typ ir.Type) Value {
 	switch typ := typ.(type) {
