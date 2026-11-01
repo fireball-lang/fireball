@@ -37,7 +37,13 @@ func (c *Codegen) EmitIntrinsic(kind ast.IntrinsicKind, typ *types.Func, args []
 
 		asm.Constraints = append(asm.Constraints, "~{memory}")
 
-		return c.Emitter.Call(sig, asm, values)
+		value := c.Emitter.Call(sig, asm, values)
+
+		if typ.Returns == types.NeverType {
+			return c.Emitter.Unreachable()
+		}
+
+		return value
 
 	case ast.Memcpy:
 		fun := c.GetIntrinsicFunction(ir.Memcpy)

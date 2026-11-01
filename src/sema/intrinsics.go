@@ -15,7 +15,9 @@ func (a *analyzer) CheckIntrinsic(f *ast.Func) {
 
 	switch kind {
 	case ast.Syscall:
-		a.IntrinsicExpectPrimitiveClass(kind, f.Returns, "64-bit integer", is64Bit)
+		if a.sema.NodeTypes[f.Returns] != types.NeverType {
+			a.IntrinsicExpectPrimitiveClass(kind, f.Returns, "64-bit integer", is64Bit)
+		}
 
 		if len(f.Params) == 0 {
 			a.Error(intrinsic, "intrinsic 'syscall' needs to have at least 1 parameter")
