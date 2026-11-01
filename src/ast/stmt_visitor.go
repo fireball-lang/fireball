@@ -1,49 +1,49 @@
 package ast
 
-type StmtVisitor interface {
-	VisitBlock(b *Block)
-	VisitExpression(e *Expression)
+type StmtVisitor[T any] interface {
+	VisitBlock(b *Block) T
+	VisitExpression(e *Expression) T
 
-	VisitVar(v *Var)
-	VisitIf(i *If)
-	VisitMatch(m *Match)
-	VisitWhile(w *While)
-	VisitFor(f *For)
+	VisitVar(v *Var) T
+	VisitIf(i *If) T
+	VisitMatch(m *Match) T
+	VisitWhile(w *While) T
+	VisitFor(f *For) T
 
-	VisitReturn(r *Return)
-	VisitBreak(b *Break)
-	VisitContinue(c *Continue)
+	VisitReturn(r *Return) T
+	VisitBreak(b *Break) T
+	VisitContinue(c *Continue) T
 
-	VisitBadStmt(b *BadStmt)
+	VisitBadStmt(b *BadStmt) T
 }
 
-func VisitStmt[V StmtVisitor](visitor V, stmt Stmt) {
+func VisitStmt[V StmtVisitor[T], T any](visitor V, stmt Stmt) T {
 	switch stmt := stmt.(type) {
 	case *Block:
-		visitor.VisitBlock(stmt)
+		return visitor.VisitBlock(stmt)
 	case *Expression:
-		visitor.VisitExpression(stmt)
+		return visitor.VisitExpression(stmt)
 
 	case *Var:
-		visitor.VisitVar(stmt)
+		return visitor.VisitVar(stmt)
 	case *If:
-		visitor.VisitIf(stmt)
+		return visitor.VisitIf(stmt)
 	case *Match:
-		visitor.VisitMatch(stmt)
+		return visitor.VisitMatch(stmt)
 	case *While:
-		visitor.VisitWhile(stmt)
+		return visitor.VisitWhile(stmt)
 	case *For:
-		visitor.VisitFor(stmt)
+		return visitor.VisitFor(stmt)
 
 	case *Return:
-		visitor.VisitReturn(stmt)
+		return visitor.VisitReturn(stmt)
 	case *Break:
-		visitor.VisitBreak(stmt)
+		return visitor.VisitBreak(stmt)
 	case *Continue:
-		visitor.VisitContinue(stmt)
+		return visitor.VisitContinue(stmt)
 
 	case *BadStmt:
-		visitor.VisitBadStmt(stmt)
+		return visitor.VisitBadStmt(stmt)
 
 	default:
 		panic("ast.VisitStmt() - Invalid stmt")

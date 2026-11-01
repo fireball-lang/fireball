@@ -11,23 +11,31 @@ import (
 
 // Visitor
 
-func (c *Codegen) VisitBlock(b *ast.Block) {
+func (c *Codegen) VisitBlock(b *ast.Block) int {
 	c.Emitter.PushScope(c.emitMetaScope(b))
 	c.scope.Push()
 
 	for _, stmt := range b.Stmts {
 		c.GenerateStmt(stmt)
+
+		if !c.CanFallthrough(stmt) {
+			break
+		}
 	}
 
 	c.scope.Pop()
 	c.Emitter.PopScope()
+
+	return 0
 }
 
-func (c *Codegen) VisitExpression(e *ast.Expression) {
+func (c *Codegen) VisitExpression(e *ast.Expression) int {
 	c.GenerateExpr(e.Expr)
+
+	return 0
 }
 
-func (c *Codegen) VisitVar(v *ast.Var) {
+func (c *Codegen) VisitVar(v *ast.Var) int {
 	// Type
 	varTyp := c.ResolveType(c.Sema.NodeTypes[v])
 	typ := c.Types.Get(varTyp)
@@ -49,9 +57,26 @@ func (c *Codegen) VisitVar(v *ast.Var) {
 	// Variable
 	c.Emitter.Store(value, ptr)
 	c.scope.Add(v.Name.Token.Text, ptr)
+
+	return 0
 }
 
-func (c *Codegen) VisitIf(i *ast.If) {
+func (c *Codegen) VisitIf(i *ast.If) int {
+	// Handle literal ast.Bool condition
+	if condition, ok := i.Condition.(*ast.Bool); ok {
+		branch := i.BranchFalse
+		if condition.Value {
+			branch = i.BranchTrue
+		}
+
+		if !core.IsNil(branch) {
+			c.GenerateStmt(branch)
+		}
+
+		return 0
+	}
+
+	// Create blocks
 	bThen := c.fun.NewBlock("if.then")
 
 	var bElse *ir.Block
@@ -59,7 +84,11 @@ func (c *Codegen) VisitIf(i *ast.If) {
 		bElse = c.fun.NewBlock("if.else")
 	}
 
-	bExit := c.fun.NewBlock("if.exit")
+	var bExit *ir.Block
+	if c.CanFallthrough(i) {
+		bExit = c.fun.NewBlock("if.exit")
+	}
+
 	if bElse == nil {
 		bElse = bExit
 	}
@@ -81,7 +110,11 @@ func (c *Codegen) VisitIf(i *ast.If) {
 	}
 
 	// Exit
-	c.Emitter.Begin(bExit)
+	if bExit != nil {
+		c.Emitter.Begin(bExit)
+	}
+
+	return 0
 }
 
 type armBlocks struct {
@@ -89,11 +122,11 @@ type armBlocks struct {
 	body      *ir.Block
 }
 
-func (c *Codegen) VisitMatch(m *ast.Match) {
+func (c *Codegen) VisitMatch(m *ast.Match) int {
 	// Empty match
 	if len(m.Arms) == 0 {
 		c.GenerateExpr(m.Value)
-		return
+		return 0
 	}
 
 	// Match with a single fallback arm
@@ -108,16 +141,14 @@ func (c *Codegen) VisitMatch(m *ast.Match) {
 		c.scope.Pop()
 		c.Emitter.PopScope()
 
-		return
+		return 0
 	}
 
 	// Create arm blocks
 	blocks := make([]armBlocks, len(m.Arms))
 
-	for i, arm := range m.Arms {
-		patterns := c.Sema.ArmPatterns[arm]
-
-		if len(patterns) == 1 && patterns[0] == sema.Fallback {
+	for i := range m.Arms {
+		if i == len(m.Arms)-1 {
 			bBody := c.fun.NewBlock(fmt.Sprintf("match.body.%d", i))
 			blocks[i] = armBlocks{condition: bBody, body: bBody}
 		} else {
@@ -128,7 +159,10 @@ func (c *Codegen) VisitMatch(m *ast.Match) {
 		}
 	}
 
-	bExit := c.fun.NewBlock("match.exit")
+	var bExit *ir.Block
+	if c.CanFallthrough(m) {
+		bExit = c.fun.NewBlock("match.exit")
+	}
 
 	// Prepare receiver / primitive value for comparisons
 	value := ir.Value(nil)
@@ -158,10 +192,7 @@ func (c *Codegen) VisitMatch(m *ast.Match) {
 
 		// Condition
 		if bCondition != bBody {
-			bNext := bExit
-			if i+1 < len(m.Arms) {
-				bNext = blocks[i+1].condition
-			}
+			bNext := blocks[i+1].condition
 
 			c.Emitter.Begin(bCondition)
 			matched := c.EmitCmpPatterns(m.Value, value, typ, c.Sema.ArmPatterns[arm], i)
@@ -181,7 +212,11 @@ func (c *Codegen) VisitMatch(m *ast.Match) {
 	}
 
 	// Exit
-	c.Emitter.Begin(bExit)
+	if bExit != nil {
+		c.Emitter.Begin(bExit)
+	}
+
+	return 0
 }
 
 func (c *Codegen) EmitCmpPatterns(valueExpr ast.Expr, value ir.Value, typ types.Type, patterns []sema.Pattern, armI int) ir.Value {
@@ -253,23 +288,43 @@ func (c *Codegen) EmitCmpPattern(valueExpr ast.Expr, value ir.Value, typ types.T
 	panic("codegen.Codegen.EmitCmpPattern - Invalid type")
 }
 
-func (c *Codegen) VisitWhile(w *ast.While) {
+func (c *Codegen) VisitWhile(w *ast.While) int {
+	// Handle literal ast.Bool condition
+	literal, isLiteral := w.Condition.(*ast.Bool)
+
+	if isLiteral && !literal.Value {
+		return 0
+	}
+
+	// Create blocks
 	bCondition := c.fun.NewBlock("while.condition")
 	bBody := c.fun.NewBlock("while.body")
-	bExit := c.fun.NewBlock("while.exit")
+
+	var bExit *ir.Block
+	if c.CanFallthrough(w) {
+		bExit = c.fun.NewBlock("while.exit")
+	}
 
 	prevBLoopBreak := c.bLoopBreak
-	c.bLoopBreak = bExit
-
 	prevBLoopContinue := c.bLoopContinue
+	defer func() {
+		c.bLoopBreak = prevBLoopBreak
+		c.bLoopContinue = prevBLoopContinue
+	}()
+
+	c.bLoopBreak = bExit
 	c.bLoopContinue = bCondition
 
 	// Condition
 	c.Emitter.Br(bCondition)
 	c.Emitter.Begin(bCondition)
 
-	condition := c.LoadImplicitCast(w.Condition, types.PrimitiveBool)
-	c.Emitter.BrCond(condition, bBody, bExit)
+	if isLiteral {
+		c.Emitter.Br(bBody)
+	} else {
+		condition := c.LoadImplicitCast(w.Condition, types.PrimitiveBool)
+		c.Emitter.BrCond(condition, bBody, bExit)
+	}
 
 	// Body
 	c.Emitter.Begin(bBody)
@@ -277,56 +332,89 @@ func (c *Codegen) VisitWhile(w *ast.While) {
 	c.Emitter.Br(bCondition)
 
 	// Exit
-	c.Emitter.Begin(bExit)
+	if bExit != nil {
+		c.Emitter.Begin(bExit)
+	}
 
-	c.bLoopBreak = prevBLoopBreak
-	c.bLoopContinue = prevBLoopContinue
+	return 0
 }
 
-func (c *Codegen) VisitFor(f *ast.For) {
+func (c *Codegen) VisitFor(f *ast.For) int {
+	// Scope
+	c.Emitter.PushScope(c.emitMetaScope(f))
+	c.scope.Push()
+
+	defer func() {
+		c.scope.Pop()
+		c.Emitter.PopScope()
+	}()
+
+	// Initializer
+	if !core.IsNil(f.Initializer) {
+		c.GenerateStmt(f.Initializer)
+
+		if !c.CanFallthrough(f.Initializer) {
+			return 0
+		}
+	}
+
+	// Handle literal ast.Bool condition
+	condition := f.Condition
+
+	if literal, ok := condition.(*ast.Bool); ok {
+		if !literal.Value {
+			return 0
+		}
+
+		condition = nil
+	}
+
+	// Create blocks
 	var bCondition *ir.Block
-	if !core.IsNil(f.Condition) {
+	if !core.IsNil(condition) {
 		bCondition = c.fun.NewBlock("for.condition")
 	}
 
 	bBody := c.fun.NewBlock("for.body")
 
+	reachesIncrement := c.CanFallthrough(f.Body) || c.Sema.StmtExits[f.Body]&sema.ExitContinue != 0
+
 	var bIncrement *ir.Block
-	if !core.IsNil(f.Increment) {
+	if !core.IsNil(f.Increment) && reachesIncrement {
 		bIncrement = c.fun.NewBlock("for.increment")
 	}
 
-	bExit := c.fun.NewBlock("for.exit")
+	var bExit *ir.Block
+	if c.CanFallthrough(f) {
+		bExit = c.fun.NewBlock("for.exit")
+	}
 
 	prevBLoopBreak := c.bLoopBreak
-	c.bLoopBreak = bExit
-
 	prevBLoopContinue := c.bLoopContinue
-	c.bLoopContinue = bBody
+
+	defer func() {
+		c.bLoopBreak = prevBLoopBreak
+		c.bLoopContinue = prevBLoopContinue
+	}()
+
+	bNext := bBody
 	if bCondition != nil {
-		c.bLoopContinue = bCondition
+		bNext = bCondition
 	}
+
+	c.bLoopBreak = bExit
+	c.bLoopContinue = bNext
 	if bIncrement != nil {
 		c.bLoopContinue = bIncrement
 	}
 
-	c.Emitter.PushScope(c.emitMetaScope(f))
-	c.scope.Push()
-
-	// Initializer
-	if !core.IsNil(f.Initializer) {
-		c.GenerateStmt(f.Initializer)
-	}
-
 	// Condition
-	if bCondition != nil {
-		c.Emitter.Br(bCondition)
-		c.Emitter.Begin(bCondition)
+	c.Emitter.Br(bNext)
 
-		condition := c.LoadImplicitCast(f.Condition, types.PrimitiveBool)
-		c.Emitter.BrCond(condition, bBody, bExit)
-	} else {
-		c.Emitter.Br(bBody)
+	if bCondition != nil {
+		c.Emitter.Begin(bCondition)
+		value := c.LoadImplicitCast(condition, types.PrimitiveBool)
+		c.Emitter.BrCond(value, bBody, bExit)
 	}
 
 	// Body
@@ -338,26 +426,18 @@ func (c *Codegen) VisitFor(f *ast.For) {
 	if bIncrement != nil {
 		c.Emitter.Begin(bIncrement)
 		c.GenerateExpr(f.Increment)
-
-		next := bBody
-		if bCondition != nil {
-			next = bCondition
-		}
-
-		c.Emitter.Br(next)
+		c.Emitter.Br(bNext)
 	}
 
 	// Exit
-	c.Emitter.Begin(bExit)
+	if bExit != nil {
+		c.Emitter.Begin(bExit)
+	}
 
-	c.scope.Pop()
-	c.Emitter.PopScope()
-
-	c.bLoopBreak = prevBLoopBreak
-	c.bLoopContinue = prevBLoopContinue
+	return 0
 }
 
-func (c *Codegen) VisitReturn(r *ast.Return) {
+func (c *Codegen) VisitReturn(r *ast.Return) int {
 	var value ir.Value
 
 	if !core.IsNil(r.Value) {
@@ -365,19 +445,40 @@ func (c *Codegen) VisitReturn(r *ast.Return) {
 	}
 
 	c.ReturnValue(value)
+
+	return 0
 }
 
-func (c *Codegen) VisitBreak(_ *ast.Break) {
+func (c *Codegen) VisitBreak(_ *ast.Break) int {
 	c.Emitter.Br(c.bLoopBreak)
+
+	return 0
 }
 
-func (c *Codegen) VisitContinue(_ *ast.Continue) {
+func (c *Codegen) VisitContinue(_ *ast.Continue) int {
 	c.Emitter.Br(c.bLoopContinue)
+
+	return 0
 }
 
-func (c *Codegen) VisitBadStmt(_ *ast.BadStmt) {}
+func (c *Codegen) VisitBadStmt(_ *ast.BadStmt) int {
+	return 0
+}
 
 // Utils
+
+func (c *Codegen) CanFallthrough(stmt ast.Stmt) bool {
+	if core.IsNil(stmt) {
+		return true
+	}
+
+	exits, ok := c.Sema.StmtExits[stmt]
+	if !ok {
+		panic("codegen.Codegen.CanFallthrough - Statement doesn't have flow analysis results")
+	}
+
+	return exits&sema.ExitFallthrough != 0
+}
 
 func (c *Codegen) ReturnValue(value ir.Value) {
 	if !core.IsNil(value) {

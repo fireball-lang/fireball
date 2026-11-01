@@ -694,18 +694,10 @@ func (a *analyzer) VisitFuncInner(f *ast.Func, typ *types.Func, receiverTyp type
 	a.locals.Pop()
 
 	// Return
-	if !core.IsNil(f.Body) && !typ.Returns.Equals(types.PrimitiveVoid) {
-		switch stmt := f.Body.(type) {
-		case *ast.Return:
+	if !core.IsNil(f.Body) {
+		exits := AnalyzeFlow(a.sema, f.Body)
 
-		case *ast.Block:
-			if len(stmt.Stmts) == 0 {
-				a.Error(f.Name_, "missing return statement")
-			} else if _, ok := stmt.Stmts[len(stmt.Stmts)-1].(*ast.Return); !ok {
-				a.Error(f.Name_, "missing return statement")
-			}
-
-		default:
+		if !typ.Returns.Equals(types.PrimitiveVoid) && exits&ExitFallthrough != 0 {
 			a.Error(f.Name_, "missing return statement")
 		}
 	}

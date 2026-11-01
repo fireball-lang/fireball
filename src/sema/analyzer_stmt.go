@@ -10,7 +10,7 @@ import (
 
 // Visitor
 
-func (a *analyzer) VisitBlock(b *ast.Block) {
+func (a *analyzer) VisitBlock(b *ast.Block) int {
 	a.locals.Push()
 
 	for _, stmt := range b.Stmts {
@@ -18,13 +18,17 @@ func (a *analyzer) VisitBlock(b *ast.Block) {
 	}
 
 	a.locals.Pop()
+
+	return 0
 }
 
-func (a *analyzer) VisitExpression(e *ast.Expression) {
+func (a *analyzer) VisitExpression(e *ast.Expression) int {
 	a.AnalyzeExpr(e.Expr)
+
+	return 0
 }
 
-func (a *analyzer) VisitVar(v *ast.Var) {
+func (a *analyzer) VisitVar(v *ast.Var) int {
 	var typ types.Type
 
 	if !core.IsNil(v.Type) {
@@ -47,7 +51,7 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 
 	if core.IsNil(typ) {
 		a.Error(v.Name, "variable must have an explicit type or an initializer")
-		return
+		return 0
 	}
 
 	if typ == types.PrimitiveVoid {
@@ -76,17 +80,21 @@ func (a *analyzer) VisitVar(v *ast.Var) {
 	}
 
 	a.varAccessed[v] = false
+
+	return 0
 }
 
-func (a *analyzer) VisitIf(i *ast.If) {
+func (a *analyzer) VisitIf(i *ast.If) int {
 	condition := a.AnalyzeExpr(i.Condition)
 	a.ExpectType(types.PrimitiveBool, condition, i.Condition)
 
 	a.AnalyzeStmt(i.BranchTrue)
 	a.AnalyzeStmt(i.BranchFalse)
+
+	return 0
 }
 
-func (a *analyzer) VisitMatch(m *ast.Match) {
+func (a *analyzer) VisitMatch(m *ast.Match) int {
 	// Value
 	value := a.AnalyzeExpr(m.Value)
 
@@ -129,18 +137,22 @@ func (a *analyzer) VisitMatch(m *ast.Match) {
 			}
 		}
 	}
+
+	return 0
 }
 
-func (a *analyzer) VisitWhile(w *ast.While) {
+func (a *analyzer) VisitWhile(w *ast.While) int {
 	condition := a.AnalyzeExpr(w.Condition)
 	a.ExpectType(types.PrimitiveBool, condition, w.Condition)
 
 	a.loop++
 	a.AnalyzeStmt(w.Body)
 	a.loop--
+
+	return 0
 }
 
-func (a *analyzer) VisitFor(f *ast.For) {
+func (a *analyzer) VisitFor(f *ast.For) int {
 	a.locals.Push()
 
 	a.AnalyzeStmt(f.Initializer)
@@ -157,9 +169,11 @@ func (a *analyzer) VisitFor(f *ast.For) {
 	a.loop--
 
 	a.locals.Pop()
+
+	return 0
 }
 
-func (a *analyzer) VisitReturn(r *ast.Return) {
+func (a *analyzer) VisitReturn(r *ast.Return) int {
 	if core.IsNil(r.Value) {
 		if !a.funcType.Returns.Equals(types.PrimitiveVoid) {
 			a.Error(r, "expected '%s' got nothing", a.funcType.Returns)
@@ -168,21 +182,29 @@ func (a *analyzer) VisitReturn(r *ast.Return) {
 		value := a.AnalyzeExpr(r.Value)
 		a.ExpectType(a.funcType.Returns, value, r.Value)
 	}
+
+	return 0
 }
 
-func (a *analyzer) VisitBreak(b *ast.Break) {
+func (a *analyzer) VisitBreak(b *ast.Break) int {
 	if a.loop == 0 {
 		a.Error(b, "'break' needs to be inside a loop")
 	}
+
+	return 0
 }
 
-func (a *analyzer) VisitContinue(c *ast.Continue) {
+func (a *analyzer) VisitContinue(c *ast.Continue) int {
 	if a.loop == 0 {
 		a.Error(c, "'continue' needs to be inside a loop")
 	}
+
+	return 0
 }
 
-func (a *analyzer) VisitBadStmt(_ *ast.BadStmt) {}
+func (a *analyzer) VisitBadStmt(_ *ast.BadStmt) int {
+	return 0
+}
 
 // Utils
 

@@ -47,3 +47,266 @@ func testContinue() bool {
     }
     return sum == 4;  // skipped i=2
 }
+
+// Returning branches do not need a trailing return after the conditional.
+func branchValue(value: i32) i32 {
+    if (value < 0) {
+        return -1;
+    } else if (value == 0) {
+        return 0;
+    } else {
+        if (value == 1) return 10;
+        else return 20;
+    }
+}
+
+#[test("control flow: all conditional branches return")]
+func testReturningBranches() bool {
+    return branchValue(-1) == -1 && branchValue(0) == 0
+        && branchValue(1) == 10 && branchValue(2) == 20;
+}
+
+func literalTrueValue() i32 {
+    if (true) return 11;
+}
+
+func literalFalseValue() i32 {
+    if (false) return 0;
+    else return 12;
+}
+
+#[test("control flow: literal conditions select terminal branches")]
+func testLiteralReturns() bool {
+    return literalTrueValue() == 11 && literalFalseValue() == 12;
+}
+
+func booleanMatchValue(value: bool) i32 {
+    match (value) {
+        false => return 30;
+        true => return 40;
+    }
+}
+
+func singleArmMatchValue(value: bool) i32 {
+    match (value) {
+        false, true => return 50;
+    }
+}
+
+func fallbackMatchValue(value: i32) i32 {
+    match (value) {
+        1, 2 => return 60;
+        _ => return 70;
+    }
+}
+
+#[test("control flow: exhaustive boolean match returns")]
+func testReturningBooleanMatch() bool {
+    return booleanMatchValue(false) == 30 && booleanMatchValue(true) == 40;
+}
+
+#[test("control flow: single exhaustive boolean arm returns")]
+func testReturningSingleArmMatch() bool {
+    return singleArmMatchValue(false) == 50 && singleArmMatchValue(true) == 50;
+}
+
+#[test("control flow: fallback match returns")]
+func testReturningFallbackMatch() bool {
+    return fallbackMatchValue(1) == 60 && fallbackMatchValue(2) == 60
+        && fallbackMatchValue(3) == 70;
+}
+
+func returningWhile(limit: i32) i32 {
+    var i = 0;
+    while (true) {
+        if (i == limit) return i;
+        i++;
+    }
+}
+
+func returningFor(limit: i32) i32 {
+    for (var i = 0;; i++) {
+        if (i == limit) return i;
+        continue;
+    }
+}
+
+func returningLiteralFor() i32 {
+    for (; true;) {
+        return 80;
+    }
+}
+
+#[test("control flow: infinite loop forms can return")]
+func testReturningInfiniteLoops() bool {
+    return returningWhile(3) == 3 && returningFor(4) == 4
+        && returningLiteralFor() == 80;
+}
+
+// Compile the divergent paths, but only execute the paths that return.
+func returnOrDiverge(value: bool) i32 {
+    if (value) return 90;
+    else for (;;) {}
+}
+
+func matchReturnOrDiverge(value: bool) i32 {
+    match (value) {
+        true => return 91;
+        false => while (true) {}
+    }
+}
+
+#[test("control flow: return and divergence are both terminal")]
+func testReturnOrDivergence() bool {
+    return returnOrDiverge(true) == 90 && matchReturnOrDiverge(true) == 91;
+}
+
+#[test("control flow: false loops preserve initializer effects")]
+func testFalseLoops() bool {
+    var result = 0;
+    while (false) { result = 100; }
+    for (result = result + 1; false; result = 200) {
+        result = 300;
+    }
+    return result == 1;
+}
+
+func nestedLoopValue() i32 {
+    var count = 0;
+    for (;;) {
+        while (true) {
+            count++;
+            break;
+        }
+        if (count == 3) return count;
+    }
+}
+
+#[test("control flow: nested breaks do not exit outer infinite loops")]
+func testNestedLoopExits() bool {
+    return nestedLoopValue() == 3;
+}
+
+func unreachableBreakValue() i32 {
+    var count = 0;
+    for (;;) {
+        count++;
+        if (count == 3) return count;
+        continue;
+        break;
+    }
+}
+
+#[test("control flow: unreachable breaks do not make loops fall through")]
+func testUnreachableBreak() bool {
+    return unreachableBreakValue() == 3;
+}
+
+#[test("control flow: match break and continue preserve loop targets")]
+func testMatchLoopTargets() bool {
+    var result = 0;
+    for (var i = 0; i < 5; i++) {
+        match (i) {
+            0 => continue;
+            1 => result = result + 1;
+            _ => break;
+        }
+        result = result + 10;
+    }
+    return result == 11;
+}
+
+func terminalMatchInLoop(value: bool) i32 {
+    for (;;) {
+        match (value) {
+            false => return 100;
+            true => return 101;
+        }
+    }
+}
+
+#[test("control flow: returning match terminates enclosing loop body")]
+func testTerminalMatchInLoop() bool {
+    return terminalMatchInLoop(false) == 100 && terminalMatchInLoop(true) == 101;
+}
+
+func initializedOptionLoop(initial: ?i32) ?i32 {
+    var sum = 0;
+    for (var i = initial?; i < 3; i++) {
+        sum = sum + i;
+    }
+    return sum;
+}
+
+#[test("control flow: propagation in for initializer")]
+func testPropagationInInitializer() bool {
+    var some = initializedOptionLoop(1);
+    var none = initializedOptionLoop(Option:[i32]::none());
+    return some.is_some() && some.unwrap() == 3 && none.is_none();
+}
+
+func optionLoopCondition(value: i32, stop: i32) ?bool {
+    if (value == stop) return Option:[bool]::none();
+    else return value < 3;
+}
+
+func conditionalOptionLoop(stop: i32) ?i32 {
+    var i = 0;
+    while (optionLoopCondition(i, stop)?) {
+        i++;
+    }
+    return i;
+}
+
+#[test("control flow: propagation in loop condition")]
+func testPropagationInCondition() bool {
+    var some = conditionalOptionLoop(10);
+    var none = conditionalOptionLoop(1);
+    return some.is_some() && some.unwrap() == 3 && none.is_none();
+}
+
+func optionLoopIncrement(value: i32, stop: i32) ?i32 {
+    if (value == stop) return Option:[i32]::none();
+    else return value + 1;
+}
+
+func incrementedOptionLoop(stop: i32) ?i32 {
+    var sum = 0;
+    for (var i = 0; i < 3; i = optionLoopIncrement(i, stop)?) {
+        sum = sum + i;
+        continue;
+    }
+    return sum;
+}
+
+#[test("control flow: continue reaches propagating increment")]
+func testPropagationInIncrement() bool {
+    var some = incrementedOptionLoop(10);
+    var none = incrementedOptionLoop(1);
+    return some.is_some() && some.unwrap() == 3 && none.is_none();
+}
+
+func propagatedBooleanAnd(left: bool, right: ?bool) ?bool {
+    if (left && right?) return true;
+    else return false;
+}
+
+func propagatedBooleanOr(left: bool, right: ?bool) ?bool {
+    if (left || right?) return true;
+    else return false;
+}
+
+#[test("control flow: short circuit skips option propagation")]
+func testShortCircuitPropagation() bool {
+    var skippedAnd = propagatedBooleanAnd(false, Option:[bool]::none());
+    var skippedOr = propagatedBooleanOr(true, Option:[bool]::none());
+    var evaluatedAnd = propagatedBooleanAnd(true, Option:[bool]::none());
+    var evaluatedOr = propagatedBooleanOr(false, Option:[bool]::none());
+    var someAnd = propagatedBooleanAnd(true, true);
+    var someOr = propagatedBooleanOr(false, false);
+    return skippedAnd.is_some() && !skippedAnd.unwrap()
+        && skippedOr.is_some() && skippedOr.unwrap()
+        && evaluatedAnd.is_none() && evaluatedOr.is_none()
+        && someAnd.is_some() && someAnd.unwrap()
+        && someOr.is_some() && !someOr.unwrap();
+}

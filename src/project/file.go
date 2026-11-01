@@ -72,6 +72,7 @@ func (f *File) resolve(ctx *sema.Context, root symbols.Scope) {
 func (f *File) analyze(ctx *sema.Context, root symbols.Scope) {
 	f.Sema.ExprInfos = make(map[ast.Node]sema.ExprInfo)
 	f.Sema.ArmPatterns = make(map[*ast.Arm][]sema.Pattern)
+	f.Sema.StmtExits = make(map[ast.Stmt]sema.Exits)
 	f.semaDiagnostics = sema.Analyze(ctx, f.Ast, root, f.Proj.Config.Name, f.Path)
 }
 

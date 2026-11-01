@@ -23,6 +23,7 @@ type FileData struct {
 
 	NodeTypes   map[ast.Node]types.Type
 	ArmPatterns map[*ast.Arm][]Pattern
+	StmtExits   map[ast.Stmt]Exits
 
 	Evaluations map[ast.Expr]eval.Value
 }

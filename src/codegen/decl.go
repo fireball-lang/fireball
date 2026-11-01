@@ -128,7 +128,10 @@ func (c *Codegen) VisitFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 	c.BeginFunc(f, typ, fun)
 
 	c.GenerateStmt(f.Body)
-	c.Emitter.Ret(nil)
+
+	if typ.Returns == types.PrimitiveVoid && c.CanFallthrough(f.Body) {
+		c.Emitter.Ret(nil)
+	}
 
 	c.EndFunc()
 }
