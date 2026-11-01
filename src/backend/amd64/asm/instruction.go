@@ -97,6 +97,7 @@ const (
 	OcJnp
 	OcCall
 	OcRet
+	OcUd
 
 	// Comparisons & Conditions
 

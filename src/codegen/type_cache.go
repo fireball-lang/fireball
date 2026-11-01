@@ -70,6 +70,9 @@ func (t *TypeCache) GetMeta(typ types.Type) ir.MetaRef {
 
 	// Create
 	switch typ := typ.(type) {
+	case *types.Never:
+		return ir.MetaRef(0)
+
 	case *types.Primitive:
 		return t.createPrimitiveMeta(typ)
 	case *types.Reference:

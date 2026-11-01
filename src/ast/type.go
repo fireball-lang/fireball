@@ -16,6 +16,22 @@ type Type interface {
 	_isType()
 }
 
+// Never
+
+type NeverType struct {
+	baseNode
+}
+
+func (n *NeverType) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {}
+}
+
+func (n *NeverType) String() string {
+	return "never"
+}
+
+func (n *NeverType) _isType() {}
+
 // Primitive
 
 type PrimitiveType struct {

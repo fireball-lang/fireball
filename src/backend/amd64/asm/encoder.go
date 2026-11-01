@@ -247,6 +247,8 @@ func (a *encoder) Encode(inst *Instruction) {
 		a.encodeCall(inst.Args[0])
 	case OcRet:
 		a.bytes = append(a.bytes, 0xC3)
+	case OcUd:
+		a.bytes = append(a.bytes, 0x0F, 0x0B)
 
 	// Comparisons & Conditions
 

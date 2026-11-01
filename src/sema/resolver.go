@@ -222,7 +222,8 @@ func (r *resolver) ResolveMethod(f *ast.Func, okType bool, typ, methodTyp types.
 	for _, param := range f.Params {
 		typ := r.ResolveAndAnalyzeType(param.Type)
 
-		if typ == types.PrimitiveVoid {
+		if types.IsNonValue(typ) {
+			r.Error(param.Type, "'%s' is not allowed as a parameter", typ)
 			typ = types.Invalid
 		}
 

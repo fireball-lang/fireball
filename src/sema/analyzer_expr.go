@@ -270,6 +270,11 @@ func (a *analyzer) VisitTupleInitializer(t *ast.TupleInitializer) ExprInfo {
 			valueTyp = defaultType(valueTyp)
 		}
 
+		if types.IsNonValue(valueTyp) {
+			a.Error(value, "'%s' is not allowed inside a tuple", valueTyp)
+			valueTyp = types.Invalid
+		}
+
 		typ.Types[i] = valueTyp
 	}
 
@@ -284,6 +289,9 @@ func (a *analyzer) VisitSizeOf(s *ast.SizeOf) ExprInfo {
 	if typ == types.Invalid {
 		return ExprInfo{Type: types.Invalid}
 	}
+	if types.IsNonValue(typ) {
+		return a.Error(s.Type, "'%s' is not allowed inside 'sizeof'", typ)
+	}
 
 	return ExprInfo{
 		Type:     types.PrimitiveU32,
@@ -296,6 +304,9 @@ func (a *analyzer) VisitAlignOf(e *ast.AlignOf) ExprInfo {
 	if typ == types.Invalid {
 		return ExprInfo{Type: types.Invalid}
 	}
+	if types.IsNonValue(typ) {
+		return a.Error(e.Type, "'%s' is not allowed inside 'alignof'", typ)
+	}
 
 	return ExprInfo{
 		Type:     types.PrimitiveU32,
@@ -307,6 +318,9 @@ func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) ExprInfo {
 	typ := a.ResolveAndAnalyzeType(o.Type)
 	if typ == types.Invalid {
 		return ExprInfo{Type: types.Invalid}
+	}
+	if types.IsNonValue(typ) {
+		return a.Error(o.Type, "'%s' is not allowed inside 'offsetof'", typ)
 	}
 
 	if t, ok := typ.(*types.Tuple); ok {
@@ -1105,7 +1119,7 @@ func (a *analyzer) applyMethodTypeArgs(m *ast.Member, f *types.Func, structSubs 
 	base := len(subs)
 
 	for i, param := range f.TypeParams {
-		arg := a.ResolveAndAnalyzeType(m.TypeArgs[i])
+		arg := a.ResolveTypeArgument(m.TypeArgs[i])
 		subs = append(subs, types.Substitution{Param: param, Type: arg})
 	}
 
@@ -1245,7 +1259,11 @@ func (a *analyzer) VisitCall(c *ast.Call) ExprInfo {
 		}
 
 		for i := len(params); i < len(c.Args); i++ {
-			a.AnalyzeExpr(c.Args[i])
+			arg := a.AnalyzeExpr(c.Args[i])
+
+			if types.IsNonValue(arg.Type) {
+				a.Error(c.Args[i], "'%s' is not allowed as a variadic argument", arg.Type)
+			}
 		}
 
 		return ExprInfo{Type: f.Returns}

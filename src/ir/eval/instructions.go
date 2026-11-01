@@ -28,6 +28,10 @@ func (e *Evaluator) evalInst(inst ir.Instruction) (Register, bool) {
 
 		return Register{}, false
 
+	case *ir.Unreachable:
+		e.panic("reached an 'Unreachable' instruction")
+		return Register{}, false
+
 	// Unary instructions
 
 	case *ir.FNeg:

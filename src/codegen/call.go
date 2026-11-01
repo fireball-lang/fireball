@@ -125,14 +125,18 @@ func (c *Codegen) BuildCallSignature(typ *types.Func, hasReceiver bool) *ir.Sign
 	}
 
 	// Returns
-	classes, info := c.CallConv.Classify(c.Arch, typ.Returns)
-
-	if len(classes) == 1 && classes[0] == abi.Memory {
+	if typ.Returns == types.NeverType {
 		sig.Returns = ir.Void
-		sig.SRet = c.Types.Get(typ.Returns)
-		sig.Params = slices.Insert(sig.Params, 0, ir.Type(ir.Pointer))
 	} else {
-		sig.Returns = getTypeForClasses(classes, info.Size)
+		classes, info := c.CallConv.Classify(c.Arch, typ.Returns)
+
+		if len(classes) == 1 && classes[0] == abi.Memory {
+			sig.Returns = ir.Void
+			sig.SRet = c.Types.Get(typ.Returns)
+			sig.Params = slices.Insert(sig.Params, 0, ir.Type(ir.Pointer))
+		} else {
+			sig.Returns = getTypeForClasses(classes, info.Size)
+		}
 	}
 
 	return sig
@@ -200,6 +204,13 @@ func (c *Codegen) EmitCall(callee ir.Value, sig *ir.Signature, funcType *types.F
 		typ := getTypeForClasses(classes, info.Size)
 		argValue = c.BitCast(argValue, typ)
 		finalArgs = append(finalArgs, argValue)
+	}
+
+	// Never returning call
+	if returnType == types.NeverType {
+		c.Emitter.Call(sig, callee, finalArgs)
+		c.Emitter.Unreachable()
+		return nil
 	}
 
 	// Return value handling

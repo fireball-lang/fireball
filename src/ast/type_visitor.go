@@ -1,6 +1,8 @@
 package ast
 
 type TypeVisitor[T any] interface {
+	VisitNeverType(n *NeverType) T
+
 	VisitPrimitiveType(p *PrimitiveType) T
 	VisitArrayType(a *ArrayType) T
 	VisitTupleType(t *TupleType) T
@@ -19,6 +21,9 @@ type TypeVisitor[T any] interface {
 
 func VisitType[V TypeVisitor[T], T any](visitor V, typ Type) T {
 	switch typ := typ.(type) {
+	case *NeverType:
+		return visitor.VisitNeverType(typ)
+
 	case *PrimitiveType:
 		return visitor.VisitPrimitiveType(typ)
 	case *ArrayType:

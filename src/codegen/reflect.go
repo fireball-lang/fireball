@@ -177,7 +177,13 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 		typ = null.Underlying()
 	}
 
-	info := c.Arch.Info(typ)
+	var info abi.Info
+	if typ == types.NeverType {
+		info = c.Arch.Info(types.PrimitiveVoid)
+	} else {
+		info = c.Arch.Info(typ)
+	}
+
 	sb := c.Struct(c.Ctx.Builtins.TypeInfo)
 
 	// kind
@@ -190,24 +196,26 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 		var kind uint64
 
 		switch typ.(type) {
-		case *types.Primitive:
+		case *types.Never:
 			kind = 0
-		case *types.Array:
+		case *types.Primitive:
 			kind = 1
-		case *types.Tuple:
+		case *types.Array:
 			kind = 2
-		case *types.Reference:
+		case *types.Tuple:
 			kind = 3
-		case *types.Pointer:
+		case *types.Reference:
 			kind = 4
-		case *types.Func:
+		case *types.Pointer:
 			kind = 5
-		case *types.Enum:
+		case *types.Func:
 			kind = 6
-		case *types.Struct:
+		case *types.Enum:
 			kind = 7
-		case *types.Interface:
+		case *types.Struct:
 			kind = 8
+		case *types.Interface:
+			kind = 9
 
 		default:
 			panic("codegen.Codegen.CreateTypeInfo() - Invalid type")
@@ -276,6 +284,11 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 	// data
 	{
 		switch typ := typ.(type) {
+		case *types.Never:
+			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, 0)})
+			sb.Set("data_ptr1", &ir.Null{})
+			sb.Set("data_ptr2", &ir.Null{})
+
 		case *types.Primitive:
 			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(typ.Kind))})
 			sb.Set("data_ptr1", &ir.Null{})
@@ -579,7 +592,7 @@ func TypeInfoLinkName(typ types.Type, kind string) string {
 	var substitutions []types.Substitution
 
 	switch typ := typ.(type) {
-	case *types.Primitive, *types.Array, *types.Tuple, *types.Reference, *types.Pointer, *types.Func:
+	case *types.Never, *types.Primitive, *types.Array, *types.Tuple, *types.Reference, *types.Pointer, *types.Func:
 		name = typ.String()
 
 	case *types.Enum:

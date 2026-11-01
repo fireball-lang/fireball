@@ -40,9 +40,12 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 			for i := 0; i < len(s.Fields); i++ {
 				typ := r.ResolveAndAnalyzeType(s.Fields[i].Type)
 
-				if typ == types.PrimitiveVoid {
+				if types.IsNonValue(typ) {
+					r.Error(s.Fields[i].Type, "'%s' is not allowed as a struct field", typ)
 					typ = types.Invalid
-				} else if typ == t {
+				}
+
+				if typ == t {
 					r.Error(s.Fields[i].Type, "recursive structs are not allowed without pointers")
 					typ = types.Invalid
 				}
@@ -120,8 +123,8 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 
 			typ := r.ResolveAndAnalyzeType(assocConst.Type)
 
-			if typ == types.PrimitiveVoid {
-				r.Error(assocConst.Type, "associated constant cannot be of type 'void'")
+			if types.IsNonValue(typ) {
+				r.Error(assocConst.Type, "'%s' is not allowed as an associated constant", typ)
 				typ = types.Invalid
 			}
 
@@ -155,8 +158,8 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 
 		typ := r.ResolveAndAnalyzeType(c.Type)
 
-		if typ == types.PrimitiveVoid {
-			r.Error(c.Name(), "constant cannot have a void type")
+		if types.IsNonValue(typ) {
+			r.Error(c.Name(), "'%s' is not allowed as a constant", typ)
 			typ = types.Invalid
 		}
 
@@ -168,8 +171,8 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 
 		typ := r.ResolveAndAnalyzeType(g.Type)
 
-		if typ == types.PrimitiveVoid {
-			r.Error(g.Name(), "global variable cannot have a void type")
+		if types.IsNonValue(typ) {
+			r.Error(g.Name(), "'%s' is not allowed as a global variable", typ)
 			typ = types.Invalid
 		}
 
@@ -198,7 +201,8 @@ func (r *resolver) ResolveFunc(f *ast.Func, t *types.Func) {
 	for i := 0; i < len(f.Params); i++ {
 		typ := r.ResolveAndAnalyzeType(f.Params[i].Type)
 
-		if typ == types.PrimitiveVoid {
+		if types.IsNonValue(typ) {
+			r.Error(f.Params[i].Type, "'%s' is not allowed as a parameter", typ)
 			typ = types.Invalid
 		}
 

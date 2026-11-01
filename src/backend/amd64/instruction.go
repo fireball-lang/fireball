@@ -88,6 +88,9 @@ func (b *backend) GenerateInstruction(inst ir.Instruction) {
 			b.asm.Jmp(asm.LabelOp(b.blockLabels[inst.IfFalse]))
 		}
 
+	case *ir.Unreachable:
+		b.asm.Ud()
+
 	// Unary instructions
 
 	case *ir.FNeg:

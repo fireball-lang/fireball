@@ -441,6 +441,11 @@ func (c *Codegen) VisitReturn(r *ast.Return) int {
 	var value ir.Value
 
 	if !core.IsNil(r.Value) {
+		if c.ExprType(r.Value) == types.NeverType {
+			c.GenerateExpr(r.Value)
+			return 0
+		}
+
 		value = c.LoadImplicitCast(r.Value, c.ResolveType(c.funcTyp.Returns))
 	}
 

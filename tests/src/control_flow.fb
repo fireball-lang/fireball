@@ -310,3 +310,148 @@ func testShortCircuitPropagation() bool {
         && someAnd.is_some() && someAnd.unwrap()
         && someOr.is_some() && !someOr.unwrap();
 }
+
+// Never-returning paths are compiled, but tests only execute the returning paths.
+func neverSpin() never {
+    for (;;) {}
+}
+
+func neverValueOrSpin(value: bool) i32 {
+    if (value) return 110;
+    neverSpin();
+}
+
+#[test("control flow: never call replaces trailing return")]
+func testNeverCall() bool {
+    return neverValueOrSpin(true) == 110;
+}
+
+func neverMatchValue(value: bool) i32 {
+    match (value) {
+        false => neverSpin();
+        true => return 111;
+    }
+}
+
+#[test("control flow: exhaustive match with never arm")]
+func testNeverMatchArm() bool {
+    return neverMatchValue(true) == 111;
+}
+
+func neverWrapper() never {
+    neverSpin();
+}
+
+func neverReturnWrapper() never {
+    return neverSpin();
+}
+
+func neverWrapperValue(value: bool) i32 {
+    if (value) return 112;
+    neverWrapper();
+}
+
+func neverReturnWrapperValue(value: bool) i32 {
+    if (value) return 113;
+    neverReturnWrapper();
+}
+
+#[test("control flow: never wrappers and return operands")]
+func testNeverWrappers() bool {
+    return neverWrapperValue(true) == 112 && neverReturnWrapperValue(true) == 113;
+}
+
+func neverCallbackValue(value: bool, callback: func() never) i32 {
+    if (value) return 114;
+    callback();
+}
+
+#[test("control flow: indirect never call")]
+func testNeverCallback() bool {
+    var callback: func() never = neverSpin;
+    return neverCallbackValue(true, callback) == 114;
+}
+
+func neverGeneric[T](_value: T) never {
+    neverSpin();
+}
+
+func neverGenericValue(value: bool) i32 {
+    if (value) return 115;
+    neverGeneric:[i32](1);
+}
+
+#[test("control flow: generic function preserves never result")]
+func testNeverGenericResult() bool {
+    return neverGenericValue(true) == 115;
+}
+
+func neverIdentity[T](value: T) T {
+    return value;
+}
+
+struct NeverCallbackHolder[T] {
+    callback: T,
+}
+
+#[test("control flow: never callback is a valid generic argument")]
+func testNeverGenericCallback() bool {
+    var callback = neverIdentity:[func() never](neverSpin);
+    var holder = NeverCallbackHolder:[func() never] { callback: callback };
+    return neverCallbackValue(true, holder.callback) == 114;
+}
+
+interface NeverStopper {
+    func stop(self) never;
+}
+
+struct NeverSpinner {
+    tag: i32,
+}
+
+impl NeverSpinner : NeverStopper {
+    func stop(self) never {
+        neverSpin();
+    }
+}
+
+func neverInterfaceValue(value: bool, stopper: NeverStopper) i32 {
+    if (value) return 116;
+    stopper.stop();
+}
+
+#[test("control flow: interface method preserves never result")]
+func testNeverInterfaceCall() bool {
+    var spinner = NeverSpinner { tag: 1 };
+    var stopper: NeverStopper = &spinner;
+    return neverInterfaceValue(true, stopper) == 116;
+}
+
+func neverWhileValue(value: bool) i32 {
+    while (true) {
+        if (value) return 117;
+        neverSpin();
+    }
+}
+
+func neverForValue(value: bool) i32 {
+    for (;;) {
+        if (value) return 118;
+        neverSpin();
+    }
+}
+
+#[test("control flow: never calls terminate loop bodies")]
+func testNeverLoopBodies() bool {
+    return neverWhileValue(true) == 117 && neverForValue(true) == 118;
+}
+
+func neverPanicValue(value: bool) i32 {
+    if (value) return 119;
+    panic("never-returning panic path must not execute");
+}
+
+#[test("control flow: panic replaces trailing return")]
+func testNeverPanic() bool {
+    return neverPanicValue(true) == 119;
+}

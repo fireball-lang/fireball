@@ -6,6 +6,12 @@ import (
 	"fireball/types"
 )
 
+func (hi *highlighter) VisitNeverType(n *ast.NeverType) int {
+	hi.AddFull(n, typeKind, 0)
+
+	return 0
+}
+
 func (hi *highlighter) VisitPrimitiveType(p *ast.PrimitiveType) int {
 	hi.AddFull(p, typeKind, 0)
 

@@ -67,6 +67,14 @@ func (p *parser) parseIdentifierType() (ast.Type, int) {
 		return p.badType(), p.error("expected an identifier")
 	}
 
+	if p.current.Text == "never" {
+		if mutable {
+			p.reportError(mutableRange, "'never' type cannot be mutable")
+		}
+
+		return p.neverType()
+	}
+
 	if p.current.Text == "Self" {
 		if mutable {
 			p.reportError(mutableRange, "'Self' type cannot be mutable")
@@ -120,6 +128,12 @@ func (p *parser) parseIdentifierType() (ast.Type, int) {
 	}
 
 	return p.parseNonPrimitiveIdentifierType(mutable)
+}
+
+func (p *parser) neverType() (*ast.NeverType, int) {
+	t := &ast.NeverType{}
+	t.Range_ = p.advance().Range
+	return t, -1
 }
 
 func (p *parser) selfType() (*ast.SelfType, int) {

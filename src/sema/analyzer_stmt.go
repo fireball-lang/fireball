@@ -54,8 +54,8 @@ func (a *analyzer) VisitVar(v *ast.Var) int {
 		return 0
 	}
 
-	if typ == types.PrimitiveVoid {
-		a.Error(v.Name, "variable cannot be of type 'void'")
+	if types.IsNonValue(typ) {
+		a.Error(v.Name, "'%s' is not allowed as a local variable", typ)
 		typ = types.Invalid
 	}
 
@@ -175,11 +175,24 @@ func (a *analyzer) VisitFor(f *ast.For) int {
 
 func (a *analyzer) VisitReturn(r *ast.Return) int {
 	if core.IsNil(r.Value) {
-		if !a.funcType.Returns.Equals(types.PrimitiveVoid) {
+		switch {
+		case a.funcType.Returns == types.NeverType:
+			a.Error(r, "cannot return normally from a never-returning function")
+
+		case !a.funcType.Returns.Equals(types.PrimitiveVoid):
 			a.Error(r, "expected '%s' got nothing", a.funcType.Returns)
 		}
+
+		return 0
+	}
+
+	value := a.AnalyzeExpr(r.Value)
+
+	if a.funcType.Returns == types.NeverType {
+		if !value.Invalid() && value.Type != types.NeverType {
+			a.Error(r, "cannot return normally from a never-returning function")
+		}
 	} else {
-		value := a.AnalyzeExpr(r.Value)
 		a.ExpectType(a.funcType.Returns, value, r.Value)
 	}
 

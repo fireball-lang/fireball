@@ -2,15 +2,16 @@ mod core;
 
 /// Every possible type a `TypeInfo` can represent.
 pub enum TypeKind : u8 {
-	Primitive = 0,
-	Array = 1,
-	Tuple = 2,
-	Reference = 3,
-	Pointer = 4,
-	Function = 5,
-	Enum = 6,
-	Struct = 7,
-	Interface = 8,
+	Never = 0,
+	Primitive = 1,
+	Array = 2,
+	Tuple = 3,
+	Reference = 4,
+	Pointer = 5,
+	Function = 6,
+	Enum = 7,
+	Struct = 8,
+	Interface = 9,
 }
 
 impl TypeKind {

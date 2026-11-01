@@ -11,6 +11,19 @@ type Composed interface {
 	Underlying() Type
 }
 
+func IsNonValue(typ Type) bool {
+	switch typ := typ.(type) {
+	case *Never:
+		return true
+
+	case *Primitive:
+		return typ.Kind == Void
+
+	default:
+		return false
+	}
+}
+
 func typeSliceEquals(a, b []Type) bool {
 	if len(a) != len(b) {
 		return false

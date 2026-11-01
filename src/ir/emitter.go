@@ -63,7 +63,7 @@ func (e *Emitter) Begin(block *Block) {
 
 	for inst := range block.Instructions() {
 		switch inst.(type) {
-		case *Ret, *Br, *BrCond:
+		case *Ret, *Br, *BrCond, *Unreachable:
 			e.skip = true
 			return
 		}
@@ -128,6 +128,15 @@ func (e *Emitter) BrCond(condition Value, ifTrue, ifFalse *Block) Instruction {
 		IfTrue:    ifTrue,
 		IfFalse:   ifFalse,
 	})
+}
+
+func (e *Emitter) Unreachable() Instruction {
+	if e.skip {
+		return dummy
+	}
+	e.skip = true
+
+	return e.emit(&Unreachable{})
 }
 
 // Unary instructions

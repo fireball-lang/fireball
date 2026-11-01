@@ -11,6 +11,11 @@ import (
 
 // Visitor
 
+func (c *common) VisitNeverType(t *ast.NeverType) types.Type {
+	c.sema.NodeTypes[t] = types.NeverType
+	return types.NeverType
+}
+
 func (c *common) VisitPrimitiveType(t *ast.PrimitiveType) types.Type {
 	typ := types.GetPrimitive(t.Kind)
 
@@ -27,8 +32,8 @@ func (c *common) VisitArrayType(t *ast.ArrayType) types.Type {
 	if element == types.Invalid {
 		return types.Invalid
 	}
-	if element == types.PrimitiveVoid {
-		return c.Error(t, "arrays of voids are not allowed").Type
+	if types.IsNonValue(element) {
+		return c.Error(t, "arrays of '%s' are not allowed", element).Type
 	}
 
 	size := lexer.ParseInteger(t.Size)
@@ -67,8 +72,8 @@ func (c *common) VisitTupleType(t *ast.TupleType) types.Type {
 	for i, t := range t.Types {
 		tTyp := c.ResolveAndAnalyzeType(t)
 
-		if tTyp == types.PrimitiveVoid {
-			c.Error(t, "void is not allowed inside a tuple")
+		if types.IsNonValue(tTyp) {
+			c.Error(t, "'%s' is not allowed inside a tuple", tTyp)
 			tTyp = types.Invalid
 		}
 
@@ -87,6 +92,9 @@ func (c *common) VisitReferenceType(t *ast.ReferenceType) types.Type {
 	pointee := c.ResolveAndAnalyzeType(t.Pointee)
 	if pointee == types.Invalid {
 		return types.Invalid
+	}
+	if pointee == types.NeverType {
+		return c.Error(t, "references of 'never' are not allowed").Type
 	}
 
 	typ := &types.Reference{
@@ -107,6 +115,9 @@ func (c *common) VisitPointerType(t *ast.PointerType) types.Type {
 	if pointee == types.Invalid {
 		return types.Invalid
 	}
+	if pointee == types.NeverType {
+		return c.Error(t, "pointers of 'never' are not allowed").Type
+	}
 
 	typ := &types.Pointer{
 		Mutable: t.Mutable,
@@ -125,7 +136,14 @@ func (c *common) VisitFuncType(t *ast.FuncType) types.Type {
 	params := make([]types.Type, len(t.Params))
 
 	for i, param := range t.Params {
-		params[i] = c.ResolveAndAnalyzeType(param.Type)
+		typ := c.ResolveAndAnalyzeType(param.Type)
+
+		if types.IsNonValue(typ) {
+			c.Error(param.Type, "'%s' is not allowed as a parameter", typ)
+			typ = types.Invalid
+		}
+
+		params[i] = typ
 	}
 
 	typ := &types.Func{

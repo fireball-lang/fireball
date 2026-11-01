@@ -337,7 +337,7 @@ func (c *common) CheckTypeArgs(typ types.Type, typeParams []*types.Param, entry 
 	base := len(subs)
 
 	for i, param := range typeParams {
-		arg := c.ResolveAndAnalyzeType(entry.TypeArgs[i])
+		arg := c.ResolveTypeArgument(entry.TypeArgs[i])
 
 		subs = append(subs, types.Substitution{
 			Param: param,
@@ -408,6 +408,17 @@ func (c *common) CheckConstraint(typ types.Type, constraint *types.Interface, no
 
 	c.Error(node, "type '%s' does not satisfy constraint '%s'", typ, constraint)
 	return false
+}
+
+func (c *common) ResolveTypeArgument(node ast.Type) types.Type {
+	typ := c.ResolveAndAnalyzeType(node)
+
+	if types.IsNonValue(typ) {
+		c.Error(node, "'%s' is not allowed as a type argument", typ)
+		return types.Invalid
+	}
+
+	return typ
 }
 
 func GetScope(scope symbols.Scope, path []*ast.Leaf) (symbols.Scope, bool) {

@@ -36,6 +36,9 @@ func (w *writer) instruction(in ir.Instruction) {
 		w.string(", ")
 		w.label(in.IfFalse)
 
+	case *ir.Unreachable:
+		w.string("unreachable")
+
 	// Unary instructions
 
 	case *ir.FNeg:

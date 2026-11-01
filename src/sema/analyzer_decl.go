@@ -55,10 +55,6 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 			a.Error(field.Name, "field with the name '%s' already exists", name)
 		}
 
-		if typ.Fields[i].Type == types.PrimitiveVoid {
-			a.Error(field.Type, "field cannot be of type 'void'")
-		}
-
 		a.CheckAttributes(field.Attributes(), fieldAllowedAttributes)
 
 		if typ.Fields[i].Required && typ.Layout == types.Union {
@@ -641,11 +637,6 @@ func (a *analyzer) VisitFuncInner(f *ast.Func, typ *types.Func, receiverTyp type
 		typ := typ.Params[paramI]
 		paramI++
 
-		if typ == types.PrimitiveVoid {
-			a.Error(param.Type, "parameter cannot be of type 'void'")
-			typ = types.Invalid
-		}
-
 		symbol := symbols.Symbol{
 			Kind:   symbols.Param,
 			Public: true,
@@ -697,8 +688,14 @@ func (a *analyzer) VisitFuncInner(f *ast.Func, typ *types.Func, receiverTyp type
 	if !core.IsNil(f.Body) {
 		exits := AnalyzeFlow(a.sema, f.Body)
 
-		if !typ.Returns.Equals(types.PrimitiveVoid) && exits&ExitFallthrough != 0 {
-			a.Error(f.Name_, "missing return statement")
+		if exits&ExitFallthrough != 0 {
+			switch {
+			case typ.Returns == types.NeverType:
+				a.Error(f.Name_, "never-returning function can reach the end of its body")
+
+			case typ.Returns != types.PrimitiveVoid:
+				a.Error(f.Name_, "missing return statement")
+			}
 		}
 	}
 }

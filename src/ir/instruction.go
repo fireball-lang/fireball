@@ -100,6 +100,14 @@ func (b *BrCond) Values() iter.Seq[Value] {
 	}
 }
 
+type Unreachable struct {
+	baseVoidInstruction
+}
+
+func (u *Unreachable) Values() iter.Seq[Value] {
+	return func(yield func(Value) bool) {}
+}
+
 // Unary instructions
 
 type FNeg struct {

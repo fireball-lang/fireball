@@ -447,6 +447,10 @@ func (e *Emitter) Ret() {
 	e.instructions = append(e.instructions, Instruction{Op: OcRet})
 }
 
+func (e *Emitter) Ud() {
+	e.instructions = append(e.instructions, Instruction{Op: OcUd})
+}
+
 // Comparisons & Flags
 
 func (e *Emitter) Test(dst, src Operand) {

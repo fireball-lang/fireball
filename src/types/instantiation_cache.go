@@ -120,7 +120,7 @@ func (c *InstantiationCache) resolve(typ Type, substitutions []Substitution) Typ
 	case *Null:
 		return typ.Underlying()
 
-	case *invalid, *Integer, *Primitive:
+	case *invalid, *Never, *Integer, *Primitive:
 		return typ
 
 	case *Reference:

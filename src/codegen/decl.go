@@ -40,7 +40,7 @@ func (c *Codegen) BeginFunc(f *ast.Func, typ *types.Func, fun *ir.Function) {
 	paramI := 0
 
 	// Return value
-	if !c.CompTime {
+	if !c.CompTime && typ.Returns != types.NeverType {
 		classes, _ := c.CallConv.Classify(c.Arch, typ.Returns)
 
 		if len(classes) == 1 && classes[0] == abi.Memory {
@@ -230,7 +230,9 @@ func (c *Codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool, in 
 	}
 
 	// Returns
-	if c.CompTime {
+	if typ.Returns == types.NeverType {
+		sig.Returns = ir.Void
+	} else if c.CompTime {
 		sig.Returns = c.Types.Get(typ.Returns)
 	} else {
 		classes, info := c.CallConv.Classify(c.Arch, typ.Returns)

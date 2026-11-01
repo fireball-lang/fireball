@@ -157,6 +157,58 @@ func typeofFunctionNoParameters() bool {
 	return typeof(func() i32).parameters().size == 0u;
 }
 
+// Never is a distinct semantic result type, not primitive void.
+
+#[test("typeof(never) has its own kind")]
+func typeofNeverKind() bool {
+	return typeof(never).kind == TypeKind::Never;
+}
+
+#[test("typeof(never) is distinct from void")]
+func typeofNeverNotVoid() bool {
+	return typeof(never) != typeof(void)
+		&& typeof(never).kind != TypeKind::Primitive
+		&& typeof(void).primitive_kind() == PrimitiveKind::Void;
+}
+
+#[test("typeof(never) is not a declaration")]
+func typeofNeverNotDecl() bool {
+	return !typeof(never).kind.is_decl() && typeof(never).decl_name() == "";
+}
+
+#[test("typeof(func) preserves never return type")]
+func typeofFunctionReturnNever() bool {
+	var info = typeof(func() never);
+	return info.kind == TypeKind::Function
+		&& info.returns() == typeof(never)
+		&& info.parameters().size == 0u;
+}
+
+#[test("typeof(func) never result preserves parameter types")]
+func typeofNeverFunctionParameters() bool {
+	var info = typeof(func(i32, bool) never);
+	var params = info.parameters();
+	return info.returns().kind == TypeKind::Never
+		&& params.size == 2u
+		&& params[0u].primitive_kind() == PrimitiveKind::I32
+		&& params[1u].primitive_kind() == PrimitiveKind::Bool;
+}
+
+#[test("typeof(func) distinguishes void and never signatures")]
+func typeofNeverFunctionNotVoid() bool {
+	return typeof(func() never) != typeof(func() void)
+		&& typeof(func() never).returns() != typeof(func() void).returns();
+}
+
+#[test("typeof generic field preserves never callback signature")]
+func typeofNeverCallbackField() bool {
+	var fields = typeof(Box[func(i32) never]).fields();
+	return fields.size == 1u
+		&& fields[0u].type_info.kind == TypeKind::Function
+		&& fields[0u].type_info.returns() == typeof(never)
+		&& fields[0u].type_info.parameters()[0u].primitive_kind() == PrimitiveKind::I32;
+}
+
 // ── enums ─────────────────────────────────────────────────────────────────────
 
 #[test("typeof(Color) kind and decl name")]

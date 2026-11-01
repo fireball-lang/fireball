@@ -3,6 +3,7 @@ package sema
 import (
 	"fireball/ast"
 	"fireball/core"
+	"fireball/types"
 )
 
 type Exits uint8
@@ -257,6 +258,10 @@ func (f *flowAnalyzer) VisitCall(c *ast.Call) Exits {
 
 	for _, arg := range c.Args {
 		exits = flowSequence(exits, f.Expr(arg))
+	}
+
+	if f.sema.ExprInfos[c].Type == types.NeverType {
+		return flowSequence(exits, 0)
 	}
 
 	return exits

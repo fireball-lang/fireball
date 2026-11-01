@@ -197,6 +197,8 @@ func (c *Codegen) TypeInfos(file *ast.File) {
 	defer core.Scope()()
 
 	if strings.HasSuffix(filepath.ToSlash(c.Module.Path), "build/dependencies/core/src/reflect.fb") {
+		c.CreateTypeInfo(types.NeverType, false)
+
 		c.CreateTypeInfo(types.PrimitiveVoid, false)
 		c.CreateTypeInfo(types.PrimitiveBool, false)
 
