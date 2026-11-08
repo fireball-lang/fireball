@@ -1,0 +1,160 @@
+mod tests::lazy_comptime;
+
+const REFLECTED_POINTER: &TypeInfo = typeof(*Reflected);
+const REFLECTED_FUNCTION: &TypeInfo = typeof(func(Reflected) Reflected);
+const ENUM_FUNCTION: func(Color) Color = identity;
+const CASE_VALUE: i32 = Color::Blue as i32;
+const COLOR_SIZE: u32 = sizeof(Color);
+const CONTAINER_SIZE: u32 = sizeof(Container);
+const COLOR_CAST: Color = 300 as Color;
+const CAST_VALUE: i32 = COLOR_CAST as i32;
+const FORWARD_VALUE: i32 = NEXT_VALUE + 1;
+const NEXT_VALUE: i32 = 299;
+
+struct Container {
+    color: Color,
+}
+
+func classify(value: Color) i32 {
+    match (value) {
+        Color::Blue => return 1;
+        Color::Red => return 2;
+        _ => return 0;
+    }
+}
+
+// All uses above force this enum before the main traversal reaches it.
+enum Color {
+    Red = FORWARD_VALUE - 1,
+    Blue,
+}
+
+enum Reflected {
+    Value = 1000,
+}
+
+func identity(value: Color) Color {
+    return value;
+}
+
+// Pointer layout does not depend on the pointee enum's backing type.
+enum PointerSized {
+    Size = sizeof(*PointerSized),
+}
+
+enum FunctionSized {
+    Size = sizeof(func(FunctionSized) FunctionSized),
+}
+
+#[test("lazy comptime enum patterns and constants")]
+func testLazyEnum() bool {
+    return CASE_VALUE == 300
+        && CAST_VALUE == 300
+        && FORWARD_VALUE == 300
+        && classify(Color::Blue) == 1
+        && classify(Color::Red) == 2
+        && ENUM_FUNCTION(Color::Blue) == Color::Blue
+        && classify(0 as Color) == 0;
+}
+
+#[test("lazy comptime enum layout dependencies")]
+func testLazyLayout() bool {
+    return COLOR_SIZE == 2
+        && CONTAINER_SIZE == 2
+        && PointerSized::Size as u32 == sizeof(*PointerSized)
+        && FunctionSized::Size as u32 == sizeof(func(FunctionSized) FunctionSized);
+}
+
+#[test("lazy comptime reflected enum dependencies")]
+func testLazyReflection() bool {
+    return REFLECTED_POINTER.pointee().size == 2
+        && REFLECTED_FUNCTION.returns().size == 2;
+}
+
+// No earlier constant or layout query forces this enum: the match patterns
+// must be its first request, including the cast expression pattern.
+func classifyPatternFirst(value: PatternFirst) i32 {
+    match (value) {
+        PatternFirst::First => return 1;
+        PatternFirst::Second => return 2;
+        702 as PatternFirst => return 3;
+        _ => return 0;
+    }
+}
+
+enum PatternFirst {
+    First = 700,
+    Second,
+}
+
+#[test("lazy comptime match patterns force a later enum")]
+func testPatternFirst() bool {
+    return classifyPatternFirst(PatternFirst::First) == 1
+        && classifyPatternFirst(PatternFirst::Second) == 2
+        && classifyPatternFirst(702 as PatternFirst) == 3
+        && classifyPatternFirst(0 as PatternFirst) == 0;
+}
+
+// The provider file sorts after this file. These are comptime dependencies,
+// rather than runtime accesses to constants evaluated by the main traversal.
+const CROSS_FILE_VALUE: i32 = tests::lazy_comptime::deps::VALUE + 1;
+const CROSS_FILE_SIZE: u32 = sizeof(tests::lazy_comptime::deps::LayoutOnly);
+const CROSS_FILE_CASE: i32 = tests::lazy_comptime::deps::CaseOnly::Second as i32;
+
+#[test("lazy comptime dependencies in a later file")]
+func testCrossFile() bool {
+    return CROSS_FILE_VALUE == 902
+        && CROSS_FILE_SIZE == 2
+        && CROSS_FILE_CASE == 1001
+        && tests::lazy_comptime::deps::VALUE == 901;
+}
+
+// Force enum -> constant -> different enum, with implicit values at both ends.
+const CHAIN_RESULT: i32 = ChainHead::Last as i32;
+
+enum ChainHead {
+    First = CHAIN_BRIDGE,
+    Last,
+}
+
+const CHAIN_BRIDGE: i32 = (ChainTail::Last as i32) + 2;
+
+enum ChainTail {
+    First = -300,
+    Last,
+}
+
+#[test("lazy comptime mixed enum and constant dependency chain")]
+func testDependencyChain() bool {
+    return CHAIN_RESULT == -296
+        && ChainHead::First as i32 == -297
+        && ChainTail::Last as i32 == -299
+        && sizeof(ChainHead) == 2
+        && sizeof(ChainTail) == 2;
+}
+
+var initializedFromEnum: i32 = GlobalFirst::Value as i32;
+
+enum GlobalFirst {
+    Value = 1234,
+}
+
+#[test("lazy comptime global initializer forces a later enum")]
+func testGlobalInitializer() bool {
+    return initializedFromEnum == 1234;
+}
+
+struct AssociatedHolder {}
+
+impl AssociatedHolder {
+    const VALUE: i32 = AssociatedFirst::Value as i32;
+}
+
+enum AssociatedFirst {
+    Value = 2345,
+}
+
+#[test("lazy comptime associated constant forces a later enum")]
+func testAssociatedInitializer() bool {
+    return AssociatedHolder::VALUE == 2345;
+}

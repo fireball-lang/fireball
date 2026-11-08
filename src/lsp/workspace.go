@@ -170,9 +170,7 @@ func (w *Workspace) parseFiles(files []*project.File) {
 	}
 
 	// Evaluate comp-time
-	for _, proj := range ordered {
-		proj.EvalCompTime(ctx)
-	}
+	project.EvalCompTime(ctx, ordered)
 }
 
 func (w *Workspace) getProject(file string) *project.Project {

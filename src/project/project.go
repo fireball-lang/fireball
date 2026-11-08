@@ -2,6 +2,7 @@ package project
 
 import (
 	"fireball/ast"
+	"fireball/comptime"
 	"fireball/core"
 	"fireball/sema"
 	"fireball/symbols"
@@ -111,11 +112,21 @@ func (p *Project) Analyze(ctx *sema.Context, depMap map[Dependency]*Project) {
 	}
 }
 
-func (p *Project) EvalCompTime(ctx *sema.Context) {
+func EvalCompTime(ctx *sema.Context, projects []*Project) {
 	defer core.Scope()()
 
-	for _, file := range p.Files {
-		file.evalCompTime(ctx)
+	evaluator := comptime.NewEvaluator(ctx)
+
+	for _, proj := range projects {
+		for _, file := range proj.Files {
+			evaluator.EvaluateFile(file.Ast)
+		}
+	}
+
+	for _, proj := range projects {
+		for _, file := range proj.Files {
+			file.compTimeDiagnostics = evaluator.Diagnostics(file.Ast)
+		}
 	}
 }
 

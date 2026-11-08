@@ -12,185 +12,76 @@ import (
 	"fireball/sema"
 	"fireball/types"
 	"fmt"
-	"math"
 )
 
 var Arch = abi.AMD64
 var CallConv = abi.SystemV
 
-type compTime struct {
-	ctx  *sema.Context
-	file *ast.File
-
-	sema *sema.FileData
-
-	diagnostics []core.Diagnostic
-}
-
 var valueTrue eval.Value = &eval.IntValue{Value: 1}
 var valueFalse eval.Value = &eval.IntValue{Value: 0}
 
-func Evaluate(ctx *sema.Context, file *ast.File) []core.Diagnostic {
+func (e *Evaluator) EvaluateFile(file *ast.File) {
 	defer core.Scope()()
-
-	ct := compTime{
-		ctx:  ctx,
-		file: file,
-
-		sema: ctx.Files[file],
-	}
 
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
 		case *ast.Enum:
-			typ := ctx.Files[file].NodeTypes[decl].(*types.Enum)
-
-			allowedMin := core.Unsigned(true, math.MaxUint64)
-			allowedMax := core.Unsigned(false, math.MaxUint64)
-
-			if !core.IsNil(typ.CaseType) && typ.CaseType != types.Invalid {
-				allowedMin, allowedMax = typ.CaseType.(*types.Primitive).Kind.IntegerRange()
-			}
-
-			current := core.Signed(0)
-
-			valueMin := core.Unsigned(false, math.MaxUint64)
-			valueMax := core.Unsigned(true, math.MaxUint64)
-
-			okAll := true
-
-			for i, cas := range decl.Cases {
-				if !core.IsNil(cas.Value) {
-					info := ctx.Files[file].ExprInfos[cas.Value]
-
-					if !info.CompTime {
-						okAll = false
-						continue
-					}
-
-					var kind types.PrimitiveKind
-
-					switch typ := info.Type.(type) {
-					case *types.Integer:
-						kind = typ.ToPrimitive().Kind
-
-					case *types.Primitive:
-						if !types.IsInteger(typ.Kind) {
-							okAll = false
-							continue
-						}
-
-						kind = typ.Kind
-
-					default:
-						okAll = false
-						continue
-					}
-
-					if ok := ct.CheckCompTimeExprRoot(cas.Value, cas.Name); !ok {
-						okAll = false
-						continue
-					}
-
-					value, ok := ct.EvalExpr(cas.Value, info.Type)
-
-					if !ok {
-						okAll = false
-						continue
-					}
-
-					val := value.(*eval.IntValue)
-
-					if types.IsUnsignedInteger(kind) {
-						current = core.Unsigned(false, val.Value)
-					} else {
-						current = core.TwosComplementWidth(val.Value, kind.Size()*8)
-					}
-				}
-
-				if !core.IsNil(typ.CaseType) && (current.LessThan(allowedMin) || current.GreaterThan(allowedMax)) {
-					node := ast.Node(cas.Value)
-					if core.IsNil(node) {
-						node = cas.Name
-					}
-
-					ct.Error(node, "value '%s' doesn't fit inside type '%s'", current, typ.CaseType)
-				}
-
-				typ.Cases[i].Value = current
-
-				valueMin = valueMin.Min(current)
-				valueMax = valueMax.Max(current)
-
-				current = current.AddOne()
-			}
-
-			if !okAll {
-				if core.IsNil(typ.CaseType) {
-					typ.CaseType = types.Invalid
-				}
-
-				continue
-			}
-
-			ct.CheckDuplicateEnumCaseValues(decl, typ)
-			ct.InferEnumCaseType(decl, typ, valueMin, valueMax)
+			e.ensureEnum(decl, decl.Name())
 
 		case *ast.Impl:
 			for _, assocConst := range decl.AssociatedConsts {
-				ct.Evaluate(assocConst.Value, assocConst.Type, assocConst.Name)
+				e.evaluateInitializer(assocConst.Value, assocConst.Type, assocConst.Name)
 			}
 
 			for _, method := range decl.Methods {
 				if !core.IsNil(method.Body) {
-					ct.EvaluateStmt(method.Body)
+					e.evaluateStmt(method.Body)
 				}
 			}
 
 		case *ast.Const:
-			ct.Evaluate(decl.Value, decl.Type, decl.Name())
+			e.evaluateInitializer(decl.Value, decl.Type, decl.Name())
 
 		case *ast.GlobalVar:
 			if core.IsNil(decl.Initializer) {
 				continue
 			}
 
-			ct.Evaluate(decl.Initializer, decl.Type, decl.Name())
+			e.evaluateInitializer(decl.Initializer, decl.Type, decl.Name())
 
 		case *ast.Func:
 			if !core.IsNil(decl.Body) {
-				ct.EvaluateStmt(decl.Body)
+				e.evaluateStmt(decl.Body)
 			}
 		}
 	}
-
-	return ct.diagnostics
 }
 
 // Stmt
 
-func (ct *compTime) EvaluateStmt(stmt ast.Stmt) {
+func (e *Evaluator) evaluateStmt(stmt ast.Stmt) {
 	switch stmt := stmt.(type) {
 	case *ast.Match:
-		typ := ct.sema.ExprInfos[stmt.Value].Type
+		fd := e.fileData(stmt)
+		typ := fd.ExprInfos[stmt.Value].Type
 		if typ == types.Invalid {
 			return
 		}
 
 		// Evaluate patterns
 		count := 0
+		patternsOK := true
 		fallbackExpr := ast.Expr(nil)
 
 		for _, arm := range stmt.Arms {
 			// Evaluate
-			for i, pattern := range ct.sema.ArmPatterns[arm] {
+			for i, pattern := range fd.ArmPatterns[arm] {
 				switch pattern := pattern.(type) {
 				case *sema.ExprPattern:
-					if ct.sema.ExprInfos[pattern.Expr].CompTime {
-						if val, ok := ct.EvalExpr(pattern.Expr, typ); ok {
-							ct.sema.Evaluations[pattern.Expr] = val
-							count++
-						}
+					if e.ensureExpr(pattern.Expr, typ, pattern.Expr) {
+						count++
+					} else {
+						patternsOK = false
 					}
 
 				case *sema.FallbackPattern:
@@ -204,12 +95,12 @@ func (ct *compTime) EvaluateStmt(stmt ast.Stmt) {
 
 		for _, arm := range stmt.Arms {
 		pattern:
-			for i, pattern := range ct.sema.ArmPatterns[arm] {
+			for i, pattern := range fd.ArmPatterns[arm] {
 				if pattern, ok := pattern.(*sema.ExprPattern); ok {
-					if val, ok := ct.sema.Evaluations[pattern.Expr]; ok {
+					if val, ok := fd.Evaluations[pattern.Expr]; ok {
 						for _, value := range seen {
 							if value.Equals(val) {
-								ct.Error(arm.Patterns[i], "duplicate expression pattern")
+								e.error(arm.Patterns[i], "duplicate expression pattern")
 								continue pattern
 							}
 						}
@@ -229,21 +120,21 @@ func (ct *compTime) EvaluateStmt(stmt ast.Stmt) {
 			}
 		}
 
-		if fallbackExpr == nil && !exhaustive {
-			ct.Error(stmt.Value, "missing fallback arm, match is not exhaustive")
-		} else if fallbackExpr != nil && exhaustive {
-			ct.Error(fallbackExpr, "fallback arm is not needed, match is fully exhaustive")
+		if patternsOK && fallbackExpr == nil && !exhaustive {
+			e.error(stmt.Value, "missing fallback arm, match is not exhaustive")
+		} else if patternsOK && fallbackExpr != nil && exhaustive {
+			e.error(fallbackExpr, "fallback arm is not needed, match is fully exhaustive")
 		}
 
 		// Arm statements
 		for _, arm := range stmt.Arms {
-			ct.EvaluateStmt(arm.Body)
+			e.evaluateStmt(arm.Body)
 		}
 
 	default:
 		for child := range stmt.Children() {
 			if child, ok := child.(ast.Stmt); ok {
-				ct.EvaluateStmt(child)
+				e.evaluateStmt(child)
 			}
 		}
 	}
@@ -251,115 +142,46 @@ func (ct *compTime) EvaluateStmt(stmt ast.Stmt) {
 
 // Utils
 
-func (ct *compTime) Evaluate(value ast.Expr, typ ast.Type, errNode ast.Node) {
-	if !ct.ctx.Files[ct.file].ExprInfos[value].CompTime {
-		return
-	}
-
-	ok := ct.CheckCompTimeExprRoot(value, errNode)
-	if !ok {
-		return
-	}
-
-	typ_ := ct.ctx.Files[ct.file].NodeTypes[typ]
-	if core.IsNil(typ_) || typ_ == types.Invalid {
-		return
-	}
-
-	// Values whose type depends on type parameters (e.g. 'Self' inside a
-	// generic impl) cannot be evaluated against the generic type; codegen
-	// materializes them per instantiation instead.
-	if types.HasParam(typ_) {
-		return
-	}
-
-	val, ok := ct.EvalExpr(value, typ_)
-
-	if ok {
-		ct.sema.Evaluations[value] = val
-	}
+func (e *Evaluator) evaluateInitializer(value ast.Expr, typ ast.Type, errNode ast.Node) {
+	e.ensureExpr(value, e.fileData(errNode).NodeTypes[typ], errNode)
 }
 
-func (ct *compTime) EvalExpr(expr ast.Expr, typ types.Type) (eval.Value, bool) {
+func (e *Evaluator) evalExpr(expr ast.Expr, typ types.Type) (eval.Value, bool) {
 	// Get literal value directly
-	value := ct.GetLiteralEvalValue(expr, typ)
+	value := e.getLiteralEvalValue(expr, typ)
 	if value != nil {
 		return value, true
 	}
 
 	// Generate IR module
+	file := ast.GetFile(expr)
 	module := ir.NewModule()
-	module.Path = "__comptime__"
+	module.Path = file.Path
 
-	c := codegen.New(ct.ctx, module, ct.file, Arch, CallConv, true)
+	c := codegen.New(e.ctx, module, file, Arch, CallConv, true)
 	c.Types.ShallowMeta = true
 
 	val, err, ok := c.GenerateComptimeValue(expr, typ)
 	if !ok {
 		if evalErr, isEvalErr := errors.AsType[eval.Error](err); isEvalErr && evalErr.File != "" {
-			ct.diagnostics = append(ct.diagnostics, getDiagnostic(evalErr))
+			e.addDiagnostic(getDiagnostic(evalErr))
 			return nil, false
 		}
 
-		panic("comptime.Evaluate() - " + err.Error())
+		panic("comptime.Evaluator.evalExpr() - " + err.Error())
 	}
 
 	return val, true
 }
 
-func (ct *compTime) CheckCompTimeExprRoot(expr ast.Expr, errNode ast.Node) bool {
-	seen := make(map[ast.Expr]any)
-	seen[expr] = nil
-
-	return ct.CheckCompTimeExpr(expr, seen, errNode)
-}
-
-func (ct *compTime) CheckCompTimeExpr(expr ast.Expr, seen map[ast.Expr]any, errNode ast.Node) bool {
-	switch expr := expr.(type) {
-	case *ast.Identifier:
-		switch node := ct.ctx.Files[ast.GetFile(expr)].ExprInfos[expr].Node.(type) {
-		case *ast.AssociatedConst:
-			if _, ok := seen[node.Value]; ok {
-				ct.Error(errNode, "cyclic reference of constant '%s'", node.Name.Token.Text)
-				return false
-			}
-
-			seen[node.Value] = nil
-			ct.CheckCompTimeExpr(node.Value, seen, errNode)
-			delete(seen, node.Value)
-
-		case *ast.Const:
-			if _, ok := seen[node.Value]; ok {
-				ct.Error(errNode, "cyclic reference of constant '%s'", node.Name().Token.Text)
-				return false
-			}
-
-			seen[node.Value] = nil
-			ct.CheckCompTimeExpr(node.Value, seen, errNode)
-			delete(seen, node.Value)
-		}
-
-	default:
-		for child := range expr.Children() {
-			if child, ok := child.(ast.Expr); ok {
-				if !ct.CheckCompTimeExpr(child, seen, errNode) {
-					return false
-				}
-			}
-		}
-	}
-
-	return true
-}
-
-func (ct *compTime) GetLiteralEvalValue(expr ast.Expr, typ types.Type) eval.Value {
+func (e *Evaluator) getLiteralEvalValue(expr ast.Expr, typ types.Type) eval.Value {
 	switch expr.(type) {
 	case *ast.Bool, *ast.Number, *ast.Character, *ast.String:
 	default:
 		return nil
 	}
 
-	kind, ok := sema.GetImplicitCast(ct.ctx, ct.sema.ExprInfos[expr], typ)
+	kind, ok := sema.GetImplicitCast(e.ctx, e.fileData(expr).ExprInfos[expr], typ)
 	if !ok {
 		return nil
 	}
@@ -403,10 +225,10 @@ func (ct *compTime) GetLiteralEvalValue(expr ast.Expr, typ types.Type) eval.Valu
 		return &eval.IntValue{Value: uint64(expr.Rune)}
 
 	case *ast.String:
-		fields := abi.AMD64.Info(ct.ctx.Builtins.StringView).Fields
+		fields := abi.AMD64.Info(e.ctx.Builtins.StringView).Fields
 
 		ptrI := 0
-		if ct.ctx.Builtins.StringView.Fields[fields[0].Index].Name == "size" {
+		if e.ctx.Builtins.StringView.Fields[fields[0].Index].Name == "size" {
 			ptrI = 1
 		}
 
@@ -424,10 +246,10 @@ func (ct *compTime) GetLiteralEvalValue(expr ast.Expr, typ types.Type) eval.Valu
 	}
 }
 
-func (ct *compTime) Error(node ast.Node, format string, args ...any) {
-	ct.diagnostics = append(ct.diagnostics, core.Diagnostic{
+func (e *Evaluator) error(node ast.Node, format string, args ...any) {
+	e.addDiagnostic(core.Diagnostic{
 		Kind:    core.Error,
-		Path:    ct.file.Path,
+		Path:    ast.GetFile(node).Path,
 		Range:   node.Range(),
 		Message: fmt.Sprintf(format, args...),
 	})

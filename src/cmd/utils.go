@@ -139,9 +139,7 @@ func parseProject(env cfg.Env, start *time.Time) (*project.Project, *sema.Contex
 	}
 
 	// Evaluate comp-time
-	for _, proj := range ordered {
-		proj.EvalCompTime(ctx)
-	}
+	project.EvalCompTime(ctx, ordered)
 
 	// Print diagnostics
 	hasDiagnostics := false

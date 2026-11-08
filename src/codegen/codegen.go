@@ -56,6 +56,12 @@ type Codegen struct {
 	pendingInstantiations []pendingInstantiation
 }
 
+type functionData struct {
+	decl  *ast.Func
+	typ   *types.Func
+	iface *types.Interface
+}
+
 func New(ctx *sema.Context, module *ir.Module, file *ast.File, arch abi.Arch, callConv abi.CallConv, compTime bool) *Codegen {
 	c := &Codegen{
 		Module: module,
@@ -696,8 +702,13 @@ func (c *Codegen) materializeConstValue(file *ast.File, typNode ast.Type, value 
 
 	irTyp := c.Types.Get(typ)
 	ptr := c.Alloca(irTyp, "const")
-	c.Emitter.Store(&ir.ZeroInitializer{Typ: irTyp}, ptr)
-	c.Emitter.Store(c.GenerateExpr(value), ptr)
+	if val := c.Sema.Evaluations[value]; val != nil {
+		c.Emitter.Store(c.GetIrValue(val, typ), ptr)
+	} else {
+		// Generic associated constants are evaluated with substitutions here.
+		c.Emitter.Store(&ir.ZeroInitializer{Typ: irTyp}, ptr)
+		c.Emitter.Store(c.GenerateExpr(value), ptr)
+	}
 
 	c.substitutions = prevSubstitutions
 	c.Sema = prevSema
@@ -862,7 +873,7 @@ func (c *Codegen) GetIrValue(val eval.Value, typ types.Type) ir.Value {
 		return &ir.Struct{Typ: c.Types.Get(typ).(ir.StructLikeType), Fields: fields}
 
 	case *eval.GlobalValue:
-		if strings.HasPrefix(val.Name, "fb$link_name$") {
+		if strings.HasPrefix(val.Name, "fb$type_info$") {
 			return c.GetTypeInfo(val.Data.(types.Type))
 		}
 
@@ -876,11 +887,8 @@ func (c *Codegen) GetIrValue(val eval.Value, typ types.Type) ir.Value {
 		return gVar
 
 	case *eval.FuncValue:
-		f := val.Data.(*ast.Func)
-		typ := c.Ctx.Files[ast.GetFile(f)].NodeTypes[f].(*types.Func)
-		in := c.GetFuncInterface(f)
-
-		return c.GetFunction(f, typ, in)
+		data := val.Data.(*functionData)
+		return c.GetFunction(data.decl, data.typ, data.iface)
 
 	default:
 		panic("codegen.Codegen.GetIrValue() - Invalid eval.Value")

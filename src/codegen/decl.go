@@ -250,7 +250,7 @@ func (c *Codegen) CreateFunction(f *ast.Func, typ *types.Func, declare bool, in 
 
 	// Function
 	fun := c.Module.NewFunction(name, sig, params)
-	fun.Data = f
+	fun.Data = &functionData{decl: f, typ: typ, iface: in}
 
 	if f.IsExtern() || declare {
 		fun.Flags = ir.Declare

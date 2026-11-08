@@ -1,0 +1,19 @@
+mod tests::lazy_comptime::deps;
+
+pub const VALUE: i32 = ConstantSource::Second as i32;
+
+enum ConstantSource {
+    First = 900,
+    Second,
+}
+
+// Separate enums ensure the consumer's layout and case requests cannot be
+// satisfied accidentally by evaluating VALUE first.
+pub enum LayoutOnly {
+    Value = 300,
+}
+
+pub enum CaseOnly {
+    First = 1000,
+    Second,
+}

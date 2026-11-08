@@ -1,0 +1,79 @@
+mod tests::comptime_functions;
+
+func identity[T](value: T) T {
+    return value;
+}
+
+const INTEGER: func(i32) i32 = identity:[i32];
+const FLOAT: func(f64) f64 = identity:[f64];
+const INTEGER_COPY: func(i32) i32 = INTEGER;
+const INTEGER_COPY_AGAIN: func(i32) i32 = INTEGER_COPY;
+const FLOAT_COPY: func(f64) f64 = FLOAT;
+
+// Evaluate pointer comparisons during comptime too, not just at runtime.
+const INTEGER_MATCHES: bool = INTEGER_COPY == (identity:[i32] as func(i32) i32);
+const INTEGER_CHAIN_MATCHES: bool = INTEGER_COPY_AGAIN == (identity:[i32] as func(i32) i32);
+const FLOAT_MATCHES: bool = FLOAT_COPY == (identity:[f64] as func(f64) f64);
+
+// A separate declaration keeps the reversed order independent of identity.
+func reverseIdentity[T](value: T) T {
+    return value;
+}
+
+const REVERSE_FLOAT: func(f64) f64 = reverseIdentity:[f64];
+const REVERSE_INTEGER: func(i32) i32 = reverseIdentity:[i32];
+const REVERSE_FLOAT_COPY: func(f64) f64 = REVERSE_FLOAT;
+const REVERSE_FLOAT_COPY_AGAIN: func(f64) f64 = REVERSE_FLOAT_COPY;
+const REVERSE_INTEGER_COPY: func(i32) i32 = REVERSE_INTEGER;
+
+const REVERSE_FLOAT_MATCHES: bool = REVERSE_FLOAT_COPY == (reverseIdentity:[f64] as func(f64) f64);
+const REVERSE_FLOAT_CHAIN_MATCHES: bool = REVERSE_FLOAT_COPY_AGAIN == (reverseIdentity:[f64] as func(f64) f64);
+const REVERSE_INTEGER_MATCHES: bool = REVERSE_INTEGER_COPY == (reverseIdentity:[i32] as func(i32) i32);
+
+#[test("comptime generic function constants preserve specialization")]
+func testFunctionIdentity() bool {
+    return INTEGER == (identity:[i32] as func(i32) i32)
+        && FLOAT == (identity:[f64] as func(f64) f64)
+        && INTEGER_COPY == (identity:[i32] as func(i32) i32)
+        && INTEGER_COPY_AGAIN == (identity:[i32] as func(i32) i32)
+        && FLOAT_COPY == (identity:[f64] as func(f64) f64);
+}
+
+#[test("comptime generic function copies preserve comptime identity")]
+func testComptimeIdentity() bool {
+    return INTEGER_MATCHES && INTEGER_CHAIN_MATCHES && FLOAT_MATCHES;
+}
+
+#[test("comptime generic function copies preserve calling convention")]
+func testFunctionCalls() bool {
+    return INTEGER(-12345) == -12345
+        && INTEGER_COPY(-23456) == -23456
+        && INTEGER_COPY_AGAIN(-34567) == -34567
+        && FLOAT(1.25) == 1.25
+        && FLOAT_COPY(2.5) == 2.5;
+}
+
+#[test("comptime generic function specialization reversed declaration order")]
+func testReverseFunctionIdentity() bool {
+    return REVERSE_FLOAT == (reverseIdentity:[f64] as func(f64) f64)
+        && REVERSE_INTEGER == (reverseIdentity:[i32] as func(i32) i32)
+        && REVERSE_FLOAT_COPY == (reverseIdentity:[f64] as func(f64) f64)
+        && REVERSE_FLOAT_COPY_AGAIN == (reverseIdentity:[f64] as func(f64) f64)
+        && REVERSE_INTEGER_COPY == (reverseIdentity:[i32] as func(i32) i32);
+}
+
+#[test("comptime generic function copies reversed comptime identity")]
+func testReverseComptimeIdentity() bool {
+    return REVERSE_FLOAT_MATCHES
+        && REVERSE_FLOAT_CHAIN_MATCHES
+        && REVERSE_INTEGER_MATCHES;
+}
+
+#[test("comptime generic function copies reversed calling convention")]
+func testReverseFunctionCalls() bool {
+    return REVERSE_FLOAT(3.75) == 3.75
+        && REVERSE_FLOAT_COPY(4.5) == 4.5
+        && REVERSE_FLOAT_COPY_AGAIN(5.25) == 5.25
+        && REVERSE_INTEGER(-45678) == -45678
+        && REVERSE_INTEGER_COPY(-56789) == -56789;
+}

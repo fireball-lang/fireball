@@ -65,6 +65,8 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 		e := symbol.Node.(*ast.Enum)
 		t := symbol.Type.(*types.Enum)
 
+		t.CaseType = nil
+
 		// Custom case type
 		if !core.IsNil(e.Type) {
 			typ := r.ResolveAndAnalyzeType(e.Type)

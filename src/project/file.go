@@ -3,9 +3,7 @@ package project
 import (
 	"fireball/ast"
 	"fireball/cfg"
-	"fireball/comptime"
 	"fireball/core"
-	"fireball/ir/eval"
 	"fireball/parser"
 	"fireball/sema"
 	"fireball/symbols"
@@ -74,11 +72,6 @@ func (f *File) analyze(ctx *sema.Context, root symbols.Scope) {
 	f.Sema.ArmPatterns = make(map[*ast.Arm][]sema.Pattern)
 	f.Sema.StmtExits = make(map[ast.Stmt]sema.Exits)
 	f.semaDiagnostics = sema.Analyze(ctx, f.Ast, root, f.Proj.Config.Name, f.Path)
-}
-
-func (f *File) evalCompTime(ctx *sema.Context) {
-	f.Sema.Evaluations = make(map[ast.Expr]eval.Value)
-	f.compTimeDiagnostics = comptime.Evaluate(ctx, f.Ast)
 }
 
 func (f *File) Diagnostics() iter.Seq[core.Diagnostic] {
