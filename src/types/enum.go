@@ -7,10 +7,10 @@ type Enum struct {
 	ModulePath []string
 
 	CaseType Type
-	Cases    []Case
+	Cases    []EnumCase
 }
 
-type Case struct {
+type EnumCase struct {
 	Name  string
 	Value core.Integer
 }

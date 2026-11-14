@@ -82,16 +82,57 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 		}
 
 		// Cases
-		t.Cases = make([]types.Case, len(e.Cases))
+		t.Cases = make([]types.EnumCase, len(e.Cases))
 
 		for i, cas := range e.Cases {
-			t.Cases[i] = types.Case{
+			t.Cases[i] = types.EnumCase{
 				Name: cas.Name.Token.Text,
 			}
 		}
 
 		r.ctx.TypeEnv.RegisterTypeDeclNode(t, e)
 		r.sema.NodeTypes[e] = t
+
+	case symbols.Union:
+		u := symbol.Node.(*ast.Union)
+		t := symbol.Type.(*types.Union)
+
+		if r.ResolveTypeParams(u.TypeParams, t.TypeParams) {
+			defer r.scopes.Pop()
+		}
+
+		t.Cases = make([]types.UnionCase, len(u.Cases))
+
+		for i, cas := range u.Cases {
+			fields := make([]types.UnionCaseField, len(cas.Fields))
+
+			for j, field := range cas.Fields {
+				typ := r.ResolveAndAnalyzeType(field.Type)
+
+				if types.IsNonValue(typ) {
+					r.Error(field.Type, "'%s' is not allowed as an union case field", typ)
+					typ = types.Invalid
+				}
+
+				if typ == t {
+					r.Error(field.Type, "recursive unions are not allowed without pointers")
+					typ = types.Invalid
+				}
+
+				fields[j] = types.UnionCaseField{
+					Name: field.Name.Token.Text,
+					Type: typ,
+				}
+			}
+
+			t.Cases[i] = types.UnionCase{
+				Name:   cas.Name.Token.Text,
+				Fields: fields,
+			}
+		}
+
+		r.ctx.TypeEnv.RegisterTypeDeclNode(t, u)
+		r.sema.NodeTypes[u] = t
 
 	case symbols.Interface:
 		in := symbol.Node.(*ast.Interface)

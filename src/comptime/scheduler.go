@@ -159,7 +159,7 @@ func (e *Evaluator) ensureDependencies(node ast.Node) bool {
 				}
 			}
 
-		case *ast.Case:
+		case *ast.EnumCase:
 			if !e.ensureEnum(decl.Parent().(*ast.Enum), identifier) {
 				return false
 			}
@@ -241,6 +241,13 @@ func (e *Evaluator) ensureReflectedType(typ types.Type, errNode ast.Node, seen m
 			children = append(children, field.Type)
 		}
 
+	case *types.Union:
+		for _, cas := range typ.Cases {
+			for _, field := range cas.Fields {
+				children = append(children, field.Type)
+			}
+		}
+
 	case *types.Alias:
 		children = append(children, typ.Type)
 	}
@@ -277,6 +284,15 @@ func (e *Evaluator) ensureType(typ types.Type, errNode ast.Node, seen map[types.
 		for _, field := range typ.Fields {
 			if !e.ensureType(field.Type, errNode, seen) {
 				return false
+			}
+		}
+
+	case *types.Union:
+		for _, cas := range typ.Cases {
+			for _, field := range cas.Fields {
+				if !e.ensureType(field.Type, errNode, seen) {
+					return false
+				}
 			}
 		}
 

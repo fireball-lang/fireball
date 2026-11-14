@@ -1,0 +1,6 @@
+mod tests::tagged_union_helpers;
+
+pub union RemoteChoice {
+    Last {};
+    First { value: i32 };
+}

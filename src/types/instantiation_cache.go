@@ -102,7 +102,7 @@ func (c *InstantiationCache) get(generic Type, substitutions []Substitution) Typ
 
 		return a
 
-	case *Struct, *Interface, *Func:
+	case *Struct, *Union, *Interface, *Func:
 		typ := c.substitute(generic, substitutions)
 		c.types[generic] = append(entries, cacheEntry{substitutions: substitutions, typ: typ})
 		return typ
@@ -168,6 +168,16 @@ func (c *InstantiationCache) resolve(typ Type, substitutions []Substitution) Typ
 		}
 
 	case *Enum:
+		return typ
+
+	case *Union:
+		if typ.Generic != nil {
+			return c.getRemapped(typ.Generic, typ.Substitutions, substitutions)
+		}
+		if len(typ.TypeParams) > 0 {
+			return c.get(typ, substitutions)
+		}
+
 		return typ
 
 	case *Alias:
@@ -272,6 +282,22 @@ func (c *InstantiationCache) substitute(generic Type, substitutions []Substituti
 
 		return s
 
+	case *Union:
+		u := &Union{
+			Name:          generic.Name,
+			ModulePath:    generic.ModulePath,
+			Generic:       generic,
+			Substitutions: substitutions,
+		}
+
+		if c.substituteDependentTypes {
+			c.substituteDependents(u)
+		} else {
+			c.substituteDependentsQueue = append(c.substituteDependentsQueue, u)
+		}
+
+		return u
+
 	case *Interface:
 		in := &Interface{
 			Name:            generic.Name,
@@ -329,6 +355,27 @@ func (c *InstantiationCache) substituteDependents(typ Type) {
 		}
 
 		typ.Fields = fields
+
+	case *Union:
+		cases := make([]UnionCase, len(typ.Generic.Cases))
+
+		for i, cas := range typ.Generic.Cases {
+			fields := make([]UnionCaseField, len(cas.Fields))
+
+			for j, field := range cas.Fields {
+				fields[j] = UnionCaseField{
+					Name: field.Name,
+					Type: c.resolve(field.Type, typ.Substitutions),
+				}
+			}
+
+			cases[i] = UnionCase{
+				Name:   cas.Name,
+				Fields: fields,
+			}
+		}
+
+		typ.Cases = cases
 
 	case *Interface:
 		instanceMethods := make([]Method, len(typ.Generic.InstanceMethods))

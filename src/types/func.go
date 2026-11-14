@@ -17,6 +17,22 @@ type Func struct {
 
 var funcType = &Pointer{Pointee: PrimitiveVoid}
 
+func (f *Func) GetTypeParams() []*Param {
+	return f.TypeParams
+}
+
+func (f *Func) GetGeneric() Generic {
+	if f.Generic == nil {
+		return nil
+	}
+
+	return f.Generic
+}
+
+func (f *Func) GetSubstitutions() []Substitution {
+	return f.Substitutions
+}
+
 func (f *Func) Underlying() Type {
 	return funcType
 }

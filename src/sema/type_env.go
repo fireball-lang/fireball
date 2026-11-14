@@ -46,8 +46,8 @@ type TypeEnvironment struct {
 
 	paramScopes map[*types.Param]symbols.Scope
 
-	implTargets   map[*types.Struct][]*types.Struct
-	implForTarget map[*types.Struct]*ast.Impl
+	implTargets   map[types.Type][]types.Generic
+	implForTarget map[types.Type]*ast.Impl
 
 	checked bool
 }
@@ -62,8 +62,8 @@ func NewTypeEnvironment(ctx *Context) *TypeEnvironment {
 		implParams:    make(map[*ast.Impl][]*types.Param),
 		conformances:  make(map[types.Type][]*types.Interface),
 		paramScopes:   make(map[*types.Param]symbols.Scope),
-		implTargets:   make(map[*types.Struct][]*types.Struct),
-		implForTarget: make(map[*types.Struct]*ast.Impl),
+		implTargets:   make(map[types.Type][]types.Generic),
+		implForTarget: make(map[types.Type]*ast.Impl),
 	}
 }
 
@@ -109,15 +109,32 @@ func (e *TypeEnvironment) RegisterTypeDeclNode(t types.Type, n ast.Decl) {
 
 	e.typeDeclNodes[t] = n
 
-	if t, ok := t.(*types.Enum); ok {
+	switch t := t.(type) {
+	case *types.Enum:
 		n := n.(*ast.Enum)
 		syms := e.static[t]
 
 		for i, c := range t.Cases {
 			syms = append(syms, symbols.Symbol{
-				Kind:   symbols.Case,
+				Kind:   symbols.EnumCase,
 				Public: true,
 				Name:   c.Name,
+				Node:   n.Cases[i],
+				Type:   t,
+			})
+		}
+
+		e.static[t] = syms
+
+	case *types.Union:
+		n := n.(*ast.Union)
+		syms := e.static[t]
+
+		for i, cas := range t.Cases {
+			syms = append(syms, symbols.Symbol{
+				Kind:   symbols.UnionCase,
+				Public: true,
+				Name:   cas.Name,
 				Node:   n.Cases[i],
 				Type:   t,
 			})
@@ -143,6 +160,14 @@ func (e *TypeEnvironment) GetEnumNode(t *types.Enum) *ast.Enum {
 	return nil
 }
 
+func (e *TypeEnvironment) GetUnionNode(t *types.Union) *ast.Union {
+	if n, ok := e.typeDeclNodes[t]; ok {
+		return n.(*ast.Union)
+	}
+
+	return nil
+}
+
 func (e *TypeEnvironment) GetInterfaceNode(t *types.Interface) *ast.Interface {
 	t = t.AsImmutable()
 
@@ -162,12 +187,12 @@ func (e *TypeEnvironment) RegisterImplNode(typ types.Type, in *types.Interface, 
 }
 
 func (e *TypeEnvironment) RegisterImplTarget(typ types.Type, impl *ast.Impl) {
-	if s, ok := typ.(*types.Struct); ok && s.Generic != nil {
+	if s, ok := typ.(types.Generic); ok && s.GetGeneric() != nil {
 		e.implForTarget[s] = impl
 
-		for _, sub := range s.Substitutions {
+		for _, sub := range s.GetSubstitutions() {
 			if _, ok := sub.Type.(*types.Param); ok {
-				e.implTargets[s.Generic] = append(e.implTargets[s.Generic], s)
+				e.implTargets[s.GetGeneric()] = append(e.implTargets[s.GetGeneric()], s)
 				break
 			}
 		}
@@ -233,7 +258,7 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 	case *types.Struct:
 		var zeroable bool
 
-		if t.Layout == types.Union {
+		if t.Layout == types.LayoutUnion {
 			zeroable = false
 
 			for _, field := range t.Fields {
@@ -267,8 +292,8 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 	// Check direct conformances
 	direct := e.conformances[typ]
 
-	s, ok := typ.(*types.Struct)
-	if !ok || s.Generic == nil {
+	s, ok := typ.(types.Generic)
+	if !ok || s.GetGeneric() == nil {
 		if result == nil {
 			return direct
 		}
@@ -284,17 +309,17 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 	}
 
 	// Full generic impls (registered on the template)
-	for _, in := range e.conformances[s.Generic] {
+	for _, in := range e.conformances[s.GetGeneric()] {
 		if !e.implConstraintsSatisfied(s, in) {
 			continue
 		}
 
-		instantiated := e.ctx.Instantiations.Substitute(in, s.Substitutions).(*types.Interface)
+		instantiated := e.ctx.Instantiations.Substitute(in, s.GetSubstitutions()).(*types.Interface)
 		result = append(result, instantiated)
 	}
 
 	// Partial specializations (registered on instantiated targets of the template)
-	for _, pt := range e.implTargets[s.Generic] {
+	for _, pt := range e.implTargets[s.GetGeneric()] {
 		subs, ok := e.matchPartialTarget(s, pt)
 		if !ok {
 			continue
@@ -313,16 +338,16 @@ func (e *TypeEnvironment) GetConformances(typ types.Type) []*types.Interface {
 	return result
 }
 
-func (e *TypeEnvironment) matchPartialTarget(s, pt *types.Struct) ([]types.Substitution, bool) {
-	if s.Generic != pt.Generic || len(s.Substitutions) != len(pt.Substitutions) {
+func (e *TypeEnvironment) matchPartialTarget(s, pt types.Generic) ([]types.Substitution, bool) {
+	if s.GetGeneric() != pt.GetGeneric() || len(s.GetSubstitutions()) != len(pt.GetSubstitutions()) {
 		return nil, false
 	}
 
 	var subs []types.Substitution
 
-	for i, psub := range pt.Substitutions {
+	for i, psub := range pt.GetSubstitutions() {
 		arg := psub.Type
-		concrete := s.Substitutions[i].Type
+		concrete := s.GetSubstitutions()[i].Type
 
 		if param, ok := arg.(*types.Param); ok {
 			subs = append(subs, types.Substitution{Param: param, Type: concrete})
@@ -361,13 +386,13 @@ func (e *TypeEnvironment) implParamsSatisfied(impl *ast.Impl, subs []types.Subst
 	return true
 }
 
-func (e *TypeEnvironment) implConstraintsSatisfied(s *types.Struct, in *types.Interface) bool {
+func (e *TypeEnvironment) implConstraintsSatisfied(s types.Generic, in *types.Interface) bool {
 	template := in.AsImmutable()
 	if template.Generic != nil {
 		template = template.Generic
 	}
 
-	impl := e.implNodes[implKey{Type: s.Generic, Interface: template}]
+	impl := e.implNodes[implKey{Type: s.GetGeneric(), Interface: template}]
 	if impl == nil {
 		return true
 	}
@@ -380,11 +405,11 @@ func (e *TypeEnvironment) implConstraintsSatisfied(s *types.Struct, in *types.In
 	// Substitute every implementation type parameter with its concrete type argument.
 	subs := make([]types.Substitution, 0, len(params))
 	for i, param := range params {
-		if i >= len(s.Substitutions) {
+		if i >= len(s.GetSubstitutions()) {
 			break
 		}
 
-		subs = append(subs, types.Substitution{Param: param, Type: s.Substitutions[i].Type})
+		subs = append(subs, types.Substitution{Param: param, Type: s.GetSubstitutions()[i].Type})
 	}
 
 	return e.implParamsSatisfied(impl, subs)
@@ -495,18 +520,18 @@ func (e *TypeEnvironment) getSymbolWithSubs(get func(types.Type, string) (symbol
 		return sym, nil, true
 	}
 
-	s, ok := typ.(*types.Struct)
-	if !ok || s.Generic == nil {
+	s, ok := typ.(types.Generic)
+	if !ok || s.GetGeneric() == nil {
 		return symbols.Symbol{}, nil, false
 	}
 
 	// Full generic impl: methods live on the canonical template.
-	if sym, ok := get(s.Generic, name); ok {
-		return sym, s.Substitutions, true
+	if sym, ok := get(s.GetGeneric(), name); ok {
+		return sym, s.GetSubstitutions(), true
 	}
 
 	// Partial specializations.
-	for _, pt := range e.implTargets[s.Generic] {
+	for _, pt := range e.implTargets[s.GetGeneric()] {
 		subs, ok := e.matchPartialTarget(s, pt)
 		if !ok {
 			continue
@@ -644,18 +669,18 @@ func (e *TypeEnvironment) enumerateMembers(m map[types.Type][]symbols.Symbol, ty
 			return
 		}
 
-		s, ok := typ.(*types.Struct)
-		if !ok || s.Generic == nil {
+		s, ok := typ.(types.Generic)
+		if !ok || s.GetGeneric() == nil {
 			return
 		}
 
 		// Full generic impl: methods live on the canonical template.
-		if !add(m[s.Generic], s.Substitutions) {
+		if !add(m[s.GetGeneric()], s.GetSubstitutions()) {
 			return
 		}
 
 		// Partial specializations.
-		for _, pt := range e.implTargets[s.Generic] {
+		for _, pt := range e.implTargets[s.GetGeneric()] {
 			subs, ok := e.matchPartialTarget(s, pt)
 			if !ok {
 				continue

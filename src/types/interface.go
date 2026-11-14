@@ -56,6 +56,22 @@ var InterfaceUnderlying = &Struct{
 	},
 }
 
+func (i *Interface) GetTypeParams() []*Param {
+	return i.TypeParams
+}
+
+func (i *Interface) GetGeneric() Generic {
+	if i.Generic == nil {
+		return nil
+	}
+
+	return i.Generic
+}
+
+func (i *Interface) GetSubstitutions() []Substitution {
+	return i.Substitutions
+}
+
 func (i *Interface) Underlying() Type {
 	return InterfaceUnderlying
 }

@@ -229,23 +229,10 @@ func (t *TypeCache) createStructType(typ *types.Struct) ir.Type {
 	info := t.Arch.Info(typ)
 	var fields []ir.Field
 
-	if typ.Layout == types.Union {
-		fields = make([]ir.Field, 1)
-
-		largestSize := uint32(0)
-		largestIndex := uint32(0)
-
-		for _, field := range info.Fields {
-			f := typ.Fields[field.Index]
-			fieldInfo := t.Arch.Info(f.Type)
-
-			if fieldInfo.Size > largestSize {
-				largestSize = fieldInfo.Size
-				largestIndex = field.Index
-			}
+	if typ.Layout == types.LayoutUnion {
+		fields = []ir.Field{
+			{Type: t.Get(t.unionStorageType(typ))},
 		}
-
-		fields[0] = ir.Field{Type: t.Get(typ.Fields[largestIndex].Type)}
 	} else {
 		fields = make([]ir.Field, len(typ.Fields))
 
@@ -260,7 +247,7 @@ func (t *TypeCache) createStructType(typ *types.Struct) ir.Type {
 	}
 
 	irTyp := ir.StructType{
-		Packed: typ.Layout == types.Packed,
+		Packed: typ.Layout == types.LayoutPacked,
 		Fields: fields,
 	}
 
@@ -306,6 +293,25 @@ func (t *TypeCache) createStructMeta(typ *types.Struct) ir.MetaRef {
 	node.Elements = t.Module.AddMetas(fields)
 
 	return ref
+}
+
+func (t *TypeCache) unionStorageType(typ *types.Struct) types.Type {
+	if len(typ.Fields) == 0 {
+		panic("codegen.unionStorageType() - Empty union storage")
+	}
+
+	selected := typ.Fields[0].Type
+	largestSize := t.Arch.Info(selected).Size
+
+	for _, field := range typ.Fields[1:] {
+		size := t.Arch.Info(field.Type).Size
+		if size > largestSize {
+			selected = field.Type
+			largestSize = size
+		}
+	}
+
+	return selected
 }
 
 // types.Func

@@ -31,6 +31,11 @@ func (c *Codegen) GetTypeInfo(typ types.Type) ir.Value {
 			return c.CreateTypeInfo(typ, true)
 		}
 
+	case *types.Union:
+		if typ.Generic != nil {
+			return c.CreateTypeInfo(typ, true)
+		}
+
 	case *types.Interface:
 		if typ.Generic != nil {
 			return c.CreateTypeInfo(typ, true)
@@ -63,6 +68,11 @@ func (c *Codegen) GetVTable(in *types.Interface, typ types.Type) ir.Value {
 	// Instantiate generic / pseudo-generic implementation
 	switch typ := typ.(type) {
 	case *types.Struct:
+		if typ.Generic != nil {
+			return c.CreateVTable(typ, in, true)
+		}
+
+	case *types.Union:
 		if typ.Generic != nil {
 			return c.CreateVTable(typ, in, true)
 		}
@@ -123,7 +133,7 @@ func (c *Codegen) CreateVTableInitializer(typ types.Type, in *types.Interface) i
 }
 
 func (c *Codegen) VtableStruct(in *types.Interface) *types.Struct {
-	return &types.Struct{Layout: types.C, Fields: []types.Field{
+	return &types.Struct{Layout: types.LayoutC, Fields: []types.Field{
 		{Name: "type_info", Type: &types.Pointer{Pointee: c.Ctx.Builtins.TypeInfo}},
 		{Name: "methods", Type: &types.Array{
 			Size:    uint32(len(in.InstanceMethods)),
@@ -212,10 +222,12 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 			kind = 6
 		case *types.Enum:
 			kind = 7
-		case *types.Struct:
+		case *types.Union:
 			kind = 8
-		case *types.Interface:
+		case *types.Struct:
 			kind = 9
+		case *types.Interface:
+			kind = 10
 
 		default:
 			panic("codegen.Codegen.CreateTypeInfo() - Invalid type")
@@ -232,7 +244,7 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 		}
 
 		switch typ.(type) {
-		case *types.Enum, *types.Struct, *types.Interface:
+		case *types.Struct, *types.Enum, *types.Union, *types.Interface:
 			sb.Set("name", c.StringView([]rune(typ.String())))
 
 		default:
@@ -324,11 +336,18 @@ func (c *Codegen) CreateTypeInfoInitializer(typ types.Type, linkOnce bool) ir.Va
 			sb.Set("data_ptr2", c.GetTypeInfo(typ.Returns))
 
 		case *types.Enum:
-			cases := c.CreateTypeInfoCases(typ, linkOnce)
+			cases := c.CreateTypeInfoEnumCases(typ, linkOnce)
 
 			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(cases.Typ.(*ir.ArrayType).Length))})
 			sb.Set("data_ptr1", cases)
 			sb.Set("data_ptr2", c.GetTypeInfo(typ.Underlying()))
+
+		case *types.Union:
+			cases := c.CreateTypeInfoUnionCases(typ, linkOnce)
+
+			sb.Set("data_int", &ir.Integer{Typ: ir.I64, Value: core.Unsigned(false, uint64(cases.Typ.(*ir.ArrayType).Length))})
+			sb.Set("data_ptr1", cases)
+			sb.Set("data_ptr2", &ir.Null{})
 
 		case *types.Struct:
 			fields := c.CreateTypeInfoFields(typ, linkOnce)
@@ -447,14 +466,14 @@ func (c *Codegen) CreateTypeInfoParameters(typ *types.Func, linkOnce bool) *ir.G
 	return c.GlobalVar(name, flags, ab.Build())
 }
 
-func (c *Codegen) CreateTypeInfoCases(typ *types.Enum, linkOnce bool) *ir.GlobalVar {
+func (c *Codegen) CreateTypeInfoEnumCases(typ *types.Enum, linkOnce bool) *ir.GlobalVar {
 	ab := c.Array(&types.Array{
 		Size:    uint32(len(typ.Cases)),
-		Element: c.Ctx.Builtins.Case,
+		Element: c.Ctx.Builtins.EnumCase,
 	})
 
 	for _, case_ := range typ.Cases {
-		sb := c.Struct(c.Ctx.Builtins.Case)
+		sb := c.Struct(c.Ctx.Builtins.EnumCase)
 
 		negative := ir.False
 		if case_.Value.Negative() {
@@ -468,7 +487,31 @@ func (c *Codegen) CreateTypeInfoCases(typ *types.Enum, linkOnce bool) *ir.Global
 		ab.Add(sb.Build())
 	}
 
-	name := TypeInfoLinkName(typ, "type_info_cases")
+	name := TypeInfoLinkName(typ, "type_info_enum_cases")
+
+	flags := ir.Constant
+	if linkOnce {
+		flags |= ir.LinkOnce
+	}
+
+	return c.GlobalVar(name, flags, ab.Build())
+}
+
+func (c *Codegen) CreateTypeInfoUnionCases(typ *types.Union, linkOnce bool) *ir.GlobalVar {
+	ab := c.Array(&types.Array{
+		Size:    uint32(len(typ.Cases)),
+		Element: c.Ctx.Builtins.UnionCase,
+	})
+
+	for _, case_ := range typ.Cases {
+		sb := c.Struct(c.Ctx.Builtins.UnionCase)
+
+		sb.Set("name", c.StringView([]rune(case_.Name)))
+
+		ab.Add(sb.Build())
+	}
+
+	name := TypeInfoLinkName(typ, "type_info_union_cases")
 
 	flags := ir.Constant
 	if linkOnce {
@@ -530,6 +573,10 @@ func VTableLinkName(in *types.Interface, typ types.Type) string {
 		name = typ.String()
 
 	case *types.Struct:
+		name = typ.Name
+		substitutions = typ.Substitutions
+
+	case *types.Union:
 		name = typ.Name
 		substitutions = typ.Substitutions
 
@@ -599,6 +646,10 @@ func TypeInfoLinkName(typ types.Type, kind string) string {
 		name = typ.Name
 
 	case *types.Struct:
+		name = typ.Name
+		substitutions = typ.Substitutions
+
+	case *types.Union:
 		name = typ.Name
 		substitutions = typ.Substitutions
 

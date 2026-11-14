@@ -79,6 +79,10 @@ outer:
 
 		// Type annotation
 		case *ast.IdentifierType:
+			if info, ok := unionInitializerInfo(file, n); ok {
+				return s.buildHover(file, info.Node, rng)
+			}
+
 			typ, ok := resolveIdentifierType(file, n)
 			if !ok {
 				break outer
@@ -167,7 +171,10 @@ func (s *Server) buildHover(file *project.File, node ast.Node, rng core.Range) *
 	case *ast.Enum:
 		label = declTypeString(file, n, n.Name().Token.Text)
 
-	case *ast.Case:
+	case *ast.Union:
+		label = declTypeString(file, n, n.Name().Token.Text)
+
+	case *ast.EnumCase:
 		label = n.Name.Token.Text
 
 		if enumDecl := ast.GetClosestParent[*ast.Enum](n); !core.IsNil(enumDecl) {
@@ -181,6 +188,20 @@ func (s *Server) buildHover(file *project.File, node ast.Node, rng core.Range) *
 				}
 			}
 		}
+
+	case *ast.UnionCase:
+		label = n.Name.Token.Text
+
+		if enumDecl := ast.GetClosestParent[*ast.Union](n); !core.IsNil(enumDecl) {
+			if typ, ok := file.Sema.NodeTypes[enumDecl]; ok {
+				if e, ok := typ.(*types.Union); ok {
+					label = e.Name + "::" + label
+				}
+			}
+		}
+
+	case *ast.UnionCaseField:
+		label = typeString(file, n, n.Type)
 
 	case *ast.Interface:
 		label = declTypeString(file, n, n.Name().Token.Text)
@@ -269,8 +290,16 @@ func hoverDocumentation(node ast.Node) []*ast.Leaf {
 		return field.Documentation
 	}
 
-	if cas, ok := node.(*ast.Case); ok {
+	if cas, ok := node.(*ast.EnumCase); ok {
 		return cas.Documentation
+	}
+
+	if cas, ok := node.(*ast.UnionCase); ok {
+		return cas.Documentation
+	}
+
+	if field, ok := node.(*ast.UnionCaseField); ok {
+		return field.Documentation
 	}
 
 	return nil

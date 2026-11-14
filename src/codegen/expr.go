@@ -63,7 +63,17 @@ func (c *Codegen) VisitNull(_ *ast.Null) ir.Value {
 }
 
 func (c *Codegen) VisitStructInitializer(s *ast.StructInitializer) ir.Value {
-	typ := c.ExprType(s).(*types.Struct)
+	switch typ := c.ExprType(s).(type) {
+	case *types.Struct:
+		return c.VisitStructInitializerStruct(s, typ)
+	case *types.Union:
+		return c.VisitStructInitializerUnion(s, typ)
+	default:
+		panic("codegen.VisitStructInitializer() - Invalid type")
+	}
+}
+
+func (c *Codegen) VisitStructInitializerStruct(s *ast.StructInitializer, typ *types.Struct) ir.Value {
 	t := c.Types.Get(typ).(*ir.RefStructType)
 	info := c.Arch.Info(typ)
 
@@ -75,6 +85,55 @@ func (c *Codegen) VisitStructInitializer(s *ast.StructInitializer) ir.Value {
 	}
 
 	return sb.Build()
+}
+
+func (c *Codegen) VisitStructInitializerUnion(s *ast.StructInitializer, typ *types.Union) ir.Value {
+	node := c.ExprInfo(s).Node.(*ast.UnionCase)
+	decl := node.Parent().(*ast.Union)
+	caseIndex := slices.Index(decl.Cases, node)
+
+	if caseIndex < 0 {
+		panic("codegen.VisitStructInitializerUnion() - Invalid case")
+	}
+
+	cas := &typ.Cases[caseIndex]
+	underlying := typ.Underlying().(*types.Struct)
+	dataType := underlying.Field("data").Type.(*types.Struct)
+
+	data := c.Struct(dataType)
+
+	if len(cas.Fields) > 0 {
+		var payload ir.Value
+
+		if len(cas.Fields) == 1 {
+			payload = c.LoadImplicitCast(s.Fields[0].Value, cas.Fields[0].Type)
+		} else {
+			payloadType := dataType.Field(cas.Name).Type.(*types.Struct)
+			builder := c.Struct(payloadType)
+
+			for _, field := range s.Fields {
+				fieldType := cas.Field(field.Name.Token.Text).Type
+				value := c.LoadImplicitCast(field.Value, fieldType)
+				builder.Set(field.Name.Token.Text, value)
+			}
+
+			payload = builder.Build()
+		}
+
+		dataIR := c.Types.Get(dataType).(*ir.StructType)
+		storage := c.BitCast(payload, dataIR.Fields[0].Type)
+		data.Set(cas.Name, storage)
+	}
+
+	tag := &ir.Integer{
+		Typ:   c.Types.Get(typ.TagType()),
+		Value: core.Unsigned(false, uint64(caseIndex)),
+	}
+
+	result := c.Struct(underlying)
+	result.Set("tag", tag)
+	result.Set("data", data.Build())
+	return result.Build()
 }
 
 func (c *Codegen) VisitWith(w *ast.With) ir.Value {
@@ -109,7 +168,7 @@ func (c *Codegen) VisitFieldInitializer(typ *types.Struct, t *ir.RefStructType, 
 
 	value := c.LoadImplicitCast(expr, fieldTyp)
 
-	if typ.Layout == types.Union {
+	if typ.Layout == types.LayoutUnion {
 		value = c.BitCast(value, t.Struct.Fields[0].Type)
 		fieldI = 0
 	}
@@ -623,7 +682,7 @@ func (c *Codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 
 		return c.GetFunction(node, typ, in)
 
-	case *ast.Case:
+	case *ast.EnumCase:
 		typ := c.ExprType(i).(*types.Enum)
 		value := typ.Cases[slices.Index(node.Parent().(*ast.Enum).Cases, node)].Value
 
@@ -731,6 +790,14 @@ func underlyingStruct(typ types.Type) *types.Struct {
 }
 
 func (c *Codegen) VisitMember(m *ast.Member) ir.Value {
+	// Method
+	if f, ok := c.ExprInfo(m).Node.(*ast.Func); ok {
+		typ := c.ExprType(m).(*types.Func)
+		in := c.GetFuncInterface(f)
+
+		return c.GetFunction(f, typ, in)
+	}
+
 	typ := c.UnderlyingExprType(m.Expr)
 
 	var dereference bool
@@ -750,7 +817,7 @@ func (c *Codegen) VisitMember(m *ast.Member) ir.Value {
 
 	index := -1
 
-	if s.Layout == types.Union {
+	if s.Layout == types.LayoutUnion {
 		if f := s.Field(m.Name.Token.Text); f != nil {
 			index = 0
 		}
@@ -761,11 +828,7 @@ func (c *Codegen) VisitMember(m *ast.Member) ir.Value {
 
 	// Method
 	if index == -1 {
-		f := c.Sema.ExprInfos[m].Node.(*ast.Func)
-		typ := c.ExprType(m).(*types.Func)
-		in := c.GetFuncInterface(f)
-
-		return c.GetFunction(f, typ, in)
+		panic("codegen.Codegen.VisitMember() - Failed to find field index")
 	}
 
 	// Get struct value
@@ -790,7 +853,7 @@ func (c *Codegen) VisitMember(m *ast.Member) ir.Value {
 	// Value
 	value = c.Emitter.ExtractValue(value, uint32(index))
 
-	if s.Layout == types.Union {
+	if s.Layout == types.LayoutUnion {
 		//goland:noinspection GoMaybeNil
 		fieldType := s.Field(m.Name.Token.Text).Type
 

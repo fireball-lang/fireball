@@ -196,6 +196,10 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 					if t.Generic != nil {
 						scopeTyp = t.Generic
 					}
+				case *types.Union:
+					if t.Generic != nil {
+						scopeTyp = t.Generic
+					}
 				case *types.Interface:
 					t = t.AsImmutable()
 					if t.Generic != nil {
@@ -206,6 +210,10 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 				if typeScope := c.ctx.TypeEnv.GetTypeScope(scopeTyp); !core.IsNil(typeScope) {
 					switch inst := underlying.(type) {
 					case *types.Struct:
+						if inst.Generic != nil {
+							subs = inst.Substitutions
+						}
+					case *types.Union:
 						if inst.Generic != nil {
 							subs = inst.Substitutions
 						}
@@ -233,6 +241,8 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 						modulePath = symbol.Type.(*types.Struct).ModulePath
 					case symbol.Kind == symbols.Enum:
 						modulePath = symbol.Type.(*types.Enum).ModulePath
+					case symbol.Kind == symbols.Union:
+						modulePath = symbol.Type.(*types.Union).ModulePath
 					case symbol.Kind == symbols.Interface:
 						modulePath = symbol.Type.(*types.Interface).ModulePath
 					}
@@ -303,6 +313,8 @@ func (c *common) CheckTypeArgsForSymbolEntry(symbol symbols.Symbol, entry *ast.I
 		return c.CheckTypeArgs(symbol.Type, symbol.Type.(*types.Alias).TypeParams, entry, subs)
 	case symbols.Struct:
 		return c.CheckTypeArgs(symbol.Type, symbol.Type.(*types.Struct).TypeParams, entry, subs)
+	case symbols.Union:
+		return c.CheckTypeArgs(symbol.Type, symbol.Type.(*types.Union).TypeParams, entry, subs)
 	case symbols.Interface:
 		return c.CheckTypeArgs(symbol.Type, symbol.Type.(*types.Interface).TypeParams, entry, subs)
 	case symbols.Func:
@@ -465,20 +477,20 @@ func (c *common) WarningRange(range_ core.Range, format string, args ...any) {
 // pushImplScope sets up the type-param scope used to resolve an impl's method
 // signatures and bodies, and returns the type the impl's methods are registered
 // under (and looked up through). Callers must call the returned pop function.
-func (c *common) pushImplScope(impl *ast.Impl, typ *types.Struct) (*types.Struct, func()) {
+func (c *common) pushImplScope[T types.Generic](impl *ast.Impl, typ T) (T, func()) {
 	template := typ
-	if typ.Generic != nil {
-		template = typ.Generic
+	if typ.GetGeneric() != nil {
+		template = typ.GetGeneric().(T)
 	}
 
-	full := len(template.TypeParams) > 0 && len(impl.TypeParams) == len(template.TypeParams)
+	full := len(template.GetTypeParams()) > 0 && len(impl.TypeParams) == len(template.GetTypeParams())
 
 	lookup := typ
 	if full {
 		lookup = template
 	}
 
-	if full || (len(template.TypeParams) > 0 && len(impl.TypeParams) > 0) {
+	if full || (len(template.GetTypeParams()) > 0 && len(impl.TypeParams) > 0) {
 		names := make([]string, len(impl.TypeParams))
 		params := make([]*types.Param, len(impl.TypeParams))
 
@@ -486,7 +498,7 @@ func (c *common) pushImplScope(impl *ast.Impl, typ *types.Struct) (*types.Struct
 			names[j] = param.Name.Token.Text
 
 			if full {
-				params[j] = template.TypeParams[j]
+				params[j] = template.GetTypeParams()[j]
 			} else if resolved, ok := c.sema.NodeTypes[param].(*types.Param); ok {
 				params[j] = resolved
 			} else {

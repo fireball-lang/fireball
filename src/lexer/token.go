@@ -37,6 +37,7 @@ const (
 
 	Struct
 	Enum
+	Union
 	Interface
 	Impl
 	Type

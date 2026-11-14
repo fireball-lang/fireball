@@ -6,6 +6,7 @@ import (
 	"fireball/lexer"
 	"fireball/symbols"
 	"fireball/types"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -96,36 +97,107 @@ func (a *analyzer) VisitNull(_ *ast.Null) ExprInfo {
 }
 
 func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
-	typ := a.ResolveAndAnalyzeType(s.Type)
-	if typ == types.Invalid {
-		return ExprInfo{Type: types.Invalid}
+	// Duplicate fields
+	seen := make(map[string]struct{})
+
+	for _, field := range s.Fields {
+		name := field.Name.Token.Text
+
+		if _, ok := seen[name]; ok {
+			a.Error(field.Name, "field with name '%s' is already set", name)
+			continue
+		}
+
+		seen[name] = struct{}{}
 	}
 
-	t, ok := typ.(*types.Struct)
-	if !ok {
-		return a.Error(s.Type, "type '%s' is not a struct", typ)
-	}
+	// Analyze fields based on target
+	switch nTyp := s.Type.(type) {
+	case *ast.IdentifierType:
+		symbol, ok := a.GetSymbol(symbols.Type|symbols.Variable, nTyp.Path)
+		if !ok {
+			return ExprInfo{Type: types.Invalid}
+		}
 
+		switch symbol.Kind {
+		case symbols.TypeAlias:
+			t := symbol.Type.(*types.Alias)
+
+			if core.IsNil(t.Type) {
+				return a.Error(nTyp, "cannot resolve type alias '%s', aliases must be declared before use", symbol.Name)
+			}
+
+			if t, ok := t.Type.(*types.Struct); ok {
+				a.sema.NodeTypes[nTyp] = t
+				return a.VisitStructInitializerStruct(s, t)
+			}
+
+			a.Error(nTyp, "invalid target '%s' for a field initializer", nTyp)
+			return ExprInfo{Type: types.Invalid}
+
+		case symbols.Struct:
+			t := symbol.Type.(*types.Struct)
+
+			if nTyp.Mutable {
+				a.Error(nTyp, "struct type '%s' cannot be mutable", t)
+			}
+
+			a.sema.NodeTypes[nTyp] = t
+			return a.VisitStructInitializerStruct(s, t)
+
+		case symbols.UnionCase:
+			t := symbol.Type.(*types.Union)
+
+			if nTyp.Mutable {
+				a.Error(nTyp, "union type '%s' cannot be mutable", t)
+			}
+
+			a.sema.NodeTypes[nTyp] = t
+
+			node := symbol.Node.(*ast.UnionCase)
+			return a.VisitStructInitializerUnion(s, t, node)
+
+		default:
+			a.Error(nTyp, "invalid target '%s' for a field initializer", nTyp)
+			return ExprInfo{Type: types.Invalid}
+		}
+
+	default:
+		typ := a.ResolveAndAnalyzeType(s.Type)
+		if typ == types.Invalid {
+			return ExprInfo{Type: types.Invalid}
+		}
+
+		t, ok := typ.(*types.Struct)
+		if !ok {
+			return a.Error(s.Type, "type '%s' is not a struct", typ)
+		}
+
+		return a.VisitStructInitializerStruct(s, t)
+	}
+}
+
+func (a *analyzer) VisitStructInitializerStruct(s *ast.StructInitializer, typ *types.Struct) ExprInfo {
 	compTime := true
 
 	for _, field := range s.Fields {
-		value := a.VisitFieldInitializer(t, field)
+		value := a.VisitFieldInitializerStruct(field, typ)
 		compTime = compTime && value.CompTime
 	}
 
-	if t.Layout == types.Union && len(s.Fields) > 1 {
+	if typ.Layout == types.LayoutUnion && len(s.Fields) > 1 {
 		a.Error(s.Type, "when initializing an union struct, only one field can be set at most")
 	}
 
 	// Check for required and non Zeroable fields that are not initialized
-	isZeroable := slices.Contains(a.ctx.TypeEnv.GetConformances(t), a.ctx.Builtins.Zeroable)
+	isZeroable := slices.Contains(a.ctx.TypeEnv.GetConformances(typ), a.ctx.Builtins.Zeroable)
 
-	if t.Layout == types.Union {
+	if typ.Layout == types.LayoutUnion {
 		if len(s.Fields) == 0 && !isZeroable {
-			a.Error(s.Type, "union '%s' is not zeroable, initialize one field", t)
+			a.Error(s.Type, "union '%s' is not zeroable, initialize one field", typ)
 		}
 	} else {
-		for _, field := range t.Fields {
+		for _, field := range typ.Fields {
 			kind := ""
 
 			if field.Required {
@@ -148,13 +220,49 @@ func (a *analyzer) VisitStructInitializer(s *ast.StructInitializer) ExprInfo {
 			}
 
 			if !ok {
-				a.Error(s.Type, "struct '%s' has a %s field '%s' that is not initialized", t, kind, field.Name)
+				a.Error(s.Type, "struct '%s' has a %s field '%s' that is not initialized", typ, kind, field.Name)
 			}
 		}
 	}
 
 	return ExprInfo{
 		Type:     typ,
+		CompTime: compTime,
+	}
+}
+
+func (a *analyzer) VisitStructInitializerUnion(s *ast.StructInitializer, typ *types.Union, node *ast.UnionCase) ExprInfo {
+	cas, ok := typ.Case(node.Name.Token.Text)
+	if !ok {
+		panic(fmt.Sprintf("sema.analyzer.VisitStructInitializerUnion() - Failed to find union case '%s::%s'", typ, node.Name.Token.Text))
+	}
+
+	compTime := true
+
+	for _, field := range s.Fields {
+		value := a.VisitFieldInitializerUnion(field, typ, node)
+		compTime = compTime && value.CompTime
+	}
+
+	for _, field := range cas.Fields {
+		has := false
+
+		for _, fieldInit := range s.Fields {
+			if fieldInit.Name.Token.Text == field.Name {
+				has = true
+				break
+			}
+		}
+
+		if !has {
+			a.Error(s.Type, "union initializer is missing field '%s' on '%s::%s'", field.Name, typ, cas.Name)
+		}
+	}
+
+	return ExprInfo{
+		Type:     typ,
+		Node:     node,
+		Symbol:   symbols.UnionCase,
 		CompTime: compTime,
 	}
 }
@@ -173,11 +281,11 @@ func (a *analyzer) VisitWith(w *ast.With) ExprInfo {
 	compTime := expr.CompTime
 
 	for _, field := range w.Fields {
-		value := a.VisitFieldInitializer(t, field)
+		value := a.VisitFieldInitializerStruct(field, t)
 		compTime = compTime && value.CompTime
 	}
 
-	if t.Layout == types.Union && len(w.Fields) > 1 {
+	if t.Layout == types.LayoutUnion && len(w.Fields) > 1 {
 		a.Error(w, "when modifying an union struct, only one field can be set at most")
 	}
 
@@ -187,17 +295,39 @@ func (a *analyzer) VisitWith(w *ast.With) ExprInfo {
 	}
 }
 
-func (a *analyzer) VisitFieldInitializer(t *types.Struct, field *ast.FieldInitializer) ExprInfo {
+func (a *analyzer) VisitFieldInitializerStruct(field *ast.FieldInitializer, t *types.Struct) ExprInfo {
 	f := t.Field(field.Name.Token.Text)
 
 	if f == nil {
 		a.Error(field.Name, "field '%s' doesn't exist on struct '%s'", field.Name.Token.Text, t)
+		a.AnalyzeExpr(field.Value)
 		return ExprInfo{Type: types.Invalid}
 	}
 
 	a.exprInfos[field] = ExprInfo{
 		Type: f.Type,
-		Node: a.resolveFieldNode(t, field.Name.Token.Text),
+		Node: a.resolveStructFieldNode(t, field.Name.Token.Text),
+	}
+
+	value := a.AnalyzeExpr(field.Value)
+	a.ExpectType(f.Type, value, field.Value)
+
+	return value
+}
+
+func (a *analyzer) VisitFieldInitializerUnion(field *ast.FieldInitializer, u *types.Union, node *ast.UnionCase) ExprInfo {
+	c, _ := u.Case(node.Name.Token.Text)
+	f := c.Field(field.Name.Token.Text)
+
+	if f == nil {
+		a.Error(field.Name, "field '%s' doesn't exist on union case '%s::%s'", field.Name.Token.Text, u, c.Name)
+		a.AnalyzeExpr(field.Value)
+		return ExprInfo{Type: types.Invalid}
+	}
+
+	a.exprInfos[field] = ExprInfo{
+		Type: f.Type,
+		Node: node.Field(field.Name.Token.Text),
 	}
 
 	value := a.AnalyzeExpr(field.Value)
@@ -333,7 +463,7 @@ func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) ExprInfo {
 		} else {
 			a.exprInfos[o] = ExprInfo{
 				Type: field.Type,
-				Node: a.resolveFieldNode(s, o.Field.Token.Text),
+				Node: a.resolveStructFieldNode(s, o.Field.Token.Text),
 			}
 		}
 	} else {
@@ -709,7 +839,7 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 	a.sema.NodeTypes[symbol.Node] = symbol.Type
 
 	switch symbol.Kind {
-	case symbols.Case:
+	case symbols.EnumCase:
 		return ExprInfo{
 			CompTime: true,
 			Type:     symbol.Type,
@@ -761,7 +891,20 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 			CompTime: true,
 		}
 
-	case symbols.Struct, symbols.Enum, symbols.Interface, symbols.TypeParam:
+	case symbols.UnionCase:
+		var sb strings.Builder
+
+		for j, entry := range i.Path {
+			if j > 0 {
+				sb.WriteString("::")
+			}
+
+			sb.WriteString(entry.Name.Token.Text)
+		}
+
+		return a.Error(i, "union case '%s' needs to be initialized with { }", sb.String())
+
+	case symbols.Struct, symbols.Enum, symbols.Union, symbols.Interface, symbols.TypeParam:
 		return a.Error(i, "symbol '%s' is a type and cannot be used as an expression", i.Path[len(i.Path)-1].Name.Token.Text)
 
 	default:
@@ -1011,7 +1154,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 
 				return ExprInfo{
 					Type:     field.Type,
-					Node:     a.resolveFieldNode(t, m.Name.Token.Text),
+					Node:     a.resolveStructFieldNode(t, m.Name.Token.Text),
 					Mutable:  mutable,
 					Address:  address,
 					CompTime: expr.CompTime,
@@ -1034,6 +1177,7 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		return a.Error(m.Name, "member '%s' doesn't exist on type '%s'", m.Name.Token.Text, t)
 	}
 
+	// Enum
 	if t, ok := typ.(*types.Enum); ok {
 		// Instance method
 		if sym, ok := a.ctx.TypeEnv.GetInstanceMethod(t, m.Name.Token.Text); ok {
@@ -1050,16 +1194,33 @@ func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
 		return a.Error(m.Name, "member '%s' doesn't exist on type '%s'", m.Name.Token.Text, t)
 	}
 
-	return a.Error(m.Expr, "expected a tuple, struct, enum or a reference / pointer to one, got '%s'", expr.Type)
-}
+	// Union
+	if t, ok := typ.(*types.Union); ok {
+		// Instance method
+		if sym, subs, ok := a.ctx.TypeEnv.GetInstanceMethodWithSubs(t, m.Name.Token.Text); ok {
+			if a.checkVisibility && !sym.Public && !slices.Equal(t.ModulePath, a.fileModPath) {
+				a.Error(m.Name, "method '%s' is private", m.Name.Token.Text)
+			}
 
-func (a *analyzer) resolveFieldNode(t *types.Struct, name string) ast.Node {
-	lookupStruct := t
-	if t.Generic != nil {
-		lookupStruct = t.Generic
+			methodType := a.applyMethodTypeArgs(m, sym.Type.(*types.Func), subs)
+
+			a.sema.NodeTypes[sym.Node] = methodType
+			return ExprInfo{Type: methodType, Node: sym.Node}
+		}
+
+		return a.Error(m.Name, "member '%s' doesn't exist on type '%s'", m.Name.Token.Text, t)
 	}
 
-	if structNode := a.ctx.TypeEnv.GetStructNode(lookupStruct); structNode != nil {
+	return a.Error(m.Expr, "expected a tuple, struct, enum, union or a reference / pointer to one, got '%s'", expr.Type)
+}
+
+func (a *analyzer) resolveStructFieldNode(t *types.Struct, name string) *ast.Field {
+	lookup := t
+	if t.Generic != nil {
+		lookup = t.Generic
+	}
+
+	if structNode := a.ctx.TypeEnv.GetStructNode(lookup); structNode != nil {
 		for _, f := range structNode.Fields {
 			if f.Name.Token.Text == name {
 				return f

@@ -57,7 +57,7 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 
 		a.CheckAttributes(field.Attributes(), fieldAllowedAttributes)
 
-		if typ.Fields[i].Required && typ.Layout == types.Union {
+		if typ.Fields[i].Required && typ.Layout == types.LayoutUnion {
 			a.Error(field.Name, "union structs cannot have required fields")
 		}
 
@@ -111,6 +111,57 @@ func (a *analyzer) VisitEnum(e *ast.Enum) {
 			}
 
 			a.ExpectPrimitiveClass(types.IsInteger, "integer", value, cas.Value)
+		}
+	}
+}
+
+var unionAllowedAttributes = []reflect.Type{
+	reflect.TypeFor[ast.Cfg](),
+}
+
+func (a *analyzer) VisitUnion(u *ast.Union) {
+	// Attributes
+	a.CheckAttributes(u.Attributes(), unionAllowedAttributes)
+
+	// Type
+	symbol, _ := a.scopes.GetSymbol(symbols.Type, u.Name().Token.Text)
+
+	typ, ok := symbol.Type.(*types.Union)
+	if !ok {
+		return
+	}
+
+	a.sema.NodeTypes[u] = typ
+
+	// Empty
+	if len(u.Cases) == 0 {
+		a.Error(u.Name(), "empty unions are not allowed")
+	}
+
+	// Duplicate names
+	names := make(map[string]any)
+
+	for _, cas := range u.Cases {
+		// Name
+		name := cas.Name.Token.Text
+
+		if _, ok := names[name]; ok {
+			a.Error(cas.Name, "case with name '%s' already exists", name)
+		}
+
+		names[name] = nil
+
+		// Field names
+		names := make(map[string]any)
+
+		for _, field := range cas.Fields {
+			name := field.Name.Token.Text
+
+			if _, ok := names[name]; ok {
+				a.Error(field.Name, "field with name '%s' already exists", name)
+			}
+
+			names[name] = nil
 		}
 	}
 }
@@ -178,8 +229,13 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	var popScope func()
 
 	if prev, ok := a.sema.NodeTypes[i.Type]; ok {
-		if s, ok := prev.(*types.Struct); ok {
-			lookupTyp, popScope = a.pushImplScope(i, s)
+		switch typ := prev.(type) {
+		case *types.Struct:
+			lookupTyp, popScope = a.pushImplScope(i, typ)
+			defer popScope()
+
+		case *types.Union:
+			lookupTyp, popScope = a.pushImplScope(i, typ)
 			defer popScope()
 		}
 	}
@@ -204,13 +260,13 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 	// Add impl type param constraints to canonical type params for method body analysis
 	var savedConstraints [][]*types.Interface
 
-	if s, ok := typ.(*types.Struct); ok && s.Generic != nil && len(i.TypeParams) > 0 {
-		template := s.Generic
+	if s, ok := typ.(types.Generic); ok && s.GetGeneric() != nil && len(i.TypeParams) > 0 {
+		template := s.GetGeneric()
 
-		if len(template.TypeParams) == len(i.TypeParams) {
-			savedConstraints = make([][]*types.Interface, len(template.TypeParams))
+		if len(template.GetTypeParams()) == len(i.TypeParams) {
+			savedConstraints = make([][]*types.Interface, len(template.GetTypeParams()))
 
-			for j, tp := range template.TypeParams {
+			for j, tp := range template.GetTypeParams() {
 				savedConstraints[j] = tp.Constraints
 
 				if resolvedParam, ok := a.sema.NodeTypes[i.TypeParams[j]].(*types.Param); ok {
@@ -290,8 +346,9 @@ func (a *analyzer) VisitImpl(i *ast.Impl) {
 
 	// Restore canonical type param constraints
 	if savedConstraints != nil {
-		template := typ.(*types.Struct).Generic
-		for j, tp := range template.TypeParams {
+		template := typ.(types.Generic).GetGeneric()
+
+		for j, tp := range template.GetTypeParams() {
 			tp.Constraints = savedConstraints[j]
 		}
 	}

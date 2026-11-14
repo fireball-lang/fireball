@@ -219,7 +219,7 @@ func typeofEnumKind() bool {
 
 #[test("typeof(Color) cases")]
 func typeofEnumCases() bool {
-	var cases = typeof(Color).cases();
+	var cases = typeof(Color).enum_cases();
 
 	if (cases.size != 3u) return false;
 	if (cases[0u].name != "Red") return false;
@@ -231,7 +231,7 @@ func typeofEnumCases() bool {
 
 #[test("typeof(Color) cases not negative")]
 func typeofEnumCasesNotNegative() bool {
-	var cases = typeof(Color).cases();
+	var cases = typeof(Color).enum_cases();
 
 	return !cases[0u].negative && !cases[1u].negative && !cases[2u].negative;
 }

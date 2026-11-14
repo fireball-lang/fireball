@@ -17,7 +17,8 @@ type Builtins struct {
 	// Reflection
 
 	TupleField *types.Struct
-	Case       *types.Struct
+	EnumCase   *types.Struct
+	UnionCase  *types.Struct
 	Field      *types.Struct
 
 	Implementation *types.Struct

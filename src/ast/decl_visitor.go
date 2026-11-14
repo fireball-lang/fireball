@@ -4,6 +4,7 @@ type DeclVisitor interface {
 	VisitTypeAlias(t *TypeAlias)
 	VisitStruct(s *Struct)
 	VisitEnum(e *Enum)
+	VisitUnion(u *Union)
 	VisitInterface(i *Interface)
 	VisitImpl(i *Impl)
 
@@ -22,6 +23,8 @@ func VisitDecl[V DeclVisitor](visitor V, decl Decl) {
 		visitor.VisitStruct(decl)
 	case *Enum:
 		visitor.VisitEnum(decl)
+	case *Union:
+		visitor.VisitUnion(decl)
 	case *Interface:
 		visitor.VisitInterface(decl)
 	case *Impl:

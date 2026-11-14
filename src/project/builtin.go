@@ -48,11 +48,17 @@ func GetBuiltins(projMap map[string]*Project) fb_core.Builtins {
 	}
 	builtins.TupleField = symbol.Type.(*types.Struct)
 
-	symbol, ok = proj.Module.GetSymbol(symbols.Type, "Case")
+	symbol, ok = proj.Module.GetSymbol(symbols.Type, "EnumCase")
 	if !ok {
-		panic("project.GetBuiltins() - Failed to get 'core::Case' type")
+		panic("project.GetBuiltins() - Failed to get 'core::EnumCase' type")
 	}
-	builtins.Case = symbol.Type.(*types.Struct)
+	builtins.EnumCase = symbol.Type.(*types.Struct)
+
+	symbol, ok = proj.Module.GetSymbol(symbols.Type, "UnionCase")
+	if !ok {
+		panic("project.GetBuiltins() - Failed to get 'core::UnionCase' type")
+	}
+	builtins.UnionCase = symbol.Type.(*types.Struct)
 
 	symbol, ok = proj.Module.GetSymbol(symbols.Type, "Field")
 	if !ok {

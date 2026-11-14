@@ -91,6 +91,32 @@ func Collect(file *ast.File) []Symbol {
 				Type:   &types.Enum{Name: sb.String(), ModulePath: modulePath}, // filled in type resolver
 			})
 
+		case *ast.Union:
+			sb := strings.Builder{}
+
+			modulePath := make([]string, 0, len(file.Mod.Path))
+			for _, entry := range file.Mod.Path {
+				modulePath = append(modulePath, entry.Token.Text)
+				sb.WriteString(entry.Token.Text)
+				sb.WriteString("::")
+			}
+
+			sb.WriteString(decl.Name().Token.Text)
+
+			typeParams := make([]*types.Param, 0, len(decl.TypeParams))
+
+			for _, param := range decl.TypeParams {
+				typeParams = append(typeParams, &types.Param{Name: param.Name.Token.Text})
+			}
+
+			symbols = append(symbols, Symbol{
+				Kind:   Union,
+				Public: decl.Public,
+				Name:   decl.Name().Token.Text,
+				Node:   decl,
+				Type:   &types.Union{Name: sb.String(), ModulePath: modulePath, TypeParams: typeParams}, // filled in type resolver,
+			})
+
 		case *ast.Interface:
 			sb := strings.Builder{}
 

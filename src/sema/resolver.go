@@ -75,9 +75,11 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 	if typ != types.Invalid {
 		if _, ok := typ.(*types.Primitive); !ok {
 			if _, ok := typ.(*types.Enum); !ok {
-				if _, ok := typ.(*types.Struct); !ok {
-					r.Error(impl.Type, "implementation blocks can only be attached to primitives, enums and structs, not '%s'", typ)
-					okType = false
+				if _, ok := typ.(*types.Union); !ok {
+					if _, ok := typ.(*types.Struct); !ok {
+						r.Error(impl.Type, "implementation blocks can only be attached to primitives, enums, unions and structs, not '%s'", typ)
+						okType = false
+					}
 				}
 			}
 		}
@@ -86,9 +88,15 @@ func (r *resolver) ResolveImpl(impl *ast.Impl) {
 	// Set up the method type-param scope
 	methodTyp := typ
 
-	if s, ok := typ.(*types.Struct); ok {
+	switch typ := typ.(type) {
+	case *types.Struct:
 		var pop func()
-		methodTyp, pop = r.pushImplScope(impl, s)
+		methodTyp, pop = r.pushImplScope(impl, typ)
+		defer pop()
+
+	case *types.Union:
+		var pop func()
+		methodTyp, pop = r.pushImplScope(impl, typ)
 		defer pop()
 	}
 

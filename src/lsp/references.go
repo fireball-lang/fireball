@@ -6,6 +6,7 @@ import (
 	"fireball/core"
 	"fireball/lexer"
 	"fireball/project"
+	"fireball/symbols"
 
 	"go.lsp.dev/protocol"
 	"go.lsp.dev/uri"
@@ -128,7 +129,17 @@ func (s *Server) declarationAt(node ast.Node) ast.Node {
 				return n
 			}
 
-		case *ast.Case:
+		case *ast.EnumCase:
+			if n.Name == leaf {
+				return n
+			}
+
+		case *ast.UnionCase:
+			if n.Name == leaf {
+				return n
+			}
+
+		case *ast.UnionCaseField:
 			if n.Name == leaf {
 				return n
 			}
@@ -176,6 +187,14 @@ func (s *Server) collectFileReferences(file *project.File, defNode ast.Node, inc
 
 		case *ast.OffsetOf:
 			add(file, n.Field.Range())
+
+		case *ast.StructInitializer:
+			target, ok := n.Type.(*ast.IdentifierType)
+			if !ok || info.Symbol != symbols.UnionCase || len(target.Path) == 0 {
+				continue
+			}
+
+			add(file, target.Path[len(target.Path)-1].Name.Range())
 		}
 	}
 
@@ -183,6 +202,20 @@ func (s *Server) collectFileReferences(file *project.File, defNode ast.Node, inc
 	for node, typ := range file.Sema.NodeTypes {
 		if node == defNode {
 			continue
+		}
+
+		switch n := node.(type) {
+		case *ast.IdentifierType:
+			if _, ok := unionInitializerInfo(file, n); ok {
+				continue
+			}
+
+		case *ast.IdentifierEntry:
+			if target, ok := n.Parent().(*ast.IdentifierType); ok {
+				if _, ok := unionInitializerInfo(file, target); ok && len(target.Path) > 0 && target.Path[len(target.Path)-1] == n {
+					continue
+				}
+			}
 		}
 
 		if n, ok := node.(*ast.IdentifierType); ok {
@@ -254,7 +287,13 @@ func declNameRange(node ast.Node) core.Range {
 	case *ast.Var:
 		return n.Name.Range()
 
-	case *ast.Case:
+	case *ast.EnumCase:
+		return n.Name.Range()
+
+	case *ast.UnionCase:
+		return n.Name.Range()
+
+	case *ast.UnionCaseField:
 		return n.Name.Range()
 	}
 

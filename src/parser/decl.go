@@ -26,6 +26,8 @@ func (p *parser) parseDecl(documentation []*ast.Leaf, attributes []ast.Attribute
 		return p.parseStruct(documentation, attributes, public, start)
 	case lexer.Enum:
 		return p.parseEnum(documentation, attributes, public, start)
+	case lexer.Union:
+		return p.parseUnion(documentation, attributes, public, start)
 	case lexer.Interface:
 		return p.parseInterface(documentation, attributes, public, start)
 	case lexer.Impl:
@@ -256,7 +258,7 @@ func (p *parser) parseEnum(documentation []*ast.Leaf, attributes []ast.Attribute
 
 	// Cases
 	myRecoverId := p.pushRecoverPoint(lexer.RightBrace)
-	e.Cases, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightBrace, p.parseCase)
+	e.Cases, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightBrace, p.parseEnumCase)
 	p.popRecoverPoint()
 
 	if recoverId >= 0 {
@@ -275,8 +277,8 @@ func (p *parser) parseEnum(documentation []*ast.Leaf, attributes []ast.Attribute
 	return
 }
 
-func (p *parser) parseCase() (c *ast.Case, recoverId int) {
-	c = &ast.Case{}
+func (p *parser) parseEnumCase() (c *ast.EnumCase, recoverId int) {
+	c = &ast.EnumCase{}
 	c.Range_.Start = p.current.Range.Start
 	defer func() {
 		c.Range_.End = p.previous.Range.End
@@ -309,6 +311,170 @@ func (p *parser) parseCase() (c *ast.Case, recoverId int) {
 		if c.Value, recoverId = p.parseExpr(); recoverId >= 0 {
 			return
 		}
+	}
+
+	return
+}
+
+func (p *parser) parseUnion(documentation []*ast.Leaf, attributes []ast.Attribute, public bool, start lexer.Token) (u *ast.Union, recoverId int) {
+	u = &ast.Union{}
+	u.Range_.Start = start.Range.Start
+	u.Documentation_ = documentation
+	u.Attributes_ = attributes
+	u.Public = public
+	defer func() {
+		u.Range_.End = p.previous.Range.End
+
+		if u.Name_ == nil {
+			u.Name_ = p.badLeaf()
+		}
+	}()
+
+	recoverId = -1
+
+	// 'union'
+	if recoverId = p.expect(lexer.Union, "expected 'union'"); recoverId >= 0 {
+		return
+	}
+
+	// Name
+	if u.Name_, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// '[' Type Parameters ']'
+	if p.current.Kind == lexer.LeftBracket {
+		if u.TypeParams, recoverId = p.parseTypeParams(); recoverId >= 0 {
+			return
+		}
+	}
+
+	// '{' Cases '}'
+	{
+		// '{'
+		if recoverId = p.expect(lexer.LeftBrace, "expected '{' before union cases"); recoverId >= 0 {
+			return
+		}
+
+		// Cases
+		for p.current.Kind != lexer.RightBrace && p.current.Kind != lexer.EOF {
+			myRecoverId := p.pushRecoverPoint(lexer.RightBrace, lexer.Documentation, lexer.Identifier)
+
+			var case_ *ast.UnionCase
+			case_, recoverId = p.parseUnionCase()
+			u.Cases = append(u.Cases, case_)
+
+			p.popRecoverPoint()
+
+			if recoverId >= 0 {
+				if recoverId == myRecoverId {
+					recoverId = -1
+				} else {
+					return
+				}
+			}
+		}
+
+		// '}'
+		if recoverId = p.expect(lexer.RightBrace, "expected '}' after union cases"); recoverId >= 0 {
+			return
+		}
+	}
+
+	return
+}
+
+func (p *parser) parseUnionCase() (u *ast.UnionCase, recoverId int) {
+	u = &ast.UnionCase{}
+	u.Range_.Start = p.current.Range.Start
+	defer func() {
+		u.Range_.End = p.previous.Range.End
+
+		if u.Name == nil {
+			u.Name = p.badLeaf()
+		}
+	}()
+
+	recoverId = -1
+
+	// Documentation
+	if p.current.Kind == lexer.Documentation {
+		u.Documentation = p.parseDocumentation()
+	}
+
+	// Name
+	if u.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// '{' Fields '}'
+	{
+		// '{'
+		if recoverId = p.expect(lexer.LeftBrace, "expected '{' before union case fields"); recoverId >= 0 {
+			return
+		}
+
+		// Field
+		myRecoverId := p.pushRecoverPoint(lexer.RightBrace)
+		u.Fields, recoverId = parseCommaList(p, lexer.Identifier, lexer.RightBrace, p.parseUnionCaseField)
+		p.popRecoverPoint()
+
+		if recoverId >= 0 {
+			if recoverId == myRecoverId {
+				recoverId = -1
+			} else {
+				return
+			}
+		}
+
+		// '}'
+		if recoverId = p.expect(lexer.RightBrace, "expected '}' after union case fields"); recoverId >= 0 {
+			return
+		}
+	}
+
+	// ';'
+	if recoverId = p.expect(lexer.Semicolon, "expected ';' after union case"); recoverId >= 0 {
+		return
+	}
+
+	return
+}
+
+func (p *parser) parseUnionCaseField() (u *ast.UnionCaseField, recoverId int) {
+	u = &ast.UnionCaseField{}
+	u.Range_.Start = p.current.Range.Start
+	defer func() {
+		u.Range_.End = p.previous.Range.End
+
+		if u.Name == nil {
+			u.Name = p.badLeaf()
+		}
+		if core.IsNil(u.Type) {
+			u.Type = p.badType()
+		}
+	}()
+
+	recoverId = -1
+
+	// Documentation
+	if p.current.Kind == lexer.Documentation {
+		u.Documentation = p.parseDocumentation()
+	}
+
+	// Name
+	if u.Name, recoverId = p.parseLeaf(); recoverId >= 0 {
+		return
+	}
+
+	// ':'
+	if recoverId = p.expect(lexer.Colon, "expected ':' before field type"); recoverId >= 0 {
+		return
+	}
+
+	// Type
+	if u.Type, recoverId = p.parseType(); recoverId >= 0 {
+		return
 	}
 
 	return

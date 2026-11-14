@@ -6,6 +6,7 @@ import (
 	"fireball/core"
 	"fireball/lexer"
 	"fireball/project"
+	"fireball/sema"
 	"fireball/symbols"
 	"fireball/types"
 	"iter"
@@ -70,6 +71,10 @@ outer:
 
 		// Type annotation
 		case *ast.IdentifierType:
+			if info, ok := unionInitializerInfo(file, n); ok {
+				return info.Node
+			}
+
 			typ, ok := resolveIdentifierType(file, n)
 			if !ok {
 				break outer
@@ -175,6 +180,14 @@ func (s *Server) findTypeDeclaration(typ types.Type) ast.Node {
 	case *types.Enum:
 		return s.findEnumNode(t)
 
+	case *types.Union:
+		template := t
+		if t.Generic != nil {
+			template = t.Generic
+		}
+
+		return s.findUnionNode(template)
+
 	case *types.Interface:
 		template := t.AsImmutable()
 		if template.Generic != nil {
@@ -219,6 +232,18 @@ func (s *Server) findEnumNode(et *types.Enum) *ast.Enum {
 		if sym.Kind == symbols.Enum && sym.Type == et {
 			if e, ok := sym.Node.(*ast.Enum); ok {
 				return e
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) findUnionNode(u *types.Union) *ast.Union {
+	for sym := range s.allSymbols() {
+		if sym.Kind == symbols.Union && sym.Type == u {
+			if n, ok := sym.Node.(*ast.Union); ok {
+				return n
 			}
 		}
 	}
@@ -352,4 +377,18 @@ func (s *Server) buildDefinitionResult(defNode ast.Node) protocol.DefinitionResu
 		URI:   link.TargetURI,
 		Range: link.TargetRange,
 	}
+}
+
+func unionInitializerInfo(file *project.File, target *ast.IdentifierType) (sema.ExprInfo, bool) {
+	owner, ok := target.Parent().(*ast.StructInitializer)
+	if !ok || owner.Type != target {
+		return sema.ExprInfo{}, false
+	}
+
+	info, ok := file.Sema.ExprInfos[owner]
+	if !ok || info.Symbol != symbols.UnionCase || core.IsNil(info.Node) {
+		return sema.ExprInfo{}, false
+	}
+
+	return info, true
 }

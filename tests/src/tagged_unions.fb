@@ -1,0 +1,831 @@
+mod tests::tagged_unions;
+
+import tests::tagged_union_helpers::{RemoteChoice};
+
+// ── Construction and value preservation ────────────────────────────────────────
+
+// Deliberately not alphabetical: tags must follow declaration order, while
+// payload storage and fields are sorted independently by the compiler.
+union Value[T] {
+    ZEmpty {};
+    Single { value: T };
+    Pair { z: T, a: T };
+}
+
+type IntValue = Value[i32];
+
+// Test-only representation mirrors. Keep representation-dependent inspection
+// here until tagged unions have public payload access/pattern matching.
+struct PairPayload[T] {
+    z: T,
+    a: T,
+}
+
+#[repr(Union)]
+struct ValueData[T] {
+    ZEmpty: u8,
+    Single: T,
+    Pair: PairPayload[T],
+}
+
+struct ValueMirror[T] {
+    tag: u8,
+    data: ValueData[T],
+}
+
+func view(value: &Value[i32]) &ValueMirror[i32] {
+    return value as &ValueMirror[i32];
+}
+
+func makeSingle(value: i32) Value[i32] {
+    return Value:[i32]::Single { value: value };
+}
+
+func makePair(z: i32, a: i32) Value[i32] {
+    return Value:[i32]::Pair { z: z, a: a };
+}
+
+func makeGeneric[T](value: T) Value[T] {
+    return Value:[T]::Single { value: value };
+}
+
+func inspectArgument(value: Value[i32]) bool {
+    var result = view(&value);
+    return result.tag == 2u && result.data.Pair.z == 31 && result.data.Pair.a == 47;
+}
+
+#[test("tagged union: representation mirror matches size and alignment")]
+func mirrorLayout() bool {
+    return sizeof(Value[i32]) == sizeof(ValueMirror[i32])
+        && alignof(Value[i32]) == alignof(ValueMirror[i32])
+        && sizeof(Value[i64]) == sizeof(ValueMirror[i64])
+        && alignof(Value[i64]) == alignof(ValueMirror[i64]);
+}
+
+#[test("tagged union: empty case has declaration-order tag and zero storage")]
+func emptyCase() bool {
+    var value = Value:[i32]::ZEmpty {};
+    var result = view(&value);
+    return result.tag == 0u && result.data.Pair.a == 0 && result.data.Pair.z == 0;
+}
+
+#[test("tagged union: single-field case preserves payload and zeroes unused storage")]
+func singleCase() bool {
+    var value = Value:[i32]::Single { value: 42 };
+    var result = view(&value);
+    // Pair.a occupies the first i32; Pair.z is unused by Single.
+    return result.tag == 1u && result.data.Single == 42 && result.data.Pair.z == 0;
+}
+
+#[test("tagged union: negative single-field payload preserves bits")]
+func negativePayload() bool {
+    var value = makeSingle(-12345);
+    var result = view(&value);
+    return result.tag == 1u && result.data.Single == -12345;
+}
+
+#[test("tagged union: multi-field payload follows field names, not sorted indices")]
+func pairCase() bool {
+    var value = Value:[i32]::Pair { z: 22, a: 11 };
+    var result = view(&value);
+    return result.tag == 2u && result.data.Pair.z == 22 && result.data.Pair.a == 11;
+}
+
+#[test("tagged union: reordered initializer fields preserve values")]
+func reorderedFields() bool {
+    var value = Value:[i32]::Pair { a: 17, z: 29 };
+    var result = view(&value);
+    return result.tag == 2u && result.data.Pair.a == 17 && result.data.Pair.z == 29;
+}
+
+#[test("tagged union: runtime single-field argument and return")]
+func runtimeSingle() bool {
+    var value = makeSingle(73);
+    var result = view(&value);
+    return result.tag == 1u && result.data.Single == 73;
+}
+
+#[test("tagged union: runtime multi-field argument and return")]
+func runtimePair() bool {
+    var value = makePair(31, 47);
+    return inspectArgument(value);
+}
+
+#[test("tagged union: copy preserves tag and all payload fields")]
+func copyValue() bool {
+    var original = makePair(101, 202);
+    var copy = original;
+    original = makePair(303, 404);
+    var result = view(&copy);
+    return result.tag == 2u && result.data.Pair.z == 101 && result.data.Pair.a == 202;
+}
+
+#[test("tagged union: assignment changes active case and clears unused storage")]
+func assignDifferentCase() bool {
+    var value = makePair(101, 202);
+    value = makeSingle(9);
+    var result = view(&value);
+    if (result.tag != 1u || result.data.Single != 9 || result.data.Pair.z != 0) return false;
+    value = Value:[i32]::ZEmpty {};
+    return result.tag == 0u && result.data.Pair.a == 0 && result.data.Pair.z == 0;
+}
+
+func record(counter: mut &i32, digit: i32) i32 {
+    *counter = *counter * 10 + digit;
+    return digit;
+}
+
+#[test("tagged union: payload expressions execute once in source order")]
+func evaluationOrder() bool {
+    var counter = 0;
+    var value = Value:[i32]::Pair {
+        z: record(&counter, 1),
+        a: record(&counter, 2),
+    };
+    var result = view(&value);
+    return counter == 12 && result.data.Pair.z == 1 && result.data.Pair.a == 2;
+}
+
+#[test("tagged union: generic instantiations coexist with distinct payload widths")]
+func multipleInstantiations() bool {
+    var small = Value:[i32]::Single { value: 37 };
+    var large = Value:[i64]::Pair { z: 0x1122334455667788 as i64, a: -7 };
+    var smallView = view(&small);
+    var largeView = &large as &ValueMirror[i64];
+    return smallView.tag == 1u && smallView.data.Single == 37
+        && largeView.tag == 2u && largeView.data.Pair.z == (0x1122334455667788 as i64)
+        && largeView.data.Pair.a == -7;
+}
+
+#[test("tagged union: generic function substitutes payload types")]
+func genericFunction() bool {
+    var value = makeGeneric:[i64](0x1020304050607080 as i64);
+    var result = &value as &ValueMirror[i64];
+    return result.tag == 1u && result.data.Single == (0x1020304050607080 as i64);
+}
+
+#[test("tagged union: alias target supports case initialization")]
+func aliasTarget() bool {
+    var value = IntValue::Single { value: 83 };
+    var result = view(&value);
+    return result.tag == 1u && result.data.Single == 83;
+}
+
+struct Holder {
+    value: Value[i32],
+}
+
+#[test("tagged union: nested struct field initialization")]
+func structField() bool {
+    var holder = Holder { value: Value:[i32]::Pair { z: 7, a: 8 } };
+    var result = view(&holder.value);
+    return result.tag == 2u && result.data.Pair.z == 7 && result.data.Pair.a == 8;
+}
+
+#[test("tagged union: array elements retain independent cases")]
+func arrayElements() bool {
+    var values = [3]Value[i32] {
+        Value:[i32]::ZEmpty {},
+        Value:[i32]::Single { value: 19 },
+        Value:[i32]::Pair { z: 23, a: 29 },
+    };
+    var empty = view(&values[0]);
+    var single = view(&values[1]);
+    var pair = view(&values[2]);
+    return empty.tag == 0u && single.tag == 1u && single.data.Single == 19
+        && pair.tag == 2u && pair.data.Pair.z == 23 && pair.data.Pair.a == 29;
+}
+
+union Outer {
+    Wrapped { value: Value[i32] };
+    Empty {};
+}
+
+#[repr(Union)]
+struct OuterData {
+    Wrapped: ValueMirror[i32],
+    Empty: u8,
+}
+
+struct OuterMirror {
+    tag: u8,
+    data: OuterData,
+}
+
+#[test("tagged union: nested tagged-union payload")]
+func nestedUnion() bool {
+    var value = Outer::Wrapped { value: makePair(41, 43) };
+    var result = &value as &OuterMirror;
+    return result.tag == 0u && result.data.Wrapped.tag == 2u
+        && result.data.Wrapped.data.Pair.z == 41 && result.data.Wrapped.data.Pair.a == 43;
+}
+
+union Bits {
+    Flag { value: bool };
+    Number { value: i64 };
+    Float { value: f64 };
+}
+
+#[repr(Union)]
+struct BitsData {
+    Flag: bool,
+    Number: i64,
+    Float: f64,
+}
+
+struct BitsMirror {
+    tag: u8,
+    data: BitsData,
+}
+
+#[test("tagged union: boolean payload converts to larger storage")]
+func booleanPayload() bool {
+    var value = Bits::Flag { value: true };
+    var result = &value as &BitsMirror;
+    return result.tag == 0u && result.data.Flag;
+}
+
+#[test("tagged union: floating-point payload preserves value")]
+func floatingPayload() bool {
+    var value = Bits::Float { value: 3.25 };
+    var result = &value as &BitsMirror;
+    return result.tag == 2u && result.data.Float == 3.25;
+}
+
+// ── Constants and globals ─────────────────────────────────────────────────────
+
+// Compile-time evaluation and reconstruction, using the same payload mirrors.
+const EMPTY_VALUE: Value[i32] = Value:[i32]::ZEmpty {};
+const SINGLE_VALUE: Value[i32] = Value:[i32]::Single { value: -53 };
+const PAIR_VALUE: Value[i32] = Value:[i32]::Pair { z: 61, a: 67 };
+const COMPUTED_VALUE: Value[i32] = Value:[i32]::Pair { z: 7 * 10 + 1, a: 80 - 7 };
+
+var globalEmpty: Value[i32] = Value:[i32]::ZEmpty {};
+var globalSingle: Value[i32] = Value:[i32]::Single { value: 79 };
+var globalPair: Value[i32] = Value:[i32]::Pair { z: 83, a: 89 };
+
+#[test("tagged union: empty constant preserves tag and zero storage")]
+func emptyConstant() bool {
+    var value = EMPTY_VALUE;
+    var result = view(&value);
+    return result.tag == 0u && result.data.Pair.a == 0 && result.data.Pair.z == 0;
+}
+
+#[test("tagged union: single-field constant preserves payload in larger storage")]
+func singleConstant() bool {
+    var value = SINGLE_VALUE;
+    var result = view(&value);
+    return result.tag == 1u && result.data.Single == -53 && result.data.Pair.z == 0;
+}
+
+#[test("tagged union: multi-field constant preserves tag and payload")]
+func pairConstant() bool {
+    var value = PAIR_VALUE;
+    var result = view(&value);
+    return result.tag == 2u && result.data.Pair.z == 61 && result.data.Pair.a == 67;
+}
+
+#[test("tagged union: constant payload expressions are evaluated")]
+func computedConstant() bool {
+    var value = COMPUTED_VALUE;
+    var result = view(&value);
+    return result.tag == 2u && result.data.Pair.z == 71 && result.data.Pair.a == 73;
+}
+
+#[test("tagged union: empty global initializer preserves tag and zero storage")]
+func emptyGlobal() bool {
+    var result = view(&globalEmpty);
+    return result.tag == 0u && result.data.Pair.a == 0 && result.data.Pair.z == 0;
+}
+
+#[test("tagged union: single-field global initializer preserves payload")]
+func singleGlobal() bool {
+    var result = view(&globalSingle);
+    return result.tag == 1u && result.data.Single == 79 && result.data.Pair.z == 0;
+}
+
+#[test("tagged union: multi-field global initializer preserves payload")]
+func pairGlobal() bool {
+    var result = view(&globalPair);
+    return result.tag == 2u && result.data.Pair.z == 83 && result.data.Pair.a == 89;
+}
+
+// Flag is first alphabetically, but the physical storage is f64. Constant
+// reconstruction must use the physical storage type, not the first case type.
+const FLOAT_VALUE: Bits = Bits::Float { value: 3.25 };
+const FLAG_VALUE: Bits = Bits::Flag { value: true };
+var globalFloat: Bits = Bits::Float { value: 6.5 };
+
+#[test("tagged union: floating constant reconstructs physical storage type")]
+func floatingConstant() bool {
+    var value = FLOAT_VALUE;
+    var result = &value as &BitsMirror;
+    return result.tag == 2u && result.data.Float == 3.25;
+}
+
+#[test("tagged union: boolean constant reconstructs wider noninteger storage")]
+func booleanConstant() bool {
+    var value = FLAG_VALUE;
+    var result = &value as &BitsMirror;
+    return result.tag == 0u && result.data.Flag;
+}
+
+#[test("tagged union: floating global reconstructs physical storage type")]
+func floatingGlobal() bool {
+    var result = &globalFloat as &BitsMirror;
+    return result.tag == 2u && result.data.Float == 6.5;
+}
+
+// ── Methods ───────────────────────────────────────────────────────────────────
+
+union Choice {
+    Empty {};
+    Single { value: i32 };
+    Pair { left: i32, right: i32 };
+}
+
+// Isolate representation-dependent reads until public payload access exists.
+struct MethodPairPayload {
+    left: i32,
+    right: i32,
+}
+
+#[repr(Union)]
+struct ChoiceData {
+    Empty: u8,
+    Single: i32,
+    Pair: MethodPairPayload,
+}
+
+struct ChoiceMirror {
+    tag: u8,
+    data: ChoiceData,
+}
+
+impl Choice {
+    func new(value: i32) Self {
+        return Choice::Single { value: value };
+    }
+
+    func zero() Self {
+        return Choice::new(0);
+    }
+
+    func tag(self) u8 {
+        var raw = self as &ChoiceMirror;
+        return raw.tag;
+    }
+
+    // Only called on Single values by these tests.
+    func get(self) i32 {
+        var raw = self as &ChoiceMirror;
+        return raw.data.Single;
+    }
+
+    func set(mut self, value: i32) {
+        *self = Choice::Single { value: value };
+    }
+
+    func clear(mut self) {
+        *self = Choice::Empty {};
+    }
+
+    func pair(mut self, left: i32, right: i32) {
+        *self = Choice::Pair { left: left, right: right };
+    }
+
+    func doubled(self) Self {
+        return Choice::new(self.get() * 2);
+    }
+
+    func copy(self) Self {
+        return *self;
+    }
+}
+
+type ChoiceAlias = Choice;
+
+#[test("tagged union methods: static constructor returns Self")]
+func staticConstructor() bool {
+    var value = Choice::new(42);
+    return value.tag() == 1u && value.get() == 42;
+}
+
+#[test("tagged union methods: static method calls another static method")]
+func staticChain() bool {
+    var value = Choice::zero();
+    return value.tag() == 1u && value.get() == 0;
+}
+
+#[test("tagged union methods: static method through type alias")]
+func aliasStatic() bool {
+    var value = ChoiceAlias::new(73);
+    return value.tag() == 1u && value.get() == 73;
+}
+
+#[test("tagged union methods: instance method on directly initialized value")]
+func directInitializer() bool {
+    var value = Choice::Single { value: 17 };
+    return value.tag() == 1u && value.get() == 17;
+}
+
+#[test("tagged union methods: instance method on temporary")]
+func temporaryReceiver() bool {
+    return Choice::new(29).get() == 29;
+}
+
+#[test("tagged union methods: chained methods return independent values")]
+func chainedMethods() bool {
+    var original = Choice::new(11);
+    var doubled = original.doubled();
+    return original.get() == 11 && doubled.get() == 22
+        && Choice::new(7).doubled().get() == 14;
+}
+
+#[test("tagged union methods: mutator changes tag and payload")]
+func mutableReceiver() bool {
+    var value = Choice::Empty {};
+    value.set(31);
+    if (value.tag() != 1u || value.get() != 31) return false;
+    value.pair(37, 41);
+    var raw = &value as &ChoiceMirror;
+    if (value.tag() != 2u || raw.data.Pair.left != 37 || raw.data.Pair.right != 41) return false;
+    value.clear();
+    return value.tag() == 0u && raw.data.Pair.left == 0 && raw.data.Pair.right == 0;
+}
+
+#[test("tagged union methods: immutable reference receiver")]
+func referenceReceiver() bool {
+    var value = Choice::new(43);
+    var reference: &Choice = &value;
+    return reference.tag() == 1u && reference.get() == 43;
+}
+
+#[test("tagged union methods: pointer receiver")]
+func pointerReceiver() bool {
+    var value = Choice::new(47);
+    var pointer = &value as *Choice;
+    return pointer.tag() == 1u && pointer.get() == 47;
+}
+
+#[test("tagged union methods: mutable pointer receiver changes original")]
+func mutablePointerReceiver() bool {
+    var value = Choice::Empty {};
+    var pointer = &value as mut *Choice;
+    pointer.set(53);
+    return value.tag() == 1u && value.get() == 53;
+}
+
+#[test("tagged union methods: copying receiver preserves complete union value")]
+func copyReceiver() bool {
+    var original = Choice::Pair { left: 59, right: 61 };
+    var copy = original.copy();
+    original.clear();
+    var raw = &copy as &ChoiceMirror;
+    return original.tag() == 0u && copy.tag() == 2u
+        && raw.data.Pair.left == 59 && raw.data.Pair.right == 61;
+}
+
+// ── Generic methods ───────────────────────────────────────────────────────────
+
+union GenericChoice[T] {
+    Empty {};
+    Single { value: T };
+    Pair { left: T, right: T };
+}
+
+struct GenericPair[T] {
+    left: T,
+    right: T,
+}
+
+#[repr(Union)]
+struct GenericData[T] {
+    Empty: u8,
+    Single: T,
+    Pair: GenericPair[T],
+}
+
+struct GenericMirror[T] {
+    tag: u8,
+    data: GenericData[T],
+}
+
+impl[T] GenericChoice[T] {
+    func new(value: T) Self {
+        return GenericChoice:[T]::Single { value: value };
+    }
+
+    // Only called on Single values by these tests.
+    func get(self) T {
+        var raw = self as &GenericMirror[T];
+        return raw.data.Single;
+    }
+
+    func set(mut self, value: T) {
+        *self = GenericChoice:[T]::Single { value: value };
+    }
+
+    func copy(self) Self {
+        return *self;
+    }
+
+    func passthrough[K](value: K) K {
+        return value;
+    }
+
+    func transform[K](self, value: K) K {
+        return value;
+    }
+}
+
+impl GenericChoice[i32] {
+    func increment(mut self) {
+        self.set(self.get() + 1);
+    }
+}
+
+type IntChoice = GenericChoice[i32];
+
+#[test("tagged union methods: generic static and instance methods specialize independently")]
+func genericSpecializations() bool {
+    var small = GenericChoice:[i32]::new(67);
+    var large = GenericChoice:[i64]::new(0x1020304050607080 as i64);
+    return small.get() == 67 && large.get() == (0x1020304050607080 as i64);
+}
+
+#[test("tagged union methods: generic mutable receiver substitutes payload type")]
+func genericMutation() bool {
+    var small = GenericChoice:[i32]::Empty {};
+    var large = GenericChoice:[i64]::Empty {};
+    small.set(-71);
+    large.set(0x1122334455667788 as i64);
+    return small.get() == -71 && large.get() == (0x1122334455667788 as i64);
+}
+
+#[test("tagged union methods: generic Self return preserves specialization")]
+func genericSelfReturn() bool {
+    var original = GenericChoice:[i64]::new(0x1122334455667788 as i64);
+    var copy = original.copy();
+    original.set(-1);
+    return original.get() == -1 && copy.get() == (0x1122334455667788 as i64);
+}
+
+#[test("tagged union methods: method-local type parameters compose with impl parameters")]
+func methodTypeParameters() bool {
+    var value = GenericChoice:[i32]::new(73);
+    return value.transform:[i64](0x1020304050607080 as i64) == (0x1020304050607080 as i64)
+        && value.transform:[bool](true) && value.get() == 73
+        && GenericChoice:[i64]::passthrough:[i32](79) == 79;
+}
+
+#[test("tagged union methods: concrete specialization impl can call generic impl methods")]
+func specializedImplementation() bool {
+    var value = GenericChoice:[i32]::new(83);
+    value.increment();
+    return value.get() == 84;
+}
+
+#[test("tagged union methods: instantiated alias supports static and instance methods")]
+func genericAliasMethods() bool {
+    var value = IntChoice::new(89);
+    value.set(97);
+    return value.get() == 97;
+}
+
+// ── Interfaces and constraints ────────────────────────────────────────────────
+
+interface Getter[T] {
+    func get(self) T;
+}
+
+interface Tagged {
+    func tag(self) u8;
+}
+
+interface Readable {
+    func read(self) i64;
+}
+
+union InterfaceChoice[T] {
+    Empty {};
+    Value { value: T };
+}
+
+// Test-only representation access; interface behavior must not depend on
+// public union payload access being implemented.
+#[repr(Union)]
+struct InterfaceChoiceData[T] {
+    Empty: u8,
+    Value: T,
+}
+
+struct InterfaceChoiceMirror[T] {
+    tag: u8,
+    data: InterfaceChoiceData[T],
+}
+
+impl[T] InterfaceChoice[T] : Getter[T] {
+    // These tests only call get on the Value case.
+    func get(self) T {
+        var raw = self as &InterfaceChoiceMirror[T];
+        return raw.data.Value;
+    }
+}
+
+impl[T] InterfaceChoice[T] : Tagged {
+    func tag(self) u8 {
+        var raw = self as &InterfaceChoiceMirror[T];
+        return raw.tag;
+    }
+}
+
+func constrainedGet[C: Getter[T], T](value: C) T {
+    return value.get();
+}
+
+#[test("tagged union interfaces: constrained function sees generic conformance")]
+func genericConstraint() bool {
+    var small = InterfaceChoice:[i32]::Value { value: -37 };
+    var large = InterfaceChoice:[i64]::Value { value: 0x1020304050607080 as i64 };
+    return constrainedGet:[InterfaceChoice[i32], i32](small) == -37
+        && constrainedGet:[InterfaceChoice[i64], i64](large) == (0x1020304050607080 as i64);
+}
+
+#[test("tagged union interfaces: generic interface dispatch preserves payload width")]
+func genericDispatch() bool {
+    var small = InterfaceChoice:[i32]::Value { value: 41 };
+    var large = InterfaceChoice:[i64]::Value { value: 0x1122334455667788 as i64 };
+    var smallGetter: Getter[i32] = &small;
+    var largeGetter: Getter[i64] = &large;
+    return smallGetter.get() == 41 && largeGetter.get() == (0x1122334455667788 as i64);
+}
+
+#[test("tagged union interfaces: nongeneric interface dispatch on generic union")]
+func nongenericDispatch() bool {
+    var empty = InterfaceChoice:[i32]::Empty {};
+    var value = InterfaceChoice:[i64]::Value { value: 43 };
+    var emptyTagged: Tagged = &empty;
+    var valueTagged: Tagged = &value;
+    return emptyTagged.tag() == 0u && valueTagged.tag() == 1u;
+}
+
+#[test("tagged union interfaces: reflection reports instantiated conformances")]
+func reflectedConformances() bool {
+    return typeof(InterfaceChoice[i32]).implements(typeof(Getter[i32]))
+        && typeof(InterfaceChoice[i64]).implements(typeof(Getter[i64]))
+        && typeof(InterfaceChoice[i32]).implements(typeof(Tagged))
+        && typeof(InterfaceChoice[i64]).implements(typeof(Tagged));
+}
+
+#[test("tagged union interfaces: reflection distinguishes interface type arguments")]
+func reflectedInterfaceArguments() bool {
+    return !typeof(InterfaceChoice[i32]).implements(typeof(Getter[i64]))
+        && !typeof(InterfaceChoice[i64]).implements(typeof(Getter[i32]));
+}
+
+#[test("tagged union interfaces: instantiated methods have reflected vtables")]
+func reflectedVtables() bool {
+    return typeof(InterfaceChoice[i32]).get_vtable(typeof(Getter[i32])).is_some()
+        && typeof(InterfaceChoice[i64]).get_vtable(typeof(Getter[i64])).is_some()
+        && typeof(InterfaceChoice[i32]).get_vtable(typeof(Tagged)).is_some();
+}
+
+struct Number {
+    value: i64,
+}
+
+impl Number : Readable {
+    func read(self) i64 {
+        return self.value;
+    }
+}
+
+impl[T: Readable] InterfaceChoice[T] {
+    func read_payload(self) i64 {
+        var raw = self as &InterfaceChoiceMirror[T];
+        return raw.data.Value.read();
+    }
+}
+
+impl[T: Readable] InterfaceChoice[T] : Readable {
+    func read(self) i64 {
+        return self.read_payload();
+    }
+}
+
+func constrainedRead[T: Readable](value: T) i64 {
+    return value.read();
+}
+
+#[test("tagged union interfaces: constrained impl method can use payload constraint")]
+func constrainedMethod() bool {
+    var value = InterfaceChoice:[Number]::Value { value: Number { value: 47 } };
+    return value.read_payload() == 47;
+}
+
+#[test("tagged union interfaces: constrained conformance supports generic calls and dispatch")]
+func constrainedConformance() bool {
+    var value = InterfaceChoice:[Number]::Value { value: Number { value: 53 } };
+    var readable: Readable = &value;
+    return constrainedRead:[InterfaceChoice[Number]](value) == 53 && readable.read() == 53;
+}
+
+#[test("tagged union interfaces: reflection filters unsatisfied impl constraints")]
+func reflectedConstraints() bool {
+    return typeof(InterfaceChoice[Number]).implements(typeof(Readable))
+        && !typeof(InterfaceChoice[i32]).implements(typeof(Readable))
+        && !typeof(InterfaceChoice[i64]).implements(typeof(Readable));
+}
+
+// ── Reflection ────────────────────────────────────────────────────────────────
+
+union ReflectedChoice {
+    Zebra {};
+    Alpha { value: i32 };
+    Middle { left: i32, right: i32 };
+}
+
+union ReflectedGenericChoice[T] {
+    Empty {};
+    Value { value: T };
+}
+
+type ReflectedAlias = ReflectedChoice;
+type ReflectedIntChoice = ReflectedGenericChoice[i32];
+
+#[test("tagged union reflection: kind")]
+func kind() bool {
+    return typeof(ReflectedChoice).kind == TypeKind::Union;
+}
+
+#[test("tagged union reflection: union is a declaration")]
+func declarationKind() bool {
+    return typeof(ReflectedChoice).kind.is_decl();
+}
+
+#[test("tagged union reflection: fully qualified name")]
+func qualifiedName() bool {
+    return typeof(ReflectedChoice).name == "tests::tagged_unions::ReflectedChoice";
+}
+
+#[test("tagged union reflection: declaration name")]
+func declarationName() bool {
+    return typeof(ReflectedChoice).decl_name() == "ReflectedChoice";
+}
+
+#[test("tagged union reflection: size and alignment")]
+func sizeAndAlignment() bool {
+    var info = typeof(ReflectedChoice);
+    return info.size == sizeof(ReflectedChoice) && info.alignment == alignof(ReflectedChoice);
+}
+
+#[test("tagged union reflection: cases retain declaration order including empty case")]
+func cases() bool {
+    var entries = typeof(ReflectedChoice).union_cases();
+    return entries.size == 3u && entries[0u].name == "Zebra"
+        && entries[1u].name == "Alpha" && entries[2u].name == "Middle";
+}
+
+#[test("tagged union reflection: repeated typeof has stable identity")]
+func stableIdentity() bool {
+    return typeof(ReflectedChoice) == typeof(ReflectedChoice);
+}
+
+#[test("tagged union reflection: generic instantiations have distinct RTTI and names")]
+func genericIdentity() bool {
+    var small = typeof(ReflectedGenericChoice[i32]);
+    var large = typeof(ReflectedGenericChoice[i64]);
+    return small != large
+        && small.name == "tests::tagged_unions::ReflectedGenericChoice[i32]"
+        && large.name == "tests::tagged_unions::ReflectedGenericChoice[i64]";
+}
+
+#[test("tagged union reflection: generic declaration name excludes arguments")]
+func genericDeclarationName() bool {
+    return typeof(ReflectedGenericChoice[i64]).decl_name() == "ReflectedGenericChoice";
+}
+
+#[test("tagged union reflection: generic cases and instantiated layout")]
+func genericCases() bool {
+    var info = typeof(ReflectedGenericChoice[i64]);
+    var entries = info.union_cases();
+    return info.kind == TypeKind::Union && entries.size == 2u
+        && entries[0u].name == "Empty" && entries[1u].name == "Value"
+        && info.size == sizeof(ReflectedGenericChoice[i64]) && info.alignment == alignof(ReflectedGenericChoice[i64]);
+}
+
+#[test("tagged union reflection: aliases retain underlying RTTI identity")]
+func aliases() bool {
+    return typeof(ReflectedAlias) == typeof(ReflectedChoice)
+        && typeof(ReflectedIntChoice) == typeof(ReflectedGenericChoice[i32]);
+}
+
+#[test("tagged union reflection: imported union RTTI is emitted by its module")]
+func importedType() bool {
+    var info = typeof(RemoteChoice);
+    var entries = info.union_cases();
+    return info.kind == TypeKind::Union
+        && info.name == "tests::tagged_union_helpers::RemoteChoice"
+        && entries.size == 2u && entries[0u].name == "Last" && entries[1u].name == "First";
+}

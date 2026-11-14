@@ -24,7 +24,7 @@ type indexInfo struct {
 func getStructLayout[T Arch](arch T, s *types.Struct) Info {
 
 	switch s.Layout {
-	case types.Fireball:
+	case types.LayoutFireball:
 		fields := make([]indexInfo, len(s.Fields))
 
 		for i, field := range s.Fields {
@@ -47,7 +47,7 @@ func getStructLayout[T Arch](arch T, s *types.Struct) Info {
 
 		return layout.info()
 
-	case types.C:
+	case types.LayoutC:
 		layout := structLayout{arch: arch, packed: false}
 
 		for i, field := range s.Fields {
@@ -57,7 +57,7 @@ func getStructLayout[T Arch](arch T, s *types.Struct) Info {
 
 		return layout.info()
 
-	case types.Packed:
+	case types.LayoutPacked:
 		layout := structLayout{arch: arch, packed: true}
 
 		for i, field := range s.Fields {
@@ -67,7 +67,7 @@ func getStructLayout[T Arch](arch T, s *types.Struct) Info {
 
 		return layout.info()
 
-	case types.Union:
+	case types.LayoutUnion:
 		info := Info{
 			Fields: make([]Field, len(s.Fields)),
 		}

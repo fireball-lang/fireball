@@ -115,6 +115,8 @@ func (hi *highlighter) AddType(node ast.Node, typ types.Type) {
 		hi.Add(node, classKind, 0)
 	case *types.Enum:
 		hi.Add(node, enumKind, 0)
+	case *types.Union:
+		hi.Add(node, enumKind, 0)
 	case *types.Interface:
 		hi.Add(node, interfaceKind, 0)
 	case *types.Func:

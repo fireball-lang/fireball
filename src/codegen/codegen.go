@@ -237,6 +237,11 @@ func (c *Codegen) TypeInfos(file *ast.File) {
 			if !c.HasTypeParams(decl) {
 				c.CreateTypeInfo(c.Sema.NodeTypes[decl], false)
 			}
+
+		case *ast.Union:
+			if !c.HasTypeParams(decl) {
+				c.CreateTypeInfo(c.Sema.NodeTypes[decl], false)
+			}
 		}
 	}
 }
@@ -360,6 +365,13 @@ func (c *Codegen) HasTypeParams(decl ast.Decl) bool {
 	switch decl := decl.(type) {
 	case *ast.Struct:
 		typ := c.Sema.NodeTypes[decl].(*types.Struct)
+
+		if len(typ.TypeParams) > 0 || typ.Generic != nil {
+			return true
+		}
+
+	case *ast.Union:
+		typ := c.Sema.NodeTypes[decl].(*types.Union)
 
 		if len(typ.TypeParams) > 0 || typ.Generic != nil {
 			return true
@@ -861,6 +873,21 @@ func (c *Codegen) GetIrValue(val eval.Value, typ types.Type) ir.Value {
 
 		if t, ok := typ.(*types.Tuple); ok {
 			typ = t.Underlying()
+		}
+
+		if t, ok := typ.(*types.Struct); ok && t.Layout == types.LayoutUnion {
+			if len(val.Values) != 1 {
+				panic("codegen.GetIrValue() - Invalid union storage")
+			}
+
+			storageType := c.Types.unionStorageType(t)
+
+			return &ir.Struct{
+				Typ: c.Types.Get(t).(ir.StructLikeType),
+				Fields: []ir.Value{
+					c.GetIrValue(val.Values[0], storageType),
+				},
+			}
 		}
 
 		fields := make([]ir.Value, len(val.Values))

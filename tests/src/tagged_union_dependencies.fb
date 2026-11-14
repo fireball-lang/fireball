@@ -1,0 +1,98 @@
+mod tests::tagged_union_dependencies;
+
+// Each constant precedes its payload enum. Separate enums keep an earlier
+// test's evaluation from accidentally satisfying another test's dependency.
+union Packet {
+    Item { kind: LaterKind };
+}
+
+const PACKET_SIZE: u32 = sizeof(Packet);
+
+enum LaterKind {
+    Large = 1099511627776u,
+}
+
+#[test("tagged union dependencies: sizeof resolves forward payload enum")]
+func forwardSize() bool {
+    return sizeof(LaterKind) == 8u && PACKET_SIZE == 16u && PACKET_SIZE == sizeof(Packet);
+}
+
+union AlignedPacket {
+    Item { kind: LaterAlignedKind };
+}
+
+const PACKET_ALIGNMENT: u32 = alignof(AlignedPacket);
+
+enum LaterAlignedKind {
+    Large = 1099511627776u,
+}
+
+#[test("tagged union dependencies: alignof resolves forward payload enum")]
+func forwardAlignment() bool {
+    return PACKET_ALIGNMENT == 8u && PACKET_ALIGNMENT == alignof(AlignedPacket);
+}
+
+union InnerPacket {
+    Item { kind: LaterNestedKind };
+}
+
+union OuterPacket {
+    Wrapped { packet: InnerPacket };
+}
+
+const NESTED_SIZE: u32 = sizeof(OuterPacket);
+
+enum LaterNestedKind {
+    Large = 1099511627776u,
+}
+
+#[test("tagged union dependencies: nested payload resolves forward enum")]
+func nestedSize() bool {
+    return NESTED_SIZE == 24u && NESTED_SIZE == sizeof(OuterPacket);
+}
+
+union ArrayPacket {
+    Items { kinds: [2]LaterArrayKind };
+}
+
+const ARRAY_SIZE: u32 = sizeof(ArrayPacket);
+
+enum LaterArrayKind {
+    Large = 1099511627776u,
+}
+
+#[test("tagged union dependencies: array payload resolves forward enum")]
+func arraySize() bool {
+    return ARRAY_SIZE == 24u && ARRAY_SIZE == sizeof(ArrayPacket);
+}
+
+union GenericPacket[T] {
+    Item { kind: T };
+}
+
+const GENERIC_SIZE: u32 = sizeof(GenericPacket[LaterGenericKind]);
+
+enum LaterGenericKind {
+    Large = 1099511627776u,
+}
+
+#[test("tagged union dependencies: instantiated generic payload resolves forward enum")]
+func genericSize() bool {
+    return GENERIC_SIZE == 16u && GENERIC_SIZE == sizeof(GenericPacket[LaterGenericKind]);
+}
+
+union ReflectedPacket {
+    Item { kind: LaterReflectedKind };
+}
+
+const PACKET_INFO: &TypeInfo = typeof(ReflectedPacket);
+
+enum LaterReflectedKind {
+    Large = 1099511627776u,
+}
+
+#[test("tagged union dependencies: typeof resolves forward payload enum")]
+func forwardReflection() bool {
+    return PACKET_INFO.kind == TypeKind::Union && PACKET_INFO.size == 16u
+        && PACKET_INFO.alignment == 8u && PACKET_INFO == typeof(ReflectedPacket);
+}

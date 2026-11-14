@@ -29,6 +29,20 @@ func (hi *highlighter) VisitEnum(e *ast.Enum) {
 	}
 }
 
+func (hi *highlighter) VisitUnion(u *ast.Union) {
+	hi.AddFull(u.Name(), enumKind, 0)
+	hi.VisitTypeParams(u.TypeParams)
+
+	for _, c := range u.Cases {
+		hi.AddFull(c.Name, enumMemberKind, 0)
+
+		for _, field := range c.Fields {
+			hi.AddFull(field.Name, propertyKind, 0)
+			hi.VisitType(field.Type)
+		}
+	}
+}
+
 func (hi *highlighter) VisitInterface(in *ast.Interface) {
 	hi.AddFull(in.Name(), interfaceKind, 0)
 	hi.VisitTypeParams(in.TypeParams)

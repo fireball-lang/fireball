@@ -9,10 +9,10 @@ import (
 type Layout uint8
 
 const (
-	Fireball Layout = iota
-	C
-	Packed
-	Union
+	LayoutFireball Layout = iota
+	LayoutC
+	LayoutPacked
+	LayoutUnion
 )
 
 type Field struct {
@@ -35,7 +35,7 @@ type Struct struct {
 }
 
 func (s *Struct) Optimize() {
-	if s.Layout == C || s.Layout == Packed {
+	if s.Layout == LayoutC || s.Layout == LayoutPacked {
 		return
 	}
 
@@ -45,7 +45,7 @@ func (s *Struct) Optimize() {
 }
 
 func (s *Struct) Field(name string) *Field {
-	if s.Layout == C || s.Layout == Packed {
+	if s.Layout == LayoutC || s.Layout == LayoutPacked {
 		for i := range s.Fields {
 			field := &s.Fields[i]
 			if field.Name == name {
@@ -63,6 +63,22 @@ func (s *Struct) Field(name string) *Field {
 	}
 
 	return nil
+}
+
+func (s *Struct) GetTypeParams() []*Param {
+	return s.TypeParams
+}
+
+func (s *Struct) GetGeneric() Generic {
+	if s.Generic == nil {
+		return nil
+	}
+
+	return s.Generic
+}
+
+func (s *Struct) GetSubstitutions() []Substitution {
+	return s.Substitutions
 }
 
 func (s *Struct) Equals(other Type) bool {

@@ -341,7 +341,7 @@ func (c *completions) ModuleSymbol(module *project.Module, sameModule, typesOnly
 			// Types only
 			if typesOnly {
 				switch symbol.Kind {
-				case symbols.TypeAlias, symbols.Struct, symbols.Enum, symbols.Interface:
+				case symbols.TypeAlias, symbols.Struct, symbols.Enum, symbols.Union, symbols.Interface:
 				default:
 					continue
 				}
@@ -514,7 +514,7 @@ func (c *completions) afterDeclKeyword() bool {
 	}
 
 	switch string(text[col:end]) {
-	case "var", "const", "global", "func", "struct", "enum", "interface", "impl", "type", "mod", "pub":
+	case "var", "const", "global", "func", "struct", "enum", "union", "interface", "impl", "type", "mod", "pub":
 		return true
 	}
 
@@ -540,6 +540,12 @@ func (c *completions) funcName(fn *ast.Func) bool {
 }
 
 func (c *completions) Types(typ ast.Type) {
+	if target, ok := typ.(*ast.IdentifierType); ok {
+		if c.InitializerCasePath(target) {
+			return
+		}
+	}
+
 	// Type path ('module::Type')
 	if id, ok := typ.(*ast.IdentifierType); ok && len(id.Path) >= 2 && c.cursor.GreaterThan(id.Path[len(id.Path)-2].Range().End) {
 		entries := id.Path[:len(id.Path)-1]
@@ -556,7 +562,7 @@ func (c *completions) Types(typ ast.Type) {
 	// File type declarations
 	for _, decl := range c.file.Ast.Decls {
 		switch decl.(type) {
-		case *ast.TypeAlias, *ast.Struct, *ast.Enum, *ast.Interface:
+		case *ast.TypeAlias, *ast.Struct, *ast.Enum, *ast.Union, *ast.Interface:
 			c.Decl(c.file, decl, 0)
 		}
 	}
@@ -603,6 +609,44 @@ func (c *completions) Types(typ ast.Type) {
 	}
 }
 
+func (c *completions) InitializerCasePath(target *ast.IdentifierType) bool {
+	owner, ok := target.Parent().(*ast.StructInitializer)
+	if !ok || owner.Type != target || len(target.Path) < 2 {
+		return false
+	}
+
+	prefix := target.Path[len(target.Path)-2]
+	if !c.cursor.GreaterThan(prefix.Range().End) {
+		return false
+	}
+
+	typ, ok := c.file.Sema.NodeTypes[prefix]
+	if !ok {
+		return false
+	}
+
+	if alias, ok := typ.(*types.Alias); ok {
+		typ = alias.Type
+	}
+
+	union, ok := typ.(*types.Union)
+	if !ok || c.workspace.ctx.TypeEnv == nil {
+		return false
+	}
+
+	if union.Generic != nil {
+		union = union.Generic
+	}
+
+	for member := range c.workspace.ctx.TypeEnv.StaticMembers(union) {
+		if member.Symbol.Kind == symbols.UnionCase {
+			c.StaticMember(member)
+		}
+	}
+
+	return true
+}
+
 func (c *completions) TypePath(prefix []*ast.Leaf) {
 	scope, ok := sema.GetScope(c.root, prefix)
 	if !ok {
@@ -624,6 +668,9 @@ func (c *completions) scopeTypes(decl ast.Decl) {
 
 	switch decl := decl.(type) {
 	case *ast.Struct:
+		c.TypeParams(decl.TypeParams)
+
+	case *ast.Union:
 		c.TypeParams(decl.TypeParams)
 
 	case *ast.Interface:
@@ -651,6 +698,8 @@ func typeSlot(n ast.Node) (typ ast.Type, name *ast.Leaf) {
 	case *ast.Param:
 		return n.Type, n.Name
 	case *ast.Field:
+		return n.Type, n.Name
+	case *ast.UnionCaseField:
 		return n.Type, n.Name
 	case *ast.AssociatedConst:
 		return n.Type, n.Name
@@ -718,6 +767,8 @@ func (c *completions) Member(m *ast.Member) {
 	case *types.Struct:
 		c.StructMember(t, modPath)
 	case *types.Enum:
+		c.InstanceMember(t, t.ModulePath, modPath)
+	case *types.Union:
 		c.InstanceMember(t, t.ModulePath, modPath)
 	case *types.Interface:
 		c.InterfaceMember(t)
@@ -814,6 +865,7 @@ func (c *completions) ParamMember(t *types.Param) {
 
 func (c *completions) FieldList() bool {
 	// Owning field list
+	var initializer *ast.StructInitializer
 	var fields []*ast.FieldInitializer
 	var typ types.Type
 
@@ -825,6 +877,7 @@ func (c *completions) FieldList() bool {
 
 		switch owner := fi.Parent().(type) {
 		case *ast.StructInitializer:
+			initializer = owner
 			fields = owner.Fields
 			typ = c.InitializerType(owner.Type)
 
@@ -839,6 +892,7 @@ func (c *completions) FieldList() bool {
 		// Empty list zone: the node is the anchor itself
 		switch anchor := c.node.(type) {
 		case *ast.StructInitializer:
+			initializer = anchor
 			fields = anchor.Fields
 			typ = c.InitializerType(anchor.Type)
 
@@ -849,6 +903,11 @@ func (c *completions) FieldList() bool {
 		default:
 			return false
 		}
+	}
+
+	// Union
+	if initializer != nil && c.UnionInitializerFields(initializer) {
+		return true
 	}
 
 	// Alias
@@ -912,6 +971,51 @@ func (c *completions) WithType(w *ast.With) types.Type {
 	return typ
 }
 
+func (c *completions) UnionInitializerFields(initializer *ast.StructInitializer) bool {
+	info, ok := c.file.Sema.ExprInfos[initializer]
+	if !ok || info.Symbol != symbols.UnionCase {
+		return false
+	}
+
+	union, ok := info.Type.(*types.Union)
+	if !ok {
+		return false
+	}
+
+	caseNode, ok := info.Node.(*ast.UnionCase)
+	if !ok || caseNode == nil {
+		return false
+	}
+
+	cas, ok := union.Case(caseNode.Name.Token.Text)
+	if !ok {
+		return false
+	}
+
+	// Hide fields that are already initialized.
+	for _, field := range initializer.Fields {
+		if field.Name != nil && field.Name.Token.Text != "" {
+			c.seen[field.Name.Token.Text] = struct{}{}
+		}
+	}
+
+	for _, field := range cas.Fields {
+		item := protocol.CompletionItem{
+			Kind:   protocol.CompletionItemKindField,
+			Label:  field.Name,
+			Detail: protocol.NewOptional(field.Type.String()),
+		}
+
+		if node := caseNode.Field(field.Name); node != nil {
+			item.Documentation = c.s.markup(node.Documentation)
+		}
+
+		c.Add(item)
+	}
+
+	return true
+}
+
 // Enclosing declarations
 
 func (c *completions) EnclosingDecl(decl ast.Decl) {
@@ -921,6 +1025,9 @@ func (c *completions) EnclosingDecl(decl ast.Decl) {
 
 	switch decl := decl.(type) {
 	case *ast.Struct:
+		c.TypeParams(decl.TypeParams)
+
+	case *ast.Union:
 		c.TypeParams(decl.TypeParams)
 
 	case *ast.Interface:
@@ -1148,16 +1255,48 @@ func (c *completions) StaticMember(member sema.MemberSymbol) {
 		c.Func(member.Symbol.Node, protocol.CompletionItemKindFunction)
 
 	// Enum case
-	case symbols.Case:
+	case symbols.EnumCase:
 		item := protocol.CompletionItem{
 			Kind:   protocol.CompletionItemKindEnumMember,
 			Label:  member.Symbol.Name,
 			Detail: protocol.NewOptional(member.Type.String()),
 		}
 
-		if cas, ok := member.Symbol.Node.(*ast.Case); ok {
+		if cas, ok := member.Symbol.Node.(*ast.EnumCase); ok {
 			item.Label = cas.Name.Token.Text
 			item.Documentation = c.s.markup(cas.Documentation)
+		}
+
+		c.Add(item)
+
+	// Union case
+	case symbols.UnionCase:
+		item := protocol.CompletionItem{
+			Kind:  protocol.CompletionItemKindEnumMember,
+			Label: member.Symbol.Name,
+		}
+
+		if cas, ok := member.Symbol.Node.(*ast.UnionCase); ok {
+			item.Label = cas.Name.Token.Text
+			item.Documentation = c.s.markup(cas.Documentation)
+
+			if len(cas.Fields) > 0 {
+				var sb strings.Builder
+				sb.WriteString("{ ")
+
+				for i, field := range cas.Fields {
+					if i > 0 {
+						sb.WriteString(", ")
+					}
+
+					sb.WriteString(field.Name.Token.Text)
+					sb.WriteString(": ")
+					sb.WriteString(getTypeString(field.Type))
+				}
+
+				sb.WriteString(" }")
+				item.Detail = protocol.NewOptional(sb.String())
+			}
 		}
 
 		c.Add(item)
@@ -1338,6 +1477,9 @@ func (c *completions) Decl(file *project.File, decl ast.Decl, overrideKind proto
 				item.Detail = protocol.NewOptional(enum.CaseType.String())
 			}
 		}
+
+	case *ast.Union:
+		item.Kind = protocol.CompletionItemKindEnum
 
 	case *ast.Interface:
 		item.Kind = protocol.CompletionItemKindInterface

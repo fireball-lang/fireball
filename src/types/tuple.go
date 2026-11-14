@@ -52,7 +52,7 @@ func (t *Tuple) Underlying() Type {
 	}
 
 	t.underlying = &Struct{
-		Layout: Fireball,
+		Layout: LayoutFireball,
 		Fields: fields,
 	}
 

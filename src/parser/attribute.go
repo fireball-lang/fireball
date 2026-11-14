@@ -288,13 +288,13 @@ func (p *parser) parseRepr() (r *ast.Repr, recoverId int) {
 
 	switch p.previous.Text {
 	case "Fireball":
-		r.Layout = types.Fireball
+		r.Layout = types.LayoutFireball
 	case "C":
-		r.Layout = types.C
+		r.Layout = types.LayoutC
 	case "Packed":
-		r.Layout = types.Packed
+		r.Layout = types.LayoutPacked
 	case "Union":
-		r.Layout = types.Union
+		r.Layout = types.LayoutUnion
 
 	default:
 		p.reportError(p.previous.Range, "invalid struct layout value, expected 'fireball', 'c', 'packed' or 'union'")

@@ -5,6 +5,15 @@ type Type interface {
 	String() string
 }
 
+type Generic interface {
+	Type
+
+	GetTypeParams() []*Param
+
+	GetGeneric() Generic
+	GetSubstitutions() []Substitution
+}
+
 type Composed interface {
 	Type
 
@@ -81,6 +90,19 @@ func hasParam(typ Type, seen map[Type]bool) bool {
 		for _, field := range typ.Fields {
 			if hasParam(field.Type, seen) {
 				return true
+			}
+		}
+
+	case *Union:
+		if len(typ.TypeParams) > 0 {
+			return true
+		}
+
+		for _, cas := range typ.Cases {
+			for _, field := range cas.Fields {
+				if hasParam(field.Type, seen) {
+					return true
+				}
 			}
 		}
 

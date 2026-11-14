@@ -6,6 +6,7 @@ import (
 	"fireball/core"
 	"fireball/project"
 	"fireball/types"
+	"strings"
 
 	"go.lsp.dev/protocol"
 	"go.lsp.dev/uri"
@@ -130,6 +131,51 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 
 				decls[typ] = id
 
+			case *ast.Union:
+				typ, ok := file.Sema.NodeTypes[decl]
+				if !ok {
+					continue
+				}
+
+				id := symbols.add(symbol{
+					file:           file,
+					kind:           protocol.SymbolKindEnum,
+					name:           getText(decl.Name_),
+					range_:         getRange(decl),
+					selectionRange: getRange(decl.Name_),
+				})
+
+				for _, cas := range decl.Cases {
+					var sb strings.Builder
+
+					if len(cas.Fields) > 0 {
+						sb.WriteString("{ ")
+
+						for i, field := range cas.Fields {
+							if i > 0 {
+								sb.WriteString(", ")
+							}
+
+							sb.WriteString(field.Name.Token.Text)
+							sb.WriteString(": ")
+							sb.WriteString(getTypeString(field.Type))
+						}
+
+						sb.WriteString(" }")
+					}
+
+					symbols.addChild(id, symbol{
+						file:           file,
+						kind:           protocol.SymbolKindEnumMember,
+						name:           getText(cas.Name),
+						detail:         sb.String(),
+						range_:         getRange(cas),
+						selectionRange: getRange(cas.Name),
+					})
+				}
+
+				decls[typ] = id
+
 			case *ast.Interface:
 				typ, ok := file.Sema.NodeTypes[decl]
 				if !ok {
@@ -229,6 +275,9 @@ func getSymbols(symbols symbolConsumer, files []*project.File) {
 
 				if s, ok := typ.(*types.Struct); ok && s.Generic != nil {
 					typ = s.Generic
+				}
+				if u, ok := typ.(*types.Union); ok && u.Generic != nil {
+					typ = u.Generic
 				}
 
 				id, ok := decls[typ]

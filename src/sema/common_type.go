@@ -198,6 +198,14 @@ func (c *common) VisitIdentifierType(t *ast.IdentifierType) types.Type {
 		c.sema.NodeTypes[t] = symbol.Type
 		return symbol.Type
 
+	case symbols.Union:
+		if t.Mutable {
+			c.Error(t, "union type '%s' cannot be mutable", symbol.Name)
+		}
+
+		c.sema.NodeTypes[t] = symbol.Type
+		return symbol.Type
+
 	case symbols.Interface:
 		in := symbol.Type.(*types.Interface)
 

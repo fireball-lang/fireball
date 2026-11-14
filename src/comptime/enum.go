@@ -20,7 +20,7 @@ func (e *Evaluator) ensureEnum(decl *ast.Enum, errNode ast.Node) bool {
 
 		// Evaluate cases separately
 		result := *typ
-		result.Cases = append([]types.Case(nil), typ.Cases...)
+		result.Cases = append([]types.EnumCase(nil), typ.Cases...)
 
 		allowedMin := core.Unsigned(true, math.MaxUint64)
 		allowedMax := core.Unsigned(false, math.MaxUint64)

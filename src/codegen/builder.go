@@ -124,7 +124,7 @@ func (s *StructBuilder) Build() ir.Value {
 
 	var fields []ir.Value
 	if constantCount > 0 {
-		if s.typ.Layout == types.Union {
+		if s.typ.Layout == types.LayoutUnion {
 			fields = make([]ir.Value, 1)
 		} else {
 			fields = make([]ir.Value, len(s.typ.Fields))
@@ -140,7 +140,7 @@ func (s *StructBuilder) Build() ir.Value {
 		if ir.IsConstant(value) {
 			var i int
 
-			if s.typ.Layout == types.Union {
+			if s.typ.Layout == types.LayoutUnion {
 				i = 0
 			} else {
 				_, i = typ.Field(name)
@@ -167,7 +167,7 @@ func (s *StructBuilder) Build() ir.Value {
 	if constantCount == 0 {
 		structValue = &ir.ZeroInitializer{Typ: typ}
 	} else {
-		if s.typ.Layout != types.Union {
+		if s.typ.Layout != types.LayoutUnion {
 			for _, field := range s.typ.Fields {
 				if value, ok := s.fields[field.Name]; !ok || !ir.IsConstant(value) {
 					fieldTyp, i := typ.Field(field.Name)
@@ -183,7 +183,7 @@ func (s *StructBuilder) Build() ir.Value {
 		if !ir.IsConstant(value) {
 			var i int
 
-			if s.typ.Layout == types.Union {
+			if s.typ.Layout == types.LayoutUnion {
 				i = 0
 			} else {
 				_, i = typ.Field(name)

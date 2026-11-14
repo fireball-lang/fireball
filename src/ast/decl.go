@@ -149,7 +149,7 @@ func (s *Struct) GetLayout() types.Layout {
 		return repr.Layout
 	}
 
-	return types.Fireball
+	return types.LayoutFireball
 }
 
 // Field
@@ -200,7 +200,7 @@ type Enum struct {
 	Name_ *Leaf
 	Type  Type // optional
 
-	Cases []*Case
+	Cases []*EnumCase
 }
 
 func (e *Enum) Children() iter.Seq[Node] {
@@ -243,9 +243,9 @@ func (e *Enum) Name() *Leaf {
 
 func (e *Enum) _isDecl() {}
 
-// Case
+// EnumCase
 
-type Case struct {
+type EnumCase struct {
 	baseNode
 
 	Documentation []*Leaf
@@ -254,7 +254,7 @@ type Case struct {
 	Value Expr // optional
 }
 
-func (c *Case) Children() iter.Seq[Node] {
+func (c *EnumCase) Children() iter.Seq[Node] {
 	return func(yield func(Node) bool) {
 		for _, doc := range c.Documentation {
 			if !yield(doc) {
@@ -265,6 +265,128 @@ func (c *Case) Children() iter.Seq[Node] {
 			return
 		}
 		if !core.IsNil(c.Value) && !yield(c.Value) {
+			return
+		}
+	}
+}
+
+// Union
+
+type Union struct {
+	baseNode
+
+	Documentation_ []*Leaf
+	Attributes_    []Attribute
+	Public         bool
+
+	Name_      *Leaf
+	TypeParams []*TypeParam
+	Cases      []*UnionCase
+}
+
+func (u *Union) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, doc := range u.Documentation_ {
+			if !yield(doc) {
+				return
+			}
+		}
+		for _, attr := range u.Attributes_ {
+			if !yield(attr) {
+				return
+			}
+		}
+		if !yield(u.Name_) {
+			return
+		}
+		for _, param := range u.TypeParams {
+			if !yield(param) {
+				return
+			}
+		}
+		for _, case_ := range u.Cases {
+			if !yield(case_) {
+				return
+			}
+		}
+	}
+}
+
+func (u *Union) Attributes() []Attribute {
+	return u.Attributes_
+}
+
+func (u *Union) Documentation() []*Leaf {
+	return u.Documentation_
+}
+
+func (u *Union) Name() *Leaf {
+	return u.Name_
+}
+
+func (u *Union) _isDecl() {}
+
+// UnionCase
+
+type UnionCase struct {
+	baseNode
+
+	Documentation []*Leaf
+
+	Name   *Leaf
+	Fields []*UnionCaseField
+}
+
+func (u *UnionCase) Field(name string) *UnionCaseField {
+	for _, field := range u.Fields {
+		if field.Name.Token.Text == name {
+			return field
+		}
+	}
+
+	return nil
+}
+
+func (u *UnionCase) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, doc := range u.Documentation {
+			if !yield(doc) {
+				return
+			}
+		}
+		if !yield(u.Name) {
+			return
+		}
+		for _, field := range u.Fields {
+			if !yield(field) {
+				return
+			}
+		}
+	}
+}
+
+// UnionCaseField
+
+type UnionCaseField struct {
+	baseNode
+
+	Documentation []*Leaf
+
+	Name *Leaf
+	Type Type
+}
+
+func (u *UnionCaseField) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		for _, doc := range u.Documentation {
+			if !yield(doc) {
+				return
+			}
+		}
+		if !yield(u.Name) {
+			return
+		}
+		if !yield(u.Type) {
 			return
 		}
 	}

@@ -12,12 +12,14 @@ const (
 	TypeAlias
 	Struct
 	Enum
+	Union
 	Interface
 	AssociatedConst
 	Const
 	Func
 	TypeParam
-	Case
+	EnumCase
+	UnionCase
 	Param
 	Var
 )
@@ -26,11 +28,11 @@ func (k Kind) Domain() Domain {
 	switch k {
 	case Invalid:
 		return 0
-	case TypeAlias, Struct, Enum, Interface, TypeParam:
+	case TypeAlias, Struct, Enum, Union, Interface, TypeParam:
 		return Type
 	case Func:
 		return Function
-	case AssociatedConst, Const, Var, Param, Case:
+	case AssociatedConst, Const, Var, Param, EnumCase, UnionCase:
 		return Variable
 
 	default:

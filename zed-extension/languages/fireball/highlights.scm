@@ -8,6 +8,7 @@
 
 "struct" @keyword
 "enum" @keyword
+"union" @keyword
 "interface" @keyword
 "impl" @keyword
 "type" @keyword
@@ -57,7 +58,12 @@
 (struct field: (field name: (identifier) @property))
 
 (enum name: (identifier) @enum)
-(case name: (identifier) @variant)
+(enum_case name: (identifier) @variant)
+
+(union name: (identifier) @enum)
+(union type_param: (type_param name: (identifier) @type.parameter))
+(union_case name: (identifier) @variant)
+(union_case_field name: (identifier) @property)
 
 (interface name: (identifier) @type)
 (interface type_param: (type_param name: (identifier) @type.parameter))

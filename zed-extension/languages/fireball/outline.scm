@@ -10,6 +10,10 @@
   "enum" @context
   name: (identifier) @name) @item
 
+(union
+  "union" @context
+  name: (identifier) @name) @item
+
 (interface
   "interface" @context
   name: (identifier) @name) @item

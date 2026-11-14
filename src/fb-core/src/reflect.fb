@@ -10,14 +10,15 @@ pub enum TypeKind : u8 {
 	Pointer = 5,
 	Function = 6,
 	Enum = 7,
-	Struct = 8,
-	Interface = 9,
+	Union = 8,
+	Struct = 9,
+	Interface = 10,
 }
 
 impl TypeKind {
 	/// Returns `true` if the type kind is either an enum, a struct or an interface.
 	pub func is_decl(self) bool {
-		return *self == TypeKind::Enum || *self == TypeKind::Struct || *self == TypeKind::Interface;
+		return *self == TypeKind::Enum || *self == TypeKind::Union || *self == TypeKind::Struct || *self == TypeKind::Interface;
 	}
 }
 
@@ -65,7 +66,7 @@ impl PrimitiveKind {
 }
 
 /// Stores RTTI for enum cases.
-pub struct Case {
+pub struct EnumCase {
 	/// Name of the case as it appears in the source code.
 	pub name: StringView,
 
@@ -74,6 +75,12 @@ pub struct Case {
 
 	/// Absolute value of the case.
 	pub value: u64,
+}
+
+/// Stores RTTI for union cases.
+pub struct UnionCase {
+	/// Name of the case as it appears in the source code.
+	pub name: StringView,
 }
 
 /// Stores RTTI for tuple fields.
@@ -211,10 +218,16 @@ impl TypeInfo {
 		return self.data_ptr2 as &TypeInfo;
 	}
 
-	/// Returns a slice of cases if this type is an enum or panics.
-	pub func cases(self) []Case {
+	/// Returns a slice of enum cases if this type is an enum or panics.
+	pub func enum_cases(self) []EnumCase {
 		if (self.kind != TypeKind::Enum) panic("self.kind is not `TypeKind::Enum`");
-		return Slice:[Case] { ptr: self.data_ptr1 as *Case, size: self.data_int };
+		return Slice:[EnumCase] { ptr: self.data_ptr1 as *EnumCase, size: self.data_int };
+	}
+
+	/// Returns a slice of union cases if this type is an union or panics.
+	pub func union_cases(self) []UnionCase {
+		if (self.kind != TypeKind::Union) panic("self.kind is not `TypeKind::Union`");
+		return Slice:[UnionCase] { ptr: self.data_ptr1 as *UnionCase, size: self.data_int };
 	}
 
 	/// Returns a slice of fields if this type is a struct or panics.
