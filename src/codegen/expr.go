@@ -121,7 +121,7 @@ func (c *Codegen) VisitStructInitializerUnion(s *ast.StructInitializer, typ *typ
 		}
 
 		dataIR := c.Types.Get(dataType).(*ir.StructType)
-		storage := c.BitCast(payload, dataIR.Fields[0].Type)
+		storage := c.BitCast(payload, dataIR.Fields[1].Type)
 		data.Set(cas.Name, storage)
 	}
 
@@ -169,8 +169,8 @@ func (c *Codegen) VisitFieldInitializer(typ *types.Struct, t *ir.RefStructType, 
 	value := c.LoadImplicitCast(expr, fieldTyp)
 
 	if typ.Layout == types.LayoutUnion {
-		value = c.BitCast(value, t.Struct.Fields[0].Type)
-		fieldI = 0
+		value = c.BitCast(value, t.Struct.Fields[1].Type)
+		fieldI = 1
 	}
 
 	return value, fieldI
@@ -819,7 +819,7 @@ func (c *Codegen) VisitMember(m *ast.Member) ir.Value {
 
 	if s.Layout == types.LayoutUnion {
 		if f := s.Field(m.Name.Token.Text); f != nil {
-			index = 0
+			index = 1
 		}
 	} else {
 		t := c.Types.Get(s).(ir.StructLikeType)

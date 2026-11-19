@@ -113,6 +113,43 @@ func (s *StructBuilder) Build() ir.Value {
 		return &ir.ZeroInitializer{Typ: typ}
 	}
 
+	// Union
+	if s.typ.Layout == types.LayoutUnion {
+		if len(s.fields) != 1 {
+			panic("codegen.StructBuilder.Build() - Expected one union field")
+		}
+
+		var fields []ir.Field
+		switch t := typ.(type) {
+		case *ir.StructType:
+			fields = t.Fields
+		case *ir.RefStructType:
+			fields = t.Struct.Fields
+		}
+
+		for _, storage := range s.fields {
+			if ir.IsConstant(storage) {
+				return &ir.Struct{
+					Typ: typ,
+					Fields: []ir.Value{
+						&ir.ZeroInitializer{Typ: fields[0].Type},
+						storage,
+					},
+				}
+			}
+
+			if s.c.fun == nil {
+				panic("codegen.StructBuilder.Build() - Runtime union outside function")
+			}
+
+			return s.c.Emitter.InsertValue(
+				&ir.ZeroInitializer{Typ: typ},
+				storage,
+				1,
+			)
+		}
+	}
+
 	// Constants
 	constantCount := 0
 
@@ -124,11 +161,7 @@ func (s *StructBuilder) Build() ir.Value {
 
 	var fields []ir.Value
 	if constantCount > 0 {
-		if s.typ.Layout == types.LayoutUnion {
-			fields = make([]ir.Value, 1)
-		} else {
-			fields = make([]ir.Value, len(s.typ.Fields))
-		}
+		fields = make([]ir.Value, len(s.typ.Fields))
 	}
 
 	init := &ir.Struct{
@@ -138,15 +171,9 @@ func (s *StructBuilder) Build() ir.Value {
 
 	for name, value := range s.fields {
 		if ir.IsConstant(value) {
-			var i int
-
-			if s.typ.Layout == types.LayoutUnion {
-				i = 0
-			} else {
-				_, i = typ.Field(name)
-				if i < 0 {
-					panic("codegen.structBuilder.Build() - Failed to find field '" + name + "' on type '" + s.typ.String() + "'")
-				}
+			_, i := typ.Field(name)
+			if i < 0 {
+				panic("codegen.structBuilder.Build() - Failed to find field '" + name + "' on type '" + s.typ.String() + "'")
 			}
 
 			init.Fields[i] = value
@@ -167,12 +194,10 @@ func (s *StructBuilder) Build() ir.Value {
 	if constantCount == 0 {
 		structValue = &ir.ZeroInitializer{Typ: typ}
 	} else {
-		if s.typ.Layout != types.LayoutUnion {
-			for _, field := range s.typ.Fields {
-				if value, ok := s.fields[field.Name]; !ok || !ir.IsConstant(value) {
-					fieldTyp, i := typ.Field(field.Name)
-					init.Fields[i] = &ir.ZeroInitializer{Typ: fieldTyp}
-				}
+		for _, field := range s.typ.Fields {
+			if value, ok := s.fields[field.Name]; !ok || !ir.IsConstant(value) {
+				fieldTyp, i := typ.Field(field.Name)
+				init.Fields[i] = &ir.ZeroInitializer{Typ: fieldTyp}
 			}
 		}
 
@@ -181,15 +206,9 @@ func (s *StructBuilder) Build() ir.Value {
 
 	for name, value := range s.fields {
 		if !ir.IsConstant(value) {
-			var i int
-
-			if s.typ.Layout == types.LayoutUnion {
-				i = 0
-			} else {
-				_, i = typ.Field(name)
-				if i < 0 {
-					panic("codegen.structBuilder.Build() - Failed to find field '" + name + "' on type '" + s.typ.String() + "'")
-				}
+			_, i := typ.Field(name)
+			if i < 0 {
+				panic("codegen.structBuilder.Build() - Failed to find field '" + name + "' on type '" + s.typ.String() + "'")
 			}
 
 			structValue = s.c.Emitter.InsertValue(structValue, value, uint32(i))

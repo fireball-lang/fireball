@@ -312,6 +312,10 @@ func (a *analyzer) VisitFieldInitializerStruct(field *ast.FieldInitializer, t *t
 	value := a.AnalyzeExpr(field.Value)
 	a.ExpectType(f.Type, value, field.Value)
 
+	if t.Layout == types.LayoutUnion && ContainsPointer(f.Type) {
+		value.CompTime = false
+	}
+
 	return value
 }
 
@@ -332,6 +336,10 @@ func (a *analyzer) VisitFieldInitializerUnion(field *ast.FieldInitializer, u *ty
 
 	value := a.AnalyzeExpr(field.Value)
 	a.ExpectType(f.Type, value, field.Value)
+
+	if ContainsPointer(f.Type) {
+		value.CompTime = false
+	}
 
 	return value
 }
@@ -1477,6 +1485,37 @@ func (a *analyzer) VisitBadExpr(_ *ast.BadExpr) ExprInfo {
 }
 
 // Utils
+
+func ContainsPointer(typ types.Type) bool {
+	switch typ := typ.(type) {
+	case *types.Pointer, *types.Reference, *types.Func, *types.Interface:
+		return true
+
+	case *types.Array:
+		return typ.Size != 0 && ContainsPointer(typ.Element)
+
+	case *types.Tuple:
+		return slices.ContainsFunc(typ.Types, ContainsPointer)
+
+	case *types.Struct:
+		for _, field := range typ.Fields {
+			if ContainsPointer(field.Type) {
+				return true
+			}
+		}
+
+	case *types.Union:
+		for _, c := range typ.Cases {
+			for _, field := range c.Fields {
+				if ContainsPointer(field.Type) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
 
 func HasEquality(ctx *Context, typ types.Type) bool {
 	if HasNativeEquality(typ) {

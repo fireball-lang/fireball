@@ -862,6 +862,10 @@ func (c *Codegen) GetIrValue(val eval.Value, typ types.Type) ir.Value {
 
 	case *eval.AggregateValue:
 		if typ, ok := typ.(*types.Array); ok {
+			if typ.Size == 0 {
+				return &ir.ZeroInitializer{Typ: c.Types.Get(typ)}
+			}
+
 			elements := make([]ir.Value, len(val.Values))
 
 			for i, value := range val.Values {
@@ -876,16 +880,39 @@ func (c *Codegen) GetIrValue(val eval.Value, typ types.Type) ir.Value {
 		}
 
 		if t, ok := typ.(*types.Struct); ok && t.Layout == types.LayoutUnion {
-			if len(val.Values) != 1 {
+			if len(val.Values) != 2 {
 				panic("codegen.GetIrValue() - Invalid union storage")
 			}
 
-			storageType := c.Types.unionStorageType(t)
+			irType := c.Types.Get(t).(ir.StructLikeType)
+
+			var fields []ir.Field
+
+			switch t := irType.(type) {
+			case *ir.StructType:
+				fields = t.Fields
+			case *ir.RefStructType:
+				fields = t.Struct.Fields
+			}
+
+			storageType := &types.Array{
+				Size:    c.Arch.Info(t).Size,
+				Element: types.PrimitiveU8,
+			}
+
+			var storage ir.Value
+
+			if storageType.Size == 0 {
+				storage = &ir.ZeroInitializer{Typ: c.Types.Get(storageType)}
+			} else {
+				storage = c.GetIrValue(val.Values[1], storageType)
+			}
 
 			return &ir.Struct{
-				Typ: c.Types.Get(t).(ir.StructLikeType),
+				Typ: irType,
 				Fields: []ir.Value{
-					c.GetIrValue(val.Values[0], storageType),
+					&ir.ZeroInitializer{Typ: fields[0].Type},
+					storage,
 				},
 			}
 		}

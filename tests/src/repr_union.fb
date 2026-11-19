@@ -346,3 +346,100 @@ func testUnionArrayCrossView() bool {
 
     return table[0].bytes.b0 == 1 && table[0].bytes.b3 == 4 && table[1].raw == pack(9, 8, 7, 6);
 }
+
+// Largest member and most-aligned member are different.
+// Correct storage: size 16, alignment 8.
+#[repr(Union)]
+struct StorageRegression {
+    bytes: [9]u8,
+    word: u64,
+}
+
+// Equal-sized members must still preserve the greater alignment.
+#[repr(Union)]
+struct StorageTieRegression {
+    bytes: [8]u8,
+    word: u64,
+}
+
+#[repr(C)]
+struct StorageEnvelope {
+    prefix: u8,
+    value: StorageRegression,
+    suffix: u8,
+}
+
+#[repr(C)]
+struct StorageTieEnvelope {
+    prefix: u8,
+    value: StorageTieRegression,
+}
+
+#[test("union storage: array stride includes alignment padding")]
+func testStorageStride() bool {
+    var values: [2]StorageRegression;
+    var base = &values[0] as *u8;
+    return (&values[1] as *u8) == &base[16];
+}
+
+#[test("union storage: embedded offsets preserve size and alignment")]
+func testStorageEmbeddedOffsets() bool {
+    var value: StorageEnvelope;
+    var base = &value as *u8;
+    return (&value.value as *u8) == &base[8]
+        && (&value.suffix as *u8) == &base[24];
+}
+
+#[test("union storage: equal-sized members preserve maximum alignment")]
+func testStorageTieAlignment() bool {
+    var value: StorageTieEnvelope;
+    var base = &value as *u8;
+    return (&value.value as *u8) == &base[8];
+}
+
+func makeStorageRegression(seed: u8) StorageRegression {
+    var bytes: [9]u8;
+    for (var i = 0u; i < 9u; i++) {
+        bytes[i] = seed + (i as u8);
+    }
+    return StorageRegression { bytes: bytes };
+}
+
+#[test("union storage: initializer, return and copy preserve all payload bytes")]
+func testStoragePayloadCopy() bool {
+    var original = makeStorageRegression(10);
+    var copy = original;
+
+    original.bytes[0] = 99;
+    original.bytes[8] = 100;
+
+    for (var i = 0u; i < 9u; i++) {
+        if (copy.bytes[i] != 10 + (i as u8)) return false;
+    }
+
+    return original.bytes[0] == 99 && original.bytes[8] == 100;
+}
+
+#[test("union storage: array elements retain independent payloads")]
+func testStorageArrayPayloads() bool {
+    var values: [2]StorageRegression;
+    values[0] = makeStorageRegression(20);
+    values[1] = makeStorageRegression(40);
+
+    for (var i = 0u; i < 9u; i++) {
+        if (values[0].bytes[i] != 20 + (i as u8)) return false;
+        if (values[1].bytes[i] != 40 + (i as u8)) return false;
+    }
+
+    return true;
+}
+
+#[test("union storage: with expression writes byte storage")]
+func testStorageWith() bool {
+    var original = makeStorageRegression(60);
+    var changed = original with { word: 123 };
+
+    return changed.word == 123
+        && original.bytes[0] == 60
+        && original.bytes[8] == 68;
+}
