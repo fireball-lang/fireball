@@ -165,3 +165,148 @@ func testFallbackOnly() bool {
 
     return subjectCalls == 1 && result == 9 && value == 7;
 }
+
+union MatchEvent {
+    Empty {};
+    Number { value: i32 };
+    Pair { small: i32, wide: i64 };
+}
+
+func classifyEvent(event: MatchEvent) i32 {
+    // Arm order differs from tag order; the last arm still binds a payload.
+    match (event) {
+        MatchEvent::Pair {} => return 2;
+        MatchEvent::Empty {} => return 0;
+        MatchEvent::Number { n: value } => return n;
+    }
+}
+
+#[test("union match dispatches exhaustively in arm order")]
+func testUnionDispatch() bool {
+    return classifyEvent(MatchEvent::Empty {}) == 0
+        && classifyEvent(MatchEvent::Number { value: 47 }) == 47
+        && classifyEvent(MatchEvent::Pair { small: 13, wide: 29 }) == 2;
+}
+
+#[test("union match binds only the requested field at its layout offset")]
+func testUnionPartialBinding() bool {
+    // The wider field is laid out first, despite being declared second.
+    match (MatchEvent::Pair { small: -17, wide: 0x1020304050607080 as i64 }) {
+        MatchEvent::Pair { n: small } => return n == -17;
+        _ => return false;
+    }
+}
+
+func nextEvent(calls: mut &i32) MatchEvent {
+    *calls = *calls + 1;
+    return MatchEvent::Empty {};
+}
+
+#[test("union match evaluates the scrutinee once before taking fallback")]
+func testUnionFallback() bool {
+    var calls = 0;
+    match (nextEvent(&calls)) {
+        MatchEvent::Number {} => return false;
+        MatchEvent::Pair {} => return false;
+        _ => return calls == 1;
+    }
+}
+
+union MatchBox[T] {
+    Empty {};
+    Value { value: T };
+}
+
+func unpackMatchBox[T](box: MatchBox[T], fallback: T) T {
+    match (box) {
+        MatchBox:[T]::Value { item: value } => return item;
+        MatchBox:[T]::Empty {} => return fallback;
+    }
+}
+
+#[test("union match specializes binding types in generic code")]
+func testUnionGenericBinding() bool {
+    var small = MatchBox:[i32]::Value { value: -37 };
+    var large = MatchBox:[i64]::Value { value: 0x1020304050607080 as i64 };
+    return unpackMatchBox:[i32](small, 0) == -37
+        && unpackMatchBox:[i64](large, 0) == (0x1020304050607080 as i64);
+}
+
+#[test("union match bindings are copies of the payload")]
+func testUnionBindingCopy() bool {
+    var event = MatchEvent::Number { value: 23 };
+    var changed = 0;
+
+    match (event) {
+        MatchEvent::Number { n: value } => {
+            n = n + 100;
+            changed = n;
+        }
+        _ => return false;
+    }
+
+    return changed == 123 && classifyEvent(event) == 23;
+}
+
+#[test("nested union matches restore outer binding and local scopes")]
+func testUnionNestedScopes() bool {
+    var base = 100;
+    var result = 0;
+
+    match (MatchEvent::Number { value: 7 }) {
+        MatchEvent::Number { n: value } => {
+            match (MatchEvent::Number { value: 3 }) {
+                MatchEvent::Number { n: value } => result = n;
+                _ => return false;
+            }
+            result = result * 10 + n;
+        }
+        _ => return false;
+    }
+
+    return base + result == 137;
+}
+
+#[test("union match preserves loop targets")]
+func testUnionLoopControl() bool {
+    var total = 0;
+
+    for (var i = 0; i < 5; i++) {
+        var event = MatchEvent::Number { value: i };
+        if (i == 0) event = MatchEvent::Empty {};
+        if (i == 3) event = MatchEvent::Pair { small: 0, wide: 0 };
+
+        match (event) {
+            MatchEvent::Empty {} => continue;
+            MatchEvent::Number { n: value } => total = total + n;
+            MatchEvent::Pair {} => break;
+        }
+
+        total = total + 10;
+    }
+
+    return total == 23;
+}
+
+union ComparableEvent {
+    First {};
+    Second {};
+}
+
+var unionEqualityCalls: i32 = 0;
+
+impl ComparableEvent : Eq[ComparableEvent] {
+    pub func eq(self, _rhs: ComparableEvent) bool {
+        unionEqualityCalls++;
+        return false;
+    }
+}
+
+#[test("union case matching does not call Eq")]
+func testUnionIgnoresEquality() bool {
+    unionEqualityCalls = 0;
+    match (ComparableEvent::First {}) {
+        ComparableEvent::First {} => return unionEqualityCalls == 0;
+        ComparableEvent::Second {} => return false;
+    }
+}

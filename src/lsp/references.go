@@ -41,7 +41,7 @@ func (s *Server) References(ctx context.Context, params *protocol.ReferenceParam
 	// Resolve the target, either a referenced definition or the declaration itself
 	defNode := s.resolveDefinition(file, node)
 	if core.IsNil(defNode) {
-		defNode = s.declarationAt(node)
+		defNode = s.declarationAt(file, node)
 	}
 
 	if core.IsNil(defNode) {
@@ -86,10 +86,16 @@ type referenceKey struct {
 	range_ core.Range
 }
 
-func (s *Server) declarationAt(node ast.Node) ast.Node {
+func (s *Server) declarationAt(file *project.File, node ast.Node) ast.Node {
 	leaf, ok := node.(*ast.Leaf)
 	if !ok || leaf.Token.Kind != lexer.Identifier {
 		return nil
+	}
+
+	if field, ok := leaf.Parent().(*ast.FieldInitializer); ok && field.Name == leaf {
+		if _, ok := file.Sema.NodeTypes[leaf]; ok {
+			return leaf
+		}
 	}
 
 	for parent := leaf.Parent(); !core.IsNil(parent); parent = parent.Parent() {
@@ -250,7 +256,9 @@ func (s *Server) collectFileReferences(file *project.File, defNode ast.Node, inc
 			}
 
 		case *ast.Leaf:
-			add(file, n.Range())
+			if _, ok := n.Parent().(*ast.Import); ok {
+				add(file, n.Range())
+			}
 
 		case *ast.SelfType:
 			if includeSelf {
@@ -295,6 +303,9 @@ func declNameRange(node ast.Node) core.Range {
 
 	case *ast.UnionCaseField:
 		return n.Name.Range()
+
+	case *ast.Leaf:
+		return n.Range()
 	}
 
 	return core.Range{}

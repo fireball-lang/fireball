@@ -868,12 +868,8 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 		}
 
 	case symbols.Param, symbols.Var:
-		_, ok := symbol.Node.(*ast.Var)
-		if !ok {
-			_, ok = symbol.Node.(*ast.Param)
-		}
-
-		if ok {
+		switch symbol.Node.(type) {
+		case *ast.Var, *ast.Param, *ast.Leaf:
 			a.varAccessed[symbol.Node] = true
 		}
 

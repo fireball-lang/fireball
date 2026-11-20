@@ -24,6 +24,7 @@ type Emitter struct {
 
 func (e *Emitter) PushScope(ref MetaRef) {
 	e.scope = append(e.scope, ref)
+	e.locRef = MetaRef(0)
 }
 
 func (e *Emitter) PeekScope() MetaRef {
@@ -32,6 +33,7 @@ func (e *Emitter) PeekScope() MetaRef {
 
 func (e *Emitter) PopScope() {
 	e.scope = e.scope[:len(e.scope)-1]
+	e.locRef = MetaRef(0)
 }
 
 func (e *Emitter) SetDebugLocation(loc core.Pos) {

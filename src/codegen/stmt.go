@@ -165,10 +165,13 @@ func (c *Codegen) VisitMatch(m *ast.Match) int {
 	}
 
 	// Prepare receiver / primitive value for comparisons
-	value := ir.Value(nil)
+	var value, storage ir.Value
 	typ := c.ExprType(m.Value)
+	_, isUnionMatch := c.Sema.ExprInfos[m.Value].Type.(*types.Union)
 
-	if _, ok := typ.(*types.Primitive); !ok {
+	if isUnionMatch {
+		value, storage = c.PrepareUnionMatch(m.Value, typ.(*types.Union))
+	} else if _, ok := typ.(*types.Primitive); !ok {
 		if fTyp, _ := sema.GetBinaryMethod(c.Ctx, ast.Equal.InterfaceName(), typ, typ); fTyp != nil {
 			if _, ok := typ.(*types.Interface); ok {
 				value = c.Load(m.Value)
@@ -187,6 +190,8 @@ func (c *Codegen) VisitMatch(m *ast.Match) int {
 
 	// Arms
 	for i, arm := range m.Arms {
+		patterns := c.Sema.ArmPatterns[arm]
+
 		bCondition := blocks[i].condition
 		bBody := blocks[i].body
 
@@ -195,20 +200,15 @@ func (c *Codegen) VisitMatch(m *ast.Match) int {
 			bNext := blocks[i+1].condition
 
 			c.Emitter.Begin(bCondition)
-			matched := c.EmitCmpPatterns(m.Value, value, typ, c.Sema.ArmPatterns[arm], i)
+			c.Emitter.SetDebugLocation(arm.Patterns[0].Range().Start)
+			matched := c.EmitCmpPatterns(m.Value, value, typ, patterns, i)
 			c.Emitter.BrCond(matched, bBody, bNext)
 		}
 
 		// Body
-		c.Emitter.PushScope(c.emitMetaScope(arm))
-		c.scope.Push()
-
 		c.Emitter.Begin(bBody)
-		c.GenerateStmt(arm.Body)
+		c.EmitMatchArm(arm, patterns[0], typ, storage)
 		c.Emitter.Br(bExit)
-
-		c.scope.Pop()
-		c.Emitter.PopScope()
 	}
 
 	// Exit
@@ -219,10 +219,36 @@ func (c *Codegen) VisitMatch(m *ast.Match) int {
 	return 0
 }
 
+func (c *Codegen) PrepareUnionMatch(expr ast.Expr, typ *types.Union) (tag, storage ir.Value) {
+	layout := c.Types.Get(typ).(ir.StructLikeType)
+
+	_, tagIndex := layout.Field("tag")
+	_, dataIndex := layout.Field("data")
+	if tagIndex < 0 || dataIndex < 0 {
+		panic("codegen.Codegen.PrepareUnionMatch() - Invalid union layout")
+	}
+
+	value := c.Load(expr)
+	tag = c.Emitter.ExtractValue(value, uint32(tagIndex))
+
+	slot := c.Alloca(layout, "match.union")
+	c.Emitter.Store(value, slot)
+
+	storage = c.Emitter.GetElementPtrConst(layout, slot, 0, uint32(dataIndex), 1)
+	return tag, storage
+}
+
 func (c *Codegen) EmitCmpPatterns(valueExpr ast.Expr, value ir.Value, typ types.Type, patterns []sema.Pattern, armI int) ir.Value {
 	// Single
 	if len(patterns) == 1 {
-		return c.EmitCmpPattern(valueExpr, value, typ, patterns[0])
+		switch pattern := patterns[0].(type) {
+		case *sema.ExprPattern:
+			return c.EmitCmpExprPattern(valueExpr, value, typ, pattern)
+		case *sema.UnionPattern:
+			return c.EmitCmpUnionPattern(value, typ.(*types.Union), pattern)
+		default:
+			panic("codegen.Codegen.EmitCmpPatterns - Invalid pattern")
+		}
 	}
 
 	// Multiple
@@ -230,7 +256,7 @@ func (c *Codegen) EmitCmpPatterns(valueExpr ast.Expr, value ir.Value, typ types.
 	pairs := make([]ir.PhiPair, len(patterns))
 
 	for i, pattern := range patterns {
-		matched := c.EmitCmpPattern(valueExpr, value, typ, pattern)
+		matched := c.EmitCmpExprPattern(valueExpr, value, typ, pattern.(*sema.ExprPattern))
 		from := c.Emitter.Block()
 
 		if i == len(patterns)-1 {
@@ -249,8 +275,10 @@ func (c *Codegen) EmitCmpPatterns(valueExpr ast.Expr, value ir.Value, typ types.
 	return c.Emitter.Phi(pairs...)
 }
 
-func (c *Codegen) EmitCmpPattern(valueExpr ast.Expr, value ir.Value, typ types.Type, pattern sema.Pattern) ir.Value {
-	expr := pattern.(*sema.ExprPattern).Expr
+func (c *Codegen) EmitCmpExprPattern(valueExpr ast.Expr, value ir.Value, typ types.Type, pattern *sema.ExprPattern) ir.Value {
+	expr := pattern.Expr
+
+	c.Emitter.SetDebugLocation(expr.Range().Start)
 	target := c.GetIrValue(c.Sema.Evaluations[expr], typ)
 
 	// core::Eq
@@ -286,6 +314,85 @@ func (c *Codegen) EmitCmpPattern(valueExpr ast.Expr, value ir.Value, typ types.T
 
 	// Invalid
 	panic("codegen.Codegen.EmitCmpPattern - Invalid type")
+}
+
+func (c *Codegen) EmitCmpUnionPattern(value ir.Value, typ *types.Union, pattern *sema.UnionPattern) ir.Value {
+	i := -1
+
+	for j := range typ.Cases {
+		if typ.Cases[j].Name == pattern.Case.Name {
+			i = j
+			break
+		}
+	}
+
+	if i == -1 {
+		panic("codegen.Codegen.EmitCmpUnionPattern() - Invalid pattern case")
+	}
+
+	patternValue := &ir.Integer{Typ: value.Type(), Value: core.Unsigned(false, uint64(i))}
+	return c.Emitter.ICmp(ir.Eq, false, value, patternValue)
+}
+
+func (c *Codegen) EmitMatchArm(arm *ast.Arm, pattern sema.Pattern, typ types.Type, storage ir.Value) {
+	c.Emitter.PushScope(c.emitMetaScope(arm))
+	c.scope.Push()
+
+	if pattern, ok := pattern.(*sema.UnionPattern); ok {
+		c.EmitUnionBindings(typ.(*types.Union), storage, pattern)
+
+		// Match sema: body locals can shadow pattern bindings.
+		c.Emitter.PushScope(c.emitMetaScope(arm))
+		c.scope.Push()
+	}
+
+	c.GenerateStmt(arm.Body)
+
+	if _, ok := pattern.(*sema.UnionPattern); ok {
+		c.scope.Pop()
+		c.Emitter.PopScope()
+	}
+
+	c.scope.Pop()
+	c.Emitter.PopScope()
+}
+
+func (c *Codegen) EmitUnionBindings(typ *types.Union, storage ir.Value, pattern *sema.UnionPattern) {
+	if len(pattern.Bindings) == 0 {
+		return
+	}
+
+	var payload ir.StructLikeType
+
+	if len(pattern.Case.Fields) > 1 {
+		underlying := typ.Underlying().(*types.Struct)
+		data := underlying.Field("data").Type.(*types.Struct)
+		payload = c.Types.Get(data.Field(pattern.Case.Name).Type).(ir.StructLikeType)
+	}
+
+	for _, binding := range pattern.Bindings {
+		src := storage
+
+		c.Emitter.SetDebugLocation(binding.Local.Range().Start)
+
+		if payload != nil {
+			_, index := payload.Field(binding.Target.Name)
+			if index < 0 {
+				panic("codegen.Codegen.EmitUnionBindings() - Missing payload field")
+			}
+
+			src = c.Emitter.GetElementPtrConst(payload, storage, 0, uint32(index))
+		}
+
+		name := binding.Local.Token.Text
+		bindType := c.ResolveType(binding.Target.Type)
+		bindIR := c.Types.Get(bindType)
+		local := c.Alloca(bindIR, "binding."+name)
+
+		c.emitDbgDeclare(name, bindType, local, 0, binding.Local)
+		c.Emitter.Store(c.Emitter.Load(bindIR, src), local)
+		c.scope.Add(name, local)
+	}
 }
 
 func (c *Codegen) VisitWhile(w *ast.While) int {

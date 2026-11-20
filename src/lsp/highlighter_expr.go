@@ -30,19 +30,7 @@ func (hi *highlighter) VisitStructInitializer(s *ast.StructInitializer) int {
 	info := hi.file.Sema.ExprInfos[s]
 
 	if target, ok := s.Type.(*ast.IdentifierType); ok && info.Symbol == symbols.UnionCase && len(target.Path) > 0 {
-		last := len(target.Path) - 1
-
-		for i, entry := range target.Path {
-			if i == last {
-				hi.Add(entry.Name, enumMemberKind, 0)
-			} else if typ, ok := hi.file.Sema.NodeTypes[entry]; ok {
-				hi.AddType(entry.Name, typ)
-			}
-
-			for _, arg := range entry.TypeArgs {
-				hi.VisitType(arg)
-			}
-		}
+		hi.UnionCasePath(target)
 	} else {
 		hi.VisitType(s.Type)
 	}
@@ -53,6 +41,22 @@ func (hi *highlighter) VisitStructInitializer(s *ast.StructInitializer) int {
 	}
 
 	return 0
+}
+
+func (hi *highlighter) UnionCasePath(target *ast.IdentifierType) {
+	last := len(target.Path) - 1
+
+	for i, entry := range target.Path {
+		if i == last {
+			hi.Add(entry.Name, enumMemberKind, 0)
+		} else if typ, ok := hi.file.Sema.NodeTypes[entry]; ok {
+			hi.AddType(entry.Name, typ)
+		}
+
+		for _, arg := range entry.TypeArgs {
+			hi.VisitType(arg)
+		}
+	}
 }
 
 func (hi *highlighter) VisitWith(w *ast.With) int {

@@ -61,6 +61,13 @@ outer:
 				break outer
 			}
 
+			if field, ok := info.Node.(*ast.UnionCaseField); ok {
+				if _, ok := n.(*ast.Identifier); ok && info.Type != nil && info.Type != types.Invalid {
+					label := field.Name.Token.Text + ": " + info.Type.String()
+					return s.formatHover(label, field.Documentation, rng)
+				}
+			}
+
 			return s.buildHover(file, info.Node, rng)
 
 		case *ast.Member:
@@ -202,6 +209,19 @@ func (s *Server) buildHover(file *project.File, node ast.Node, rng core.Range) *
 
 	case *ast.UnionCaseField:
 		label = typeString(file, n, n.Type)
+
+	case *ast.Leaf:
+		field, ok := n.Parent().(*ast.FieldInitializer)
+		if !ok || field.Name != n {
+			return nil
+		}
+
+		typ := file.Sema.NodeTypes[n]
+		if typ == nil || typ == types.Invalid {
+			return nil
+		}
+
+		label = n.Token.Text + ": " + typ.String()
 
 	case *ast.Interface:
 		label = declTypeString(file, n, n.Name().Token.Text)

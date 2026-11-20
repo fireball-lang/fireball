@@ -723,12 +723,18 @@ func (a *analyzer) VisitFuncInner(f *ast.Func, typ *types.Func, receiverTyp type
 		var kind string
 		var name *ast.Leaf
 
-		if v, ok := node.(*ast.Var); ok {
+		switch node := node.(type) {
+		case *ast.Var:
 			kind = "variable"
-			name = v.Name
-		} else {
+			name = node.Name
+
+		case *ast.Param:
 			kind = "parameter"
-			name = node.(*ast.Param).Name
+			name = node.Name
+
+		case *ast.Leaf:
+			kind = "binding"
+			name = node
 		}
 
 		if !accessed && !strings.HasPrefix(name.Token.Text, "_") {

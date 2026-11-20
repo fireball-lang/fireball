@@ -75,7 +75,14 @@ func (e *Evaluator) evaluateStmt(stmt ast.Stmt) {
 
 		for _, arm := range stmt.Arms {
 			// Evaluate
-			for i, pattern := range fd.ArmPatterns[arm] {
+			patterns := fd.ArmPatterns[arm]
+
+			if len(patterns) == 0 {
+				patternsOK = false
+				continue
+			}
+
+			for i, pattern := range patterns {
 				switch pattern := pattern.(type) {
 				case *sema.ExprPattern:
 					if e.ensureExpr(pattern.Expr, typ, pattern.Expr) {
@@ -84,29 +91,49 @@ func (e *Evaluator) evaluateStmt(stmt ast.Stmt) {
 						patternsOK = false
 					}
 
+				case *sema.UnionPattern:
+					count++
+
 				case *sema.FallbackPattern:
 					fallbackExpr = arm.Patterns[i]
+
+				case *sema.BadPattern:
+					patternsOK = false
 				}
 			}
 		}
 
 		// Check for duplicates
-		seen := make([]eval.Value, 0, count)
+		seenValues := make([]eval.Value, 0, count)
+		seenCases := make(map[*types.UnionCase]struct{}, count)
 
 		for _, arm := range stmt.Arms {
 		pattern:
 			for i, pattern := range fd.ArmPatterns[arm] {
-				if pattern, ok := pattern.(*sema.ExprPattern); ok {
+				switch pattern := pattern.(type) {
+				case *sema.ExprPattern:
 					if val, ok := fd.Evaluations[pattern.Expr]; ok {
-						for _, value := range seen {
+						for _, value := range seenValues {
 							if value.Equals(val) {
 								e.error(arm.Patterns[i], "duplicate expression pattern")
+								patternsOK = false
+
 								continue pattern
 							}
 						}
 
-						seen = append(seen, val)
+						seenValues = append(seenValues, val)
 					}
+
+				case *sema.UnionPattern:
+					if _, ok := seenCases[pattern.Case]; ok {
+						e.error(arm.Patterns[i], "duplicate union case pattern")
+						patternsOK = false
+
+						continue pattern
+					}
+
+					seenCases[pattern.Case] = struct{}{}
 				}
 			}
 		}
@@ -114,10 +141,12 @@ func (e *Evaluator) evaluateStmt(stmt ast.Stmt) {
 		// Check exhaustiveness
 		exhaustive := false
 
-		if typ == types.PrimitiveBool {
-			if len(seen) == 2 && ((seen[0].Equals(valueTrue) && seen[1].Equals(valueFalse)) || (seen[0].Equals(valueFalse) && seen[1].Equals(valueTrue))) {
-				exhaustive = true
-			}
+		switch typ := typ.(type) {
+		case *types.Primitive:
+			exhaustive = typ.Kind == types.Bool && len(seenValues) == 2 && ((seenValues[0].Equals(valueTrue) && seenValues[1].Equals(valueFalse)) || (seenValues[0].Equals(valueFalse) && seenValues[1].Equals(valueTrue)))
+
+		case *types.Union:
+			exhaustive = len(seenCases) == len(typ.Cases)
 		}
 
 		if patternsOK && fallbackExpr == nil && !exhaustive {

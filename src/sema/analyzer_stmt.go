@@ -98,8 +98,12 @@ func (a *analyzer) VisitMatch(m *ast.Match) int {
 	// Value
 	value := a.AnalyzeExpr(m.Value)
 
-	if !HasEquality(a.ctx, value.Type) {
-		a.Error(m.Value, "type '%s' doesn't have equality operators defined and cannot be matched", value.Type)
+	var union *types.Union
+
+	if u, ok := value.Type.(*types.Union); ok {
+		union = u
+	} else if !HasEquality(a.ctx, value.Type) {
+		a.Error(m.Value, "type '%s' cannot be matched", value.Type)
 	}
 
 	// Analyze arm patterns individually and their statements
@@ -107,23 +111,60 @@ func (a *analyzer) VisitMatch(m *ast.Match) int {
 		patterns := make([]Pattern, len(arm.Patterns))
 
 		for i, pattern := range arm.Patterns {
-			patterns[i] = a.AnalyzePattern(value, pattern)
+			patterns[i] = a.AnalyzePattern(value, pattern, union)
 		}
+
+		var union *UnionPattern
 
 		if len(patterns) == 0 {
 			a.Error(arm.Body, "a match arm needs to have a pattern")
 		} else if len(patterns) > 1 {
 			for i, pattern := range patterns {
-				if _, ok := pattern.(*ExprPattern); !ok {
+				switch pattern.(type) {
+				case *BadPattern, *ExprPattern:
+					// NOP
+
+				default:
 					a.Error(arm.Patterns[i], "a match arm can only have multiple expression patterns")
+					patterns[i] = &BadPattern{}
 				}
+			}
+		} else {
+			if pattern, ok := patterns[0].(*UnionPattern); ok {
+				union = pattern
 			}
 		}
 
 		a.sema.ArmPatterns[arm] = patterns
 
 		a.locals.Push()
-		a.AnalyzeStmt(arm.Body)
+
+		if union == nil {
+			a.AnalyzeStmt(arm.Body)
+		} else {
+			for _, binding := range union.Bindings {
+				symbol := symbols.Symbol{
+					Kind:   symbols.Var,
+					Public: true,
+					Name:   binding.Local.Token.Text,
+					Node:   binding.Local,
+					Type:   binding.Target.Type,
+				}
+
+				if !a.locals.Add(symbol) {
+					a.Error(binding.Local, "variable '%s' already exists in the current scope", symbol.Name)
+				} else {
+					a.sema.NodeTypes[binding.Local] = symbol.Type
+				}
+
+				a.varAccessed[binding.Local] = false
+			}
+
+			a.locals.Push()
+			a.AnalyzeStmt(arm.Body)
+			a.locals.Pop()
+		}
+
 		a.locals.Pop()
 	}
 

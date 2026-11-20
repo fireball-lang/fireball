@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fireball/ast"
+	"fireball/core"
 	"fireball/lexer"
 )
 
@@ -32,13 +33,24 @@ func (p *parser) parseIdentifierPath(typeArgsRequireTurbofish bool) (path []*ast
 	}
 
 	// ('::' Entry)*
-	for p.current.Kind == lexer.ColonColon && p.next.Kind != lexer.LeftBracket && p.next.Kind != lexer.LeftBrace {
-		// '::'
-		if recoverId = p.expect(lexer.ColonColon, "expected '::' before identifier"); recoverId >= 0 {
-			return
+	for p.current.Kind == lexer.ColonColon && p.next.Kind != lexer.LeftBracket && (typeArgsRequireTurbofish || p.next.Kind != lexer.LeftBrace) {
+		separator := p.advance()
+
+		if p.current.Kind == lexer.LeftBrace {
+			pos := separator.Range.End
+			rng := core.Range{Start: pos, End: pos}
+			p.reportError(rng, "expected an identifier after '::'")
+
+			entry := &ast.IdentifierEntry{
+				Name: &ast.Leaf{
+					Token: lexer.Token{Kind: lexer.Identifier, Range: rng},
+				},
+			}
+			entry.Range_ = rng
+			path = append(path, entry)
+			break
 		}
 
-		// Entry
 		entry, recoverId = p.parseIdentifierEntry(typeArgsRequireTurbofish)
 		path = append(path, entry)
 		if recoverId >= 0 {

@@ -43,7 +43,7 @@ func (s *Server) PrepareRename(ctx context.Context, params *protocol.PrepareRena
 	// Resolve the target, either a referenced definition or the declaration itself
 	defNode := s.resolveDefinition(file, node)
 	if core.IsNil(defNode) {
-		defNode = s.declarationAt(node)
+		defNode = s.declarationAt(file, node)
 	}
 
 	if core.IsNil(defNode) {
@@ -88,7 +88,7 @@ func (s *Server) Rename(ctx context.Context, params *protocol.RenameParams) (*pr
 	// Resolve the target, either a referenced definition or the declaration itself
 	defNode := s.resolveDefinition(file, node)
 	if core.IsNil(defNode) {
-		defNode = s.declarationAt(node)
+		defNode = s.declarationAt(file, node)
 	}
 
 	if core.IsNil(defNode) {

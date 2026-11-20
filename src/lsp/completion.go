@@ -73,6 +73,11 @@ func (s *Server) Completion(_ context.Context, params *protocol.CompletionParams
 			return c.Build(), nil
 		}
 
+		// Union match patterns
+		if c.UnionPatternFields() {
+			return c.Build(), nil
+		}
+
 		// Field list completions
 		if c.FieldList() {
 			return c.Build(), nil
@@ -80,6 +85,11 @@ func (s *Server) Completion(_ context.Context, params *protocol.CompletionParams
 
 		// Name contexts
 		if c.NameContext() {
+			return c.Build(), nil
+		}
+
+		// Union match patterns
+		if c.UnionPatternCasePath() {
 			return c.Build(), nil
 		}
 
@@ -634,16 +644,7 @@ func (c *completions) InitializerCasePath(target *ast.IdentifierType) bool {
 		return false
 	}
 
-	if union.Generic != nil {
-		union = union.Generic
-	}
-
-	for member := range c.workspace.ctx.TypeEnv.StaticMembers(union) {
-		if member.Symbol.Kind == symbols.UnionCase {
-			c.StaticMember(member)
-		}
-	}
-
+	c.UnionCases(union)
 	return true
 }
 
@@ -861,6 +862,85 @@ func (c *completions) ParamMember(t *types.Param) {
 	}
 }
 
+// Union match pattern
+
+func (c *completions) UnionPatternFields() bool {
+	init := ast.GetClosestParent[*ast.StructInitializer](c.node)
+	if init == nil {
+		return false
+	}
+
+	arm, ok := init.Parent().(*ast.Arm)
+	if !ok {
+		return false // A constructor, not a top-level arm pattern.
+	}
+
+	match, ok := arm.Parent().(*ast.Match)
+	if !ok {
+		return false
+	}
+	if _, ok := c.file.Sema.ExprInfos[match.Value].Type.(*types.Union); !ok {
+		return false
+	}
+
+	field := ast.GetClosestParent[*ast.FieldInitializer](c.node)
+	if field == nil || field.Parent() != init || field.Name == nil ||
+		!c.cursor.GreaterThan(field.Name.Range().End) {
+		return true // The left side declares a local; no field suggestions.
+	}
+
+	c.UnionInitializerFields(init, true)
+	return true // Don't fall back to expression completion for an unresolved case.
+}
+
+func (c *completions) UnionPatternCasePath() bool {
+	id := ast.GetClosestParent[*ast.Identifier](c.node)
+	if id == nil || len(id.Path) < 2 {
+		return false
+	}
+
+	arm, ok := id.Parent().(*ast.Arm)
+	if !ok {
+		return false
+	}
+
+	match, ok := arm.Parent().(*ast.Match)
+	if !ok {
+		return false
+	}
+
+	qualifier := id.Path[len(id.Path)-2]
+	if !c.cursor.GreaterThan(qualifier.Range().End) {
+		return false
+	}
+
+	union, ok := c.file.Sema.ExprInfos[match.Value].Type.(*types.Union)
+	if !ok {
+		return false
+	}
+
+	c.UnionCases(union)
+	return true
+}
+
+func (c *completions) UnionCases(union *types.Union) {
+	env := c.workspace.ctx.TypeEnv
+	if env == nil {
+		return
+	}
+
+	// Case symbols are registered on the generic declaration.
+	if union.Generic != nil {
+		union = union.Generic
+	}
+
+	for member := range env.StaticMembers(union) {
+		if member.Symbol.Kind == symbols.UnionCase {
+			c.StaticMember(member)
+		}
+	}
+}
+
 // Field lists
 
 func (c *completions) FieldList() bool {
@@ -906,7 +986,7 @@ func (c *completions) FieldList() bool {
 	}
 
 	// Union
-	if initializer != nil && c.UnionInitializerFields(initializer) {
+	if initializer != nil && c.UnionInitializerFields(initializer, false) {
 		return true
 	}
 
@@ -971,7 +1051,7 @@ func (c *completions) WithType(w *ast.With) types.Type {
 	return typ
 }
 
-func (c *completions) UnionInitializerFields(initializer *ast.StructInitializer) bool {
+func (c *completions) UnionInitializerFields(initializer *ast.StructInitializer, isPattern bool) bool {
 	info, ok := c.file.Sema.ExprInfos[initializer]
 	if !ok || info.Symbol != symbols.UnionCase {
 		return false
@@ -993,9 +1073,11 @@ func (c *completions) UnionInitializerFields(initializer *ast.StructInitializer)
 	}
 
 	// Hide fields that are already initialized.
-	for _, field := range initializer.Fields {
-		if field.Name != nil && field.Name.Token.Text != "" {
-			c.seen[field.Name.Token.Text] = struct{}{}
+	if !isPattern {
+		for _, field := range initializer.Fields {
+			if field.Name != nil && field.Name.Token.Text != "" {
+				c.seen[field.Name.Token.Text] = struct{}{}
+			}
 		}
 	}
 
@@ -1048,7 +1130,7 @@ func (c *completions) EnclosingDecl(decl ast.Decl) {
 		c.EnclosingReceiver(decl.Receiver)
 
 		if block := ast.GetClosestParent[*ast.Block](c.node); block != nil {
-			c.EnclosingLocalVar(block)
+			c.EnclosingLocalVar(c.node)
 		}
 
 		c.EnclosingParam(decl.Params)
@@ -1067,25 +1149,56 @@ func (c *completions) EnclosingAssociatedConst(assocConsts []*ast.AssociatedCons
 	}
 }
 
-func (c *completions) EnclosingLocalVar(block *ast.Block) {
-	for _, stmt := range block.Stmts {
-		if stmt.Range().Start.GreaterThan(c.cursor) {
-			break
-		}
+func (c *completions) EnclosingLocalVar(node ast.Node) {
+	var child ast.Node
 
-		if local, ok := stmt.(*ast.Var); ok && c.cursor.GreaterThan(local.Name.Range().End) {
-			c.Add(protocol.CompletionItem{
-				Kind:   protocol.CompletionItemKindVariable,
-				Label:  local.Name.Token.Text,
-				Detail: protocol.NewOptional(typeString(c.file, local, local.Type)),
-			})
+	for ; !core.IsNil(node); child, node = node, node.Parent() {
+		switch scope := node.(type) {
+		case *ast.Block:
+			for _, stmt := range scope.Stmts {
+				if stmt == child || stmt.Range().Start.GreaterThan(c.cursor) {
+					break
+				}
+
+				if local, ok := stmt.(*ast.Var); ok && c.cursor.GreaterThan(local.Name.Range().End) {
+					c.Add(protocol.CompletionItem{
+						Kind:   protocol.CompletionItemKindVariable,
+						Label:  local.Name.Token.Text,
+						Detail: protocol.NewOptional(typeString(c.file, local, local.Type)),
+					})
+				}
+			}
+
+		case *ast.Arm:
+			if child == scope.Body {
+				c.EnclosingArmBindings(scope)
+			}
 		}
 	}
+}
 
-	if parent := block.Parent(); !core.IsNil(parent) {
-		if block := ast.GetClosestParent[*ast.Block](parent); block != nil {
-			c.EnclosingLocalVar(block)
+func (c *completions) EnclosingArmBindings(arm *ast.Arm) {
+	patterns := c.file.Sema.ArmPatterns[arm]
+	if len(patterns) != 1 {
+		return
+	}
+
+	pattern, ok := patterns[0].(*sema.UnionPattern)
+	if !ok {
+		return
+	}
+
+	for _, binding := range pattern.Bindings {
+		typ := c.file.Sema.NodeTypes[binding.Local]
+		if typ == nil || typ == types.Invalid {
+			continue
 		}
+
+		c.Add(protocol.CompletionItem{
+			Kind:   protocol.CompletionItemKindVariable,
+			Label:  binding.Local.Token.Text,
+			Detail: protocol.NewOptional(typ.String()),
+		})
 	}
 }
 
