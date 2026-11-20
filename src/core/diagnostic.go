@@ -18,8 +18,15 @@ func (d DiagnosticKind) String() string {
 	}
 }
 
+type DiagnosticFlags uint8
+
+const (
+	Deprecated DiagnosticFlags = 1 << iota
+)
+
 type Diagnostic struct {
-	Kind DiagnosticKind
+	Kind  DiagnosticKind
+	Flags DiagnosticFlags
 
 	Path    string
 	Range   Range

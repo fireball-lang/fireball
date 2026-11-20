@@ -154,6 +154,24 @@ func (c *Cfg) Children() iter.Seq[Node] {
 
 func (c *Cfg) _isAttribute() {}
 
+// Deprecated
+
+type Deprecated struct {
+	baseNode
+
+	Message *String // optional
+}
+
+func (d *Deprecated) Children() iter.Seq[Node] {
+	return func(yield func(Node) bool) {
+		if d.Message != nil && !yield(d.Message) {
+			return
+		}
+	}
+}
+
+func (d *Deprecated) _isAttribute() {}
+
 // Bad
 
 type BadAttribute struct {

@@ -89,6 +89,7 @@ type modifierKind uint8
 
 const (
 	readonlyKind modifierKind = 1 << iota
+	deprecatedKind
 )
 
 type semantic struct {
@@ -125,6 +126,12 @@ func (hi *highlighter) Add(node ast.Node, kind semanticKind, mods modifierKind) 
 func (hi *highlighter) AddRange(range_ core.Range, kind semanticKind, mods modifierKind) {
 	startL := range_.Start.Line
 	endL := range_.End.Line
+
+	if hi.file.Sema.DeprecatedRanges != nil {
+		if _, ok := hi.file.Sema.DeprecatedRanges[range_]; ok {
+			mods |= deprecatedKind
+		}
+	}
 
 	for line := startL; line <= endL; line++ {
 		var column uint32

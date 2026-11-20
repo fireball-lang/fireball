@@ -55,10 +55,17 @@ func (s *Server) publishFileDiagnostics(ctx context.Context, file *project.File)
 			panic("lsp.Handler.publishFileDiagnostics() - Invalid diagnostic kind")
 		}
 
+		var tags protocol.DiagnosticTags
+
+		if diagnostic.Flags&core.Deprecated != 0 {
+			tags = protocol.NewDiagnosticTags(protocol.DiagnosticTagDeprecated)
+		}
+
 		diagnostics = append(diagnostics, protocol.Diagnostic{
 			Range:    toLspRange(diagnostic.Range),
 			Severity: severity,
 			Message:  protocol.String(diagnostic.Message),
+			Tags:     tags,
 		})
 	}
 

@@ -2,6 +2,7 @@ package sema
 
 import (
 	"fireball/ast"
+	"fireball/core"
 	fb_core "fireball/fb-core"
 	"fireball/ir/eval"
 	"fireball/symbols"
@@ -26,6 +27,8 @@ type FileData struct {
 	StmtExits   map[ast.Stmt]Exits
 
 	Evaluations map[ast.Expr]eval.Value
+
+	DeprecatedRanges map[core.Range]struct{}
 }
 
 type ExprInfo struct {

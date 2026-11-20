@@ -15,6 +15,7 @@ import (
 
 var typeAliasAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
+	reflect.TypeFor[ast.Deprecated](),
 }
 
 func (a *analyzer) VisitTypeAlias(t *ast.TypeAlias) {
@@ -25,11 +26,13 @@ func (a *analyzer) VisitTypeAlias(t *ast.TypeAlias) {
 var structAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Repr](),
 	reflect.TypeFor[ast.Cfg](),
+	reflect.TypeFor[ast.Deprecated](),
 }
 
 var fieldAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Required](),
 	reflect.TypeFor[ast.Cfg](),
+	reflect.TypeFor[ast.Deprecated](),
 }
 
 func (a *analyzer) VisitStruct(s *ast.Struct) {
@@ -67,6 +70,7 @@ func (a *analyzer) VisitStruct(s *ast.Struct) {
 
 var enumAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
+	reflect.TypeFor[ast.Deprecated](),
 }
 
 func (a *analyzer) VisitEnum(e *ast.Enum) {
@@ -117,6 +121,7 @@ func (a *analyzer) VisitEnum(e *ast.Enum) {
 
 var unionAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
+	reflect.TypeFor[ast.Deprecated](),
 }
 
 func (a *analyzer) VisitUnion(u *ast.Union) {
@@ -168,18 +173,22 @@ func (a *analyzer) VisitUnion(u *ast.Union) {
 
 var interfaceAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
+	reflect.TypeFor[ast.Deprecated](),
 }
 
 var associatedTypeAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
+	reflect.TypeFor[ast.Deprecated](),
 }
 
 var associatedConstAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
+	reflect.TypeFor[ast.Deprecated](),
 }
 
 var methodAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
+	reflect.TypeFor[ast.Deprecated](),
 }
 
 func (a *analyzer) VisitInterface(i *ast.Interface) {
@@ -504,6 +513,7 @@ func instanceSignatureMatches(in *types.Func, concrete *types.Func) bool {
 
 var constAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Cfg](),
+	reflect.TypeFor[ast.Deprecated](),
 }
 
 func (a *analyzer) VisitConst(c *ast.Const) {
@@ -530,6 +540,7 @@ var globalVarAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.Extern](),
 	reflect.TypeFor[ast.LinkName](),
 	reflect.TypeFor[ast.Cfg](),
+	reflect.TypeFor[ast.Deprecated](),
 }
 
 func (a *analyzer) VisitGlobalVar(g *ast.GlobalVar) {
@@ -563,6 +574,7 @@ var funcAllowedAttributes = []reflect.Type{
 	reflect.TypeFor[ast.LinkName](),
 	reflect.TypeFor[ast.Intrinsic](),
 	reflect.TypeFor[ast.Cfg](),
+	reflect.TypeFor[ast.Deprecated](),
 }
 
 func (a *analyzer) VisitFunc(f *ast.Func) {

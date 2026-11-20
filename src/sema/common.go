@@ -183,6 +183,8 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 		if symbol, ok := scope.GetSymbol(symbols.Type, name); ok {
 			c.sema.NodeTypes[entry] = symbol.Type
 
+			c.CheckDeprecated(entry.Name, symbol.Node)
+
 			// Type alias
 			if symbol.Kind == symbols.TypeAlias {
 				a := symbol.Type.(*types.Alias)
@@ -286,6 +288,8 @@ func (c *common) GetSymbol(domain symbols.Domain, entries []*ast.IdentifierEntry
 		c.Error(entry, "symbol '%s' cannot be found", entry.Name.Token.Text)
 		return symbols.Symbol{}, false
 	}
+
+	c.CheckDeprecated(entry.Name, symbol.Node)
 
 	// Check symbol visibility
 	if crossedModuleBoundary && c.checkVisibility && !symbol.Public {
@@ -444,6 +448,40 @@ func GetScope(scope symbols.Scope, path []*ast.Leaf) (symbols.Scope, bool) {
 	}
 
 	return scope, true
+}
+
+func (c *common) CheckDeprecated(use *ast.Leaf, decl ast.Node) {
+	holder, ok := decl.(ast.AttributeHolder)
+	if !ok || use == nil || core.IsNil(decl) || use.Range().Start == use.Range().End {
+		return
+	}
+
+	attr := ast.GetAttribute[*ast.Deprecated](holder)
+	if attr == nil {
+		return
+	}
+
+	var msg string
+
+	if attr.Message == nil {
+		msg = fmt.Sprintf("'%s' is deprecated", use.Token.Text)
+	} else {
+		msg = fmt.Sprintf("'%s' is deprecated: %s", use.Token.Text, string(attr.Message.Runes))
+	}
+
+	c.diagnostics = append(c.diagnostics, core.Diagnostic{
+		Kind:    core.Warning,
+		Flags:   core.Deprecated,
+		Path:    c.path,
+		Range:   use.Range(),
+		Message: msg,
+	})
+
+	if c.sema.DeprecatedRanges == nil {
+		c.sema.DeprecatedRanges = make(map[core.Range]struct{})
+	}
+
+	c.sema.DeprecatedRanges[use.Range()] = struct{}{}
 }
 
 func (c *common) Error(node ast.Node, format string, args ...any) ExprInfo {

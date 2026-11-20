@@ -82,6 +82,8 @@ func (p *parser) parseAttribute() (ast.Attribute, int) {
 		return p.parseRepr()
 	case "cfg":
 		return p.parseCfg()
+	case "deprecated":
+		return p.parseDeprecated()
 
 	default:
 		b := &ast.BadAttribute{}
@@ -339,6 +341,41 @@ func (p *parser) parseCfg() (c *ast.Cfg, recoverId int) {
 	// ')'
 	if recoverId = p.expect(lexer.RightParen, "expected ')' after a predicate"); recoverId >= 0 {
 		return
+	}
+
+	return
+}
+
+func (p *parser) parseDeprecated() (d *ast.Deprecated, recoverId int) {
+	d = &ast.Deprecated{}
+	d.Range_.Start = p.current.Range.Start
+	defer func() {
+		d.Range_.End = p.previous.Range.End
+	}()
+
+	recoverId = -1
+
+	// 'deprecated
+	if recoverId = p.expect(lexer.Identifier, "expected 'deprecated'"); recoverId >= 0 {
+		return
+	}
+
+	// '(' Message ')'
+	if p.current.Kind == lexer.LeftParen {
+		// '('
+		if recoverId = p.expect(lexer.LeftParen, "expected '(' before deprecated message"); recoverId >= 0 {
+			return
+		}
+
+		// Message
+		if d.Message, recoverId = p.parseString(); recoverId >= 0 {
+			return
+		}
+
+		// ')'
+		if recoverId = p.expect(lexer.RightParen, "expected ')' after deprecated message"); recoverId >= 0 {
+			return
+		}
 	}
 
 	return

@@ -64,6 +64,7 @@ func (f *File) Parse(env cfg.Env) {
 
 func (f *File) resolve(ctx *sema.Context, root symbols.Scope) {
 	f.Sema.NodeTypes = make(map[ast.Node]types.Type)
+	f.Sema.DeprecatedRanges = nil
 	f.resolveDiagnostics = sema.Resolve(ctx, f.Ast, root, f.Path)
 }
 
@@ -76,42 +77,39 @@ func (f *File) analyze(ctx *sema.Context, root symbols.Scope) {
 
 func (f *File) Diagnostics() iter.Seq[core.Diagnostic] {
 	return func(yield func(core.Diagnostic) bool) {
-		seen := make(map[core.Range]any)
+		groups := [][]core.Diagnostic{
+			f.parseDiagnostics,
+			f.collisionDiagnostics,
+			f.resolveDiagnostics,
+			f.semaDiagnostics,
+			f.compTimeDiagnostics,
+		}
 
-		process := func(diagnostic core.Diagnostic) bool {
-			if _, ok := seen[diagnostic.Range]; !ok {
-				if !yield(diagnostic) {
-					return false
+		// Collect errors
+		errorRanges := make(map[core.Range]bool)
+
+		for _, group := range groups {
+			for _, d := range group {
+				if d.Kind == core.Error {
+					errorRanges[d.Range] = true
 				}
-				seen[diagnostic.Range] = nil
 			}
-
-			return true
 		}
 
-		for _, diagnostic := range f.parseDiagnostics {
-			if !process(diagnostic) {
-				return
-			}
-		}
-		for _, diagnostic := range f.collisionDiagnostics {
-			if !process(diagnostic) {
-				return
-			}
-		}
-		for _, diagnostic := range f.resolveDiagnostics {
-			if !process(diagnostic) {
-				return
-			}
-		}
-		for _, diagnostic := range f.semaDiagnostics {
-			if !process(diagnostic) {
-				return
-			}
-		}
-		for _, diagnostic := range f.compTimeDiagnostics {
-			if !process(diagnostic) {
-				return
+		// Yield diagnostics with errors having priority
+		seen := make(map[core.Range]bool)
+
+		for _, group := range groups {
+			for _, d := range group {
+				if seen[d.Range] || (d.Kind == core.Warning && errorRanges[d.Range]) {
+					continue
+				}
+
+				seen[d.Range] = true
+
+				if !yield(d) {
+					return
+				}
 			}
 		}
 	}

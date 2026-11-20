@@ -164,6 +164,7 @@ func (s *Server) Initialize(ctx context.Context, params *protocol.InitializePara
 					},
 					TokenModifiers: []string{
 						string(protocol.SemanticTokenModifiersReadonly),
+						string(protocol.SemanticTokenModifiersDeprecated),
 					},
 				},
 				Full: &protocol.SemanticTokensFullDelta{},

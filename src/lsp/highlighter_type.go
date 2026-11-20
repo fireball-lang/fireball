@@ -123,6 +123,9 @@ func (hi *highlighter) AddType(node ast.Node, typ types.Type) {
 		hi.Add(node, functionKind, 0)
 	case *types.Param:
 		hi.Add(node, genericKind, 0)
+
+	case *types.Alias:
+		hi.Add(node, typeKind, 0)
 	}
 }
 

@@ -304,9 +304,12 @@ func (a *analyzer) VisitFieldInitializerStruct(field *ast.FieldInitializer, t *t
 		return ExprInfo{Type: types.Invalid}
 	}
 
+	fieldNode := a.resolveStructFieldNode(t, field.Name.Token.Text)
+	a.CheckDeprecated(field.Name, fieldNode)
+
 	a.exprInfos[field] = ExprInfo{
 		Type: f.Type,
-		Node: a.resolveStructFieldNode(t, field.Name.Token.Text),
+		Node: fieldNode,
 	}
 
 	value := a.AnalyzeExpr(field.Value)
@@ -469,9 +472,12 @@ func (a *analyzer) VisitOffsetOf(o *ast.OffsetOf) ExprInfo {
 		if field := s.Field(o.Field.Token.Text); field == nil {
 			a.Error(o.Field, "field '%s' doesn't exist on '%s'", o.Field.Token.Text, s)
 		} else {
+			fieldNode := a.resolveStructFieldNode(s, o.Field.Token.Text)
+			a.CheckDeprecated(o.Field, fieldNode)
+
 			a.exprInfos[o] = ExprInfo{
 				Type: field.Type,
-				Node: a.resolveStructFieldNode(s, o.Field.Token.Text),
+				Node: fieldNode,
 			}
 		}
 	} else {
@@ -1014,11 +1020,15 @@ func (a *analyzer) VisitIndex(i *ast.Index) ExprInfo {
 	return a.Error(i.Expr, "expected an array, tuple, pointer or type implementing 'core::Index[T]', got '%s'", expr.Type)
 }
 
-func (a *analyzer) VisitMember(m *ast.Member) ExprInfo {
+func (a *analyzer) VisitMember(m *ast.Member) (v ExprInfo) {
 	expr := a.AnalyzeExpr(m.Expr)
 	if expr.Invalid() {
 		return ExprInfo{Type: types.Invalid}
 	}
+
+	defer func() {
+		a.CheckDeprecated(m.Name, v.Node)
+	}()
 
 	typ := expr.Type
 	address := expr.Address

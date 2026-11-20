@@ -811,6 +811,8 @@ func (c *completions) Fields(t *types.Struct, modPath []string) {
 			for _, fieldNode := range structNode.Fields {
 				if fieldNode.Name.Token.Text == field.Name {
 					item.Documentation = c.s.markup(fieldNode.Documentation)
+					item.Tags = completionTags(fieldNode)
+
 					break
 				}
 			}
@@ -1269,6 +1271,7 @@ func (c *completions) AssociatedConst(file *project.File, assoc *ast.AssociatedC
 		Label:         assoc.Name.Token.Text,
 		Detail:        protocol.NewOptional(constHoverLabel(file, "", "", assoc.Type, assoc.Value)),
 		Documentation: c.s.markup(assoc.Documentation),
+		Tags:          completionTags(assoc),
 	})
 }
 
@@ -1276,6 +1279,7 @@ func (c *completions) AssociatedType(file *project.File, assoc *ast.AssociatedTy
 	item := protocol.CompletionItem{
 		Kind:  protocol.CompletionItemKindTypeParameter,
 		Label: assoc.Name.Token.Text,
+		Tags:  completionTags(assoc),
 	}
 
 	if !core.IsNil(assoc.Type) {
@@ -1373,6 +1377,7 @@ func (c *completions) StaticMember(member sema.MemberSymbol) {
 			Kind:   protocol.CompletionItemKindEnumMember,
 			Label:  member.Symbol.Name,
 			Detail: protocol.NewOptional(member.Type.String()),
+			Tags:   completionTags(member.Symbol.Node),
 		}
 
 		if cas, ok := member.Symbol.Node.(*ast.EnumCase); ok {
@@ -1387,6 +1392,7 @@ func (c *completions) StaticMember(member sema.MemberSymbol) {
 		item := protocol.CompletionItem{
 			Kind:  protocol.CompletionItemKindEnumMember,
 			Label: member.Symbol.Name,
+			Tags:  completionTags(member.Symbol.Node),
 		}
 
 		if cas, ok := member.Symbol.Node.(*ast.UnionCase); ok {
@@ -1430,6 +1436,7 @@ func (c *completions) StaticMember(member sema.MemberSymbol) {
 			Kind:   protocol.CompletionItemKindConstant,
 			Label:  member.Symbol.Name,
 			Detail: protocol.NewOptional(member.Type.String()),
+			Tags:   completionTags(member.Symbol.Node),
 		})
 
 	// Associated type
@@ -1447,6 +1454,7 @@ func (c *completions) StaticMember(member sema.MemberSymbol) {
 		c.Add(protocol.CompletionItem{
 			Kind:  protocol.CompletionItemKindTypeParameter,
 			Label: member.Symbol.Name,
+			Tags:  completionTags(member.Symbol.Node),
 		})
 
 	default:
@@ -1572,6 +1580,7 @@ func (c *completions) Decl(file *project.File, decl ast.Decl, overrideKind proto
 	item := protocol.CompletionItem{
 		Label:         decl.Name().Token.Text,
 		Documentation: c.s.markup(decl.Documentation()),
+		Tags:          completionTags(decl),
 	}
 
 	switch decl := decl.(type) {
@@ -1629,6 +1638,19 @@ func (c *completions) Decl(file *project.File, decl ast.Decl, overrideKind proto
 	}
 
 	c.Add(item)
+}
+
+func completionTags(node ast.Node) []protocol.CompletionItemTag {
+	holder, ok := node.(ast.AttributeHolder)
+	if !ok || core.IsNil(holder) {
+		return nil
+	}
+
+	if ast.GetAttribute[*ast.Deprecated](holder) != nil {
+		return []protocol.CompletionItemTag{protocol.CompletionItemTagDeprecated}
+	}
+
+	return nil
 }
 
 func getAstTypeCompletionKind(file *project.File, typ ast.Type) protocol.CompletionItemKind {

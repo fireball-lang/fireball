@@ -145,6 +145,7 @@
 (intrinsic_attribute "intrinsic" @attribute)
 (intrinsic_attribute kind: [ "syscall" "memcpy" "memmove" "memset" ] @attribute)
 (cfg_attribute "cfg" @attribute)
+(deprecated_attribute "deprecated" @attribute)
 
 (option_cfg name: (identifier) @attribute)
 (call_cfg name: (identifier) @attribute)
