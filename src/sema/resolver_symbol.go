@@ -101,7 +101,7 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 			defer r.scopes.Pop()
 		}
 
-		t.Cases = make([]types.UnionCase, len(u.Cases))
+		t.Cases = make([]*types.UnionCase, len(u.Cases))
 
 		for i, cas := range u.Cases {
 			fields := make([]types.UnionCaseField, len(cas.Fields))
@@ -125,7 +125,9 @@ func (r *resolver) ResolveSymbol(symbol *symbols.Symbol) {
 				}
 			}
 
-			t.Cases[i] = types.UnionCase{
+			t.Cases[i] = &types.UnionCase{
+				Union:  t,
+				Index:  uint32(i),
 				Name:   cas.Name.Token.Text,
 				Fields: fields,
 			}

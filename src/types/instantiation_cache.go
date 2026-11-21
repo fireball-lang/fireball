@@ -357,7 +357,7 @@ func (c *InstantiationCache) substituteDependents(typ Type) {
 		typ.Fields = fields
 
 	case *Union:
-		cases := make([]UnionCase, len(typ.Generic.Cases))
+		cases := make([]*UnionCase, len(typ.Generic.Cases))
 
 		for i, cas := range typ.Generic.Cases {
 			fields := make([]UnionCaseField, len(cas.Fields))
@@ -369,7 +369,9 @@ func (c *InstantiationCache) substituteDependents(typ Type) {
 				}
 			}
 
-			cases[i] = UnionCase{
+			cases[i] = &UnionCase{
+				Union:  typ,
+				Index:  uint32(i),
 				Name:   cas.Name,
 				Fields: fields,
 			}

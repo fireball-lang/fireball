@@ -167,23 +167,23 @@ func testFallbackOnly() bool {
 }
 
 union MatchEvent {
-    Empty {};
     Number { value: i32 };
+    Empty;
     Pair { small: i32, wide: i64 };
 }
 
 func classifyEvent(event: MatchEvent) i32 {
     // Arm order differs from tag order; the last arm still binds a payload.
     match (event) {
-        MatchEvent::Pair {} => return 2;
-        MatchEvent::Empty {} => return 0;
+        MatchEvent::Pair => return 2;
+        MatchEvent::Empty => return -1;
         MatchEvent::Number { n: value } => return n;
     }
 }
 
 #[test("union match dispatches exhaustively in arm order")]
 func testUnionDispatch() bool {
-    return classifyEvent(MatchEvent::Empty {}) == 0
+    return classifyEvent(MatchEvent::Empty) == -1
         && classifyEvent(MatchEvent::Number { value: 47 }) == 47
         && classifyEvent(MatchEvent::Pair { small: 13, wide: 29 }) == 2;
 }
@@ -215,12 +215,14 @@ func testUnionFallback() bool {
 union MatchBox[T] {
     Empty {};
     Value { value: T };
+    Pair { marker: u8, value: T };
 }
 
 func unpackMatchBox[T](box: MatchBox[T], fallback: T) T {
     match (box) {
+        MatchBox:[T]::Empty => return fallback;
+        MatchBox:[T]::Pair { item: value } => return item;
         MatchBox:[T]::Value { item: value } => return item;
-        MatchBox:[T]::Empty {} => return fallback;
     }
 }
 
@@ -228,8 +230,11 @@ func unpackMatchBox[T](box: MatchBox[T], fallback: T) T {
 func testUnionGenericBinding() bool {
     var small = MatchBox:[i32]::Value { value: -37 };
     var large = MatchBox:[i64]::Value { value: 0x1020304050607080 as i64 };
+    var pair = MatchBox:[i64]::Pair { marker: 5u, value: 0x1122334455667788 as i64 };
     return unpackMatchBox:[i32](small, 0) == -37
-        && unpackMatchBox:[i64](large, 0) == (0x1020304050607080 as i64);
+        && unpackMatchBox:[i64](large, 0) == (0x1020304050607080 as i64)
+        && unpackMatchBox:[i64](pair, 0) == (0x1122334455667788 as i64)
+        && unpackMatchBox:[i32](MatchBox:[i32]::Empty, 71) == 71;
 }
 
 #[test("union match bindings are copies of the payload")]

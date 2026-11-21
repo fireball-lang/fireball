@@ -245,7 +245,7 @@ func (c *Codegen) EmitCmpPatterns(valueExpr ast.Expr, value ir.Value, typ types.
 		case *sema.ExprPattern:
 			return c.EmitCmpExprPattern(valueExpr, value, typ, pattern)
 		case *sema.UnionPattern:
-			return c.EmitCmpUnionPattern(value, typ.(*types.Union), pattern)
+			return c.EmitCmpUnionPattern(value, pattern)
 		default:
 			panic("codegen.Codegen.EmitCmpPatterns - Invalid pattern")
 		}
@@ -316,21 +316,8 @@ func (c *Codegen) EmitCmpExprPattern(valueExpr ast.Expr, value ir.Value, typ typ
 	panic("codegen.Codegen.EmitCmpPattern - Invalid type")
 }
 
-func (c *Codegen) EmitCmpUnionPattern(value ir.Value, typ *types.Union, pattern *sema.UnionPattern) ir.Value {
-	i := -1
-
-	for j := range typ.Cases {
-		if typ.Cases[j].Name == pattern.Case.Name {
-			i = j
-			break
-		}
-	}
-
-	if i == -1 {
-		panic("codegen.Codegen.EmitCmpUnionPattern() - Invalid pattern case")
-	}
-
-	patternValue := &ir.Integer{Typ: value.Type(), Value: core.Unsigned(false, uint64(i))}
+func (c *Codegen) EmitCmpUnionPattern(value ir.Value, pattern *sema.UnionPattern) ir.Value {
+	patternValue := &ir.Integer{Typ: value.Type(), Value: core.Unsigned(false, uint64(pattern.Case.Index))}
 	return c.Emitter.ICmp(ir.Eq, false, value, patternValue)
 }
 
@@ -364,10 +351,8 @@ func (c *Codegen) EmitUnionBindings(typ *types.Union, storage ir.Value, pattern 
 
 	var payload ir.StructLikeType
 
-	if len(pattern.Case.Fields) > 1 {
-		underlying := typ.Underlying().(*types.Struct)
-		data := underlying.Field("data").Type.(*types.Struct)
-		payload = c.Types.Get(data.Field(pattern.Case.Name).Type).(ir.StructLikeType)
+	if cas := typ.Cases[pattern.Case.Index]; len(cas.Fields) > 1 {
+		payload = c.Types.Get(cas.PayloadType()).(ir.StructLikeType)
 	}
 
 	for _, binding := range pattern.Bindings {

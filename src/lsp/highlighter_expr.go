@@ -170,7 +170,7 @@ func (hi *highlighter) VisitIdentifier(i *ast.Identifier) int {
 		case symbols.TypeParam:
 			hi.Add(entry, genericKind, 0)
 
-		case symbols.EnumCase:
+		case symbols.EnumCase, symbols.UnionCase:
 			hi.Add(entry, enumMemberKind, 0)
 
 		case symbols.Param:

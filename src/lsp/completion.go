@@ -1069,8 +1069,8 @@ func (c *completions) UnionInitializerFields(initializer *ast.StructInitializer,
 		return false
 	}
 
-	cas, ok := union.Case(caseNode.Name.Token.Text)
-	if !ok {
+	cas := union.Case(caseNode.Name.Token.Text)
+	if cas == nil {
 		return false
 	}
 

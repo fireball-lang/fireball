@@ -408,7 +408,7 @@ func (p *parser) parseUnionCase() (u *ast.UnionCase, recoverId int) {
 	}
 
 	// '{' Fields '}'
-	{
+	if p.current.Kind == lexer.LeftBrace {
 		// '{'
 		if recoverId = p.expect(lexer.LeftBrace, "expected '{' before union case fields"); recoverId >= 0 {
 			return

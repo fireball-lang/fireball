@@ -1,6 +1,7 @@
 package codegen
 
 import (
+	"fireball/core"
 	"fireball/ir"
 	"fireball/types"
 )
@@ -216,6 +217,75 @@ func (s *StructBuilder) Build() ir.Value {
 	}
 
 	return structValue
+}
+
+// Union Builder
+
+type UnionBuilder struct {
+	c      *Codegen
+	cas    *types.UnionCase
+	fields map[string]ir.Value
+}
+
+func (c *Codegen) Union(cas *types.UnionCase) UnionBuilder {
+	return UnionBuilder{
+		c:   c,
+		cas: cas,
+	}
+}
+
+func (u *UnionBuilder) Set(name string, value ir.Value) {
+	if u.fields == nil {
+		u.fields = make(map[string]ir.Value)
+	}
+
+	u.fields[name] = value
+}
+
+func (u *UnionBuilder) Build() ir.Value {
+	c, cas := u.c, u.cas
+	typ := cas.Union
+
+	underlying := typ.Underlying().(*types.Struct)
+
+	dataField := underlying.Field("data")
+	if dataField == nil {
+		panic("codegen.UnionBuilder.Build() - Failed to find 'data' field")
+	}
+
+	dataType := dataField.Type.(*types.Struct)
+	data := c.Struct(dataType)
+
+	if len(cas.Fields) > 0 {
+		var payload ir.Value
+
+		if len(cas.Fields) == 1 {
+			payload = u.fields[cas.Fields[0].Name]
+		} else {
+			builder := c.Struct(cas.PayloadType().(*types.Struct))
+
+			for name, value := range u.fields {
+				builder.Set(name, value)
+			}
+
+			payload = builder.Build()
+		}
+
+		dataIR := c.Types.Get(dataType).(*ir.StructType)
+		data.Set(cas.Name, c.BitCast(payload, dataIR.Fields[1].Type))
+	}
+
+	tag := &ir.Integer{
+		Typ:   c.Types.Get(typ.TagType()),
+		Value: core.Unsigned(false, uint64(cas.Index)),
+	}
+
+	result := c.Struct(underlying)
+
+	result.Set("tag", tag)
+	result.Set("data", data.Build())
+
+	return result.Build()
 }
 
 // Global Var

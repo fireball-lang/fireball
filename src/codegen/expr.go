@@ -89,51 +89,22 @@ func (c *Codegen) VisitStructInitializerStruct(s *ast.StructInitializer, typ *ty
 
 func (c *Codegen) VisitStructInitializerUnion(s *ast.StructInitializer, typ *types.Union) ir.Value {
 	node := c.ExprInfo(s).Node.(*ast.UnionCase)
-	decl := node.Parent().(*ast.Union)
-	caseIndex := slices.Index(decl.Cases, node)
+	cas := typ.Case(node.Name.Token.Text)
 
-	if caseIndex < 0 {
-		panic("codegen.VisitStructInitializerUnion() - Invalid case")
-	}
+	b := c.Union(cas)
 
-	cas := &typ.Cases[caseIndex]
-	underlying := typ.Underlying().(*types.Struct)
-	dataType := underlying.Field("data").Type.(*types.Struct)
+	for _, field := range s.Fields {
+		name := field.Name.Token.Text
 
-	data := c.Struct(dataType)
-
-	if len(cas.Fields) > 0 {
-		var payload ir.Value
-
-		if len(cas.Fields) == 1 {
-			payload = c.LoadImplicitCast(s.Fields[0].Value, cas.Fields[0].Type)
-		} else {
-			payloadType := dataType.Field(cas.Name).Type.(*types.Struct)
-			builder := c.Struct(payloadType)
-
-			for _, field := range s.Fields {
-				fieldType := cas.Field(field.Name.Token.Text).Type
-				value := c.LoadImplicitCast(field.Value, fieldType)
-				builder.Set(field.Name.Token.Text, value)
-			}
-
-			payload = builder.Build()
+		caseField := cas.Field(name)
+		if caseField == nil {
+			panic("codegen.Codegen.VisitStructInitializerUnion() - Failed to find '" + name + "' case field")
 		}
 
-		dataIR := c.Types.Get(dataType).(*ir.StructType)
-		storage := c.BitCast(payload, dataIR.Fields[1].Type)
-		data.Set(cas.Name, storage)
+		b.Set(name, c.LoadImplicitCast(field.Value, caseField.Type))
 	}
 
-	tag := &ir.Integer{
-		Typ:   c.Types.Get(typ.TagType()),
-		Value: core.Unsigned(false, uint64(caseIndex)),
-	}
-
-	result := c.Struct(underlying)
-	result.Set("tag", tag)
-	result.Set("data", data.Build())
-	return result.Build()
+	return b.Build()
 }
 
 func (c *Codegen) VisitWith(w *ast.With) ir.Value {
@@ -690,6 +661,13 @@ func (c *Codegen) VisitIdentifier(i *ast.Identifier) ir.Value {
 			Typ:   c.Types.Get(typ),
 			Value: value,
 		}
+
+	case *ast.UnionCase:
+		typ := c.ExprType(i).(*types.Union)
+		cas := typ.Case(node.Name.Token.Text)
+
+		ub := c.Union(cas)
+		return ub.Build()
 
 	case *ast.Param:
 		return c.scope.Get(node.Name.Token.Text)

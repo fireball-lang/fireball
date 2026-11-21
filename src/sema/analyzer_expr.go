@@ -232,15 +232,15 @@ func (a *analyzer) VisitStructInitializerStruct(s *ast.StructInitializer, typ *t
 }
 
 func (a *analyzer) VisitStructInitializerUnion(s *ast.StructInitializer, typ *types.Union, node *ast.UnionCase) ExprInfo {
-	cas, ok := typ.Case(node.Name.Token.Text)
-	if !ok {
+	cas := typ.Case(node.Name.Token.Text)
+	if cas == nil {
 		panic(fmt.Sprintf("sema.analyzer.VisitStructInitializerUnion() - Failed to find union case '%s::%s'", typ, node.Name.Token.Text))
 	}
 
 	compTime := true
 
 	for _, field := range s.Fields {
-		value := a.VisitFieldInitializerUnion(field, typ, node)
+		value := a.VisitFieldInitializerUnion(field, cas, node)
 		compTime = compTime && value.CompTime
 	}
 
@@ -322,19 +322,19 @@ func (a *analyzer) VisitFieldInitializerStruct(field *ast.FieldInitializer, t *t
 	return value
 }
 
-func (a *analyzer) VisitFieldInitializerUnion(field *ast.FieldInitializer, u *types.Union, node *ast.UnionCase) ExprInfo {
-	c, _ := u.Case(node.Name.Token.Text)
-	f := c.Field(field.Name.Token.Text)
+func (a *analyzer) VisitFieldInitializerUnion(field *ast.FieldInitializer, cas *types.UnionCase, node *ast.UnionCase) ExprInfo {
+	name := field.Name.Token.Text
+	f := cas.Field(name)
 
 	if f == nil {
-		a.Error(field.Name, "field '%s' doesn't exist on union case '%s::%s'", field.Name.Token.Text, u, c.Name)
+		a.Error(field.Name, "field '%s' doesn't exist on union case '%s::%s'", name, cas.Union, cas.Name)
 		a.AnalyzeExpr(field.Value)
 		return ExprInfo{Type: types.Invalid}
 	}
 
 	a.exprInfos[field] = ExprInfo{
 		Type: f.Type,
-		Node: node.Field(field.Name.Token.Text),
+		Node: node.Field(name),
 	}
 
 	value := a.AnalyzeExpr(field.Value)
@@ -902,6 +902,17 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 		}
 
 	case symbols.UnionCase:
+		// Simple
+		if len(symbol.Node.(*ast.UnionCase).Fields) == 0 {
+			return ExprInfo{
+				Type:     symbol.Type,
+				Node:     symbol.Node,
+				Symbol:   symbol.Kind,
+				CompTime: true,
+			}
+		}
+
+		// Fields
 		var sb strings.Builder
 
 		for j, entry := range i.Path {
@@ -912,7 +923,7 @@ func (a *analyzer) VisitIdentifier(i *ast.Identifier) ExprInfo {
 			sb.WriteString(entry.Name.Token.Text)
 		}
 
-		return a.Error(i, "union case '%s' needs to be initialized with { }", sb.String())
+		return a.Error(i, "union case with fields '%s' needs to be initialized with { }", sb.String())
 
 	case symbols.Struct, symbols.Enum, symbols.Union, symbols.Interface, symbols.TypeParam:
 		return a.Error(i, "symbol '%s' is a type and cannot be used as an expression", i.Path[len(i.Path)-1].Name.Token.Text)

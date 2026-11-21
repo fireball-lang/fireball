@@ -9,7 +9,7 @@ type Union struct {
 	Name       string
 	ModulePath []string
 	TypeParams []*Param
-	Cases      []UnionCase
+	Cases      []*UnionCase
 
 	Generic       *Union
 	Substitutions []Substitution
@@ -18,6 +18,9 @@ type Union struct {
 }
 
 type UnionCase struct {
+	Union *Union
+	Index uint32
+
 	Name   string
 	Fields []UnionCaseField
 }
@@ -34,21 +37,46 @@ func (u *UnionCase) Field(name string) *UnionCaseField {
 	return nil
 }
 
+func (u *UnionCase) PayloadType() Type {
+	switch len(u.Fields) {
+	case 0:
+		return nil
+
+	case 1:
+		return u.Fields[0].Type
+
+	default:
+		underlying := u.Union.Underlying().(*Struct)
+
+		dataField := underlying.Field("data")
+		if dataField == nil {
+			panic("types.UnionCase.PayloadType() - Failed to find 'data' underlying field")
+		}
+
+		data := dataField.Type.(*Struct)
+
+		caseField := data.Field(u.Name)
+		if caseField == nil {
+			panic("types.UnionCase.PayloadType() - Failed to find '" + u.Name + "' underlying case field")
+		}
+
+		return caseField.Type
+	}
+}
+
 type UnionCaseField struct {
 	Name string
 	Type Type
 }
 
-func (u *Union) Case(name string) (*UnionCase, bool) {
-	for i := 0; i < len(u.Cases); i++ {
-		cas := &u.Cases[i]
-
-		if cas.Name == name {
-			return cas, true
+func (u *Union) Case(name string) *UnionCase {
+	for _, c := range u.Cases {
+		if c.Name == name {
+			return c
 		}
 	}
 
-	return nil, false
+	return nil
 }
 
 func (u *Union) GetTypeParams() []*Param {

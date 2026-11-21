@@ -56,51 +56,68 @@ func (a *analyzer) AnalyzePattern(value ExprInfo, expr ast.Expr, union *types.Un
 	}
 
 	// Union
-	if init, ok := expr.(*ast.StructInitializer); ok && union != nil {
-		// Case
-		astInitType, ok := init.Type.(*ast.IdentifierType)
-		if !ok {
-			a.Error(init.Type, "union pattern needs an identifier type")
+	if union != nil {
+		var path []*ast.IdentifierEntry
+		var fields []*ast.FieldInitializer
+		var target ast.Node = expr
+
+		switch p := expr.(type) {
+		case *ast.Identifier:
+			path = p.Path
+
+		case *ast.StructInitializer:
+			t, ok := p.Type.(*ast.IdentifierType)
+			if !ok {
+				a.Error(p.Type, "union pattern needs an identifier type")
+				return &BadPattern{}
+			}
+
+			if t.Mutable {
+				a.Error(t, "union type '%s' cannot be mutable", t)
+			}
+
+			path = t.Path
+			fields = p.Fields
+			target = t
+
+		default:
+			a.Error(expr, "invalid match pattern for a union value")
 			return &BadPattern{}
 		}
 
-		symbol, ok := a.GetSymbol(symbols.Variable, astInitType.Path)
+		symbol, ok := a.GetSymbol(symbols.Variable, path)
 		if !ok {
 			return &BadPattern{}
 		}
 
 		if symbol.Kind != symbols.UnionCase {
-			a.Error(init.Type, "union pattern needs an union case")
+			a.Error(target, "expected a union case")
 			return &BadPattern{}
-		}
-
-		if astInitType.Mutable {
-			a.Error(init.Type, "union type '%s' cannot be mutable", init.Type)
 		}
 
 		valueUnion := symbol.Type.(*types.Union)
 		if !union.Equals(valueUnion) {
-			a.Error(init.Type, "union pattern type needs to match value, got '%s', expected '%s'", valueUnion, union)
+			a.Error(target, "union pattern type needs to match value, got '%s', expected '%s'", valueUnion, union)
 			return &BadPattern{}
 		}
 
 		caseNode := symbol.Node.(*ast.UnionCase)
 		caseName := caseNode.Name.Token.Text
-		cas, ok := union.Case(caseName)
-		if !ok {
-			panic(fmt.Sprintf("sema.analyzer.VisitStructInitializerUnion() - Failed to find union case '%s::%s'", union, caseName))
+		cas := union.Case(caseName)
+		if cas == nil {
+			panic(fmt.Sprintf("sema.analyzer.AnalyzePattern() - Failed to find union case '%s::%s'", union, caseName))
 		}
 
-		a.exprInfos[init] = ExprInfo{
+		a.exprInfos[expr] = ExprInfo{
 			Type:   union,
 			Node:   caseNode,
 			Symbol: symbols.UnionCase,
 		}
 
 		// Bindings
-		bindings := make([]Binding, 0, len(init.Fields))
+		bindings := make([]Binding, 0, len(fields))
 
-		for _, field := range init.Fields {
+		for _, field := range fields {
 			ident, ok := field.Value.(*ast.Identifier)
 			if !ok || len(ident.Path) != 1 {
 				a.Error(field.Value, "target of an union case binding needs to be a single identifier")
